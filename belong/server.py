@@ -70,6 +70,8 @@ class _Handler(BaseHTTPRequestHandler):
         if path == "/api/state":
             with SESSION.lock:
                 return self._json(200, SESSION.state())
+        if path.startswith("/ds/"):
+            return self._design_file(path.removeprefix("/ds/"))
         if path.startswith("/api/trust/"):
             return self._trust_get(path.removeprefix("/api/trust/"))
         if path == "/api/options":
@@ -81,6 +83,16 @@ class _Handler(BaseHTTPRequestHandler):
         if route is None or not route[0].exists():
             return self.send_error(404)
         self._send(200, route[0].read_bytes(), route[1])
+
+    def _design_file(self, rel: str):
+        """Belong design system files (tokens, components, fonts). Fixed list, no paths from the URL."""
+        files = {"tokens.css": "text/css; charset=utf-8", "belong.css": "text/css; charset=utf-8",
+                 "theme-dark.css": "text/css; charset=utf-8"}
+        files.update({f"fonts/{f.name}": "font/woff2" for f in (WEB / "ds" / "fonts").glob("*.woff2")})
+        ctype = files.get(rel)
+        if ctype is None:
+            return self.send_error(404)
+        self._send(200, (WEB / "ds" / rel).read_bytes(), ctype)
 
     def _query(self) -> dict:
         from urllib.parse import parse_qs, urlparse
