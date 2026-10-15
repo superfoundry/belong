@@ -238,7 +238,7 @@ const SCREENS = {
         <div class="form-row"><label class="field-label" for="name-${slot}">First name</label><input class="input" id="name-${slot}" value="${esc(L.form.name ?? sc.name ?? "")}" oninput="local['${slot}'].form.name=this.value"></div>
         <div class="form-row"><label class="field-label" for="age-${slot}">Age</label><input class="input" id="age-${slot}" type="number" min="18" max="99" value="${esc(L.form.age ?? sc.age ?? "")}" oninput="local['${slot}'].form.age=this.value"></div>
         <div style="margin-top: var(--space-6)"><button class="btn block" onclick="verify('${slot}')">Verify with the ID provider</button></div>
-        <p class="caption" style="margin: var(--space-3) 0 0; text-align: center"><span class="connect-agent" aria-disabled="true" title="Coming soon">Connect your agent</span></p>
+        <p class="caption" style="margin: var(--space-3) 0 0; text-align: center"><span class="connect-agent" aria-disabled="true" title="Coming soon">Connect your own agent</span></p>
       </div>`;
   },
 
