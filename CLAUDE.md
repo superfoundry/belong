@@ -1,0 +1,67 @@
+# Belong: working rules for every coding session
+
+Read SPEC.md (the product spec) and TRUST.md (how each privacy promise is enforced
+and tested) before changing code.
+
+## Priorities (in order; the higher one wins a conflict)
+
+1. Perfect privacy
+2. No spam, no fakes
+3. Efficiency
+
+## Rules that must never break
+
+- **The room has no way out.** Code in `belong/matching/` imports only `re`, `math`,
+  `collections`, `dataclasses`, `typing`, `unicodedata` and `belong.schema`. No network, files,
+  logging, print, subprocess. `tests/test_isolation.py` enforces this.
+- **Only the Warden creates outputs.** Introduction / FollowUpOut / Reveal need the
+  private seal in `belong/warden.py`. Never reference `_SEAL` elsewhere.
+- **The Warden checks; it never decides who matches.** Its checks are fixed rules,
+  no AI judgment.
+- **Hidden fields:** never the only reason (qualifying logic gets a `ShownView`);
+  only counts in a crowd (k = 20); never in the reason (the Warden writes reasons
+  from templates using fields both people show); mutual reveal only with both opt-ins.
+- **Tests fail on any leak.** Never weaken a test, an audit in `belong/leaks.py`, or
+  a Warden check to make something pass. If a change needs a new output type, add a
+  Warden exit check *and* a leak audit for it.
+- **leaks.py stays independent of warden.py.** Don't import Warden helpers into it.
+- **Open-source Warden, hostile Matchmaker.** Files in `OPEN_SOURCE` (belong/attest.py)
+  are published; they must never import `MATCHMAKER_FILES` (tests/test_trust.py enforces
+  this). The privacy guarantee must never depend on the Matchmaker: treat it as hostile,
+  and add an attack to belong/probe.py for any new way it could misbehave.
+- **The receipt log is append-only and hash-chained.** Never rewrite or drop receipts.
+- **Phones see only what their person may know** (`DemoSession.phone_state`). Matching
+  internals go only to the presenter panel.
+- **Don't overclaim.** "Not even Belong can access it" needs the Step 3 enclave work
+  (see TRUST.md §5). Pages and docs must keep saying what is simulated.
+
+## How we talk about it (user-facing copy)
+
+- "The locked room" is an internal metaphor only. Never show it to users: no "room" in
+  page copy, agent messages, API responses, published (open-source) files or TRUST.md.
+  Talk about trust and security instead: hidden details, the Warden's checks, what is
+  shown and what is never shown.
+- Don't describe the Matchmaker as proprietary or closed. Do say we treat it as hostile.
+- Internal code comments may still say "the room" as shorthand.
+
+## Documentation
+
+When you add or change a privacy promise, update TRUST.md in the same change:
+the promise in plain English, the code that enforces it, and the test that proves it.
+Module docstrings say which SPEC section they implement.
+
+## Commands
+
+```bash
+python3 -m unittest -v      # all tests
+python3 -m belong run       # 300-person simulation + leak report (exit 1 on leak)
+python3 -m belong serve     # demo /, trust page /trust, inspector /inspector on localhost:8000
+```
+
+Pure standard library: don't add dependencies without asking. The one exception is the
+optional `anthropic` package (requirements.txt), used only by belong/agent_llm.py. The OpenAI
+agent (belong/agent_openai.py) uses the standard library. Agent choice: OPENAI_API_KEY ->
+OpenAI, else Claude if configured, else rules (BELONG_AGENT overrides). Keys live in `.env`
+(git-ignored, loaded by `python3 -m belong serve`); never write a key into the repo. Every
+model-powered agent must route drafts through `build_draft`. Tests never call the network: construct
+`DemoSession(..., agent=None)` or pass a scripted stub client (see tests/test_agent_llm.py).

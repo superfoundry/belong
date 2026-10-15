@@ -1,0 +1,191 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Belong Inspector</title>
+<style>
+  :root {
+    --bg: #f7f6f3; --surface: #ffffff; --text: #1d1c1a; --muted: #6b6862; --line: #e4e1da;
+    --accent: #3b5bdb; --ok: #2b8a3e; --ok-bg: #ebfbee; --bad: #c92a2a; --bad-bg: #fff5f5;
+    --hidden-bg: #f1effa; --hidden: #5f3dc4; --mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #161614; --surface: #1f1f1c; --text: #ecebe7; --muted: #9d9a93; --line: #34332f;
+      --accent: #91a7ff; --ok: #69db7c; --ok-bg: #12261a; --bad: #ff8787; --bad-bg: #2c1515;
+      --hidden-bg: #251f3a; --hidden: #b197fc;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text);
+         font: 15px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+  header { padding: 20px 16px 0; max-width: 1200px; margin: 0 auto; }
+  h1 { font-size: 20px; margin: 0 0 2px; }
+  .sub { color: var(--muted); margin: 0 0 14px; }
+  nav { display: flex; gap: 4px; flex-wrap: wrap; border-bottom: 1px solid var(--line); }
+  nav button { background: none; border: 0; padding: 8px 12px; font: inherit; color: var(--muted);
+               cursor: pointer; border-bottom: 2px solid transparent; }
+  nav button.on { color: var(--text); border-bottom-color: var(--accent); }
+  main { max-width: 1200px; margin: 0 auto; padding: 16px; }
+  section { display: none; } section.on { display: block; }
+  .card { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 16px; margin-bottom: 14px; }
+  .banner { border-radius: 10px; padding: 14px 16px; margin-bottom: 14px; font-weight: 600; }
+  .banner.ok { background: var(--ok-bg); color: var(--ok); } .banner.bad { background: var(--bad-bg); color: var(--bad); }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
+  .stat .n { font-size: 24px; font-weight: 650; } .stat .l { color: var(--muted); font-size: 13px; }
+  table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  th, td { text-align: left; padding: 7px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { color: var(--muted); font-weight: 500; font-size: 13px; }
+  .scroll { overflow-x: auto; }
+  .pill { display: inline-block; padding: 1px 8px; border-radius: 99px; font-size: 12px; margin: 1px 2px 1px 0;
+          border: 1px solid var(--line); }
+  .pill.hidden { background: var(--hidden-bg); color: var(--hidden); border-color: transparent; }
+  .pill.ok { background: var(--ok-bg); color: var(--ok); border-color: transparent; }
+  .pill.bad { background: var(--bad-bg); color: var(--bad); border-color: transparent; }
+  .muted { color: var(--muted); } .mono { font-family: var(--mono); font-size: 12px; }
+  input[type=search] { width: 100%; max-width: 360px; padding: 8px 10px; border: 1px solid var(--line);
+                       border-radius: 8px; background: var(--surface); color: var(--text); font: inherit; margin-bottom: 10px; }
+  .views { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  @media (max-width: 700px) { .views { grid-template-columns: 1fr; } }
+  .view { border: 1px solid var(--line); border-radius: 8px; padding: 10px; }
+  .view h4 { margin: 0 0 6px; font-size: 13px; color: var(--muted); font-weight: 500; }
+  .note { font-size: 13px; color: var(--muted); }
+  h2 { font-size: 16px; margin: 0 0 10px; }
+</style>
+</head>
+<body>
+<script src="/nav.js"></script>
+<header>
+  <h1>Belong prototype inspector</h1>
+  <p class="sub" id="meta">Loading run…</p>
+  <nav id="tabs"></nav>
+</header>
+<main>
+  <section id="overview"></section>
+  <section id="people"></section>
+  <section id="intros"></section>
+  <section id="room"></section>
+  <section id="followups"></section>
+  <section id="receipts"></section>
+</main>
+<script>
+const TABS = [
+  ["overview", "Trust report"], ["people", "People"], ["intros", "Introductions (what left)"],
+  ["room", "Internal proposals"], ["followups", "Follow-ups & reveals"], ["receipts", "Receipts"],
+];
+const AUDITS = {
+  A1: "Introductions show only fields their owner marked shown",
+  A2: "No hidden value appears in any introduction",
+  A3: "Follow-up questions are fixed-menu only",
+  A4: "Reveals only between connected people who both opted in",
+  A5: "Receipts carry no content",
+  R1: "Every match is justified by shown fields alone",
+  R2: "Hidden values count only when at least k people share them",
+  R3: "Nobody exceeds the weekly approach limit",
+};
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const val = v => Array.isArray(v) ? v.join(", ") : v;
+const $ = id => document.getElementById(id);
+
+function tabs() {
+  $("tabs").innerHTML = TABS.map(([id, label]) => `<button data-t="${id}">${label}</button>`).join("");
+  $("tabs").onclick = e => { if (e.target.dataset.t) show(e.target.dataset.t); };
+  let start = "overview";
+  try { start = localStorage.getItem("belong-tab") || start; } catch (_) {}
+  show(start);
+}
+function show(id) {
+  document.querySelectorAll("nav button").forEach(b => b.classList.toggle("on", b.dataset.t === id));
+  document.querySelectorAll("section").forEach(s => s.classList.toggle("on", s.id === id));
+  try { localStorage.setItem("belong-tab", id); } catch (_) {}
+}
+function fieldPills(fields) {
+  return fields.map(f => `<span class="pill ${f.visibility === "hidden" ? "hidden" : ""}" title="${f.visibility}${f.sensitive ? ", sensitive" : ""}">${f.visibility === "hidden" ? "🔒 " : ""}${esc(f.key)}: ${esc(val(f.value))}</span>`).join("");
+}
+function filterable(sectionId, rowsHtml, headHtml, placeholder) {
+  const s = $(sectionId);
+  s.insertAdjacentHTML("beforeend", `<input type="search" placeholder="${placeholder}"><div class="card scroll"><table><thead>${headHtml}</thead><tbody>${rowsHtml}</tbody></table></div>`);
+  const input = s.querySelector("input[type=search]");
+  input.oninput = () => {
+    const q = input.value.toLowerCase();
+    s.querySelectorAll("tbody tr").forEach(tr => tr.style.display = tr.textContent.toLowerCase().includes(q) ? "" : "none");
+  };
+}
+
+function render(d) {
+  const m = d.metrics, lr = d.leak_report;
+  $("meta").textContent = `${d.meta.n} synthetic people · seed ${d.meta.seed} · ${d.meta.matcher} · k = ${d.meta.k_crowd} · approach limit ${d.meta.approach_limit}/week`;
+  const people = Object.fromEntries(d.people.map(p => [p.id, p]));
+  const name = id => { const f = (people[id]?.fields || []).find(f => f.key === "first_name"); return `${f ? esc(f.value) + " " : ""}<span class="muted mono">${id}</span>`; };
+
+  // Trust report
+  const byAudit = {};
+  lr.findings.forEach(f => (byAudit[f.audit] = byAudit[f.audit] || []).push(f.detail));
+  $("overview").innerHTML = `
+    <div class="banner ${lr.ok ? "ok" : "bad"}">${lr.ok ? "✓ Leak report passed: no hidden detail was revealed." : `✗ Leak report failed: ${lr.findings.length} finding(s).`}</div>
+    <div class="card"><h2>What was checked</h2>
+      <p class="note">An independent audit (belong/leaks.py) re-reads every output that was sent out. It does not reuse the Warden's code.</p>
+      <table><thead><tr><th>Audit</th><th>Promise</th><th>Result</th></tr></thead><tbody>
+      ${Object.entries(AUDITS).map(([k, t]) => `<tr><td class="mono">${k}</td><td>${t}</td><td>${byAudit[k] ? `<span class="pill bad">${byAudit[k].length} finding(s)</span><div class="note">${byAudit[k].slice(0,5).map(esc).join("<br>")}</div>` : `<span class="pill ok">pass</span>`}</td></tr>`).join("")}
+      </tbody></table>
+      <p class="note">Scanned ${lr.checked.views} introduction views, ${lr.checked.followups} follow-ups, ${lr.checked.reveals} reveals, ${lr.checked.receipts} receipts, and ${lr.checked.proposals} internal proposals, watching ${lr.checked.hidden_values_watched} distinct hidden values.</p>
+    </div>
+    <div class="card"><h2>Match quality (graded against ground truth the Matchmaker never sees)</h2>
+      <div class="grid">
+        ${[["Admitted", m.admitted], ["Proposals", m.proposals], ["Precision", m.precision], ["Coverage", m.coverage],
+           ["Introductions", m.introductions], ["Connections", m.connections], ["Mutual reveals", m.reveals],
+           ["Used a hidden field", m.proposals_using_hidden_fields]].map(([l, n]) => `<div class="stat"><div class="n">${n ?? "–"}</div><div class="l">${l}</div></div>`).join("")}
+      </div>
+      <p class="note">Precision: share of proposals where both people's real intents are met. Coverage: share of people who had at least one truly compatible partner and got a proposal. Rejected at entry: ${esc(JSON.stringify(m.entry_rejections))}.</p>
+      <div class="scroll"><table><thead><tr><th>Kind</th><th>People</th><th>Matchable</th><th>Proposals</th><th>Precision</th><th>Coverage</th></tr></thead><tbody>
+      ${Object.entries(m.by_kind).map(([k, v]) => `<tr><td>${k}</td><td>${v.people}</td><td>${v.matchable}</td><td>${v.proposals}</td><td>${v.precision ?? "–"}</td><td>${v.coverage ?? "–"}</td></tr>`).join("")}
+      </tbody></table></div>
+    </div>`;
+
+  // People
+  $("people").innerHTML = `<p class="note">Everything each person put in their listing. 🔒 = hidden: used only for matching, never shown to anyone.</p>`;
+  filterable("people", d.people.map(p => `<tr>
+      <td>${name(p.id)}</td><td>${p.kind}</td>
+      <td>${p.admitted ? '<span class="pill ok">admitted</span>' : `<span class="pill bad">rejected</span><div class="note">${p.entry_problems.map(esc).join("<br>")}</div>`}</td>
+      <td>${esc(p.intent_text)}<div class="note">exactness ${p.exactness}</div></td>
+      <td>${fieldPills(p.fields)}</td></tr>`).join(""),
+    "<tr><th>Person</th><th>Kind</th><th>Entry</th><th>Intent</th><th>Listing</th></tr>", "Filter people…");
+
+  // Introductions
+  const yn = v => v === true ? '<span class="pill ok">yes</span>' : v === false ? '<span class="pill">no</span>' : "–";
+  const viewHtml = (v, who) => `<div class="view"><h4>What ${who} sees</h4>${Object.entries(v.fields).map(([k, x]) => `<span class="pill">${esc(k)}: ${esc(val(x))}</span>`).join("")}<p>${esc(v.reason)}</p></div>`;
+  $("intros").innerHTML = `<p class="note">These are the only match outputs that were sent out. Each view shows the other person's shown fields and a reason built only from fields both of them show.</p>
+    ${d.introductions.map(i => `<div class="card"><div><b>${i.intro_id}</b> · ${name(i.person_a)} ↔ ${name(i.person_b)} · A said ${yn(i.a_said_yes)} B said ${yn(i.b_said_yes)}</div>
+      <div class="views">${viewHtml(i.a_view, "A")}${viewHtml(i.b_view, "B")}</div></div>`).join("")}`;
+
+  // Internal proposals
+  $("room").innerHTML = `<p class="note">Internal proposals: in production these are never sent to anyone. Shown here only because the data is synthetic.</p>`;
+  filterable("room", d.proposals_internal.map(p => `<tr><td>${name(p.person_a)}</td><td>${name(p.person_b)}</td>
+      <td>${p.score}</td><td>${p.shown_score} ≥ ${p.shown_threshold}</td>
+      <td>${p.reason_fields.map(k => `<span class="pill">${k}</span>`).join("")}</td>
+      <td>${p.used_hidden_fields.map(k => `<span class="pill hidden">🔒 ${k}</span>`).join("") || '<span class="muted">none</span>'}</td>
+      <td>${p.truly_compatible ? '<span class="pill ok">yes</span>' : '<span class="pill bad">no</span>'}</td></tr>`).join(""),
+    "<tr><th>A</th><th>B</th><th>Score</th><th>Shown-only score ≥ threshold</th><th>Reason fields</th><th>Hidden fields that raised it</th><th>Truly compatible</th></tr>", "Filter proposals…");
+
+  // Follow-ups and reveals
+  $("followups").innerHTML = `<div class="card"><h2>Follow-up questions (${d.followups.length})</h2><p class="note">The Matchmaker can only pick from a fixed menu; the Warden attaches the wording.</p>
+    <div class="scroll"><table><thead><tr><th>To</th><th>Question</th></tr></thead><tbody>${d.followups.map(f => `<tr><td>${name(f.person_id)}</td><td>${esc(f.question_text)}</td></tr>`).join("")}</tbody></table></div></div>
+    <div class="card"><h2>Mutual reveals (${d.reveals.length})</h2><p class="note">A hidden detail two connected people share, revealed only because both opted in.</p>
+    <div class="scroll"><table><thead><tr><th>Between</th><th>Detail</th></tr></thead><tbody>${d.reveals.map(r => `<tr><td>${name(r.person_a)} ↔ ${name(r.person_b)}</td><td><span class="pill hidden">${esc(r.key)}: ${esc(r.values.join(", "))}</span></td></tr>`).join("")}</tbody></table></div></div>`;
+
+  // Receipts
+  const tally = {};
+  d.receipts.forEach(r => { const t = tally[r.check] = tally[r.check] || {pass: 0, fail: 0}; t[r.result]++; });
+  $("receipts").innerHTML = `<div class="card"><h2>Warden receipts (${d.receipts.length})</h2>
+    <p class="note">Every check writes {check, result, timestamp, hash}. The hash is a keyed HMAC of what was checked, so auditors can verify it without the receipt containing any content.</p>
+    <table><thead><tr><th>Check</th><th>Pass</th><th>Fail</th></tr></thead><tbody>${Object.entries(tally).map(([k, t]) => `<tr><td class="mono">${k}</td><td>${t.pass}</td><td>${t.fail}</td></tr>`).join("")}</tbody></table></div>
+    <div class="card scroll"><h2>Latest 100</h2><table><thead><tr><th>Check</th><th>Result</th><th>Time</th><th>Hash</th></tr></thead><tbody>
+    ${d.receipts.slice(-100).reverse().map(r => `<tr><td class="mono">${r.check}</td><td>${r.result}</td><td class="mono">${r.timestamp}</td><td class="mono">${r.hash.slice(0, 24)}…</td></tr>`).join("")}</tbody></table></div>`;
+}
+
+tabs();
+fetch("run.json").then(r => r.json()).then(render).catch(e => { $("meta").textContent = "Couldn't load run.json. Run: python3 -m belong run"; });
+</script>
+</body>
+</html>

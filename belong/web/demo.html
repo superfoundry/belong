@@ -1,0 +1,509 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Belong Demo</title>
+<style>
+  :root {
+    --bg: #eeece6; --surface: #ffffff; --surface-2: #f6f5f1; --text: #1c1b19; --muted: #6d6a63; --line: #e1ded6;
+    --accent: #3b5bdb; --accent-ink: #ffffff; --ok: #2b8a3e; --ok-bg: #e9f8ec; --bad: #c92a2a; --bad-bg: #fff0f0;
+    --hidden: #5f3dc4; --hidden-bg: #f0ecfd; --in: #1971c2; --out: #2b8a3e; --inside: #868e96;
+    --room: #17171a; --room-2: #222227; --room-text: #ecebe7; --room-muted: #9b9890; --room-line: #34343a;
+    --mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #111110; --surface: #1d1d1b; --surface-2: #262623; --text: #ecebe7; --muted: #9d9a93; --line: #34332f;
+      --accent: #91a7ff; --accent-ink: #111; --ok: #69db7c; --ok-bg: #132a1b; --bad: #ff8787; --bad-bg: #2e1616;
+      --hidden: #b197fc; --hidden-bg: #261f3d; --in: #74c0fc; --out: #69db7c;
+      --room: #0b0b0d; --room-2: #18181c;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+  .stage { display: grid; grid-template-columns: 370px minmax(380px, 1fr) 370px; gap: 18px; padding: 18px 16px; max-width: 1560px; margin: 0 auto; align-items: start; }
+  @media (max-width: 1180px) { .stage { grid-template-columns: 1fr; max-width: 520px; } .room { order: 3; } }
+  button { font: inherit; cursor: pointer; }
+  input, select, textarea { font: inherit; color: var(--text); background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 7px 9px; width: 100%; }
+  textarea { resize: vertical; min-height: 70px; }
+  .btn { border: 0; border-radius: 10px; padding: 9px 14px; background: var(--accent); color: var(--accent-ink); font-weight: 600; }
+  .btn.ghost { background: transparent; color: var(--text); border: 1px solid var(--line); font-weight: 500; }
+  .btn.small { padding: 5px 10px; font-size: 13px; }
+  .btn.bad { background: var(--bad); color: #fff; }
+  .btn:disabled { opacity: .5; cursor: default; }
+  .row { display: flex; gap: 8px; align-items: center; }
+  .grow { flex: 1; }
+  .muted { color: var(--muted); } .small { font-size: 12px; } .mono { font-family: var(--mono); font-size: 11px; }
+  .pill { display: inline-block; padding: 2px 9px; border-radius: 99px; font-size: 12px; margin: 2px 3px 2px 0; background: var(--surface-2); border: 1px solid var(--line); }
+  .pill.hidden { background: var(--hidden-bg); color: var(--hidden); border-color: transparent; }
+  .pill.ok { background: var(--ok-bg); color: var(--ok); border-color: transparent; }
+  .pill.bad { background: var(--bad-bg); color: var(--bad); border-color: transparent; }
+
+  /* phones */
+  .phone-wrap h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 0 0 8px 6px; }
+  .phone { background: var(--surface); border: 10px solid #1b1b1d; border-radius: 40px; height: 780px; display: flex; flex-direction: column; overflow: hidden; box-shadow: 0 10px 30px rgba(0,0,0,.12); }
+  .phone .top { padding: 14px 18px 10px; border-bottom: 1px solid var(--line); display: flex; align-items: center; gap: 8px; }
+  .brand { font-weight: 750; letter-spacing: -.02em; font-size: 17px; }
+  .verified { font-size: 11px; color: var(--ok); background: var(--ok-bg); border-radius: 99px; padding: 2px 8px; }
+  .screen { flex: 1; overflow-y: auto; padding: 14px 16px; }
+  .tabs { display: flex; border-top: 1px solid var(--line); }
+  .tabs button { flex: 1; background: none; border: 0; padding: 10px 2px 14px; color: var(--muted); font-size: 12px; position: relative; }
+  .tabs button.on { color: var(--accent); font-weight: 600; }
+  .tabs .dot { position: absolute; top: 6px; margin-left: 2px; width: 7px; height: 7px; border-radius: 50%; background: var(--bad); display: inline-block; }
+  .card { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 12px; margin-bottom: 10px; }
+  .card.soft { background: var(--surface-2); border-color: transparent; }
+  .card h3 { margin: 0 0 6px; font-size: 14px; }
+  .hero { text-align: center; padding: 30px 6px 10px; }
+  .hero .logo { font-size: 34px; font-weight: 800; letter-spacing: -.04em; }
+  .hero p { color: var(--muted); }
+  label.f { display: block; font-size: 12px; color: var(--muted); margin: 10px 0 4px; }
+  .bubble { max-width: 86%; padding: 8px 11px; border-radius: 14px; margin: 6px 0; white-space: pre-wrap; }
+  .bubble.agent { background: var(--surface-2); border-bottom-left-radius: 4px; }
+  .bubble.me { background: var(--accent); color: var(--accent-ink); margin-left: auto; border-bottom-right-radius: 4px; }
+  .composer { display: flex; gap: 6px; margin-top: 10px; }
+  .updated { font-size: 11.5px; color: var(--ok); margin: -2px 0 6px 4px; }
+  .typing { display: inline-flex; gap: 4px; padding: 11px 13px; }
+  .typing span { width: 7px; height: 7px; border-radius: 50%; background: var(--muted); animation: blink 1.2s infinite ease-in-out; }
+  .typing span:nth-child(2) { animation-delay: .2s; } .typing span:nth-child(3) { animation-delay: .4s; }
+  @keyframes blink { 0%, 80%, 100% { opacity: .25; } 40% { opacity: 1; } }
+  body.only-A .stage, body.only-B .stage { grid-template-columns: minmax(0, 400px); justify-content: center; }
+  body.only-A .room, body.only-B .room, body.only-A .phone-wrap:last-child, body.only-B .phone-wrap:first-child { display: none; }
+  .composer textarea { min-height: 54px; }
+  .field { padding: 8px 0; border-bottom: 1px solid var(--line); }
+  .field:last-child { border-bottom: 0; }
+  .field .head { display: flex; align-items: center; gap: 6px; margin-bottom: 5px; font-size: 12px; color: var(--muted); }
+  .vis { margin-left: auto; display: inline-flex; border: 1px solid var(--line); border-radius: 99px; overflow: hidden; }
+  .vis button { border: 0; background: none; padding: 2px 9px; font-size: 11px; color: var(--muted); }
+  .vis button.on.shown { background: var(--surface-2); color: var(--text); font-weight: 600; }
+  .vis button.on.hidden { background: var(--hidden-bg); color: var(--hidden); font-weight: 600; }
+  .chips { display: flex; flex-wrap: wrap; gap: 4px; }
+  .chips button { border: 1px solid var(--line); background: none; border-radius: 99px; padding: 2px 9px; font-size: 12px; color: var(--muted); }
+  .chips button.on { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+  .section-title { font-size: 12px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); margin: 16px 0 4px; }
+  .preview { border: 2px dashed var(--line); border-radius: 14px; padding: 12px; margin: 14px 0; }
+  .reason { font-style: italic; margin: 8px 0; }
+  .notice { border-radius: 12px; padding: 10px 12px; margin-bottom: 10px; }
+  .notice.bad { background: var(--bad-bg); color: var(--bad); } .notice.ok { background: var(--ok-bg); color: var(--ok); }
+  .notice.hidden { background: var(--hidden-bg); color: var(--hidden); }
+  .slider { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--muted); }
+  .slider input { padding: 0; }
+  .check { display: flex; gap: 8px; align-items: center; padding: 4px 0; }
+  .check input { width: auto; }
+
+  /* room */
+  .room { background: var(--room); color: var(--room-text); border-radius: 22px; padding: 16px; min-height: 780px; margin-top: 26px; }
+  .room h1 { font-size: 18px; margin: 0; display: flex; align-items: center; gap: 8px; }
+  .room .sub { color: var(--room-muted); font-size: 12px; margin: 2px 0 12px; }
+  .room .btn.ghost { color: var(--room-text); border-color: var(--room-line); }
+  .room select { background: var(--room-2); color: var(--room-text); border-color: var(--room-line); width: auto; }
+  .room .muted { color: var(--room-muted); }
+  .room .pill { background: var(--room-2); border-color: var(--room-line); color: var(--room-text); }
+  .room .pill.hidden { background: #2a2140; color: #c5b3ff; }
+  .room .pill.ok { background: #14301d; color: #8ce99a; } .room .pill.bad { background: #3a1717; color: #ffa8a8; }
+  .controls { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
+  .audit { display: flex; align-items: center; gap: 10px; background: var(--room-2); border-radius: 12px; padding: 10px 12px; margin-bottom: 12px; }
+  .audit b { font-size: 15px; }
+  .rcard { background: var(--room-2); border-radius: 12px; padding: 10px 12px; margin-bottom: 10px; }
+  .rcard h3 { margin: 0 0 6px; font-size: 13px; }
+  .inside-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  @media (max-width: 1400px) { .inside-grid { grid-template-columns: 1fr; } }
+  .frow { display: flex; gap: 6px; font-size: 12px; padding: 2px 0; align-items: baseline; }
+  .frow .k { color: var(--room-muted); min-width: 92px; }
+  .crowd { font-size: 11px; color: var(--room-muted); }
+  .crowd.yes { color: #8ce99a; } .crowd.no { color: #ffc078; }
+  .log { display: flex; flex-direction: column; gap: 8px; }
+  .ev { border-left: 3px solid var(--inside); background: var(--room-2); border-radius: 0 10px 10px 0; padding: 8px 10px; }
+  .ev.in { border-color: var(--in); } .ev.out { border-color: var(--out); } .ev.blocked { border-color: #ff6b6b; background: #2a1414; }
+  .ev .tag { font-size: 10px; font-weight: 700; letter-spacing: .06em; margin-right: 6px; }
+  .ev.in .tag { color: #74c0fc; } .ev.out .tag { color: #8ce99a; } .ev.blocked .tag { color: #ff8787; } .ev.inside .tag { color: #adb5bd; }
+  .ev .t { font-weight: 600; } .ev .x { color: var(--room-muted); font-size: 12px; margin-top: 2px; }
+  .payload { margin-top: 6px; display: grid; gap: 6px; }
+  .pv { border: 1px solid var(--room-line); border-radius: 8px; padding: 6px 8px; font-size: 12px; }
+  .pv .to { color: var(--room-muted); font-size: 11px; margin-bottom: 3px; }
+  details summary { cursor: pointer; color: var(--room-muted); font-size: 11px; margin-top: 4px; }
+  .rc { font-family: var(--mono); font-size: 10.5px; color: var(--room-muted); }
+  .rc .p { color: #8ce99a; } .rc .f { color: #ff8787; }
+  .legend { font-size: 11px; color: var(--room-muted); margin: 4px 0 8px; }
+  .toast { position: fixed; bottom: 18px; left: 50%; transform: translateX(-50%); background: var(--bad); color: #fff; padding: 9px 14px; border-radius: 10px; display: none; z-index: 9; }
+  table.mini { width: 100%; border-collapse: collapse; font-size: 11.5px; }
+  table.mini td, table.mini th { padding: 3px 4px; border-bottom: 1px solid var(--room-line); text-align: left; vertical-align: top; }
+  table.mini th { color: var(--room-muted); font-weight: 500; }
+  a { color: var(--accent); }
+  .room a { color: #91a7ff; }
+</style>
+</head>
+<body>
+<script src="/nav.js"></script>
+<div class="stage">
+  <div class="phone-wrap"><h2>Person A's phone</h2><div class="phone" id="phone-A"></div></div>
+  <div class="room" id="room"></div>
+  <div class="phone-wrap"><h2>Person B's phone</h2><div class="phone" id="phone-B"></div></div>
+</div>
+<div class="toast" id="toast"></div>
+<script>
+// ---------------------------------------------------------------------------------
+// Scenarios: presets the presenter can load. They only fill in what a person would
+// type and choose; everything still goes through the agent and the Warden.
+// ---------------------------------------------------------------------------------
+const SCENARIOS = {
+  climbers: { label: "Climbers in Osaka", A: { name: "Yuki", age: 27,
+      message: "Looking for a climbing partner in Osaka on weekends. I'm an intermediate climber, into bouldering and ramen.",
+      hidden: { religion: "Buddhist", smoking: "doesn't smoke" } },
+    B: { name: "Ren", age: 29, message: "Need someone to belay with at Osaka gyms, weekends. Intermediate level, I also like jazz and ramen.",
+      hidden: { religion: "Buddhist", health: "ADHD" } } },
+  dating: { label: "Dating in Lisbon", A: { name: "Inês", age: 31,
+      message: "Looking for a serious relationship with a man in Lisbon, aged 30 to 39. I'm a woman who loves hiking and film photography.",
+      hidden: { religion: "Christian", children: "wants children" } },
+    B: { name: "Tiago", age: 34, message: "I'd like to meet a woman in Lisbon for a long-term partner. Ideally aged 28 to 36. I'm a man into hiking and cooking.",
+      hidden: { religion: "Christian", children: "wants children", income_band: "€30–50k" } } },
+  language: { label: "Language exchange, Berlin ↔ Tokyo", A: { name: "Lena", age: 26,
+      message: "Language exchange, online is fine: I speak German natively and want to practice Japanese. I live in Berlin and love anime.",
+      hidden: { politics: "politically progressive" }, values: { city: "Berlin" } },
+    B: { name: "Haruto", age: 28, message: "Native Japanese speaker learning German, looking for a tandem partner. Online works too. Based in Tokyo, into anime.",
+      hidden: { politics: "politically progressive" }, values: { city: "Tokyo" } } },
+  band: { label: "Band in Tokyo (needs the AI agent)", A: { name: "Ren", age: 28,
+      message: "i need to find someone in tokyo who plays guitar for my ska band" },
+    B: { name: "Kai", age: 26, message: "I'm a guitarist in Tokyo, really into ska and punk, and I'd love to join a band. Weekends work best." } },
+  fishing: { label: "Fishing in Ireland (needs the AI agent)", A: { name: "Aoife", age: 29,
+      message: "Looking for a friend to teach me how to fish in ireland" },
+    B: { name: "Seán", age: 41, message: "I've fished all my life around Galway and I'd love to teach a beginner, weekends mostly." } },
+  stalker: { label: "Someone tries to find a specific person", A: { name: "Sam", age: 30,
+      message: "The barista at the Blue Bottle in Tokyo with a nose ring, please find her.", values: { city: "Tokyo" } },
+    B: { name: "Kim", age: 33, message: "Looking for my ex, Daniel Brooks, he lives in London.", values: { city: "London" } } },
+};
+
+let S = null;               // last state from the server
+let scenario = "climbers";
+const local = { A: { tab: null, draft: null, draftFrom: null, chatText: "", form: {} },
+                B: { tab: null, draft: null, draftFrom: null, chatText: "", form: {} } };
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const val = v => Array.isArray(v) ? v.join(", ") : v;
+const $ = id => document.getElementById(id);
+
+let inflight = 0;
+async function api(action, body = {}) {
+  inflight++;
+  try {
+    const r = await fetch("/api/" + action, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+    const data = await r.json();
+    if (data.error) toast(data.error);
+    if (data.phones) { S = data; render(body.slot ? [body.slot] : []); }
+    return !data.error;
+  } finally { inflight--; }
+}
+function toast(msg) { const t = $("toast"); t.textContent = msg; t.style.display = "block"; clearTimeout(t._h); t._h = setTimeout(() => t.style.display = "none", 3500); }
+
+// Keep a local, editable copy of the agent's draft until the person submits.
+function syncDraft(slot) {
+  const p = S.phones[slot], L = local[slot];
+  if (p.draft && L.draftFrom !== JSON.stringify(p.draft)) {
+    L.draftFrom = JSON.stringify(p.draft);
+    L.draft = JSON.parse(L.draftFrom);
+    const sc = SCENARIOS[scenario]?.[slot];
+    if (sc && L.applyScenario) { applyScenario(L.draft, sc); L.applyScenario = false; }
+  }
+  if (!p.draft) { L.draft = null; L.draftFrom = null; }
+}
+function applyScenario(draft, sc) {
+  for (const f of draft.fields) {
+    if (sc.values && f.key in sc.values) f.value = sc.values[f.key];
+    if (sc.hidden && f.key in sc.hidden) { f.value = sc.hidden[f.key]; f.visibility = "hidden"; f.enabled = true; }
+  }
+}
+
+// ---------------------------------------------------------------------------------
+// Phone
+// ---------------------------------------------------------------------------------
+function screenFor(slot) {
+  const p = S.phones[slot], L = local[slot];
+  if (!p.verified) return "verify";
+  if (L.tab) return L.tab;
+  if (p.listed) return "matches";
+  if (L.draft) return "listing";
+  return "agent";
+}
+
+function renderPhone(slot) {
+  syncDraft(slot);
+  const p = S.phones[slot], L = local[slot], screen = screenFor(slot);
+  const pending = p.intros.filter(i => i.status === "pending").length + p.followups.length;
+  const tabs = p.verified ? `<div class="tabs">
+      ${[["agent", "Agent"], ["listing", "Listing"], ["matches", "Matches"], ["receipts", "Receipts"]].map(([id, label]) =>
+        `<button class="${screen === id ? "on" : ""}" onclick="go('${slot}','${id}')">${label}${id === "matches" && pending ? '<span class="dot"></span>' : ""}</button>`).join("")}
+    </div>` : "";
+  $("phone-" + slot).innerHTML = `
+    <div class="top"><span class="brand">Belong</span>${p.verified ? `<span class="muted">· ${esc(p.name)}</span><span class="verified">✓ verified</span>` : ""}
+      ${p.listed ? '<span class="pill ok" style="margin-left:auto">matching</span>' : ""}</div>
+    <div class="screen" id="screen-${slot}">${SCREENS[screen](slot, p, L)}</div>${tabs}`;
+  if (screen === "agent") { const sc = $("screen-" + slot); sc.scrollTop = sc.scrollHeight; }
+}
+function go(slot, tab) { local[slot].tab = tab; renderPhone(slot); }
+
+const SCREENS = {
+  verify(slot, p, L) {
+    const sc = SCENARIOS[scenario]?.[slot] || {};
+    return `<div class="hero"><div class="logo">Belong</div><p>Meet people who are looking for you too.<br>Your private details can help a match without ever being revealed.</p></div>
+      <div class="card"><h3>Step 1 · Verify your identity</h3>
+        <p class="small muted">An independent ID provider checks your document. Belong receives only two facts: that you're verified, and your age band.</p>
+        <label class="f">First name</label><input id="name-${slot}" value="${esc(L.form.name ?? sc.name ?? "")}" oninput="local['${slot}'].form.name=this.value">
+        <label class="f">Age</label><input id="age-${slot}" type="number" min="18" max="99" value="${esc(L.form.age ?? sc.age ?? "")}" oninput="local['${slot}'].form.age=this.value">
+        <div style="margin-top:12px"><button class="btn" style="width:100%" onclick="verify('${slot}')">Verify with ID provider (simulated)</button></div>
+      </div>`;
+  },
+
+  agent(slot, p, L) {
+    const sc = SCENARIOS[scenario]?.[slot];
+    // The scenario's opening line pre-fills the box only before the first message.
+    const text = L.chatText || (!p.chat.some(m => m.from === "me") && sc ? sc.message : "");
+    const lastMine = [...p.chat].reverse().find(m => m.from === "me");
+    const pending = L.sending && !(p.agent_busy && lastMine && lastMine.text === L.sending) ? `<div class="bubble me">${esc(L.sending)}</div>` : "";
+    const busy = L.sending || p.agent_busy;
+    return `<div class="small muted" style="text-align:center;margin-bottom:6px">Your agent works only for you.</div>
+      ${p.chat.map(m => `<div class="bubble ${m.from}">${esc(m.text)}</div>` +
+        (m.draft_updated ? `<div class="updated">✓ ${p.listed ? "Draft updated: review and save it to make the change live" : "Listing draft updated"}</div>` : "")).join("")}${pending}
+      ${busy ? `<div class="bubble agent typing"><span></span><span></span><span></span></div>` : ""}
+      ${p.draft && !busy ? `<button class="btn" style="width:100%;margin-top:8px" onclick="go('${slot}','listing')">${p.listed ? "Review changes to my listing →" : "Review my listing →"}</button>` : ""}
+      <div class="composer"><textarea id="chat-${slot}" placeholder="${p.chat.length > 1 ? "Reply to your agent" : "What are you looking for?"}" oninput="local['${slot}'].chatText=this.value"
+        onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();send('${slot}')}">${esc(text)}</textarea>
+        <button class="btn" ${busy ? "disabled" : ""} onclick="send('${slot}')">Send</button></div>`;
+  },
+
+  listing(slot, p, L) {
+    if (!L.draft) return `<div class="card soft">Tell your agent what you're looking for first.</div>`;
+    const d = L.draft;
+    const entry = p.entry;
+    const normal = d.fields.filter(f => !f.sensitive), sensitive = d.fields.filter(f => f.sensitive);
+    const shown = d.fields.filter(f => f.enabled && f.visibility === "shown" && hasValue(f.value));
+    const hiddenN = d.fields.filter(f => f.enabled && f.visibility === "hidden" && hasValue(f.value)).length;
+    return `
+      ${entry && !entry.accepted ? `<div class="notice bad"><b>The Warden refused this listing.</b><br>${entry.problems.map(esc).join("<br>")}</div>` : ""}
+      ${p.listed ? `<div class="notice ok">Your listing is live. Changes are re-checked when you save.</div>` : ""}
+      <div class="section-title">What you're looking for</div>
+      <textarea oninput="local['${slot}'].draft.intent_text=this.value">${esc(d.intent_text)}</textarea>
+      <div class="small muted" style="margin-top:3px">Used only to find your matches. Never shown to anyone.</div>
+      <div class="slider" style="margin-top:8px">Wide net <input type="range" min="0" max="1" step="0.1" value="${d.exactness}" oninput="local['${slot}'].draft.exactness=+this.value"> Exact</div>
+
+      <div class="section-title">Your details</div>
+      <div class="card">${normal.map(f => fieldRow(slot, f)).join("")}</div>
+
+      <div class="section-title">Sensitive details · off by default</div>
+      <div class="small muted" style="margin-bottom:6px">Turned on, they stay hidden: they can raise a match's score when enough people share them, but are never shown and never the reason for a match.</div>
+      <div class="card">${sensitive.map(f => fieldRow(slot, f)).join("")}</div>
+
+      <div class="preview"><div class="small muted" style="margin-bottom:6px">👁 What a match will see about you</div>
+        ${shown.map(f => `<span class="pill">${esc(f.label.replace(" (from ID check)", ""))}: ${esc(val(f.value))}</span>`).join("") || '<span class="muted">nothing yet</span>'}
+        <div class="small muted" style="margin-top:6px">+ a reason written by the Warden from details you <i>both</i> show.<br>🔒 ${hiddenN} hidden detail(s): used only for matching, never shown.</div></div>
+      <button class="btn" style="width:100%" onclick="submit('${slot}')">${p.listed ? "Save changes" : "Start matching"}</button>`;
+  },
+
+  matches(slot, p, L) {
+    if (!p.listed) return `<div class="card soft">Review your listing and press <b>Start matching</b> first.</div>`;
+    const fu = p.followups.map(q => followupCard(slot, q)).join("");
+    const intros = p.intros.map(i => introCard(slot, p, i)).join("");
+    return fu + (intros || `<div class="card soft"><h3>Waiting for the Matchmaker</h3><p class="small muted">It only proposes people whose intent you meet <i>and</i> who meet yours. Nobody is approached who didn't ask.</p><p class="small muted">Presenter: press <b>Run Matchmaker</b>.</p></div>`);
+  },
+
+  receipts(slot, p, L) {
+    return `<div class="card soft small">Every check the Warden ran on your data leaves a receipt: the check, the result, the time, and a hash. Receipts never contain your details, so they can be published and audited.</div>
+      ${p.receipts.slice().reverse().map(r => `<div class="row" style="padding:5px 0;border-bottom:1px solid var(--line)">
+        <span class="pill ${r.result === "pass" ? "ok" : "bad"}">${r.result}</span><span class="grow">${esc(r.check.replaceAll("_", " "))}</span>
+        <span class="mono muted" title="${r.hash}">${r.hash.slice(0, 10)}…</span></div>`).join("") || '<div class="muted">No receipts yet.</div>'}`;
+  },
+};
+
+const hasValue = v => Array.isArray(v) ? v.length > 0 : v !== null && v !== undefined && v !== "";
+
+function fieldRow(slot, f) {
+  const i = local[slot].draft.fields.indexOf(f);
+  const at = `'${slot}',${i}`;
+  let control;
+  if (f.locked) control = `<span class="pill">${esc(f.value)}</span>`;
+  else if (f.multi) control = `<div class="chips">${f.options.map(o => `<button class="${(f.value || []).includes(o) ? "on" : ""}" onclick="toggleChip(${at},'${esc(o)}')">${esc(o)}</button>`).join("")}</div>`;
+  else if (f.options && f.options.length) control = `<select onchange="setVal(${at},this.value)"><option value="">-</option>${f.options.map(o => `<option ${o === f.value ? "selected" : ""}>${esc(o)}</option>`).join("")}</select>`;
+  else control = `<input value="${esc(f.value ?? "")}" oninput="local['${slot}'].draft.fields[${i}].value=this.value">`;
+  const vis = `<span class="vis"><button class="shown ${f.visibility === "shown" ? "on" : ""}" onclick="setVis(${at},'shown')">👁 Shown</button><button class="hidden ${f.visibility === "hidden" ? "on" : ""}" onclick="setVis(${at},'hidden')">🔒 Hidden</button></span>`;
+  if (f.sensitive && !f.enabled) {
+    return `<div class="field"><div class="head">${esc(f.label)}<button class="btn ghost small" style="margin-left:auto" onclick="enable(${at},true)">Turn on</button></div></div>`;
+  }
+  const always = ["seeking", "offering"].includes(f.key) ? `<span class="small muted" style="margin-left:auto">always shown: needed to find your match</span>` : "";
+  return `<div class="field"><div class="head">${esc(f.label)}${f.sensitive ? ` <button class="btn ghost small" onclick="enable(${at},false)">Off</button>` : ""}${f.locked ? "" : (always || vis)}</div>${control}</div>`;
+}
+function setVal(slot, i, v) {
+  const f = local[slot].draft.fields[i]; f.value = v;
+  if (f.key === "city") refreshOptions(slot, v); else renderPhone(slot);
+}
+function toggleChip(slot, i, o) {
+  const f = local[slot].draft.fields[i]; const s = new Set(f.value || []);
+  s.has(o) ? s.delete(o) : s.add(o); f.value = [...s]; renderPhone(slot);
+}
+function setVis(slot, i, v) {
+  const f = local[slot].draft.fields[i];
+  if (f.sensitive && v === "shown") {
+    if (!confirm(`Show your ${f.label.toLowerCase()} to matches? Sensitive details are safest hidden: hidden, they can still help a match.`)) return;
+    f.confirmed = true;
+  }
+  f.visibility = v; renderPhone(slot);
+}
+function enable(slot, i, on) { const f = local[slot].draft.fields[i]; f.enabled = on; if (on) f.visibility = "hidden"; renderPhone(slot); }
+async function refreshOptions(slot, city) {
+  const d = local[slot].draft;
+  const opts = await (await fetch(`/api/options?kind=${encodeURIComponent(d.kind || "")}&city=${encodeURIComponent(city)}`)).json();
+  for (const f of d.fields) if (opts[f.key]) { f.options = opts[f.key]; if (!f.multi && f.value && !opts[f.key].includes(f.value)) f.value = null; }
+  renderPhone(slot);
+}
+
+function followupCard(slot, q) {
+  let controls = "";
+  if (q.question_id === "age_range") controls = `<div class="row"><input id="fu-min-${slot}" type="number" value="25" min="18"><span>to</span><input id="fu-max-${slot}" type="number" value="40" min="18"></div>
+    <button class="btn small" style="margin-top:8px" onclick="answer('${slot}','age_range',{min:+$('fu-min-${slot}').value,max:+$('fu-max-${slot}').value})">Answer</button>`;
+  else if (q.question_id === "schedule") controls = `<select id="fu-s-${slot}">${["weekends","weekday evenings","weekday mornings","flexible"].map(o => `<option>${o}</option>`).join("")}</select>
+    <button class="btn small" style="margin-top:8px" onclick="answer('${slot}','schedule',{schedule:$('fu-s-${slot}').value})">Answer</button>`;
+  else controls = `<div class="row"><button class="btn small" onclick="answer('${slot}','wider_net',{yes:true})">Yes, widen it</button><button class="btn ghost small" onclick="answer('${slot}','wider_net',{yes:false})">No</button></div>`;
+  return `<div class="card"><div class="small muted">Your agent passes on a question from Belong's fixed list</div><h3>${esc(q.question_text)}</h3>${controls}</div>`;
+}
+
+function introCard(slot, p, i) {
+  const f = i.view.fields;
+  let action = "";
+  if (i.status === "pending") action = `<div class="row" style="margin-top:8px"><button class="btn grow" onclick="decide('${slot}','${i.intro_id}',true)">Yes, introduce us</button><button class="btn ghost" onclick="decide('${slot}','${i.intro_id}',false)">No thanks</button></div>`;
+  else if (i.status === "waiting") action = `<div class="notice soft small" style="background:var(--surface-2)">You said yes. Waiting for them; you'll only connect if they say yes too.</div>`;
+  else if (i.status === "closed") action = `<div class="small muted">Not this time.</div>`;
+  else action = connectedBlock(slot, p, i);
+  return `<div class="card"><div class="row"><h3 class="grow" style="margin:0">${esc(f.first_name || "Someone")}</h3>${i.status === "connected" ? '<span class="pill ok">connected</span>' : ""}</div>
+    <div style="margin-top:6px">${Object.entries(f).filter(([k]) => k !== "first_name").map(([k, v]) => `<span class="pill">${esc(val(v))}</span>`).join("")}</div>
+    <div class="reason">"${esc(i.view.reason)}"</div>${action}</div>`;
+}
+function connectedBlock(slot, p, i) {
+  const name = esc(i.view.fields.first_name || "them");
+  if (i.reveal_result) {
+    return i.reveal_result.length
+      ? `<div class="notice hidden" style="margin-top:8px"><b>You also have in common</b><br>${i.reveal_result.map(r => `${esc(LABEL[r.key] || r.key)}: ${esc(r.values.join(", "))}`).join("<br>")}</div>`
+      : `<div class="small muted" style="margin-top:6px">No other shared details to show.</div>`;
+  }
+  if (i.reveal_chosen) return `<div class="small muted" style="margin-top:6px">We'll let you know if you have anything else in common.</div>`;
+  if (!p.hidden_keys.length) return "";
+  return `<details style="margin-top:8px"><summary class="small" style="cursor:pointer;color:var(--accent)">See what else you have in common</summary>
+    <div class="small muted" style="margin:6px 0">Choose any private details you'd be happy to compare with ${name}. You'll only see the ones you both chose and both have; nothing else is shared.</div>
+    ${p.hidden_keys.map(h => `<label class="check"><input type="checkbox" value="${h.key}" class="rv-${slot}-${i.intro_id}"> ${esc(h.label)}</label>`).join("")}
+    <button class="btn small" style="margin-top:4px" onclick="reveal('${slot}','${i.intro_id}')">Compare</button></details>`;
+}
+const LABEL = { income_band: "Income", religion: "Religion", politics: "Politics", health: "Health", kinks: "Intimacy preferences",
+  children: "Children", neighborhood: "Neighborhood", employer: "Employer", diet: "Diet", smoking: "Smoking" };
+
+// actions
+async function verify(slot) {
+  local[slot].form = { name: $("name-" + slot).value, age: $("age-" + slot).value };
+  if (await api("verify", { slot, name: local[slot].form.name, age: local[slot].form.age })) { local[slot].tab = null; render([slot]); }
+}
+async function send(slot) {
+  const L = local[slot], text = $("chat-" + slot).value.trim();
+  if (!text || L.sending) return;
+  L.applyScenario = SCENARIOS[scenario]?.[slot]?.message === text;
+  Object.assign(L, { sending: text, chatText: "", tab: "agent" });
+  renderPhone(slot);
+  await api("agent", { slot, text });
+  L.sending = null;
+  render([slot]);
+}
+async function submit(slot) {
+  const d = local[slot].draft;
+  const listing = { intent_text: d.intent_text, exactness: d.exactness,
+    fields: d.fields.filter(f => f.enabled && hasValue(f.value)).map(f => ({ key: f.key, value: f.value, visibility: f.visibility, confirmed: !!f.confirmed })) };
+  if (await api("submit", { slot, listing })) { local[slot].tab = S.phones[slot].listed ? "matches" : "listing"; render([slot]); }
+}
+const answer = (slot, question_id, ans) => api("answer", { slot, question_id, answer: ans });
+const decide = (slot, intro_id, yes) => api("decide", { slot, intro_id, yes });
+function reveal(slot, intro_id) {
+  const keys = [...document.querySelectorAll(`.rv-${slot}-${intro_id}`)].filter(c => c.checked).map(c => c.value);
+  api("reveal", { slot, intro_id, keys });
+}
+
+// ---------------------------------------------------------------------------------
+// Behind the scenes (presenter view)
+// ---------------------------------------------------------------------------------
+function renderRoom() {
+  const r = S.room, lr = r.leak_report;
+  const blocked = r.events.filter(e => e.kind === "blocked").length;
+  $("room").innerHTML = `
+    <h1>🔒 Behind the scenes</h1>
+    <div class="sub"><b>${esc(S.room.agent_status)}</b> on each phone · Single-phone views: <a href="/?phone=A" target="_blank">A</a> · <a href="/?phone=B" target="_blank">B</a><br>Presenter view of what matching sees and what Belong sends out. The goal for production is that nobody, including Belong, can see this; it's shown here only because the data is synthetic.</div>
+    <div class="controls">
+      <select id="scenario" onchange="scenario=this.value; resetLocal(false); render(['A','B'])">${Object.entries(SCENARIOS).map(([k, s]) => `<option value="${k}" ${k === scenario ? "selected" : ""}>${esc(s.label)}</option>`).join("")}</select>
+      <button class="btn ghost small" onclick="fastForward()">⏩ Fast-forward both phones</button>
+      <button class="btn small" onclick="api('match')">▶ Run Matchmaker</button>
+      <button class="btn bad small" onclick="api('attack')">☠ Simulate compromised Matchmaker</button>
+      <button class="btn ghost small" onclick="reset()">Reset</button>
+    </div>
+    <div class="audit"><span style="font-size:22px">${lr.ok ? "✅" : "❌"}</span><div><b>${lr.ok ? "Leak audit passing: no hidden detail has been revealed" : `Leak audit FAILED: ${lr.findings.length} finding(s)`}</b>
+      <div class="muted small">${r.listings} listings on the Marketboard · ${lr.checked.views} introduction views, ${lr.checked.followups} questions, ${lr.checked.reveals} consented reveals and ${lr.checked.receipts} receipts audited · ${blocked} attempt(s) blocked · k = ${r.k}</div></div></div>
+    ${r.inside.length ? `<div class="inside-grid">${r.inside.map(insideCard).join("")}</div>` : ""}
+    <h3 style="font-size:13px;margin:14px 0 4px">Data log</h3>
+    <div class="legend"><b style="color:#74c0fc">RECEIVED</b> by Belong · <b style="color:#8ce99a">SENT</b> to a person, after the Warden's checks (exact payload shown) · <b style="color:#ff8787">BLOCKED</b> by the Warden · <b style="color:#adb5bd">PRIVATE</b> never sent</div>
+    <div class="log">${r.events.slice().reverse().map(eventCard).join("")}</div>`;
+}
+function insideCard(l) {
+  return `<div class="rcard"><h3>What the Matchmaker reads about ${esc(l.name)} (${l.slot})</h3>
+    <div class="small muted" style="margin-bottom:4px">"${esc(l.intent_text)}"</div>
+    ${l.fields.map(f => `<div class="frow"><span class="k">${esc(f.label.replace(" (from ID check)", ""))}</span>
+      <span>${f.visibility === "hidden" ? `<span class="pill hidden">🔒 ${esc(f.value)}</span>
+        <span class="crowd ${f.usable ? "yes" : "no"}">${f.crowd} share it · ${f.usable ? "can raise a score" : `too rare, ignored (k = ${S.room.k})`}</span>` : esc(f.value)}</span></div>`).join("")}</div>`;
+}
+function eventCard(e) {
+  const tag = { in: "RECEIVED", out: "SENT", blocked: "BLOCKED", inside: "PRIVATE" }[e.kind];
+  return `<div class="ev ${e.kind}"><div><span class="tag">${tag}</span><span class="t">${esc(e.title)}</span></div>
+    ${e.text ? `<div class="x">${esc(e.text)}</div>` : ""}${payloadHtml(e)}
+    ${e.receipts.length ? `<details><summary>${e.receipts.length} receipt(s): ${e.receipts.filter(r => r.result === "fail").length ? "includes failures" : "all passed"}</summary>
+      <div class="rc">${e.receipts.map(r => `<div><span class="${r.result === "pass" ? "p" : "f"}">${r.result}</span> ${esc(r.check)} · ${r.hash.slice(0, 16)}…</div>`).join("")}</div></details>` : ""}</div>`;
+}
+function payloadHtml(e) {
+  const p = e.payload;
+  if (!p) return "";
+  if (Array.isArray(p) && p.length && p[0].view) return `<div class="payload">${p.map(v => `<div class="pv"><div class="to">to ${esc(v.to)}</div>
+      ${Object.entries(v.view.fields).map(([k, x]) => `<span class="pill">${esc(k)}: ${esc(val(x))}</span>`).join("")}<div class="reason">"${esc(v.view.reason)}"</div></div>`).join("")}</div>`;
+  if (Array.isArray(p) && p.length && p[0].pair) return `<details><summary>${p.length} proposal(s) (internal; these never leave)</summary><table class="mini"><tr><th>Pair</th><th>Shown score ≥ threshold</th><th>Reasons</th><th>Hidden boost</th></tr>
+      ${p.map(x => `<tr><td>${esc(x.pair)}</td><td>${x.shown_score} ≥ ${x.threshold}</td><td>${x.reason_fields.map(esc).join(", ")}</td><td>${x.hidden_fields_that_raised_it.length ? x.hidden_fields_that_raised_it.map(k => `<span class="pill hidden">🔒 ${esc(k)}</span>`).join("") : "none"}</td></tr>`).join("")}</table></details>`;
+  if (Array.isArray(p)) return `<div class="payload"><div class="pv">${p.map(x => Object.entries(x).map(([k, v]) => `<span class="pill">${esc(k)}: ${esc(v)}</span>`).join("")).join("<br>")}</div></div>`;
+  return `<div class="payload"><div class="pv">${Object.entries(p).map(([k, v]) => `<span class="pill">${esc(k)}: ${esc(v)}</span>`).join("")}</div></div>`;
+}
+
+function resetLocal(clearForms = true) {
+  for (const s of ["A", "B"]) Object.assign(local[s], { tab: null, chatText: "", ...(clearForms ? { form: {}, draft: null, draftFrom: null } : { form: {} }) });
+}
+async function reset() { resetLocal(); await api("reset"); }
+async function fastForward() {
+  for (const slot of ["A", "B"]) {
+    const sc = SCENARIOS[scenario][slot];
+    if (!S.phones[slot].verified && !await api("verify", { slot, name: sc.name, age: sc.age })) return;
+    if (!S.phones[slot].draft) { local[slot].applyScenario = true; if (!await api("agent", { slot, text: sc.message })) return; }
+    for (let i = 0; i < 2 && !S.phones[slot].draft; i++) {  // a real agent may ask a question first
+      local[slot].applyScenario = true;
+      if (!await api("agent", { slot, text: "That's everything for now. Please draft my listing." })) return;
+    }
+    syncDraft(slot);
+    if (!S.phones[slot].listed) { local[slot].tab = null; await submit(slot); }
+  }
+}
+
+// Redraw only what changed, so acting on one phone never disturbs the other
+// (half-typed text, open sections, scroll position).
+const last = { A: null, B: null, room: null };
+function render(force = []) {
+  for (const slot of ["A", "B"]) {
+    const snap = JSON.stringify(S.phones[slot]);
+    if (force.includes(slot) || snap !== last[slot]) { last[slot] = snap; renderPhone(slot); }
+  }
+  const roomSnap = JSON.stringify(S.room) + scenario;
+  if (roomSnap !== last.room) { last.room = roomSnap; renderRoom(); }
+}
+const ONLY = new URLSearchParams(location.search).get("phone");
+if (ONLY === "A" || ONLY === "B") document.body.classList.add("only-" + ONLY);
+fetch("/api/state").then(r => r.json()).then(d => { S = d; render(["A", "B"]); });
+// Keep in sync with actions from other windows or devices (e.g. each person on their own phone).
+setInterval(async () => {
+  if (inflight || !S) return;
+  try { const d = await (await fetch("/api/state")).json(); if (!inflight) { S = d; render(); } } catch (_) {}
+}, 2500);
+</script>
+</body>
+</html>
