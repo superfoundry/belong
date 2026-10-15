@@ -1,0 +1,329 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Belong Trust</title>
+<style>
+  :root {
+    --bg: #f7f6f2; --surface: #ffffff; --surface-2: #f1efe9; --text: #1c1b19; --muted: #6b6862; --line: #e2dfd7;
+    --accent: #3b5bdb; --accent-ink: #fff; --ok: #2b8a3e; --ok-bg: #e9f8ec; --bad: #c92a2a; --bad-bg: #fff0f0;
+    --warn: #b35c00; --warn-bg: #fff4e6; --code: #f3f1ec; --mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #121211; --surface: #1c1c1a; --surface-2: #252522; --text: #ecebe7; --muted: #9d9a93; --line: #33322e;
+      --accent: #91a7ff; --accent-ink: #111; --ok: #69db7c; --ok-bg: #132a1b; --bad: #ff8787; --bad-bg: #2e1616;
+      --warn: #ffc078; --warn-bg: #2e2112; --code: #1a1a18;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 16px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+  .wrap { max-width: 920px; margin: 0 auto; padding: 0 16px 80px; }
+  nav.top { display: flex; gap: 16px; align-items: center; padding: 16px 0; font-size: 14px; }
+  nav.top { flex-wrap: wrap; }
+  a { color: var(--accent); }
+  header.hero { padding: 40px 0 24px; }
+  header.hero h1 { font-size: 44px; line-height: 1.1; letter-spacing: -.03em; margin: 0 0 14px; }
+  header.hero p { font-size: 19px; color: var(--muted); margin: 0; max-width: 680px; }
+  h2 { font-size: 26px; letter-spacing: -.02em; margin: 56px 0 8px; }
+  h3 { font-size: 17px; margin: 0 0 6px; }
+  .lead { color: var(--muted); margin: 0 0 18px; }
+  .card { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 18px; margin-bottom: 14px; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  @media (max-width: 720px) { .grid2 { grid-template-columns: 1fr; } header.hero h1 { font-size: 34px; } }
+  .badge { display: inline-block; font-size: 12px; font-weight: 600; padding: 2px 9px; border-radius: 99px; white-space: nowrap; }
+  .b-ok { background: var(--ok-bg); color: var(--ok); } .b-warn { background: var(--warn-bg); color: var(--warn); }
+  .b-bad { background: var(--bad-bg); color: var(--bad); } .b-muted { background: var(--surface-2); color: var(--muted); }
+  table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  th, td { text-align: left; padding: 9px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { color: var(--muted); font-weight: 500; font-size: 13px; }
+  .scroll { overflow-x: auto; }
+  code, pre { font-family: var(--mono); font-size: 12.5px; }
+  pre { background: var(--code); border: 1px solid var(--line); border-radius: 10px; padding: 12px; overflow-x: auto; margin: 8px 0; white-space: pre-wrap; word-break: break-all; }
+  .mono { font-family: var(--mono); font-size: 12px; word-break: break-all; }
+  .btn { border: 0; border-radius: 10px; padding: 9px 15px; background: var(--accent); color: var(--accent-ink); font: inherit; font-size: 14px; font-weight: 600; cursor: pointer; }
+  .btn.ghost { background: transparent; color: var(--text); border: 1px solid var(--line); font-weight: 500; }
+  .btn:disabled { opacity: .55; cursor: default; }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  .result { margin-top: 12px; }
+  .callout { border-left: 3px solid var(--accent); background: var(--surface); padding: 12px 16px; border-radius: 0 10px 10px 0; margin: 14px 0; }
+  .callout.warn { border-color: var(--warn); }
+  .diagram { width: 100%; height: auto; }
+  .diagram text { fill: var(--text); font: 13px -apple-system, sans-serif; }
+  .diagram .muted { fill: var(--muted); font-size: 11.5px; }
+  .diagram .box { fill: var(--surface); stroke: var(--line); }
+  .diagram .room { fill: var(--surface-2); stroke: var(--text); stroke-width: 2; stroke-dasharray: 6 4; }
+  .diagram .warden { fill: var(--ok-bg); stroke: var(--ok); }
+  .diagram .arrow { stroke: var(--muted); stroke-width: 1.5; fill: none; marker-end: url(#ah); }
+  .steps { counter-reset: s; list-style: none; padding: 0; margin: 0; }
+  .steps li { counter-increment: s; position: relative; padding: 0 0 12px 38px; }
+  .steps li::before { content: counter(s); position: absolute; left: 0; top: 0; width: 26px; height: 26px; border-radius: 50%; background: var(--surface-2); text-align: center; font-size: 13px; font-weight: 700; line-height: 26px; }
+  details summary { cursor: pointer; color: var(--accent); font-size: 14px; }
+  .small { font-size: 13px; } .muted { color: var(--muted); }
+</style>
+</head>
+<body>
+<script src="/nav.js"></script>
+<div class="wrap">
+  <nav class="top" aria-label="On this page"><span class="muted">On this page:</span><a href="#verify">Verify in your browser</a><a href="#test">Test with your agent</a><a href="#api">API</a><a href="#roadmap">Roadmap</a></nav>
+
+  <header class="hero">
+    <h1>Don't trust us.<br>Check.</h1>
+    <p>Your private details can improve a match, but they're never revealed: not to other people, and not to Belong. This page shows how, and gives you and your agent the tools to test it yourselves.</p>
+  </header>
+
+  <div class="callout warn"><b>Honest status: this is a prototype.</b> Every check on this page really runs. But matching doesn't yet run inside secure hardware, so today you still have to trust the machine it runs on. The table below separates what you can verify now from what arrives with the hardware enclave (Step 3).</div>
+
+  <h2>What we promise, and how you can check</h2>
+  <p class="lead">The rule behind all of it: the part that sees everything (the Matchmaker) has no way out, and the part that controls the way out (the Warden) never decides who matches.</p>
+  <div class="card scroll"><table>
+    <thead><tr><th>Promise</th><th>How you can check it</th><th>Status</th></tr></thead>
+    <tbody id="promises"></tbody>
+  </table></div>
+
+  <h2>How it's built</h2>
+  <p class="lead">Two parts, deliberately split. The Matchmaker finds matches; the Warden checks everything that goes in and comes out. The Warden is open source for everyone to read, and it treats the Matchmaker as hostile.</p>
+  <div class="card">
+    <svg class="diagram" viewBox="0 0 860 300" role="img" aria-label="People's agents send listings through the Warden's entry check to private matching, where the Matchmaker reads them; only Warden-checked introductions come out.">
+      <defs><marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="currentColor" style="color:var(--muted)"/></marker></defs>
+      <rect class="box" x="10" y="60" width="150" height="70" rx="12"/><text x="85" y="90" text-anchor="middle">You + your agent</text><text class="muted" x="85" y="110" text-anchor="middle">works only for you</text>
+      <rect class="box" x="10" y="180" width="150" height="70" rx="12"/><text x="85" y="210" text-anchor="middle">Your match</text><text class="muted" x="85" y="230" text-anchor="middle">sees shown details only</text>
+      <rect class="warden" x="215" y="30" width="150" height="240" rx="12"/><text x="290" y="60" text-anchor="middle" font-weight="700">Warden</text><text class="muted" x="290" y="80" text-anchor="middle">OPEN SOURCE</text>
+      <text class="muted" x="290" y="125" text-anchor="middle">entry check</text><text class="muted" x="290" y="215" text-anchor="middle">exit check</text><text class="muted" x="290" y="235" text-anchor="middle">+ public receipts</text>
+      <rect class="room" x="420" y="20" width="430" height="260" rx="16"/><text x="635" y="48" text-anchor="middle" font-weight="700">Private matching</text><text class="muted" x="635" y="66" text-anchor="middle">no network, no files, no logs; the only way out is the Warden</text>
+      <rect class="box" x="450" y="95" width="170" height="110" rx="12"/><text x="535" y="130" text-anchor="middle">Marketboard</text><text class="muted" x="535" y="150" text-anchor="middle">all listings, incl.</text><text class="muted" x="535" y="166" text-anchor="middle">hidden details</text>
+      <rect class="box" x="650" y="95" width="170" height="110" rx="12"/><text x="735" y="130" text-anchor="middle">Matchmaker</text><text class="muted" x="735" y="150" text-anchor="middle">treated as hostile</text><text class="muted" x="735" y="166" text-anchor="middle">by the Warden</text>
+      <path class="arrow" d="M160,95 L215,95"/><path class="arrow" d="M365,120 L450,135"/><path class="arrow" d="M620,150 L650,150"/>
+      <path class="arrow" d="M735,205 C735,250 500,250 365,215"/><path class="arrow" d="M215,215 L160,215"/>
+    </svg>
+    <div class="grid2" style="margin-top:8px">
+      <div><h3>Why you don't need to trust the Matchmaker</h3><p class="small muted">It can only hand the Warden a <b>Proposal</b>: two ids, yes/no flags, scores and field <i>names</i>. There's no free text, so there's nowhere to hide a secret. The Warden then writes the introduction itself from shown details only and string-checks it for hidden values. We treat the Matchmaker as hostile, so the guarantee rests entirely on the Warden, and you can read the Warden.</p></div>
+      <div><h3>What "not even us" requires</h3><p class="small muted">Open code isn't enough on its own. You also need proof that the open code is what is <i>running</i>, and that nobody (including Belong) can reach inside. That's the job of the hardware enclave: see <a href="#roadmap">the roadmap below</a>.</p></div>
+    </div>
+  </div>
+
+  <h2 id="verify">Verify it in your browser</h2>
+  <p class="lead">These checks run on your computer, using your browser's own cryptography. They don't take our word for anything.</p>
+
+  <div class="card">
+    <h3>1 · The Warden code you can read is the code that was measured</h3>
+    <p class="small muted">Downloads every open-source file, hashes it with SHA-256 in your browser, and compares the results with the measurements in the attestation document.</p>
+    <div class="row"><button class="btn" id="btn-src" onclick="verifySource()">Verify Warden source</button></div>
+    <div class="result" id="res-src"></div>
+  </div>
+
+  <div class="card">
+    <h3>2 · The attestation document</h3>
+    <p class="small muted">You pick a random nonce; Belong answers with its measurements and rules. In production the enclave hardware signs this document, so it can't be faked or replayed.</p>
+    <div class="row"><button class="btn ghost" onclick="getAttestation()">Fetch with a fresh nonce</button></div>
+    <div class="result" id="res-att"></div>
+  </div>
+
+  <div class="card">
+    <h3>3 · Nobody has deleted or edited a receipt</h3>
+    <p class="small muted">Every check the Warden runs writes a receipt (no content, just the check, the result, the time and a hash). Each receipt's hash covers the one before it, so removing or changing any receipt breaks the chain from that point on. Belong can't quietly rewrite history either.</p>
+    <div class="row"><button class="btn" id="btn-chain" onclick="verifyChain(false)">Verify the receipt chain</button>
+      <button class="btn ghost" onclick="verifyChain(true)">Show me a tampered copy failing</button></div>
+    <div class="result" id="res-chain"></div>
+  </div>
+
+  <h2 id="test">Test it with your agent</h2>
+  <p class="lead">These run in a sandbox: the same Warden and Matchmaker, with 300 synthetic people. Nothing touches real listings.</p>
+
+  <div class="card">
+    <h3>Canary test: plant secrets, then look for them everywhere</h3>
+    <p class="small muted">Creates people with unique secret words in their hidden details and private description, runs a full week (questions, matching, introductions, yes/no, reveal choices), then searches <b>every byte that was sent out</b> for those words. The canaries never consent to a reveal, so any hit at all is a leak.</p>
+    <div class="row"><label class="small">Canaries <input id="canary-n" type="number" value="20" min="1" max="50" style="width:70px"></label><button class="btn" id="btn-canary" onclick="runCanary()">Run canary test</button></div>
+    <div class="result" id="res-canary"></div>
+  </div>
+
+  <div class="card">
+    <h3>Attack suite: try to break in and get data out</h3>
+    <p class="small muted">Tries 21 attacks: identifying intents, forged and mislabelled listings, a compromised Matchmaker, forged outputs, reveals without consent. Each must be blocked, and the result says which rule stopped it.</p>
+    <label class="small muted">Your own intents to try (one per line, optional)</label>
+    <textarea id="attack-intents" rows="2" style="width:100%;font:inherit;font-size:14px;border:1px solid var(--line);border-radius:8px;padding:8px;background:var(--surface);color:var(--text)" placeholder="e.g. My coworker Jane Smith from accounting"></textarea>
+    <div class="row" style="margin-top:8px"><button class="btn" id="btn-attack" onclick="runAttacks()">Run attack suite</button></div>
+    <div class="result" id="res-attack"></div>
+  </div>
+
+  <h2 id="api">API for agents</h2>
+  <p class="lead">Everything above is available to your agent over plain HTTP. A certified agent can run these before it trusts Belong with your details, and again whenever it likes.</p>
+  <div class="card scroll"><table>
+    <thead><tr><th>Call</th><th>What it gives you</th></tr></thead>
+    <tbody>
+      <tr><td class="mono">GET /api/trust/attestation?nonce=…</td><td>Measurements of the Warden and Matchmaker, plus the rules in force</td></tr>
+      <tr><td class="mono">GET /api/trust/source</td><td>Every open-source file and its SHA-256</td></tr>
+      <tr><td class="mono">GET /api/trust/source/&lt;file&gt;</td><td>The file itself (published Warden files only)</td></tr>
+      <tr><td class="mono">GET /api/trust/receipts?from=N</td><td>The public receipt log, plus the previous hash so you can verify from any point</td></tr>
+      <tr><td class="mono">POST /api/probe/canary</td><td>Canary test; bring your own listings and secrets</td></tr>
+      <tr><td class="mono">POST /api/probe/attacks</td><td>Attack suite; bring your own intents</td></tr>
+    </tbody></table>
+  <details style="margin-top:12px"><summary>Examples</summary>
+<pre id="examples"></pre></details></div>
+
+  <h2 id="roadmap">From prototype to "not even us"</h2>
+  <p class="lead">What has to be true before the strongest promise holds, and where each piece stands.</p>
+  <div class="card scroll"><table><thead><tr><th>Requirement</th><th>Why it matters</th><th>Status</th></tr></thead><tbody id="roadmap-rows"></tbody></table></div>
+
+  <p class="small muted" style="margin-top:40px">The full list of promises, with the code that enforces each one and the test that proves it: <a href="/trust/TRUST.md">TRUST.md</a>. Want to see it from a user's side? <a href="/">Open the two-person demo</a>.</p>
+</div>
+<script>
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const $ = id => document.getElementById(id);
+const badge = (kind, text) => `<span class="badge b-${kind}">${esc(text)}</span>`;
+const NOW = badge("ok", "Testable now"), SIM = badge("warn", "Simulated"), LATER = badge("muted", "Step 3");
+
+const PROMISES = [
+  ["Hidden details never reach another person", "Canary test below; independent leak audit on every run", NOW],
+  ["A hidden detail is never the reason for a match", "Attack suite: 'use a hidden detail as the reason' must be blocked", NOW],
+  ["Nobody is approached who didn't ask", "Attack suite: 'introduce someone who never asked' must be blocked", NOW],
+  ["Nobody can search for one specific person", "Attack suite, plus your own test intents", NOW],
+  ["Hidden details are revealed only if both share them and both opt in", "Canary test: canaries never opt in, so their secrets must never appear", NOW],
+  ["The Warden code is open and is what was measured", "Verify Warden source (hashes computed in your browser)", NOW],
+  ["Receipts can't be quietly deleted or edited, even by us", "Verify the receipt chain (recomputed in your browser)", NOW],
+  ["The measured code is what's actually running", "Hardware-signed attestation document", SIM],
+  ["Belong can't see your hidden details", "Enclave isolation + attestation-gated keys + encryption on your device", LATER],
+];
+const ROADMAP = [
+  ["Run matching inside a hardware enclave (e.g. AWS Nitro Enclaves)", "The host machine, including Belong's operators, can't read matching's memory", LATER],
+  ["Hardware-signed attestation, checked by your agent", "Proves which exact code is running before your agent sends anything", SIM],
+  ["Encrypt listings on your device to the enclave's attested key", "Your details are never readable outside the enclave, even in transit through our servers", LATER],
+  ["Keys released only to attested code (key-management policy)", "If anyone changes the code, the keys stop working", LATER],
+  ["No debug or operator access to the enclave", "Removes the 'back door' an operator could otherwise use", LATER],
+  ["Reproducible builds of the open-source Warden", "Anyone can rebuild it and get the same measurement", LATER],
+  ["Independent security audit of the Warden rules", "Experts outside Belong check the rules, not just the code", LATER],
+  ["Open-source Warden + published Matchmaker measurement", "You can read every check; the Matchmaker can't get past them", NOW],
+  ["Hash-chained public receipt log", "History of checks can't be rewritten", NOW],
+  ["Agent test API (canary + attacks)", "Your agent can test Belong itself", NOW],
+];
+$("promises").innerHTML = PROMISES.map(([p, h, s]) => `<tr><td>${esc(p)}</td><td class="small">${esc(h)}</td><td>${s}</td></tr>`).join("");
+$("roadmap-rows").innerHTML = ROADMAP.map(([p, h, s]) => `<tr><td>${esc(p)}</td><td class="small">${esc(h)}</td><td>${s}</td></tr>`).join("");
+const origin = location.origin;
+$("examples").textContent =
+`# Measurements, with your own nonce
+curl "${origin}/api/trust/attestation?nonce=$(openssl rand -hex 16)"
+
+# Download the Warden and hash it yourself
+curl -s ${origin}/api/trust/source/warden.py | shasum -a 256
+
+# Canary test with your agent's own listing and secret
+curl -s -X POST ${origin}/api/probe/canary -H 'Content-Type: application/json' -d '{
+  "count": 10,
+  "listings": [{
+    "intent_text": "Looking for a running buddy in Kyoto, weekends.",
+    "fields": [
+      {"key": "city", "value": "Kyoto"}, {"key": "schedule", "value": "weekends"},
+      {"key": "pace", "value": "easy"},
+      {"key": "health", "value": "my-private-detail", "visibility": "hidden"}
+    ],
+    "secrets": ["my-private-detail"]
+  }]
+}'
+
+# Attack suite with your own intents
+curl -s -X POST ${origin}/api/probe/attacks -H 'Content-Type: application/json' \\
+  -d '{"intents": ["my coworker Jane Smith"]}'`;
+
+async function sha256(text) {
+  const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text));
+  return [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2, "0")).join("");
+}
+
+async function verifySource() {
+  const out = $("res-src"); $("btn-src").disabled = true; out.innerHTML = "Downloading…";
+  try {
+    const nonce = crypto.getRandomValues(new Uint32Array(4)).join("");
+    const att = await (await fetch("/api/trust/attestation?nonce=" + nonce)).json();
+    const files = Object.keys(att.measurements.open_source_files).sort();
+    const rows = [];
+    for (const f of files) {
+      const text = await (await fetch("/api/trust/source/" + f)).text();
+      const mine = await sha256(text);
+      rows.push({ f, mine, theirs: att.measurements.open_source_files[f], size: text.length });
+    }
+    const combined = await sha256(rows.map(r => `${r.f}:${r.mine}`).join("\n"));
+    const allOk = rows.every(r => r.mine === r.theirs) && combined === att.measurements.warden;
+    out.innerHTML = `<p>${allOk ? badge("ok", "✓ Match") : badge("bad", "✗ Mismatch")} The ${rows.length} files you downloaded hash to the published Warden measurement
+        <span class="mono">${combined.slice(0, 16)}…</span></p>
+      <div class="scroll"><table><tr><th>File</th><th>Your hash</th><th></th><th></th></tr>
+      ${rows.map(r => `<tr><td class="mono">${esc(r.f)}</td><td class="mono">${r.mine.slice(0, 20)}…</td><td>${r.mine === r.theirs ? badge("ok", "matches") : badge("bad", "differs")}</td>
+        <td><a href="/api/trust/source/${esc(r.f)}" target="_blank">read</a></td></tr>`).join("")}</table></div>
+      <p class="small muted">The Matchmaker is measured too (<span class="mono">${att.measurements.matchmaker.slice(0, 16)}…</span>) and treated as hostile, so nothing here depends on it.
+      Remember: this proves the files match the measurement. Only the enclave's hardware signature (Step 3) proves this is the code that's <i>running</i>.</p>`;
+  } catch (e) { out.innerHTML = badge("bad", "Error") + " " + esc(e.message); }
+  $("btn-src").disabled = false;
+}
+
+async function getAttestation() {
+  const nonce = [...crypto.getRandomValues(new Uint8Array(12))].map(b => b.toString(16).padStart(2, "0")).join("");
+  const att = await (await fetch("/api/trust/attestation?nonce=" + nonce)).json();
+  const shown = { ...att, measurements: { ...att.measurements, open_source_files: "(see check 1)" } };
+  $("res-att").innerHTML = `<p class="small">${att.nonce === nonce ? badge("ok", "✓ nonce echoed") : badge("bad", "✗ nonce mismatch")} ${badge("warn", "unsigned: prototype")}</p><pre>${esc(JSON.stringify(shown, null, 2))}</pre>`;
+}
+
+async function verifyChain(tamper) {
+  const out = $("res-chain"); $("btn-chain").disabled = true; out.innerHTML = "Downloading the log…";
+  try {
+    const log = await (await fetch("/api/trust/receipts?from=0")).json();
+    let receipts = log.receipts;
+    let note = "";
+    if (tamper && receipts.length > 10) {
+      receipts = receipts.map(r => ({ ...r }));
+      const i = Math.floor(receipts.length / 2);
+      receipts[i].result = receipts[i].result === "pass" ? "fail" : "pass";
+      note = `<p class="small muted">We flipped the result of receipt #${receipts[i].seq} in your browser's copy, as if someone had edited the log.</p>`;
+    }
+    let prev = log.prev_hash, bad = -1;
+    for (let i = 0; i < receipts.length; i++) {
+      const r = receipts[i];
+      const h = await sha256(`${prev}|${r.seq}|${r.check}|${r.result}|${r.timestamp}|${r.commitment}`);
+      if (h !== r.hash) { bad = i; break; }
+      prev = r.hash;
+    }
+    const passes = receipts.filter(r => r.result === "pass").length;
+    out.innerHTML = note + (bad < 0
+      ? `<p>${badge("ok", "✓ Chain intact")} All ${receipts.length.toLocaleString()} receipts link correctly (${passes.toLocaleString()} passes, ${(receipts.length - passes).toLocaleString()} fails). Latest: <span class="mono">${prev.slice(0, 20)}…</span></p>`
+      : `<p>${badge("bad", "✗ Chain broken")} at receipt #${receipts[bad].seq}: its hash doesn't match what it should be given everything before it.</p>`)
+      + `<details><summary>Last 5 receipts</summary><pre>${esc(JSON.stringify(receipts.slice(-5), null, 2))}</pre></details>`;
+  } catch (e) { out.innerHTML = badge("bad", "Error") + " " + esc(e.message); }
+  $("btn-chain").disabled = false;
+}
+
+async function post(path, body) {
+  const r = await fetch(path, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+  return r.json();
+}
+
+async function runCanary() {
+  const out = $("res-canary"); $("btn-canary").disabled = true; out.innerHTML = "Running a full week in a sandbox…";
+  try {
+    const r = await post("/api/probe/canary", { count: +$("canary-n").value || 20 });
+    const sample = Object.entries(r.what_canaries_received)[0];
+    out.innerHTML = `<p>${r.ok ? badge("ok", "✓ No leaks") : badge("bad", "✗ Leak found")}
+        Planted <b>${r.secrets_planted}</b> secrets in <b>${r.canary_people}</b> people. Searched ${r.bytes_scanned.toLocaleString()} bytes of output
+        (${r.outputs_scanned.introductions} introductions, ${r.outputs_scanned.followups} questions, ${r.outputs_scanned.reveals} reveals, ${r.outputs_scanned.receipts.toLocaleString()} receipts).
+        Secrets found: <b>${r.secrets_found_in_outputs.length}</b>. Receipt chain: ${r.receipt_chain_ok ? "intact" : "BROKEN"}.</p>
+      ${r.canaries_rejected_at_entry.length ? `<p class="small">${badge("warn", "note")} ${r.canaries_rejected_at_entry.length} canary listing(s) were refused at entry.</p>` : ""}
+      ${sample ? `<details><summary>What a canary actually received (${esc(sample[0])})</summary><pre>${esc(JSON.stringify(sample[1], null, 2))}</pre></details>` : ""}
+      <details><summary>Full result</summary><pre>${esc(JSON.stringify({ ...r, what_canaries_received: "(above)" }, null, 2))}</pre></details>`;
+  } catch (e) { out.innerHTML = badge("bad", "Error") + " " + esc(e.message); }
+  $("btn-canary").disabled = false;
+}
+
+async function runAttacks() {
+  const out = $("res-attack"); $("btn-attack").disabled = true; out.innerHTML = "Attacking a sandbox…";
+  try {
+    const intents = $("attack-intents").value.split("\n").map(s => s.trim()).filter(Boolean);
+    const r = await post("/api/probe/attacks", { intents });
+    out.innerHTML = `<p>${r.ok ? badge("ok", `✓ ${r.blocked} of ${r.attempts} blocked`) : badge("bad", `✗ only ${r.blocked} of ${r.attempts} blocked`)}</p>
+      <div class="scroll"><table><tr><th>Attack</th><th>Result</th><th>Stopped by</th></tr>
+      ${r.results.map(x => `<tr><td>${esc(x.attack)}<div class="small muted">${esc(x.category)}</div></td><td>${x.blocked ? badge("ok", "blocked") : badge("bad", "GOT THROUGH")}</td><td class="mono">${esc(x.stopped_by || "")}</td></tr>`).join("")}
+      </table></div>
+      ${r.your_intents.length ? `<h3 style="margin-top:14px">Your intents</h3><table>${r.your_intents.map(x => `<tr><td>${esc(x.intent)}</td><td>${x.refused ? badge("ok", "refused") : badge("muted", "allowed")}</td><td class="small muted">${esc(x.why.join(", ") || "doesn't look like it targets one person")}</td></tr>`).join("")}</table>` : ""}`;
+  } catch (e) { out.innerHTML = badge("bad", "Error") + " " + esc(e.message); }
+  $("btn-attack").disabled = false;
+}
+</script>
+</body>
+</html>

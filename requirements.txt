@@ -1,0 +1,3 @@
+# Optional: powers the personal agent in the demo (python3 -m belong serve).
+# Everything else runs on the Python standard library alone.
+anthropic
