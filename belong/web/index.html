@@ -4,24 +4,20 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Belong Inspector</title>
+<link rel="stylesheet" href="/ds/tokens.css">
+<link rel="stylesheet" href="/ds/belong.css">
 <style>
+  /* Internal tool: the page's own names, mapped onto the Belong design tokens. */
   :root {
-    --bg: #f7f6f3; --surface: #ffffff; --text: #1d1c1a; --muted: #6b6862; --line: #e4e1da;
-    --accent: #3b5bdb; --ok: #2b8a3e; --ok-bg: #ebfbee; --bad: #c92a2a; --bad-bg: #fff5f5;
-    --hidden-bg: #f1effa; --hidden: #5f3dc4; --mono: ui-monospace, SFMono-Regular, Menlo, monospace;
-  }
-  @media (prefers-color-scheme: dark) {
-    :root:not([data-theme="light"]) {
-      --bg: #161614; --surface: #1f1f1c; --text: #ecebe7; --muted: #9d9a93; --line: #34332f;
-      --accent: #91a7ff; --ok: #69db7c; --ok-bg: #12261a; --bad: #ff8787; --bad-bg: #2c1515;
-      --hidden-bg: #251f3a; --hidden: #b197fc;
-    }
+    --bg: var(--surface-app); --surface: var(--surface-card); --text: var(--text-primary); --muted: var(--text-secondary);
+    --line: var(--border-subtle); --accent: var(--accent-default); --ok: var(--text-success); --ok-bg: var(--accent-success-muted);
+    --bad: var(--text-error); --bad-bg: var(--accent-error-muted); --hidden-bg: var(--accent-ai-muted); --hidden: var(--text-ai);
+    --mono: var(--font-mono);
   }
   * { box-sizing: border-box; }
-  body { margin: 0; background: var(--bg); color: var(--text);
-         font: 15px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+  body { margin: 0; color: var(--text); font: var(--text-body-s); }
   header { padding: 20px 16px 0; max-width: 1200px; margin: 0 auto; }
-  h1 { font-size: 20px; margin: 0 0 2px; }
+  h1 { font: var(--text-display-s); margin: 0 0 2px; }
   .sub { color: var(--muted); margin: 0 0 14px; }
   nav { display: flex; gap: 4px; flex-wrap: wrap; border-bottom: 1px solid var(--line); }
   nav button { background: none; border: 0; padding: 8px 12px; font: inherit; color: var(--muted);
@@ -29,8 +25,8 @@
   nav button.on { color: var(--text); border-bottom-color: var(--accent); }
   main { max-width: 1200px; margin: 0 auto; padding: 16px; }
   section { display: none; } section.on { display: block; }
-  .card { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 16px; margin-bottom: 14px; }
-  .banner { border-radius: 10px; padding: 14px 16px; margin-bottom: 14px; font-weight: 600; }
+  .card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-md); padding: 16px; margin-bottom: 14px; }
+  .banner { border-radius: var(--radius-md); padding: 14px 16px; margin-bottom: 14px; font-weight: 600; }
   .banner.ok { background: var(--ok-bg); color: var(--ok); } .banner.bad { background: var(--bad-bg); color: var(--bad); }
   .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
   .stat .n { font-size: 24px; font-weight: 650; } .stat .l { color: var(--muted); font-size: 13px; }
@@ -101,7 +97,7 @@ function show(id) {
   try { localStorage.setItem("belong-tab", id); } catch (_) {}
 }
 function fieldPills(fields) {
-  return fields.map(f => `<span class="pill ${f.visibility === "hidden" ? "hidden" : ""}" title="${f.visibility}${f.sensitive ? ", sensitive" : ""}">${f.visibility === "hidden" ? "🔒 " : ""}${esc(f.key)}: ${esc(val(f.value))}</span>`).join("");
+  return fields.map(f => `<span class="pill ${f.visibility === "hidden" ? "hidden" : ""}" title="${f.visibility}${f.sensitive ? ", sensitive" : ""}">${f.visibility === "hidden" ? "Hidden · " : ""}${esc(f.key)}: ${esc(val(f.value))}</span>`).join("");
 }
 function filterable(sectionId, rowsHtml, headHtml, placeholder) {
   const s = $(sectionId);
@@ -123,7 +119,7 @@ function render(d) {
   const byAudit = {};
   lr.findings.forEach(f => (byAudit[f.audit] = byAudit[f.audit] || []).push(f.detail));
   $("overview").innerHTML = `
-    <div class="banner ${lr.ok ? "ok" : "bad"}">${lr.ok ? "✓ Leak report passed: no hidden detail was revealed." : `✗ Leak report failed: ${lr.findings.length} finding(s).`}</div>
+    <div class="banner ${lr.ok ? "ok" : "bad"}">${lr.ok ? "Leak report passed: no hidden detail was shown." : `Leak report failed: ${lr.findings.length} finding(s).`}</div>
     <div class="card"><h2>What was checked</h2>
       <p class="note">An independent audit (belong/leaks.py) re-reads every output that was sent out. It does not reuse the Warden's code.</p>
       <table><thead><tr><th>Audit</th><th>Promise</th><th>Result</th></tr></thead><tbody>
@@ -144,7 +140,7 @@ function render(d) {
     </div>`;
 
   // People
-  $("people").innerHTML = `<p class="note">Everything each person put in their listing. 🔒 = hidden: used only for matching, never shown to anyone.</p>`;
+  $("people").innerHTML = `<p class="note">Everything each person put in their listing. Details marked Hidden are used for matching, never shown.</p>`;
   filterable("people", d.people.map(p => `<tr>
       <td>${name(p.id)}</td><td>${p.kind}</td>
       <td>${p.admitted ? '<span class="pill ok">admitted</span>' : `<span class="pill bad">rejected</span><div class="note">${p.entry_problems.map(esc).join("<br>")}</div>`}</td>
@@ -164,7 +160,7 @@ function render(d) {
   filterable("room", d.proposals_internal.map(p => `<tr><td>${name(p.person_a)}</td><td>${name(p.person_b)}</td>
       <td>${p.score}</td><td>${p.shown_score} ≥ ${p.shown_threshold}</td>
       <td>${p.reason_fields.map(k => `<span class="pill">${k}</span>`).join("")}</td>
-      <td>${p.used_hidden_fields.map(k => `<span class="pill hidden">🔒 ${k}</span>`).join("") || '<span class="muted">none</span>'}</td>
+      <td>${p.used_hidden_fields.map(k => `<span class="pill hidden">${k}</span>`).join("") || '<span class="muted">none</span>'}</td>
       <td>${p.truly_compatible ? '<span class="pill ok">yes</span>' : '<span class="pill bad">no</span>'}</td></tr>`).join(""),
     "<tr><th>A</th><th>B</th><th>Score</th><th>Shown-only score ≥ threshold</th><th>Reason fields</th><th>Hidden fields that raised it</th><th>Truly compatible</th></tr>", "Filter proposals…");
 
