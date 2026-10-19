@@ -1,7 +1,7 @@
 """Matchmaker agent (SPEC §3, §5, §6, §8.3).
 
-Treated as hostile: it needs no trust, because it can only hand the Warden the
-objects defined in contract.py (open source), and the Warden re-checks every one.
+Open source, and still treated as hostile: it needs no trust, because it can only hand
+the Warden the objects defined in contract.py, and the Warden re-checks every one.
 
 Pluggable: anything with `match(board) -> MatchResult` is a Matchmaker.
   - OfflineMatcher: rules + TF-IDF, no API key, no network.

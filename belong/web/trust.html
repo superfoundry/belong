@@ -97,7 +97,7 @@
     <section id="how">
       <p class="eyebrow">How it's built</p>
       <h2 class="display-m">Two agents, deliberately split</h2>
-      <p class="intro">The Matchmaker agent finds matches. The Warden agent checks everything that goes into private matching and everything that comes out. The Warden agent is open source for anyone to read, and it treats the Matchmaker agent as hostile.</p>
+      <p class="intro">The Matchmaker agent finds matches. The Warden agent checks everything that goes into private matching and everything that comes out. Both are open source for anyone to read, and the Warden agent still treats the Matchmaker agent as hostile, so even a modified Matchmaker can't send out a hidden detail.</p>
       <div class="card">
         <svg class="diagram" viewBox="0 0 860 300" role="img" aria-label="Your agent sends your listing through the Warden agent's entry check into private matching, where the Matchmaker agent reads every listing; only introductions the Warden agent has checked come out to your match.">
           <defs><marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" style="fill: var(--text-tertiary)"/></marker></defs>
@@ -107,7 +107,7 @@
           <text class="sub" x="290" y="125" text-anchor="middle">entry check</text><text class="sub" x="290" y="215" text-anchor="middle">exit check</text><text class="sub" x="290" y="235" text-anchor="middle">public receipts</text>
           <rect class="private" x="420" y="20" width="430" height="260"/><text x="635" y="48" text-anchor="middle" font-weight="600">Private matching</text><text class="sub" x="635" y="66" text-anchor="middle">no network, no files, no logs; the only way out is the Warden agent</text>
           <rect class="box" x="450" y="95" width="170" height="110"/><text x="535" y="130" text-anchor="middle">Marketboard</text><text class="sub" x="535" y="150" text-anchor="middle">every listing, with</text><text class="sub" x="535" y="166" text-anchor="middle">its hidden details</text>
-          <rect class="agent" x="650" y="95" width="170" height="110"/><text x="735" y="130" text-anchor="middle" font-weight="600">Matchmaker agent</text><text class="ai-sub" x="735" y="150" text-anchor="middle">treated as hostile</text><text class="ai-sub" x="735" y="166" text-anchor="middle">by the Warden agent</text>
+          <rect class="agent" x="650" y="95" width="170" height="110"/><text x="735" y="130" text-anchor="middle" font-weight="600">Matchmaker agent</text><text class="ai-sub" x="735" y="150" text-anchor="middle">open source, and</text><text class="ai-sub" x="735" y="166" text-anchor="middle">treated as hostile</text>
           <path class="flow" d="M160,95 L215,95"/><path class="flow" d="M365,120 L450,135"/><path class="flow" d="M620,150 L650,150"/>
           <path class="flow" d="M735,205 C735,250 500,250 365,215"/><path class="flow" d="M215,215 L160,215"/>
         </svg>
@@ -115,7 +115,7 @@
       <div class="grid2" style="margin-top: var(--space-6)">
         <div class="card md">
           <h3 class="heading-m">Why you don't need to trust the Matchmaker agent</h3>
-          <p class="body-s secondary">It can only hand the Warden agent a proposal: two ids, yes-or-no flags, scores and field names. There's no free text, so there's nowhere to hide a hidden detail. The Warden agent then writes the introduction itself from shown details only, and checks it for hidden values. The guarantee rests on the Warden agent, and you can read the Warden agent.</p>
+          <p class="body-s secondary">You can read how it matches, but you don't have to rely on it. It can only hand the Warden agent a proposal: two ids, yes-or-no flags, scores and field names. There's no free text, so there's nowhere to hide a hidden detail. The Warden agent then writes the introduction itself from shown details only, and checks it for hidden values. Privacy rests on the Warden agent, and its code never depends on the Matchmaker's.</p>
         </div>
         <div class="card md">
           <h3 class="heading-m">What "not even Belong" requires</h3>
@@ -131,9 +131,9 @@
       <div class="stack">
         <div class="card check">
           <span class="caption tertiary">Check 1</span>
-          <h3 class="heading-l">The Warden agent's code is the code that was measured</h3>
-          <p class="what">Downloads every open-source file, hashes it with SHA-256 in your browser, and compares the results with the measurements in the attestation document.</p>
-          <div class="actions"><button class="btn secondary" id="btn-src" onclick="verifySource()">Verify the Warden agent's source</button></div>
+          <h3 class="heading-l">The code you can read is the code that was measured</h3>
+          <p class="what">Downloads every open-source file of both agents, hashes it with SHA-256 in your browser, and compares the results with the Warden agent's and the Matchmaker agent's measurements in the attestation document.</p>
+          <div class="actions"><button class="btn secondary" id="btn-src" onclick="verifySource()">Verify both agents' source</button></div>
           <div class="result" id="res-src"></div>
         </div>
         <div class="card check">
@@ -192,7 +192,7 @@
         <tbody>
           <tr><td class="mono">GET /api/trust/attestation?nonce=…</td><td class="how">Measurements of both agents, plus the rules in force</td></tr>
           <tr><td class="mono">GET /api/trust/source</td><td class="how">Every open-source file and its SHA-256</td></tr>
-          <tr><td class="mono">GET /api/trust/source/&lt;file&gt;</td><td class="how">The file itself (the Warden agent's published files only)</td></tr>
+          <tr><td class="mono">GET /api/trust/source/&lt;file&gt;</td><td class="how">The file itself, for any file of either agent</td></tr>
           <tr><td class="mono">GET /api/trust/receipts?from=N</td><td class="how">The public receipt log, plus the previous hash so you can verify from any point</td></tr>
           <tr><td class="mono">POST /api/probe/canary</td><td class="how">The canary test; bring your own listings and secrets</td></tr>
           <tr><td class="mono">POST /api/probe/attacks</td><td class="how">The attack suite; bring your own intents</td></tr>
@@ -224,7 +224,7 @@ const PROMISES = [
   ["No one is approached who didn't ask", "Attack suite: \"introduce someone who never asked\" must be blocked", NOW],
   ["No one can search for one specific person", "Attack suite, plus your own test intents", NOW],
   ["A hidden detail is shared only if both of you have it and both choose to compare it", "Canary test: canaries never agree, so their secrets must never appear", NOW],
-  ["The Warden agent's code is open and is what was measured", "Check 1 (hashes computed in your browser)", NOW],
+  ["Both agents' code is open and is what was measured", "Check 1 (hashes computed in your browser)", NOW],
   ["Receipts can't be quietly deleted or edited, even by Belong", "Check 3 (recomputed in your browser)", NOW],
   ["The measured code is what's actually running", "A hardware-signed attestation document", SIM],
   ["Belong can't see your hidden details", "Enclave isolation, attestation-gated keys and encryption on your device", LATER],
@@ -235,9 +235,9 @@ const ROADMAP = [
   ["Encrypt listings on your device to the enclave's attested key", "Your details are never readable outside the enclave, even in transit through our servers", LATER],
   ["Keys released only to attested code", "If anyone changes the code, the keys stop working", LATER],
   ["No debug or operator access to the enclave", "Removes the way in an operator could otherwise use", LATER],
-  ["Reproducible builds of the open-source Warden agent", "Anyone can rebuild it and get the same measurement", LATER],
+  ["Reproducible builds of both agents", "Anyone can rebuild them and get the same measurements", LATER],
   ["Independent security audit of the Warden agent's rules", "Experts outside Belong check the rules, not just the code", LATER],
-  ["Open-source Warden agent and a published Matchmaker agent measurement", "You can read every check; the Matchmaker agent can't get past them", NOW],
+  ["Open-source Warden and Matchmaker agents", "You can read every check and how matching works; the Matchmaker agent still can't get past the checks", NOW],
   ["Hash-chained public receipt log", "The history of checks can't be rewritten", NOW],
   ["Agent test API (canary test and attack suite)", "Your agent can test Belong itself", NOW],
 ];
@@ -248,8 +248,9 @@ $("examples").textContent =
 `# Measurements, with your own nonce
 curl "${origin}/api/trust/attestation?nonce=$(openssl rand -hex 16)"
 
-# Download the Warden agent and hash it yourself
+# Download either agent and hash it yourself
 curl -s ${origin}/api/trust/source/warden.py | shasum -a 256
+curl -s ${origin}/api/trust/source/matching/matcher.py | shasum -a 256
 
 # Canary test with your agent's own listing and secret
 curl -s -X POST ${origin}/api/probe/canary -H 'Content-Type: application/json' -d '{
@@ -279,23 +280,24 @@ async function verifySource() {
   try {
     const nonce = crypto.getRandomValues(new Uint32Array(4)).join("");
     const att = await (await fetch("/api/trust/attestation?nonce=" + nonce)).json();
-    const files = Object.keys(att.measurements.open_source_files).sort();
-    const rows = [];
-    for (const f of files) {
-      const text = await (await fetch("/api/trust/source/" + f)).text();
-      const mine = await sha256(text);
-      rows.push({ f, mine, theirs: att.measurements.open_source_files[f] });
+    const m = att.measurements, mine = {};
+    for (const f of Object.keys(m.open_source_files).sort()) {
+      mine[f] = await sha256(await (await fetch("/api/trust/source/" + f)).text());
     }
-    const combined = await sha256(rows.map(r => `${r.f}:${r.mine}`).join("\n"));
-    const allOk = rows.every(r => r.mine === r.theirs) && combined === att.measurements.warden;
+    const NAMES = { warden: "Warden agent", matchmaker: "Matchmaker agent" };
+    const agents = [];
+    for (const [agent, files] of Object.entries(m.groups)) {
+      const combined = await sha256(files.slice().sort().map(f => `${f}:${mine[f]}`).join("\n"));
+      agents.push({ name: NAMES[agent] || agent, files, combined, ok: combined === m[agent] && files.every(f => mine[f] === m.open_source_files[f]) });
+    }
+    const allOk = agents.every(a => a.ok);
     out.innerHTML = `<p>${allOk ? badge("success", "Match") : badge("error", "Mismatch")}
-        The ${rows.length} files you downloaded hash to the published measurement <span class="mono">${combined.slice(0, 16)}…</span></p>
-      <div class="scroll"><table><tr><th>File</th><th>Your hash</th><th>Result</th><th></th></tr>
-      ${rows.map(r => `<tr><td class="mono">${esc(r.f)}</td><td class="mono">${r.mine.slice(0, 20)}…</td>
-        <td>${r.mine === r.theirs ? badge("success", "Matches") : badge("error", "Differs")}</td>
-        <td><a href="/api/trust/source/${esc(r.f)}" target="_blank">Read</a></td></tr>`).join("")}</table></div>
-      <p class="secondary">The Matchmaker agent is measured too (<span class="mono">${att.measurements.matchmaker.slice(0, 16)}…</span>) and treated as hostile, so nothing here depends on it.
-      This proves the files match the measurement. Only the enclave's hardware signature, in step 3, proves this is the code that's running.</p>`;
+        ${agents.map(a => `${esc(a.name)}: ${a.files.length} files hash to <span class="mono">${a.combined.slice(0, 16)}…</span>`).join("; ")}</p>
+      <div class="scroll"><table><tr><th>Agent</th><th>File</th><th>Your hash</th><th>Result</th><th></th></tr>
+      ${agents.map(a => a.files.map(f => `<tr><td>${esc(a.name)}</td><td class="mono">${esc(f)}</td><td class="mono">${mine[f].slice(0, 20)}…</td>
+        <td>${mine[f] === m.open_source_files[f] ? badge("success", "Matches") : badge("error", "Differs")}</td>
+        <td><a href="/api/trust/source/${esc(f)}" target="_blank">Read</a></td></tr>`).join("")).join("")}</table></div>
+      <p class="secondary">This proves the files match the measurements. Only the enclave's hardware signature, in step 3, proves this is the code that's running.</p>`;
   } catch (e) { out.innerHTML = `<p>${badge("error", "Error")} ${esc(e.message)}</p>`; }
   $("btn-src").disabled = false;
 }

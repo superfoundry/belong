@@ -43,10 +43,10 @@ belong/                                    [open] = published as open source
     __init__.py    [open] isolation rules for matching code
     contract.py    [open] the only shapes the Matchmaker may hand the Warden
     marketboard.py [open] stores listings
-    matcher.py       OfflineMatcher (rules), LLMMatcher (planned)       §8.3
-    intent.py        reads free-text intents into structure
-    narrow.py        hard filters + text similarity -> shortlists       §8.2
-    text.py          small TF-IDF embedding
+    matcher.py     [open] OfflineMatcher (rules), LLMMatcher (planned)  §8.3
+    intent.py      [open] reads free-text intents into structure
+    narrow.py      [open] hard filters + text similarity -> shortlists  §8.2
+    text.py        [open] small TF-IDF embedding
   agent.py         personal agent: drafts listings, relays answers     §3
                    (rule-based fallback)
   agent_llm.py     personal agent powered by Claude, plus the instructions

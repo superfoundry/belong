@@ -109,7 +109,7 @@ class _Handler(BaseHTTPRequestHandler):
         if what.startswith("source/"):
             text = attest.open_source_text(what.removeprefix("source/"))
             if text is None:
-                return self._json(404, {"error": "Not one of the published Warden files. See /api/trust/source."})
+                return self._json(404, {"error": "Not one of the published files. See /api/trust/source."})
             return self._send(200, text.encode(), "text/plain; charset=utf-8")
         if what == "receipts":
             try:
