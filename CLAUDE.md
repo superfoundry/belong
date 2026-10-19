@@ -25,10 +25,12 @@ and tested) before changing code.
   a Warden check to make something pass. If a change needs a new output type, add a
   Warden exit check *and* a leak audit for it.
 - **leaks.py stays independent of warden.py.** Don't import Warden helpers into it.
-- **Open-source Warden, hostile Matchmaker.** Files in `OPEN_SOURCE` (belong/attest.py)
-  are published; they must never import `MATCHMAKER_FILES` (tests/test_trust.py enforces
-  this). The privacy guarantee must never depend on the Matchmaker: treat it as hostile,
-  and add an attack to belong/probe.py for any new way it could misbehave.
+- **Both agents are open source; the Matchmaker is still treated as hostile.** Everything in
+  `OPEN_SOURCE` (belong/attest.py: `WARDEN_FILES` + `MATCHMAKER_FILES`) is published and
+  measured per agent. Published code may only import published code, and Warden files must
+  never import Matchmaker files (tests/test_trust.py enforces both). The privacy guarantee
+  must never depend on the Matchmaker behaving well: add an attack to belong/probe.py for
+  any new way it could misbehave.
 - **The receipt log is append-only and hash-chained.** Never rewrite or drop receipts.
 - **Phones see only what their person may know** (`DemoSession.phone_state`). Matching
   internals go only to the presenter panel.
@@ -41,7 +43,7 @@ and tested) before changing code.
   page copy, agent messages, API responses, published (open-source) files or TRUST.md.
   Talk about trust and security instead: hidden details, the Warden's checks, what is
   shown and what is never shown.
-- Don't describe the Matchmaker as proprietary or closed. Do say we treat it as hostile.
+- The Matchmaker is open source; say so, and say the Warden still treats it as hostile.
 - Internal code comments may still say "the room" as shorthand.
 
 ## Design

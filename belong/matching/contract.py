@@ -1,6 +1,6 @@
 """The contract between the Matchmaker and the Warden. OPEN SOURCE.
 
-The Warden is open source; the Matchmaker is treated as hostile. This file is the only
+Both agents are open source, and the Warden still treats the Matchmaker as hostile. This file is the only
 thing they share: the shape of what the Matchmaker may hand to the Warden. Because the
 Warden treats every Proposal as untrusted and re-checks it against the Marketboard,
 the privacy guarantee never depends on what the Matchmaker does.

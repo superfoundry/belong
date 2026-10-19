@@ -5,9 +5,10 @@ What "attestation" means in production (Step 3): matching runs in a hardware enc
 measurements. Anyone can fetch the signed document and compare the measurements with
 builds they made themselves from the open-source code.
 
-What this prototype can do: compute the same measurements (SHA-256 of the files) and
-publish them, so a verifier can see that the Warden code it downloaded is the code
-that was measured. It CANNOT prove that this code is what is actually running; only
+Both agents are open source. What this prototype can do: compute the same
+measurements (SHA-256 of the files), one for the Warden agent and one for the
+Matchmaker agent, and publish them with the code, so a verifier can see that the code
+it downloaded is the code that was measured. It CANNOT prove that this code is what is actually running; only
 the hardware signature does that. The document says so in `signed_by`.
 """
 from __future__ import annotations
@@ -19,8 +20,8 @@ from pathlib import Path
 
 PKG = Path(__file__).resolve().parent
 
-# The boundary: published in full so anyone can read and scrutinise it.
-OPEN_SOURCE = [
+# The Warden agent: the boundary every listing and introduction passes through.
+WARDEN_FILES = [
     "schema.py",          # data model, field registry, follow-up menu
     "warden.py",          # entry + exit checks, sealed outputs, receipt chain
     "leaks.py",           # independent leak audit
@@ -29,14 +30,16 @@ OPEN_SOURCE = [
     "matching/contract.py",   # the only shapes the Matchmaker may hand the Warden
     "matching/marketboard.py",
 ]
-# The Matchmaker: measured, and treated as hostile by the Warden, so the privacy
-# guarantee does not depend on what it does.
+# The Matchmaker agent: also open source. The Warden agent still treats it as hostile,
+# so the privacy guarantee holds even if someone runs a modified Matchmaker.
 MATCHMAKER_FILES = [
     "matching/matcher.py",
     "matching/intent.py",
     "matching/narrow.py",
     "matching/text.py",
 ]
+# Everything published for anyone to read and scrutinise.
+OPEN_SOURCE = WARDEN_FILES + MATCHMAKER_FILES
 
 POLICY = {
     "matching_output": "Warden exit checks only",
@@ -54,13 +57,13 @@ def file_sha256(rel: str) -> str:
 
 
 def measurements() -> dict:
-    open_files = {rel: file_sha256(rel) for rel in OPEN_SOURCE}
-    matcher_files = {rel: file_sha256(rel) for rel in MATCHMAKER_FILES}
+    files = {rel: file_sha256(rel) for rel in OPEN_SOURCE}
     return {
-        "warden": _combined(open_files),
-        "matchmaker": _combined(matcher_files),
+        "warden": _combined({rel: files[rel] for rel in WARDEN_FILES}),
+        "matchmaker": _combined({rel: files[rel] for rel in MATCHMAKER_FILES}),
         "policy": hashlib.sha256(json.dumps(POLICY, sort_keys=True).encode()).hexdigest(),
-        "open_source_files": open_files,
+        "open_source_files": files,
+        "groups": {"warden": WARDEN_FILES, "matchmaker": MATCHMAKER_FILES},
     }
 
 

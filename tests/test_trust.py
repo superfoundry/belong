@@ -27,27 +27,35 @@ def _belong_imports(rel: str) -> set:
 
 
 class OpenSourceBoundary(unittest.TestCase):
-    def test_open_source_code_never_depends_on_the_matchmaker(self):
-        """The Warden can be published and audited on its own."""
-        for rel in attest.OPEN_SOURCE:
+    def test_the_warden_never_depends_on_the_matchmaker(self):
+        """Both are open source, but the Warden must stand on its own: it treats the
+        Matchmaker as hostile, so none of its code may come from the Matchmaker."""
+        for rel in attest.WARDEN_FILES:
             for mod in _belong_imports(rel):
                 self.assertNotIn(mod, MATCHMAKER_MODULES, f"{rel} imports Matchmaker code {mod}")
+
+    def test_published_code_only_depends_on_published_code(self):
+        for rel in attest.OPEN_SOURCE:
+            for mod in _belong_imports(rel):
                 self.assertIn(mod, OPEN_MODULES, f"{rel} imports {mod}, which isn't published")
 
     def test_every_room_file_is_classified(self):
         room = {f"matching/{p.name}" for p in (attest.PKG / "matching").glob("*.py")}
-        self.assertEqual(room, {p for p in attest.OPEN_SOURCE + attest.MATCHMAKER_FILES if p.startswith("matching/")})
+        self.assertEqual(room, {p for p in attest.OPEN_SOURCE if p.startswith("matching/")})
 
     def test_published_source_hashes_to_the_measurement(self):
         m = attest.measurements()
         for rel in attest.OPEN_SOURCE:
             served = attest.open_source_text(rel).encode()
             self.assertEqual(hashlib.sha256(served).hexdigest(), m["open_source_files"][rel])
-        lines = "\n".join(f"{p}:{h}" for p, h in sorted(m["open_source_files"].items()))
-        self.assertEqual(hashlib.sha256(lines.encode()).hexdigest(), m["warden"])
+        for agent, files in m["groups"].items():
+            lines = "\n".join(f"{p}:{m['open_source_files'][p]}" for p in sorted(files))
+            self.assertEqual(hashlib.sha256(lines.encode()).hexdigest(), m[agent], agent)
 
     def test_only_published_files_are_served(self):
-        for rel in attest.MATCHMAKER_FILES + ["../SPEC.md", "synth.py", "/etc/passwd"]:
+        for rel in attest.MATCHMAKER_FILES:
+            self.assertIsNotNone(attest.open_source_text(rel), rel)  # the Matchmaker is open source too
+        for rel in ["../SPEC.md", "synth.py", "demo.py", "/etc/passwd", "matching/../demo.py"]:
             self.assertIsNone(attest.open_source_text(rel), rel)
 
     def test_attestation_is_honest_about_being_unsigned(self):

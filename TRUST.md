@@ -36,7 +36,7 @@ With the server running:
 ## 2. The shape of the system
 
 ```text
-             PEOPLE                     WARDEN (open source)         PRIVATE MATCHING
+             PEOPLE                     WARDEN (open source)         PRIVATE MATCHING (open source)
                                                                     (no way out)
   Person ── Personal agent ──▶  Warden: ENTRY check  ──▶  Marketboard (all listings,
             drafts listing       kyc, schema,              shown + hidden)
@@ -59,22 +59,25 @@ With the server running:
 **The separation rule (SPEC §3):** the agent that sees everything (Matchmaker) has
 no path out; the agent that controls the exit (Warden) never decides who matches.
 
-### An open-source Warden, and a Matchmaker treated as hostile
+### Both agents are open source, and the Matchmaker is still treated as hostile
 
-The **Warden is open source** so anyone can scrutinise every check. The **Matchmaker is
-treated as hostile**: the privacy guarantee never depends on it behaving well.
+The **Warden** and the **Matchmaker** are both open source, so anyone can read every check
+and exactly how matching works. Each has its own measurement, so a verifier can check each
+one separately. The Warden still treats the Matchmaker as **hostile**: the privacy guarantee
+never depends on the Matchmaker behaving well, so it holds even if someone runs a modified
+Matchmaker.
 
-- It can hand the Warden only the objects in [matching/contract.py](belong/matching/contract.py)
-  (open source): person ids, yes/no flags, numbers and field *names*. No free text, so
-  there's nowhere to smuggle a hidden value.
+- The Matchmaker can hand the Warden only the objects in [matching/contract.py](belong/matching/contract.py):
+  person ids, yes/no flags, numbers and field *names*. No free text, so there's nowhere to
+  smuggle a hidden value.
 - The Warden writes every output itself, from shown fields, and string-checks it.
-- The trust page's attack suite plays a compromised Matchmaker and checks that
-  every attempt is blocked.
+- The trust page's attack suite plays a compromised Matchmaker and checks that every
+  attempt is blocked.
 
-The published files are listed in [attest.py](belong/attest.py) (`OPEN_SOURCE`; the
-Matchmaker's files are `MATCHMAKER_FILES`, which are measured too). The test
-`test_open_source_code_never_depends_on_the_matchmaker` makes sure the Warden can be read
-and audited on its own.
+The published files are listed in [attest.py](belong/attest.py) (`WARDEN_FILES`,
+`MATCHMAKER_FILES`). `test_the_warden_never_depends_on_the_matchmaker` makes sure no Warden
+code comes from the Matchmaker, and `test_published_code_only_depends_on_published_code`
+that nothing published relies on unpublished code.
 
 ---
 
@@ -114,8 +117,8 @@ and audited on its own.
 | 18 | **Receipts carry no content:** exactly `{seq, check, result, timestamp, commitment, hash}`. The commitment is a keyed HMAC of what was checked: auditors holding the key can confirm it, and nobody can read content out of it. | `Warden._receipt` | `test_receipts_have_fixed_fields_and_no_content`, audit A5 |
 | 19 | **Receipts can't be quietly deleted, reordered or edited, even by Belong.** Each receipt's hash covers the previous one, and anyone can re-compute the chain without keys. | `chain_hash`, `verify_chain` in [warden.py](belong/warden.py); re-implemented independently in [leaks.py](belong/leaks.py) and in the trust page's JavaScript | `test_anyone_can_verify_the_receipt_chain`, `test_deleting_or_editing_a_receipt_breaks_the_chain`, audit A6 |
 | 20 | A proposal naming someone who hasn't signed up (or pairing a person with themselves) is refused cleanly. | `proposal_known_people` check | Attack suite: "Propose a person who hasn't signed up" |
-| 21 | **The published Warden source is the code that was measured.** | [attest.py](belong/attest.py) `measurements()` | `test_published_source_hashes_to_the_measurement`; the trust page re-hashes every file in the browser |
-| 22 | The trust API serves only the published Warden files. | `open_source_text` | `test_only_published_files_are_served` |
+| 21 | **The published source of both agents is the code that was measured** (one measurement per agent). | [attest.py](belong/attest.py) `measurements()` | `test_published_source_hashes_to_the_measurement`; the trust page re-hashes every file in the browser |
+| 22 | The trust API serves the published files of both agents, and nothing else. | `open_source_text` | `test_only_published_files_are_served` |
 | 23 | **A phone only receives what its person may know.** Nobody is told who said no; a person who opted into a reveal isn't told whether the other side shares the detail or simply declined. | `DemoSession.phone_state` in [demo.py](belong/demo.py) | [test_demo.py](tests/test_demo.py): `test_phones_never_receive_the_other_persons_hidden_details`, `test_a_no_is_never_attributed` |
 
 ### Testing Belong with your own agent
