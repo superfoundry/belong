@@ -14,6 +14,10 @@ synthetic people and plain Python; secure hardware comes in Step 3.
 - **Anywhere in the world.** Location is a country plus an optional city; two people
   match on location when they share a city, or a country if one of them is open to
   anywhere in it.
+- **Several listings per person.** One person can be looking for a tutor in one listing
+  and a date in another. Each listing has its own profile, agent chat and matches, and
+  a person is never matched with their own other listing. (SPEC.md assumes one listing
+  per person; this is a deliberate change.)
 - **[TRUST.md](TRUST.md)** lists every privacy promise with the code that enforces it,
   the test that proves it, and what isn't guaranteed yet. Start there.
 - **[SPEC.md](SPEC.md)** is the product spec.

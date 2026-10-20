@@ -322,7 +322,9 @@ class OfflineMatcher:
                 followups.append(FollowUp(pid, "schedule"))
 
         lists, index = shortlists(parsed, views, self.shortlist_size)
-        pairs = {tuple(sorted((a, b))) for a, cands in lists.items() for b in cands}
+        # A person's own listings are never paired with each other.
+        pairs = {tuple(sorted((a, b))) for a, cands in lists.items() for b in cands
+                 if listings[a].owner != listings[b].owner}
         crowd = board.value_counts()
 
         candidates, has_match = [], set()

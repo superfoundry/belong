@@ -104,7 +104,7 @@ class OpenAIAgent:
                             draft = new_draft
                             result = _summary(new_draft)
                 conversation.append({"role": "tool", "tool_call_id": call.get("id"), "content": result})
-        reply = "\n\n".join(replies).strip() or ("I've drafted your listing. Take a look in the Listing tab."
+        reply = "\n\n".join(replies).strip() or ("I've drafted your listing. Take a look at your profile."
                                                   if draft else "Sorry, could you say that another way?")
         return honest(reply, attempted, draft is not None), draft
 

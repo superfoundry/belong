@@ -126,7 +126,7 @@ def verify_chain(receipts: list, prev: str = GENESIS) -> tuple[bool, int]:
 
 
 ENTRY_CHECKS = ("kyc_verified", "listing_schema", "sensitive_defaults", "specific_person", "update_rate_limit")
-EXIT_CHECKS = ("proposal_mutual", "proposal_known_people", "reason_fields_shown", "approach_limit", "introduction_schema",
+EXIT_CHECKS = ("proposal_mutual", "proposal_known_people", "proposal_distinct_people", "reason_fields_shown", "approach_limit", "introduction_schema",
                "fields_shown", "reason_refs_only_reason_fields", "no_hidden_values",
                "followup_menu", "reveal_connected", "reveal_consent_and_shared")
 
@@ -322,7 +322,7 @@ class Warden:
                                          if f.key in ("seeking", "offering", "pay", "format") and isinstance(f.value, str)]
         sp = sorted({p for t in texts for p in specific_person_problems(t)})
         check("specific_person", not sp, f"intent could identify one person ({', '.join(sp)})")
-        check("update_rate_limit", self._within_update_limit(person.id), "too many listing updates today")
+        check("update_rate_limit", self._within_update_limit(listing.person_id), "too many listing updates today")
 
         if failed:
             return EntryResult(False, failed, problems)
@@ -331,7 +331,7 @@ class Warden:
 
     def _schema_problems(self, person: Person, listing: Listing) -> list[str]:
         out = []
-        if listing.person_id != person.id:
+        if listing.owner != person.id:
             out.append("listing belongs to a different person")
         if not isinstance(listing.intent_text, str) or not 0 < len(listing.intent_text) <= self.max_intent_chars:
             out.append("intent text missing or too long")
@@ -386,6 +386,9 @@ class Warden:
         if not self._receipt("proposal_known_people", known, subject):
             return None
         a, b = board.listing(a_id), board.listing(b_id)
+        # A person can have several listings; they are never introduced to themselves.
+        if not self._receipt("proposal_distinct_people", a.owner != b.owner, subject):
+            return None
         a_shown, b_shown = a.shown(), b.shown()
 
         reasons = list(proposal.reason_fields)

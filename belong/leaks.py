@@ -21,7 +21,8 @@ Audits:
   R1  never the only reason   every proposal clears the shown-only threshold and has
                               reason fields shown by both
   R2  only counts in a crowd  every hidden field used had a shared value >= k people
-  R3  approach limit          no one introduced more than the weekly limit
+  R3  approach limit          no listing introduced more than the weekly limit
+  R4  distinct people         no one is introduced to their own other listing
 """
 from __future__ import annotations
 
@@ -148,6 +149,12 @@ def leak_report(board, introductions: list, followups: list, reveals: list, rece
             shared = set(fa.strings()) & set(fb.strings()) if fa and fb else set()
             if not any(counts[(k, s)] >= k_crowd for s in shared):
                 find("R2", f"{pair}: hidden field {k!r} used without a crowd of {k_crowd}")
+
+    # R4: never introduced to yourself
+    for intro in introductions:
+        a, b = listings.get(intro["person_a"]), listings.get(intro["person_b"])
+        if a and b and a.owner == b.owner:
+            find("R4", f"{intro['intro_id']}: two listings of the same person were introduced")
 
     # R3: approach limit
     for person, n in intro_count.items():

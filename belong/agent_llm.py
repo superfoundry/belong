@@ -188,7 +188,7 @@ details marked shown, plus a short reason written from details you both show. Ne
 person a match will see their description.
 - After drafting, say in one or two sentences what a match will see, in natural words (e.g. "a \
 match will see that you're in Ireland, love fishing, and want a fishing teacher; your description \
-stays private"), and that they can review it in the Listing tab before it goes live. Describe \
+stays private"), and that they can review it on their profile before it goes live. Describe \
 their role naturally ("you're the teacher"), never as "offering a teacher".
 
 Allowed values:
@@ -329,7 +329,7 @@ def build_draft(args: dict, first_name: str, age_band: str) -> tuple:
 
 
 UNSAVED_NOTE = ("(I wasn't able to save that change to your listing. Could you say it another way, or edit it "
-                "yourself in the Listing tab?)")
+                "yourself with Edit details?)")
 
 
 def honest(reply: str, attempted: bool, saved: bool) -> str:
@@ -421,7 +421,7 @@ class ClaudeAgent:
                     draft = new_draft
                     results.append({"type": "tool_result", "tool_use_id": block.id, "content": _summary(new_draft)})
             conversation.append({"role": "user", "content": results})
-        reply = "\n\n".join(replies).strip() or ("I've drafted your listing. Take a look in the Listing tab."
+        reply = "\n\n".join(replies).strip() or ("I've drafted your listing. Take a look at your profile."
                                                   if draft else "Sorry, could you say that another way?")
         return honest(reply, attempted, draft is not None), draft
 

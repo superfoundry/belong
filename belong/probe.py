@@ -231,6 +231,12 @@ def attack_suite(body: dict) -> dict:
             lambda: warden.exit_introduction(P(b_intent_met=False), board))
     attempt("compromised matchmaker", "Propose a person who hasn't signed up",
             lambda: warden.exit_introduction(P(person_b="ghost"), board))
+    def self_intro():
+        # Give person a a second listing, then try to introduce the two to each other.
+        second = replace(a_listing, person_id=f"{a}-2", owner_id=a)
+        warden.admit(me, second, board)
+        return warden.exit_introduction(P(person_b=f"{a}-2", reason_fields=_shared_reasons(board, a, f"{a}-2")), board)
+    attempt("compromised matchmaker", "Introduce someone to their own other listing", self_intro)
     attempt("compromised matchmaker", "Ask an off-menu question to fish for details",
             lambda: warden.exit_followup(FollowUp(a, "what_is_your_religion"), board))
 

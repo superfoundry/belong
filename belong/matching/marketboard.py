@@ -15,20 +15,22 @@ class Marketboard:
         self._listings: dict[str, Listing] = {}
 
     def put(self, person: Person, listing: Listing) -> None:
-        self._persons[person.id] = person
-        self._listings[person.id] = listing
+        """Store a listing under its own id (a person may own several)."""
+        self._persons[listing.person_id] = person
+        self._listings[listing.person_id] = listing
 
-    def listing(self, person_id: str) -> Listing:
-        return self._listings[person_id]
+    def listing(self, listing_id: str) -> Listing:
+        return self._listings[listing_id]
 
-    def person(self, person_id: str) -> Person:
-        return self._persons[person_id]
+    def person(self, listing_id: str) -> Person:
+        """The verified person who owns the listing."""
+        return self._persons[listing_id]
 
     def listings(self) -> list[Listing]:
         return [self._listings[k] for k in sorted(self._listings)]
 
-    def __contains__(self, person_id: str) -> bool:
-        return person_id in self._listings
+    def __contains__(self, listing_id: str) -> bool:
+        return listing_id in self._listings
 
     def value_counts(self) -> Counter:
         """How many people have each (key, value), shown or hidden. Used for the
