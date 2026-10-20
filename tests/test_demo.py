@@ -241,6 +241,18 @@ class Notifications(unittest.TestCase):
         self.assertEqual(s.board.listing("demoA-1").get("first_name").value, "Yu")
         self.assertEqual(s.phone_state("A")["name"], "Yu")
 
+    def test_defaults_apply_to_new_listings_once_asking_is_off(self):
+        s = DemoSession(seed=7, agent=None)
+        s.verify("A", "Mia", 30)
+        s.set_defaults("A", {"notify_questions": True, "ask_each_time": False})
+        first = s.new_listing("A")  # never seen the privacy step: nothing assumed
+        self.assertEqual(s.phone_state("A")["listings"][0]["prefs"]["notify_questions"], False)
+        s.new_listing("A", {"acknowledged": True, "notify_questions": False})  # seen it once
+        s.agent_message("A", "Looking for a roommate in Osaka.", first)
+        second = s.new_listing("A")
+        prefs = {l["id"]: l["prefs"] for l in s.phone_state("A")["listings"]}[second]
+        self.assertEqual((prefs["notify_questions"], prefs["notify_close"]), (True, False))
+
     def test_choices_are_on_the_listing_and_off_by_default(self):
         s = DemoSession(seed=7, agent=None)
         s.verify("A", "Mia", 30)

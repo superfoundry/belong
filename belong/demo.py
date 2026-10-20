@@ -97,6 +97,9 @@ class _Slot:
         self.listings: list[_Listing] = []
         self.current = None  # id of the listing being edited
         self.receipts = []
+        # Defaults for new listings (Settings). Both notifications off unless chosen; the privacy
+        # step is asked every time unless the person turns that off (after seeing it once).
+        self.defaults = {"notify_close": False, "notify_questions": False, "ask_each_time": True, "acknowledged": False}
 
     def listing(self, listing_id=None) -> _Listing:
         listing_id = listing_id or self.current
@@ -292,7 +295,11 @@ class DemoSession:
         """Start another listing (e.g. a tutor search alongside dating). It gets its own chat.
         `prefs` are the person's choices on the privacy screen that comes before every listing."""
         st = self._verified(slot)
+        if prefs is None and not st.defaults["ask_each_time"] and st.defaults["acknowledged"]:
+            prefs = {**st.defaults, "acknowledged": True}  # not asked again: the person's defaults
         prefs = self._clean_prefs(prefs)
+        if prefs["acknowledged"]:
+            st.defaults["acknowledged"] = True
         if len(st.listings) >= MAX_LISTINGS and not any(self._untouched(l) for l in st.listings):
             raise DemoError(f"You can have up to {MAX_LISTINGS} listings.")
         # An untouched draft is reused rather than piling up empty listings.
@@ -310,6 +317,15 @@ class DemoSession:
         st.listings.append(listing)
         st.current = listing.id
         return listing.id
+
+    def set_defaults(self, slot: str, defaults) -> None:
+        """Settings: the notification choices new listings start with, and whether the privacy
+        step asks each time. Turning off the asking only takes effect once it has been seen."""
+        st = self._verified(slot)
+        defaults = defaults if isinstance(defaults, dict) else {}
+        for k in ("notify_close", "notify_questions", "ask_each_time"):
+            if k in defaults:
+                st.defaults[k] = defaults[k] is True
 
     def set_prefs(self, slot: str, listing_id: str, prefs) -> None:
         """Change a listing's notification choices. A live listing is re-checked with them."""
@@ -814,6 +830,7 @@ class DemoSession:
         return {"slot": slot, "verified": st.person is not None, "name": st.name,
                 "age_band": st.person.age_band if st.person else None,
                 "listings": listings, "current": st.current, "receipts": st.receipts[-60:],
+                "defaults": dict(st.defaults),
                 # The current listing, for clients that show one at a time.
                 "chat": current["chat"], "draft": current["draft"], "entry": current["entry"],
                 "listed": current["listed"], "followups": current["followups"], "agent_busy": current["agent_busy"],
