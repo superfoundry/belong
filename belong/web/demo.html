@@ -380,6 +380,30 @@ function layoutFor(c) {
   return "activity";
 }
 
+// "Looking for" and "you are" are both needed for matching, but for a one-way request one is
+// just the mirror of the other (a technician / a customer). Show the side that says something:
+// what you need, or what you offer. Show both only when each adds something (a band / a guitarist).
+const CLIENT_WORDS = new Set(["customer", "customers", "client", "clients", "student", "students", "learner", "learners",
+  "beginner", "beginners", "pupil", "pupils", "patient", "buyer", "tenant", "renter", "apprentice", "mentee", "novice"]);
+const FILLER = new Set(["a", "an", "the", "or", "and", "of", "for", "to", "in", "on", "who", "with", "need", "needs", "needing",
+  "looking", "someone", "person", "this", "weekend", "weekends", "fix"]);
+const words = t => String(t || "").toLowerCase().split(/[^\p{L}\p{N}]+/u).filter(Boolean);
+function sides(shown) {
+  const seek = words(shown.seeking), off = words(shown.offering);
+  const clientIn = ws => ws.some(w => CLIENT_WORDS.has(w));
+  const core = ws => ws.filter(w => !FILLER.has(w) && !CLIENT_WORDS.has(w));
+  const a = new Set(core(seek)), b = new Set(core(off));
+  const same = shown.seeking && shown.seeking === shown.offering;
+  if (!shown.offering || same) return { side: "needs", main: shown.seeking, other: null };
+  if (clientIn(off) && !clientIn(seek)) return { side: "needs", main: shown.seeking, other: null };
+  if (clientIn(seek) && !clientIn(off)) return { side: "offers", main: shown.offering, other: null };
+  // Mirror: one phrase's activity words are all inside the other's.
+  const within = (x, y) => [...x].every(w => y.has(w));
+  if (a.size && b.size && (within(a, b) || within(b, a)) && seek.at(-1) === off.at(-1))
+    return { side: "needs", main: shown.seeking, other: null };
+  return { side: "both", main: shown.seeking, other: shown.offering };
+}
+
 function checklist(c) {
   const d = c.draft, { shown, hidden } = draftValues(c);
   const missing = (d && d.missing) || [];
@@ -388,7 +412,7 @@ function checklist(c) {
   const hiddenItem = { done: hidden.length > 0, label: "A hidden detail", optional: true, ask: "Something private that could improve my matches: " };
   switch (layoutFor(c)) {
     case "offer": {
-      const offering = shown.role === "tutor";
+      const offering = shown.role === "tutor" || sides(shown).side === "offers";
       return [looking, where,
         { done: !!shown.pay, label: offering ? "Your rate" : "What you'll pay", ask: offering ? "I charge " : "I can pay " },
         { done: !!shown.schedule, label: "When", ask: "I'm usually available " },
@@ -402,7 +426,6 @@ function checklist(c) {
         { done: !!(shown.interests && shown.interests.length), label: "Your interests", ask: "I'm into " }, hiddenItem];
     default:
       return [looking, where,
-        { done: !!shown.offering, label: "About you", ask: "About me: " },
         { done: !!shown.schedule, label: "When you're free", ask: "I'm usually free " },
         { done: !!(shown.interests && shown.interests.length), label: "Your interests", ask: "I'm into " }, hiddenItem];
   }
@@ -427,26 +450,28 @@ function profileCard(slot, p, l, c) {
 
   let body;
   if (layout === "offer") {
-    const offering = shown.role === "tutor";
+    const sd = sides(shown), offering = shown.role === "tutor" || sd.side === "offers";
+    const headline = (offering ? shown.offering : shown.seeking) || (d && d.intent_text);
     body = `<p class="eyebrow">${offering ? "Offering" : "Wanted"}</p>
-      ${(shown.seeking || (d && d.intent_text))
-        ? `<h3 class="heading-l" style="margin: var(--space-1) 0 var(--space-3)">${esc(cap(shown.seeking || d.intent_text))}</h3>`
+      ${headline
+        ? `<h3 class="heading-l" style="margin: var(--space-1) 0 var(--space-3)">${esc(cap(headline))}</h3>`
         : `<p class="body-s tertiary" style="margin: var(--space-1) 0 var(--space-3)">Your agent will fill this in as you chat</p>`}
       ${fact(offering ? "Rate" : "Pay", shown.pay)}
       ${fact("Where", place)}
       ${fact("When", shown.schedule)}
       ${fact("Format", shown.format)}
       ${shown.subject ? fact("Subject", shown.subject) : ""}
-      ${shown.offering ? fact(offering ? "About you" : "Your side", shown.offering) : ""}
+      ${sd.other ? fact(offering ? "For" : "You are", offering ? shown.seeking : sd.other) : ""}
       <div class="posted">${who}</div>`;
   } else if (layout === "dating") {
     body = `${who}
       ${fact("Looking for", d && d.intent_text, "Your agent will fill this in as you chat")}
       ${shown.gender ? fact("Gender", shown.gender) : ""}`;
   } else {
+    const sd = sides(shown);
     body = `${who}
-      ${fact("Looking for", shown.seeking, "Your agent will fill this in as you chat")}
-      ${shown.offering ? fact("About you", shown.offering) : ""}
+      ${sd.side === "offers" ? fact("Offering", sd.main) : fact("Looking for", shown.seeking, "Your agent will fill this in as you chat")}
+      ${sd.other ? fact("You are", sd.other) : ""}
       ${shown.schedule ? fact("When", shown.schedule) : ""}
       ${shown.pay ? fact("Pay", shown.pay) : ""}${shown.format ? fact("Format", shown.format) : ""}`;
   }
