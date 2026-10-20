@@ -2,7 +2,7 @@
 // Styled from the Belong. design system (NavLink, the wordmark, surface-nav-blur).
 (function () {
   const LINKS = [
-    { href: "/demo", label: "Demo" },
+    { href: "/", label: "Demo", also: ["/demo"] },
     { href: "/chat", label: "In chat" },
     { href: "/trust", label: "Trust and security" },
     { href: "/inspector", label: "Inspector" },
@@ -44,7 +44,7 @@
       <a class="wordmark" href="/">Belong.</a>
       <button class="menu" aria-expanded="false">Menu</button>
       <div class="links">${LINKS.map(l => {
-        const on = l.href === here;
+        const on = l.href === here || (l.also || []).includes(here);
         return `<a class="link${on ? " on" : ""}" href="${l.href}"${on ? ' aria-current="page"' : ""}>${l.label}</a>`;
       }).join("")}</div>
     </div>`;
