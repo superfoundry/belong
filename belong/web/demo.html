@@ -490,8 +490,8 @@ function renderPhone(slot) {
       `<button role="menuitem" onclick="menuGo('${slot}','${v}')">${label}</button>`).join("")}
       <button role="menuitem" class="sep" onclick="signOut('${slot}')">Log out</button></div>` : ""}` : "";
   // Mint marks live status, at most once per screen: "Matching" once any listing is live, else "Verified".
-  // Live status sits on each listing (mint); the top bar only says you're verified before you have one.
-  const status = L.signedOut || p.listings.some(l => l.listed) ? "" : p.verified ? badge("olive", "Verified") : "";
+  // Live status sits on each listing (mint); the top bar carries no status pill.
+  const status = "";
   // Keep the profile pane's scroll position across redraws (editing, agent updates).
   const oldPane = document.querySelector(`#phone-${slot} .profile-pane`);
   const paneScroll = oldPane ? oldPane.scrollTop : 0;
@@ -701,7 +701,7 @@ const SCREENS = {
     const live = p.listings.filter(l => l.listed).length, found = connected(p).length;
     return `${backBar(slot, L.tab || "belong", L.tab === "found" ? "Found." : "Belong.", "Profile")}
       <div class="card md"><div class="row"><span class="monogram tone-${tone(p.name)}" aria-hidden="true">${esc((p.name || "?").slice(0, 1).toUpperCase())}</span>
-        <div class="grow"><div class="heading-m">${esc(p.name)}</div><div class="caption secondary">${esc(p.age_band)}</div></div>${badge("olive", "Verified")}</div>
+        <div class="grow"><div class="heading-m">${esc(p.name)}</div><div class="caption secondary">${esc(p.age_band)}</div></div></div>
         <div class="form-row" style="margin-top: var(--space-5)"><label class="field-label" for="pname-${slot}">First name</label>
           <input class="input" id="pname-${slot}" value="${esc(L.pname ?? p.name)}" maxlength="30"
             oninput="local['${slot}'].pname=this.value; $('save-name-${slot}').disabled = !this.value.trim() || this.value.trim() === S.phones['${slot}'].name"
