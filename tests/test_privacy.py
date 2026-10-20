@@ -9,7 +9,7 @@ from belong.matching.contract import Proposal
 from belong.schema import HIDDEN
 from belong.sim import run
 from belong.warden import verify_chain
-from tests.helpers import fld, roommates_board
+from tests.helpers import fld, person, roommates_board
 
 
 def proposal(reasons=("city", "move_in"), used=(), a_met=True, b_met=True):
@@ -37,6 +37,20 @@ class WardenExitBlocksLeaks(unittest.TestCase):
         for secret in ("Buddhist", "Nintendo", "¥4–7M"):
             self.assertNotIn(secret, text)
         self.assertEqual(intro.a_view["fields"]["first_name"], "Ren")
+
+    def test_a_reissued_introduction_shows_current_details_and_nothing_since_hidden(self):
+        from dataclasses import replace
+        w, board = roommates_board()
+        intro = w.exit_introduction(proposal(), board)
+        b = board.listing("pb")
+        fields = tuple(replace(f, value="Rennie") if f.key == "first_name" else
+                       replace(f, visibility=HIDDEN) if f.key == "interests" else f for f in b.fields)
+        self.assertTrue(w.admit(person("pb"), replace(b, fields=fields, version=b.version + 1), board).accepted)
+        new = w.refresh_introduction(intro.intro_id, ["city", "interests"], board)
+        self.assertEqual(new.intro_id, intro.intro_id)
+        self.assertEqual(new.a_view["fields"]["first_name"], "Rennie")
+        self.assertNotIn("interests", new.a_view["fields"])          # hidden now, so gone
+        self.assertNotIn("chess", json.dumps(new.to_dict()))          # and not in the reason either
 
     def test_hidden_field_as_a_reason_is_rejected(self):
         """Never in the reason: a hidden key can't be a reason field."""

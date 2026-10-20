@@ -1105,7 +1105,7 @@ function renderRoom() {
       What private matching reads and what Belong. sends out. The goal for production is that no one can see this, not even the people who run Belong. It's shown here only because the data is synthetic.</p>
     <div class="controls">
       <select class="select" id="scenario" aria-label="Scenario" onchange="scenario=this.value; resetLocal(false); render(['A','B'])">${Object.entries(SCENARIOS).map(([k, s]) => `<option value="${k}" ${k === scenario ? "selected" : ""}>${esc(s.label)}</option>`).join("")}</select>
-      <button class="btn secondary sm" onclick="fastForward()">Fast-forward both phones</button>
+      <button class="btn secondary sm" ${ffBusy ? "disabled" : ""} ${scenario === "blank" ? 'title="Pick a scenario first"' : ""} onclick="fastForward()">${ffBusy ? "Fast-forwarding…" : "Fast-forward both phones"}</button>
       <button class="btn sm" onclick="api('match')">Run Matchmaker</button>
       <button class="btn secondary sm" onclick="api('attack')">Simulate a compromised Matchmaker</button>
       <button class="btn ghost sm" onclick="reset()">Reset</button>
@@ -1150,23 +1150,37 @@ function resetLocal(clearForms = true) {
   }
 }
 async function reset() { resetLocal(); await api("reset"); }
+// Fast-forward: each phone gets the scenario's listing, written with its agent and made live,
+// then the Matchmaker runs. Phones that are already set up keep everything and gain a listing.
+let ffBusy = false;
 async function fastForward() {
+  if (ffBusy) return;
   if (scenario === "blank") { toast("Pick a scenario first, or type on each phone."); return; }
-  for (const slot of ["A", "B"]) {
-    const sc = SCENARIOS[scenario][slot];
-    if (!S.phones[slot].verified && !await api("verify", { slot, name: sc.name, age: sc.age })) return;
-    if (!S.phones[slot].listings.length) {
-      if (!await api("new_listing", { slot, prefs: { acknowledged: true, notify_close: false, notify_questions: true } })) return;
+  ffBusy = true; renderRoom();
+  try {
+    for (const slot of ["A", "B"]) {
+      const sc = SCENARIOS[scenario][slot];
+      toast(`Setting up phone ${slot}…`);
+      if (!S.phones[slot].verified && !await api("verify", { slot, name: sc.name, age: sc.age })) return;
+      let l = S.phones[slot].listings.find(x => x.chat.some(m => m.from === "me" && m.text === sc.message));
+      if (!l) {
+        if (!await api("new_listing", { slot, prefs: { acknowledged: true, notify_close: true, notify_questions: true } })) return;
+        l = S.phones[slot].listings.find(x => x.id === S.phones[slot].current);
+      }
+      local[slot].current = l.id;
+      const listing_id = l.id, c = cur(slot);
+      if (!curListing(slot).draft) { c.applyScenario = true; if (!await api("agent", { slot, listing_id, text: sc.message })) return; }
+      for (let i = 0; i < 2 && !curListing(slot).draft; i++) {  // a real agent may ask a question first
+        c.applyScenario = true;
+        if (!await api("agent", { slot, listing_id, text: "That's everything for now. Please draft my listing." })) return;
+      }
+      syncDraft(slot);
+      if (!curListing(slot).listed) { openView(slot, "profile"); await submit(slot); }
+      go(slot, "belong");
     }
-    local[slot].current = S.phones[slot].current;
-    const listing_id = curId(slot), c = cur(slot);
-    if (!curListing(slot).draft) { c.applyScenario = true; if (!await api("agent", { slot, listing_id, text: sc.message })) return; }
-    for (let i = 0; i < 2 && !curListing(slot).draft; i++) {  // a real agent may ask a question first
-      c.applyScenario = true;
-      if (!await api("agent", { slot, listing_id, text: "That's everything for now. Please draft my listing." })) return;
-    }
-    syncDraft(slot);
-    if (!curListing(slot).listed) { openView(slot, "profile"); await submit(slot); }
+    if (await api("match")) toast("Both phones are set up, and the Matchmaker ran.");
+  } finally {
+    ffBusy = false; renderRoom();
   }
 }
 
@@ -1178,7 +1192,7 @@ function render(force = []) {
     const snap = JSON.stringify(S.phones[slot]);
     if (force.includes(slot) || snap !== last[slot]) { last[slot] = snap; renderPhone(slot); }
   }
-  const roomSnap = JSON.stringify(S.room) + scenario;
+  const roomSnap = JSON.stringify(S.room) + scenario + ffBusy;
   if (roomSnap !== last.room) { last.room = roomSnap; renderRoom(); }
 }
 const ONLY = new URLSearchParams(location.search).get("phone");
