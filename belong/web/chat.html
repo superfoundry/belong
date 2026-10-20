@@ -43,6 +43,9 @@
   .side-label { font-size: 12px; color: var(--sys-text-3); margin: 18px 10px 6px; }
   .side-note { margin-top: auto; padding: 12px 10px 4px; font-size: 12px; color: var(--sys-text-3); line-height: 1.45; }
   .side-note a { color: var(--sys-text-2); }
+  .reset { all: unset; cursor: pointer; margin: 8px 10px 4px; padding: 7px 12px; border: 1px solid var(--sys-line-2); border-radius: 999px;
+           font-size: 13px; color: var(--sys-text-2); text-align: center; }
+  .reset:hover { color: var(--sys-text); border-color: var(--sys-text-3); }
 
   .main { display: flex; flex-direction: column; min-width: 0; height: 100%; }
   .top { display: flex; align-items: center; gap: 8px; padding: 12px 20px; }
@@ -164,14 +167,17 @@ const label = () => `<div class="app-label"><span class="app-icon" aria-hidden="
 // ---- cards (live: they read the current state) ----
 function listingCard() {
   const l = listing();
-  if (!l || !l.draft) return "";
+  if (!l || !l.draft || !(l.draft.intent_text || Object.keys(shownOf(l)).some(k => !["first_name", "age_band"].includes(k)))) return "";
   const s = shownOf(l), live = l.listed && !l.unsaved;
+  // The same rule as the phone: who you're looking for, and where, before it can go live.
+  const ready = !!(s.seeking || (l.draft.kind === "dating" && l.draft.intent_text)) && !!(s.city || s.country);
   const meta = [["Where", [s.city, s.country].filter(Boolean).join(", ")], ["When", s.schedule], ["Pay", s.pay], ["Format", s.format], ["Level", s.level]]
     .filter(([, v]) => v);
   return `<div class="card"><p class="title">${esc(cap(s.headline || l.title))}${live ? '<span class="badge">Live</span>' : '<span class="badge plain">Draft</span>'}</p>
     <p class="sub">Shown to people you're introduced to. Hidden details are never shown.</p>
     ${meta.length ? `<dl class="meta">${meta.map(([k, v]) => `<dt>${k}</dt><dd>${esc(val(v))}</dd>`).join("")}</dl>` : ""}
-    ${live ? "" : `<div class="actions"><button class="btn primary" onclick="ask('start_matching')">${l.listed ? "Save changes" : "Start matching"}</button></div>`}</div>`;
+    ${live ? "" : ready ? `<div class="actions"><button class="btn primary" onclick="ask('start_matching')">${l.listed ? "Save changes" : "Start matching"}</button></div>`
+      : `<p class="sub" style="margin-top: 12px">Tell me who you're looking for and where, and you can start matching.</p>`}</div>`;
 }
 function introCard(id) {
   const i = ME.listings.flatMap(l => l.intros).find(x => x.intro_id === id);
@@ -216,7 +222,8 @@ function render() {
   $("side").innerHTML = `<button class="item">New chat</button>
     <p class="side-label">Apps</p><div class="item">${ME.verified ? "Belong. · connected" : '<span class="muted">Belong. · not connected</span>'}</div>
     <p class="side-label">Chats</p><div class="item on">Belong. listing</div><div class="item muted">Weekend trip ideas</div><div class="item muted">Fix my CV</div>
-    <p class="side-note">A mockup of Belong. as an app in ChatGPT, following OpenAI's Apps SDK UI guidelines. <a href="/demo">Phone demo</a> · <a href="/trust">Trust</a></p>`;
+    <p class="side-note">A mockup of Belong. as an app in ChatGPT, following OpenAI's Apps SDK UI guidelines. <a href="/demo">Phone demo</a> · <a href="/trust">Trust</a></p>
+    <button class="reset" onclick="resetDemo()">Reset this demo</button>`;
   renderLayer();
 }
 
@@ -349,6 +356,13 @@ async function popupDone() {
   if (L.pendingText) { const t = L.pendingText; L.pendingText = null; L.sending = true; render(); try { await draftWith(t); } finally { L.sending = false; L.jump = true; render(); } }
 }
 
+// Demo control: start the in-chat demo over (its own session; the phones aren't touched).
+async function resetDemo() {
+  if (L.sending) return;
+  await api("reset");
+  Object.assign(L, { log: [], confirm: null, popup: null, form: {}, remember: {}, pendingText: null });
+  render(); toast("The in-chat demo has been reset.");
+}
 $("send").onclick = sendMsg;
 $("box").addEventListener("keydown", e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMsg(); } });
 $("box").addEventListener("input", e => { e.target.style.height = "auto"; e.target.style.height = Math.min(160, e.target.scrollHeight) + "px"; });
