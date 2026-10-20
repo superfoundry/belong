@@ -630,6 +630,39 @@ const SCREENS = {
         <button class="btn" onclick="sendMessage('${slot}','${i.intro_id}')">Send</button></div></div>`;
   },
 
+  me(slot, p, L) {
+    const live = p.listings.filter(l => l.listed).length, found = connected(p).length;
+    return `${backBar(slot, L.tab || "belong", L.tab === "found" ? "Found." : "Belong.", "Profile")}
+      <div class="card md"><div class="row"><span class="monogram" aria-hidden="true">${esc((p.name || "?").slice(0, 1).toUpperCase())}</span>
+        <div class="grow"><div class="heading-m">${esc(p.name)}</div><div class="caption secondary">${esc(p.age_band)}</div></div>${badge("olive", "Verified")}</div>
+        <div class="form-row" style="margin-top: var(--space-5)"><label class="field-label" for="pname-${slot}">First name</label>
+          <input class="input" id="pname-${slot}" value="${esc(L.pname ?? p.name)}" maxlength="30" oninput="local['${slot}'].pname=this.value"></div>
+        <p class="caption secondary" style="margin: var(--space-2) 0 0">Shown on all your listings. Your age band comes from your ID check and can't be changed.</p>
+        <div class="row" style="margin-top: var(--space-4)"><span class="grow"></span>
+          <button class="btn sm" ${(L.pname ?? p.name) === p.name ? "disabled" : ""} onclick="saveProfile('${slot}')">Save</button></div></div>
+      <div class="card md" style="margin-top: var(--space-4)">
+        <div class="profile-line"><span class="label tertiary">Listings</span><span class="body-s">${live} matching${p.listings.length > live ? `, ${p.listings.filter(l => !l.listed && !untouched(l)).length} draft` : ""}</span></div>
+        <div class="profile-line"><span class="label tertiary">Found</span><span class="body-s">${found} ${found === 1 ? "person" : "people"}</span></div></div>`;
+  },
+
+  settings(slot, p, L) {
+    const ls = p.listings.filter(l => !untouched(l));
+    return `${backBar(slot, L.tab || "belong", L.tab === "found" ? "Found." : "Belong.", "Settings")}
+      <p class="eyebrow group-title" style="margin-top:0">Notifications, per listing</p>
+      ${ls.length ? `<div class="card md">${ls.map(l => `<div class="setting-row"><div class="grow"><div class="body-s">${esc(cap(l.title))}</div>
+          <div class="caption secondary">Close matches ${l.prefs?.notify_close ? "on" : "off"} · Questions ${l.prefs?.notify_questions ? "on" : "off"}</div></div>
+          <button class="btn ghost sm" onclick="editPrivacy('${slot}','${l.id}')">Change</button></div>`).join("")}</div>`
+        : `<p class="body-s secondary">You'll choose these when you create a listing.</p>`}
+      <p class="eyebrow group-title">Your agent</p>
+      <div class="card md"><p class="body-s" style="margin:0">In this demo your agent runs on a hosted AI model.</p>
+        <p class="caption" style="margin: var(--space-2) 0 0"><span class="connect-agent" aria-disabled="true" title="Coming soon">Connect your own agent</span></p></div>`;
+  },
+
+  signedout(slot, p, L) {
+    return `<div class="welcome"><span class="wordmark">Belong.</span><p>You're logged out. Your listings stay live, and matches wait for you.</p></div>
+      <button class="btn block" onclick="local['${slot}'].signedOut=false; go('${slot}','belong')">Log in as ${esc(p.name)}</button>`;
+  },
+
   receipts(slot, p, L) {
     return `${backBar(slot, L.tab || "belong", L.tab === "found" ? "Found." : "Belong.", "Receipts")}<div class="card sm" style="margin-bottom: var(--space-4)"><p class="body-s secondary" style="margin:0">Every check the Warden agent ran on your listings leaves a receipt: the check, the result, the time and a hash. Receipts never contain your details.</p></div>
       ${p.receipts.slice().reverse().map(r => `<div class="receipt-row">${badge(r.result === "pass" ? "success" : "error", r.result === "pass" ? "Pass" : "Fail")}
