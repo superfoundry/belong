@@ -384,13 +384,14 @@ function layoutFor(c) {
 // just the mirror of the other (a technician / a customer). Show the side that says something:
 // what you need, or what you offer. Show both only when each adds something (a band / a guitarist).
 const CLIENT_WORDS = new Set(["customer", "customers", "client", "clients", "student", "students", "learner", "learners",
-  "beginner", "beginners", "pupil", "pupils", "patient", "buyer", "tenant", "renter", "apprentice", "mentee", "novice"]);
+  "beginner", "beginners", "pupil", "pupils", "patient", "patients", "buyer", "buyers", "tenant", "tenants", "renter",
+  "apprentice", "mentee", "mentees", "novice", "homeowner", "homeowners", "household", "households", "people", "anyone"]);
 const FILLER = new Set(["a", "an", "the", "or", "and", "of", "for", "to", "in", "on", "who", "with", "need", "needs", "needing",
   "looking", "someone", "person", "this", "weekend", "weekends", "fix"]);
 const words = t => String(t || "").toLowerCase().split(/[^\p{L}\p{N}]+/u).filter(Boolean);
 function sides(shown) {
   const seek = words(shown.seeking), off = words(shown.offering);
-  const clientIn = ws => ws.some(w => CLIENT_WORDS.has(w));
+  const clientIn = ws => ws.some(w => CLIENT_WORDS.has(w) || ["need", "needs", "needing", "wants"].includes(w));
   const core = ws => ws.filter(w => !FILLER.has(w) && !CLIENT_WORDS.has(w));
   const a = new Set(core(seek)), b = new Set(core(off));
   const same = shown.seeking && shown.seeking === shown.offering;

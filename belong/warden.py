@@ -227,6 +227,9 @@ def reason_text(key_values: list[tuple[str, object, object]]) -> str:
     """key_values: (key, my_value, their_value) for each reason field, from the
     recipient's point of view. Uses nothing else."""
     parts = []
+    # "They're looking for X" only describes the reader (that's why they were matched), so
+    # say who they are instead whenever "offering" is a reason.
+    has_offering = any(key == "offering" for key, _, _ in key_values)
     for key, mine, theirs in key_values:
         if key in ("city", "country"):
             parts.append(f"You're both in {theirs}.")
@@ -251,7 +254,7 @@ def reason_text(key_values: list[tuple[str, object, object]]) -> str:
             parts.append(f"They're the {theirs} side.")
         elif key == "move_in":
             parts.append(f"You both plan to move in {theirs}.")
-        elif key == "seeking":
+        elif key == "seeking" and not has_offering:
             parts.append(f"They're looking for {theirs}.")
         elif key == "offering":
             parts.append(f"They're {theirs}.")

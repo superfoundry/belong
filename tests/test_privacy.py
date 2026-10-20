@@ -169,3 +169,12 @@ class Receipts(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ReasonWording(unittest.TestCase):
+    def test_a_match_is_told_who_they_are_not_what_they_want(self):
+        from belong.warden import reason_text
+        text = reason_text([("city", "Tokyo", "Tokyo"),
+                            ("seeking", "an AC repair technician", "an AC repair customer"),
+                            ("offering", "an AC repair customer", "an AC repair technician")])
+        self.assertEqual(text, "You're both in Tokyo. They're an AC repair technician.")
