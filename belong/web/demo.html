@@ -8,8 +8,6 @@
 <link rel="stylesheet" href="/ds/belong.css">
 <link rel="stylesheet" href="/ds/theme-dark.css">
 <style>
-  /* The demo sits on a cream band, so white phones and the dark panel stand out. */
-  body { background: var(--surface-raised); }
   .stage { display: grid; grid-template-columns: 380px minmax(400px, 1fr) 380px; gap: var(--space-6);
            padding: var(--space-8) var(--space-6) var(--space-16); max-width: 1600px; margin: 0 auto; align-items: start; }
   @media (max-width: 1240px) { .stage { grid-template-columns: 1fr; max-width: 540px; } .panel { order: 3; } }
@@ -45,9 +43,7 @@
                    transition: color var(--duration-fast) var(--ease-standard); }
   .tabbar button + button { border-left: 1px solid var(--border-subtle); }
   .tabbar button::before { content: ""; position: absolute; top: -1px; left: 28%; right: 28%; height: 2px; background: transparent; border-radius: 0 0 2px 2px; }
-  .tabbar button.on { color: var(--text-primary); background: linear-gradient(var(--accent-muted), transparent 70%); }
-  .tabbar button.found.on { color: var(--text-primary); background: linear-gradient(var(--accent-olive-muted), transparent 70%); }
-  .tabbar button.found.on::before { background: var(--border-olive); }
+  .tabbar button.on { color: var(--text-primary); }
   .tabbar button.on::before { background: var(--border-accent); }
   .tabbar button:hover { color: var(--text-primary); }
   .tabbar button:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: -2px; }
@@ -83,10 +79,8 @@
   .sheet-head { all: unset; box-sizing: border-box; display: flex; align-items: center; gap: var(--space-2); width: 100%;
                 padding: var(--space-3) var(--space-4); cursor: pointer; flex-shrink: 0; border-bottom: 1px solid var(--border-subtle); }
   .sheet-head:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: -2px; }
-  .sheet-head .eyebrow { flex: 1; color: var(--text-ai); }
-  .chat-sheet { border-top-color: var(--border-ai) !important; }
-  .chat-sheet .sheet-head { background: var(--accent-ai-muted); }
-  .sheet-head .handle { width: 32px; height: 4px; border-radius: var(--radius-pill); background: var(--accent-ai);
+  .sheet-head .eyebrow { flex: 1; }
+  .sheet-head .handle { width: 32px; height: 4px; border-radius: var(--radius-pill); background: var(--border-strong);
                         position: absolute; top: 6px; left: 50%; transform: translateX(-50%); }
   .chevron { width: 8px; height: 8px; border-right: 2px solid var(--text-tertiary); border-bottom: 2px solid var(--text-tertiary);
              transform: rotate(45deg); margin: -4px 4px 0; transition: transform var(--duration-base) var(--ease-standard); }
@@ -94,11 +88,6 @@
   .chat-sheet.min .chat-pane, .chat-sheet.min .composer-bar { display: none; }
   .chat-sheet.min .sheet-head { border-bottom: 0; }
   .sheet-head .unread { width: 8px; height: 8px; border-radius: 50%; background: var(--notify); }
-  /* A header band in your colour, behind your name. */
-  .profile-card.band-coral { background: linear-gradient(var(--accent-muted) 0 72px, var(--surface-card) 72px); }
-  .profile-card.band-mint { background: linear-gradient(var(--accent-olive-muted) 0 72px, var(--surface-card) 72px); }
-  .profile-card.band-amber { background: linear-gradient(var(--accent-warning-muted) 0 72px, var(--surface-card) 72px); }
-  .profile-card.band-coral .monogram, .profile-card.band-mint .monogram, .profile-card.band-amber .monogram { background: var(--surface-card) !important; }
   .profile-card { background: var(--surface-card); border: 1px solid var(--border-default); border-radius: var(--radius-md);
                   padding: var(--space-4); box-shadow: var(--shadow-sm); }
   .monogram { width: 40px; height: 40px; flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center;
@@ -216,15 +205,13 @@
   .listing-nav { margin-bottom: var(--space-2); }
   .listing-card .heading-m { margin: 0; }
   details.matches { margin-top: var(--space-4); border-top: 1px solid var(--border-subtle); padding-top: var(--space-3); }
-  details.matches > summary { cursor: pointer; font: var(--text-label); font-weight: 600; color: var(--text-ai); }
-  .card.intro.question { background: var(--accent-ai-muted) !important; }
+  details.matches > summary { cursor: pointer; font: var(--text-label); font-weight: 600; color: var(--text-accent); }
   .card.intro { box-shadow: none; background: var(--surface-raised); border-color: transparent; }
   .profile-card .posted { margin-top: var(--space-4); padding-top: var(--space-4); border-top: 1px solid var(--border-subtle); }
   .profile-card .posted .monogram { width: 32px; height: 32px; font-size: 15px; }
   .profile-card .posted .heading-m { font: var(--text-body-s); font-weight: 600; }
-  /* Your agent's suggestions: periwinkle chips. */
-  .suggest .tag { cursor: pointer; background: var(--accent-ai-muted); color: var(--text-ai); border-color: transparent; }
-  .suggest .tag:hover { border-color: var(--border-ai); }
+  .suggest .tag { cursor: pointer; }
+  .suggest .tag:hover { border-color: var(--border-accent); color: var(--text-primary); }
   .editor { margin-top: var(--space-5); }
   .chat-pane { flex: 1; overflow-y: auto; padding: var(--space-3) var(--space-4); }
   .composer-bar { display: flex; gap: var(--space-2); align-items: flex-end; padding: var(--space-3) var(--space-4);
@@ -253,12 +240,6 @@
             white-space: pre-wrap; font: var(--text-body-s); }
   .bubble.agent { background: var(--accent-ai-muted); color: var(--text-primary); border-bottom-left-radius: var(--radius-sm); }
   .bubble.me { background: var(--surface-inverse); color: var(--text-inverse); margin-left: auto; border-bottom-right-radius: var(--radius-sm); }
-  /* People's colours (see tone() in the script). */
-  .tone-coral { background: var(--accent-muted) !important; color: var(--text-accent) !important; }
-  .tone-mint { background: var(--accent-olive-muted) !important; color: var(--text-olive) !important; }
-  .tone-amber { background: var(--accent-warning-muted) !important; color: var(--text-warning) !important; }
-  /* Your own messages are you acting, so they're coral, with the dark ink label coral always carries. */
-  .thread .msg-row .bubble.me { background: var(--accent-default); color: var(--text-on-accent); }
   .bubble-note { margin: -2px 0 var(--space-2); }
   .typing { display: inline-flex; gap: 4px; padding: 13px 15px; }
   .typing span { width: 6px; height: 6px; border-radius: 50%; background: var(--text-ai); animation: blink 1.2s infinite var(--ease-standard); }
@@ -394,10 +375,6 @@ const $ = id => document.getElementById(id);
 const badge = (tone, text) => `<span class="badge ${tone}">${esc(text)}</span>`;
 const tags = values => values.map(v => `<span class="tag">${esc(v)}</span>`).join("");
 const cap = t => t ? t.charAt(0).toUpperCase() + t.slice(1) : t;
-// Each person gets their own colour, from their name: a soft tint of coral, mint or amber.
-// (Not periwinkle: in the design system that colour means the agents.)
-const TONES = ["coral", "mint", "amber"];
-const tone = name => TONES[[...String(name || "")].reduce((h, c) => (h * 31 + c.charCodeAt(0)) >>> 0, 7) % TONES.length];
 const hasValue = v => Array.isArray(v) ? v.length > 0 : v !== null && v !== undefined && v !== "";
 
 function curId(slot) { return local[slot].current || (S && S.phones[slot].current) || null; }
@@ -481,7 +458,7 @@ function renderPhone(slot) {
     ${L.menu ? `<div class="menu" role="menu">${[["me", "Profile"], ["settings", "Settings"], ["receipts", "Receipts"]].map(([v, label]) =>
       `<button role="menuitem" onclick="menuGo('${slot}','${v}')">${label}</button>`).join("")}
       <button role="menuitem" class="sep" onclick="signOut('${slot}')">Log out</button></div>` : ""}` : "";
-  // Live status sits on each listing (mint); the top bar carries no status pill.
+  // The top bar carries no status pill; each listing shows its own.
   const status = "";
   // Keep the profile pane's scroll position across redraws (editing, agent updates).
   const oldPane = document.querySelector(`#phone-${slot} .profile-pane`);
@@ -515,7 +492,7 @@ function messageRow(slot, i, m, n, t, theirName, myName) {
   const first = n === 0 || t[n - 1].mine !== m.mine;
   const who = m.mine ? "me" : "them";
   // Only the other person gets an avatar, on the latest message of each run.
-  const avatar = m.mine ? "" : last ? `<span class="avatar tone-${tone(theirName)}" aria-hidden="true">${esc((theirName || "?").slice(0, 1).toUpperCase())}</span>`
+  const avatar = m.mine ? "" : last ? `<span class="avatar" aria-hidden="true">${esc((theirName || "?").slice(0, 1).toUpperCase())}</span>`
                                     : `<span class="avatar-space"></span>`;
   const open = local[slot].reactOpen === `${i.intro_id}:${n}`;
   // A reaction sits beside the bubble, where the react button is. You react only to their
@@ -655,11 +632,11 @@ const SCREENS = {
       <div class="stack">${people.map(i => {
         const t = i.thread || [], lastMsg = t[t.length - 1];
         return `<button class="found-card card sm" onclick="openView('${slot}','thread',{thread:'${i.intro_id}'})">
-          <span class="monogram tone-${tone(i.view.fields.first_name)}" aria-hidden="true">${esc((i.view.fields.first_name || "?").slice(0, 1).toUpperCase())}</span>
+          <span class="monogram" aria-hidden="true">${esc((i.view.fields.first_name || "?").slice(0, 1).toUpperCase())}</span>
           <span class="grow"><span class="heading-s">${esc(i.view.fields.first_name || "Someone")}</span>
             <span class="caption secondary">${esc(cap(i.listing.title))}</span>
             <span class="body-s ${lastMsg ? "" : "tertiary"} msg-preview">${lastMsg ? (lastMsg.mine ? "You: " : "") + esc(lastMsg.text) : "Say hello"}</span></span>
-          ${unread(slot, i) ? '<span class="unread-dot" aria-label="New message"></span>' : !(i.thread || []).length ? badge("olive", "New") : ""}</button>`;
+          ${unread(slot, i) ? '<span class="unread-dot" aria-label="New message"></span>' : !(i.thread || []).length ? badge("", "New") : ""}</button>`;
       }).join("")}</div>`;
   },
 
@@ -669,7 +646,7 @@ const SCREENS = {
     if (!i) return `<div class="screen">${backBar(slot, "found", "Found.")}</div>`;
     const name = i.view.fields.first_name || "Someone", t = i.thread || [];
     const facts = Object.entries(i.view.fields).filter(([k]) => !["first_name", "seeking", "offering", "headline"].includes(k)).map(([, v]) => val(v));
-    const avatar = n => `<span class="avatar tone-${tone(n)}" aria-hidden="true">${esc((n || "?").slice(0, 1).toUpperCase())}</span>`;
+    const avatar = n => `<span class="avatar" aria-hidden="true">${esc((n || "?").slice(0, 1).toUpperCase())}</span>`;
     const text = L.msg[i.intro_id] || "";
     return `<div class="thread">
       <div class="thread-head">
@@ -691,7 +668,7 @@ const SCREENS = {
   me(slot, p, L) {
     const live = p.listings.filter(l => l.listed).length, found = connected(p).length;
     return `${backBar(slot, L.tab || "belong", L.tab === "found" ? "Found." : "Belong.", "Profile")}
-      <div class="card md"><div class="row"><span class="monogram tone-${tone(p.name)}" aria-hidden="true">${esc((p.name || "?").slice(0, 1).toUpperCase())}</span>
+      <div class="card md"><div class="row"><span class="monogram" aria-hidden="true">${esc((p.name || "?").slice(0, 1).toUpperCase())}</span>
         <div class="grow"><div class="heading-m">${esc(p.name)}</div><div class="caption secondary">${esc(p.age_band)}</div></div></div>
         <div class="form-row" style="margin-top: var(--space-5)"><label class="field-label" for="pname-${slot}">First name</label>
           <input class="input" id="pname-${slot}" value="${esc(L.pname ?? p.name)}" maxlength="30"
@@ -745,7 +722,7 @@ function listingCard(slot, p, l) {
   const c = local[slot].ls[l.id] ||= { draft: null, draftFrom: null, chatText: "", editing: false, chatMin: false, seenChat: 0, sending: null };
   const waiting = needsAnswer(l), total = l.intros.length + l.followups.length;
   if (c.open === undefined) c.open = waiting > 0;
-  const status = l.unsaved ? badge("warning", "Unsaved changes") : l.listed ? badge("olive", "Matching") : badge("", "Draft");
+  const status = l.unsaved ? badge("warning", "Unsaved changes") : l.listed ? badge("", "Matching") : badge("", "Draft");
   const summary = !l.listed ? "Not matching yet" : total ? `${total} match${total === 1 ? "" : "es"}${waiting ? `, ${waiting} waiting on you` : ""}` : "No matches yet";
   const body = !l.listed
     ? ""
@@ -857,7 +834,7 @@ function profileCard(slot, p, l, c) {
     ? `<span class="body-s">${esc(value)}</span>` : `<span class="body-s tertiary">${empty || "Not added yet"}</span>`}</div>`;
   const used = new Set(["first_name", "age_band", "city", "country", "seeking", "offering", "headline", "gender", "pay", "format", "schedule", "role", "subject"]);
   const extra = Object.entries(shown).filter(([k]) => !used.has(k)).map(([, v]) => val(v));
-  const who = `<div class="row"><span class="monogram tone-${tone(p.name)}" aria-hidden="true">${esc((p.name || "?").slice(0, 1).toUpperCase())}</span>
+  const who = `<div class="row"><span class="monogram" aria-hidden="true">${esc((p.name || "?").slice(0, 1).toUpperCase())}</span>
       <div class="grow"><div class="heading-m">${esc(p.name || "")}</div>
         <div class="caption secondary">${esc([p.age_band, place].filter(Boolean).join(" · ") || "Add where you are")}</div></div>
       ${l.listed ? "" : badge("", "Draft")}</div>`;
@@ -865,7 +842,7 @@ function profileCard(slot, p, l, c) {
   // Before anything is known, the profile is just who you are: name and age.
   const something = d && (d.intent_text || Object.keys(shown).some(k => !["first_name", "age_band"].includes(k)));
   if (!something) {
-    return `<div class="profile-card minimal band-${tone(p.name)}"><div class="row"><span class="monogram tone-${tone(p.name)}" aria-hidden="true">${esc((p.name || "?").slice(0, 1).toUpperCase())}</span>
+    return `<div class="profile-card minimal"><div class="row"><span class="monogram" aria-hidden="true">${esc((p.name || "?").slice(0, 1).toUpperCase())}</span>
       <div class="grow"><div class="heading-m">${esc(p.name || "")}</div><div class="caption secondary">${esc(p.age_band || "")}</div></div></div></div>`;
   }
   let body;
@@ -898,7 +875,7 @@ function profileCard(slot, p, l, c) {
   }
   return `
     ${entry && !entry.accepted ? `<div class="notice error"><b>Listing refused by the Warden agent.</b><br>${entry.problems.map(esc).join("<br>")}</div>` : ""}
-    <div class="profile-card ${layout} band-${tone(p.name)}">
+    <div class="profile-card ${layout}">
       ${body}
       ${extra.length ? `<div style="margin-top: var(--space-3)">${tags(extra)}</div>` : ""}
       ${hidden.length ? `<div class="hidden-well" style="margin-top: var(--space-4)"><div class="row"><span class="label grow">Only you can see this</span>${badge("ai", "Hidden")}</div>
@@ -1032,7 +1009,7 @@ function followupCard(slot, l, q) {
   else if (q.question_id === "also_offer") controls = `<div class="row"><button class="btn" onclick="answer('${slot}','${l.id}','also_offer',{yes:true})">Yes, I can</button><button class="btn secondary" onclick="answer('${slot}','${l.id}','also_offer',{yes:false})">No</button></div>
     <p class="caption tertiary" style="margin: var(--space-2) 0 0">If you say yes, it's added to what you offer. Nobody is told you were asked.</p>`;
   else controls = `<div class="row"><button class="btn" onclick="answer('${slot}','${l.id}','wider_net',{yes:true})">Widen the net</button><button class="btn secondary" onclick="answer('${slot}','${l.id}','wider_net',{yes:false})">Keep it as is</button></div>`;
-  return `<div class="card sm intro question">${badge("ai", "Question from Belong.")}<h3 class="heading-m" style="margin: var(--space-3) 0">${esc(q.question_text)}</h3>${controls}</div>`;
+  return `<div class="card sm intro">${badge("ai", "Question from Belong.")}<h3 class="heading-m" style="margin: var(--space-3) 0">${esc(q.question_text)}</h3>${controls}</div>`;
 }
 
 function introCard(slot, l, i) {
