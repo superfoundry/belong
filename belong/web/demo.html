@@ -120,21 +120,24 @@
   .why-panel { background: var(--surface-card); border-bottom: 1px solid var(--border-subtle); padding: var(--space-3) var(--space-4) var(--space-4); }
   .thread-pane { flex: 1; overflow-y: auto; padding: var(--space-4); }
   .thread-note { text-align: center; margin: var(--space-2) 0 var(--space-4); }
-  .msg-row { display: flex; align-items: flex-end; gap: var(--space-2); margin: 2px 0; }
-  .msg-row.first { margin-top: var(--space-3); }
+  /* Chat bubbles are rounder than the system's radii, by the user's choice. */
+  .thread { --bubble: 18px; --bubble-tail: 5px; }
+  .msg-row { display: flex; align-items: flex-end; gap: 6px; margin: 1px 0; }
+  .msg-row.first { margin-top: var(--space-2); }
   .msg-row.me { justify-content: flex-end; }
   .msg-col { display: flex; flex-direction: column; max-width: 74%; }
   .msg-row.me .msg-col { align-items: flex-end; }
   .bubble-wrap { position: relative; display: flex; align-items: center; gap: 4px; }
-  .msg-row .bubble { margin: 0; max-width: 100%; }
-  /* Rounded like a chat app; the corner by the avatar is square only on the last in a group. */
-  .msg-row .bubble.them { border-radius: var(--radius-lg); }
-  .msg-row .bubble.me { border-radius: var(--radius-lg); }
-  .msg-row.last .bubble.them { border-bottom-left-radius: var(--radius-sm); }
-  .msg-row.last .bubble.me { border-bottom-right-radius: var(--radius-sm); }
-  .avatar-space { width: 30px; flex-shrink: 0; }
-  .msg-time { font: var(--text-caption); font-size: 11px; color: var(--text-tertiary); margin-top: 4px; padding: 0 4px; }
-  .react-btn { all: unset; cursor: pointer; width: 26px; height: 26px; border-radius: 50%; display: inline-flex; align-items: center;
+  .msg-row .bubble { margin: 0; max-width: 100%; padding: 7px 12px; font-size: 14px; line-height: 1.35; border-radius: var(--bubble); }
+  .msg-row .bubble.them { background: var(--surface-card); border: 0; box-shadow: 0 1px 2px rgba(22, 22, 33, 0.08); }
+  /* In a run, the bubbles hug each other on the speaker's side; the latest keeps a small tail. */
+  .msg-row.them:not(.first) .bubble { border-top-left-radius: var(--bubble-tail); }
+  .msg-row.them:not(.last) .bubble { border-bottom-left-radius: var(--bubble-tail); }
+  .msg-row.me:not(.first) .bubble { border-top-right-radius: var(--bubble-tail); }
+  .msg-row.me:not(.last) .bubble { border-bottom-right-radius: var(--bubble-tail); }
+  .avatar-space { width: 26px; flex-shrink: 0; }
+  .msg-time { font: var(--text-caption); font-size: 10.5px; color: var(--text-tertiary); margin-top: 3px; padding: 0 6px; }
+  .react-btn { all: unset; cursor: pointer; width: 24px; height: 24px; flex-shrink: 0; border-radius: 50%; display: inline-flex; align-items: center;
                justify-content: center; color: var(--text-tertiary); opacity: .45; transition: opacity var(--duration-fast); }
   .bubble-wrap:hover .react-btn, .react-btn:focus-visible { opacity: 1; }
   .react-btn:hover { background: var(--surface-raised); color: var(--text-primary); }
@@ -145,14 +148,20 @@
   .react-picker button { all: unset; cursor: pointer; font-size: 20px; width: 34px; height: 34px; display: inline-flex; align-items: center;
                          justify-content: center; border-radius: 50%; transition: transform var(--duration-fast) var(--ease-standard); }
   .react-picker button:hover { background: var(--surface-raised); transform: scale(1.15); }
-  .reactions { display: flex; gap: 4px; margin-top: -6px; padding: 0 6px; position: relative; }
+  .reactions { display: flex; gap: 4px; margin-top: -5px; padding: 0 8px; position: relative; }
   .reaction { all: unset; cursor: pointer; font-size: 13px; padding: 1px 6px; border-radius: var(--radius-pill); background: var(--surface-card);
               border: 1px solid var(--border-default); box-shadow: var(--shadow-sm); }
   .reaction.mine { border-color: var(--border-accent); }
-  .avatar { width: 30px; height: 30px; flex-shrink: 0; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center;
-            background: var(--surface-sunken); color: var(--text-secondary); font-family: var(--font-display); font-weight: 700; font-size: 13px; }
+  .avatar { width: 26px; height: 26px; flex-shrink: 0; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center;
+            background: var(--accent-muted); color: var(--text-accent); font-family: var(--font-display); font-weight: 700; font-size: 12px; }
   .thread-head .avatar { width: 40px; height: 40px; font-size: 16px; }
-  .msg-row.me .avatar { background: var(--surface-inverse); color: var(--text-inverse); }
+  .thread .chat-pane .msg-row + .msg-time { display: none; }
+  /* Composer: a rounded field with a round send button. */
+  .thread .composer-bar { padding: var(--space-2) var(--space-3) var(--space-3); gap: var(--space-2); align-items: center; }
+  .thread .composer-bar .textarea { min-height: 40px; max-height: 100px; border-radius: 20px; padding: 9px 16px; resize: none; }
+  .thread .composer-bar .btn { border-radius: 20px; padding: 0 var(--space-4); height: 40px; }
+  .thread-pane { padding: var(--space-3) var(--space-3) var(--space-4); }
+  .thread-note { margin: var(--space-1) 0 var(--space-3); }
   .about-match summary { cursor: pointer; font: var(--text-label); font-weight: 600; color: var(--text-accent); }
   .chat-sheet.match-chat { height: 64%; }
   .sheet-head.static { cursor: default; flex-direction: column; align-items: flex-start; gap: 2px; }
@@ -450,8 +459,9 @@ function messageRow(slot, i, m, n, t, theirName, myName) {
   const next = t[n + 1], last = !next || next.mine !== m.mine;
   const first = n === 0 || t[n - 1].mine !== m.mine;
   const who = m.mine ? "me" : "them";
-  const avatar = last ? `<span class="avatar" aria-hidden="true">${esc(((m.mine ? myName : theirName) || "?").slice(0, 1).toUpperCase())}</span>`
-                      : `<span class="avatar-space"></span>`;
+  // Only the other person gets an avatar, on the latest message of each run.
+  const avatar = m.mine ? "" : last ? `<span class="avatar" aria-hidden="true">${esc((theirName || "?").slice(0, 1).toUpperCase())}</span>`
+                                    : `<span class="avatar-space"></span>`;
   const open = local[slot].reactOpen === `${i.intro_id}:${n}`;
   const counts = {};
   for (const r of m.reactions || []) { counts[r.emoji] ||= { n: 0, mine: false }; counts[r.emoji].n++; counts[r.emoji].mine ||= r.mine; }
@@ -472,6 +482,7 @@ function messageRow(slot, i, m, n, t, theirName, myName) {
 }
 // Tapping anywhere else closes an open reaction picker.
 document.addEventListener("click", e => {
+  if (!document.contains(e.target)) return;  // the tap redrew the screen (e.g. it opened the picker)
   for (const slot of ["A", "B"]) {
     if (local[slot].reactOpen && !e.target.closest(`#phone-${slot} .react-picker, #phone-${slot} .react-btn`)) {
       local[slot].reactOpen = null; renderPhone(slot);
