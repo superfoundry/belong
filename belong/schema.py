@@ -19,7 +19,8 @@ AGE_BAND_BOUNDS = [(18, 24), (25, 29), (30, 34), (35, 39), (40, 49), (50, 99)]
 
 
 FREE_TEXT_FIELDS = ("first_name", "city", "country", "neighborhood", "employer", "subject", "seeking", "offering",
-                    "pay", "format")
+                    "pay", "format", "headline")
+HEADLINE_MAX = 60
 FREE_TEXT_MAX = 120
 
 
@@ -57,6 +58,9 @@ FIELD_REGISTRY: dict[str, FieldSpec] = {
     # Open-ended matches ("something else"): short phrases written with the person.
     "seeking": FieldSpec(False, SHOWN),   # what they're looking for, e.g. "a guitarist"
     "offering": FieldSpec(False, SHOWN),  # what they bring, e.g. "a ska band"
+    # The listing in plain words, for people: "Selling 100 cardboard boxes", "Looking for free
+    # cardboard boxes". The phrases above are for matching; this is what titles and questions say.
+    "headline": FieldSpec(False, SHOWN),
     # A few broader areas the listing is about, written by the person's agent, so related
     # requests can be recognised without a built-in list of activities.
     "topics": FieldSpec(False, SHOWN, multi=True),
@@ -81,9 +85,10 @@ FOLLOWUP_MENU: dict[str, str] = {
     "age_range": "What age range are you open to?",
     "schedule": "When are you usually free?",
     "wider_net": "We haven't found a match yet. Should we cast a wider net?",
-    # {phrase} is filled in by the Warden, never the Matchmaker: it is the shown "looking for"
-    # phrase of a listing whose person opted in to close matches. It never says who.
-    "also_offer": "Someone is looking for {phrase}. Could you help with that too?",
+    # {phrase} is filled in by the Warden, never the Matchmaker: the shown headline of a listing
+    # whose person opted in to close matches ("selling 100 cardboard boxes"), or "looking for"
+    # plus its shown phrase if it has no headline. It never says who.
+    "also_offer": "Someone is {phrase}. Would that work for you?",
 }
 
 

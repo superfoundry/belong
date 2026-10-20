@@ -167,10 +167,30 @@ class Messages(unittest.TestCase):
         self.s.decide("B", self.intro, True)
         self.s.send_message("A", self.intro, "Hi Ren, Saturday at the bouldering gym?")
         thread_b = next(i for i in self.s.phone_state("B")["intros"] if i["intro_id"] == self.intro)["thread"]
-        self.assertEqual(thread_b, [{"mine": False, "text": "Hi Ren, Saturday at the bouldering gym?"}])
+        self.assertEqual([(m["mine"], m["text"]) for m in thread_b], [(False, "Hi Ren, Saturday at the bouldering gym?")])
+        self.assertTrue(thread_b[0]["at"])
         room = json.dumps(self.s.room_state())
         self.assertNotIn("Saturday at the bouldering gym", room)  # the presenter sees that, not what
         self.assertNotIn("bouldering gym", json.dumps([l.intent_text for l in self.s.board.listings()]))
+
+
+class Reactions(unittest.TestCase):
+    def test_only_a_few_reactions_and_only_between_connected_people(self):
+        s = DemoSession(seed=7, agent=None)
+        climbers(s)
+        s.run_matchmaker()
+        intro = next(i["intro_id"] for i in s.phone_state("A")["intros"]
+                     if {s.intros[i["intro_id"]].person_a, s.intros[i["intro_id"]].person_b} == {"demoA-1", "demoB-1"})
+        s.decide("A", intro, True)
+        s.decide("B", intro, True)
+        s.send_message("A", intro, "See you Saturday")
+        s.react("B", intro, 0, "👍")
+        with self.assertRaises(DemoError):
+            s.react("B", intro, 0, "<script>")
+        seen_by_a = next(i for i in s.phone_state("A")["intros"] if i["intro_id"] == intro)["thread"][0]["reactions"]
+        self.assertEqual(seen_by_a, [{"emoji": "👍", "mine": False}])
+        s.react("B", intro, 0, "👍")  # the same again takes it back
+        self.assertEqual(next(i for i in s.phone_state("A")["intros"] if i["intro_id"] == intro)["thread"][0]["reactions"], [])
 
 
 def repair_people(s: DemoSession, close=True, questions=True):
@@ -199,7 +219,7 @@ class Notifications(unittest.TestCase):
         s.run_matchmaker()
         q = s.phone_state("B")["listings"][0]["followups"]
         self.assertEqual([x["question_text"] for x in q],
-                         ["Someone is looking for an air conditioner repair technician. Could you help with that too?"])
+                         ["Someone is looking for an air conditioner repair technician. Would that work for you?"])
         self.assertNotIn("Mia", json.dumps(s.phone_state("B")))
         s.answer_followup("B", "also_offer", {"yes": True}, b)
         s.run_matchmaker()

@@ -27,6 +27,7 @@ import os
 import random
 import re
 import threading
+from datetime import datetime, timezone
 from dataclasses import replace
 
 from . import agent
@@ -45,6 +46,7 @@ K_CROWD = 20
 APPROACH_LIMIT = 3
 MAX_LISTINGS = 5
 MESSAGE_MAX = 1000  # characters in one message to a match
+REACTIONS = ("👍", "❤️", "😂", "😮", "🙏")  # the only reactions a message can get
 
 
 # Words for the person being served; a listing looking for one is named by what it offers.
@@ -224,6 +226,8 @@ class DemoSession:
     def _title(draft, board_listing=None) -> str:
         """A short name for a listing, from what it's looking for."""
         fields = {f["key"]: f["value"] for f in (draft or {}).get("fields", []) if f.get("value")}
+        if fields.get("headline"):
+            return str(fields["headline"])[:60]  # the person's own words
         seeking, offering = fields.get("seeking"), fields.get("offering")
         if seeking and offering and _CLIENT_WORDS & set(re.findall(r"[a-z]+", str(seeking).lower())):
             return str(offering)[:60]  # a teacher looking for students: name it by what they offer
@@ -540,7 +544,7 @@ class DemoSession:
         d = out.to_dict()
         self.outputs["followups"].append(d)
         listing.followups.append({"question_id": d["question_id"], "question_text": d["question_text"],
-                                  "phrase": d["phrase"], "mirror": d["mirror"]})
+                                  "offer_add": d["offer_add"], "seek_add": d["seek_add"]})
         self._event("out", f"Question to {name}", "A fixed-menu question, worded by the Warden:",
                     payload={"question": d["question_text"]}, receipts=receipts, slots=[slot])
 
@@ -574,7 +578,9 @@ class DemoSession:
         updated = replace(listing, intent_text=text, exactness=exactness, fields=tuple(fields),
                           updated_at=self.clock.now(), version=listing.version + 1)
         if question_id == "also_offer":
-            updated = agent.also_offer(updated, question["phrase"], self.clock.now(), question.get("mirror", ""))
+            updated = agent.also_offer(updated, question["offer_add"], self.clock.now(), question["seek_add"])
+            mine.chat.append({"from": "agent", "text": "You said yes, so I've added that to your listing. Check that "
+                                                       "your other details, like price and timing, still fit."})
         if mine.draft:
             new = {k: updated.get(k).value for k in ("offering", "seeking") if updated.get(k)}
             mine.draft = {**mine.draft, "intent_text": text, "exactness": exactness,
@@ -679,13 +685,32 @@ class DemoSession:
         text = (text or "").strip()[:MESSAGE_MAX]
         if not text:
             raise DemoError("Write a message first.")
-        self.threads.setdefault(intro_id, []).append({"from": mine.id, "text": text})
+        at = datetime.now(timezone.utc).isoformat(timespec="seconds")
+        self.threads.setdefault(intro_id, []).append({"from": mine.id, "text": text, "at": at, "reactions": {}})
         intro = self.intros[intro_id]
         other = intro.person_b if intro.person_a == mine.id else intro.person_a
         # The presenter sees that a message was delivered, never what it says.
         self._event("out", f"{st.name} sent {self._name(other)} a message",
                     "Delivered only to the two of them. Matching never reads messages.",
                     slots=[s for s in (slot, self._slot_of(other)) if s])
+
+    def react(self, slot: str, intro_id: str, index, emoji: str) -> None:
+        """React to a message in a conversation with a match: one of a fixed few, one per
+        person per message; choosing the same one again takes it back."""
+        st = self._verified(slot)
+        mine = self._listing_with_intro(st, intro_id)
+        if not self.warden.is_connected(intro_id):
+            raise DemoError("You can react once you've both said yes.")
+        if emoji not in REACTIONS:
+            raise DemoError("That reaction isn't available.")
+        thread = self.threads.get(intro_id, [])
+        if not isinstance(index, int) or not 0 <= index < len(thread):
+            raise DemoError("No such message.")
+        reactions = thread[index]["reactions"]
+        if reactions.get(mine.id) == emoji:
+            del reactions[mine.id]
+        else:
+            reactions[mine.id] = emoji
 
     # -- presenter: a compromised Matchmaker ---------------------------------------
 
@@ -761,7 +786,9 @@ class DemoSession:
                     "reveal_result": mine.reveal_results.get(intro_id),
                     "close": intro.one_way_to == mine.id}
             if status == "connected":
-                item["thread"] = [{"mine": m["from"] == mine.id, "text": m["text"]} for m in self.threads.get(intro_id, [])]
+                item["thread"] = [{"mine": m["from"] == mine.id, "text": m["text"], "at": m["at"],
+                                   "reactions": [{"emoji": e, "mine": who == mine.id} for who, e in m["reactions"].items()]}
+                                  for m in self.threads.get(intro_id, [])]
                 item["simulated"] = self._slot_of(other) is None  # a synthetic person can't reply
             intros.append(item)
         hidden_keys = []

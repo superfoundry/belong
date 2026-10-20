@@ -39,7 +39,7 @@ class AlsoOffer(unittest.TestCase):
         self.assertEqual([(f.person_id, f.about) for f in q], [("pf", "pc")])
         out = w.exit_followup(q[0], board)
         self.assertEqual(out.question_text,
-                         "Someone is looking for an air conditioner repair technician. Could you help with that too?")
+                         "Someone is looking for an air conditioner repair technician. Would that work for you?")
         self.assertNotIn("Mia", out.question_text)
         self.assertNotIn("pc", str(out.to_dict()))  # who asked is never sent
 
@@ -101,12 +101,41 @@ class RelatedActivities(unittest.TestCase):
         q = [f for f in result.followups if f.question_id == "also_offer"]
         self.assertEqual([(f.person_id, f.about) for f in q], [("ps", "ph")])
         out = w.exit_followup(q[0], board)
-        self.assertEqual(out.question_text, "Someone is looking for a beginner ice hockey coach. Could you help with that too?")
-        skater = also_offer(board.listing("ps"), out.phrase, "2026-10-13T00:00:00Z", out.mirror)
+        self.assertEqual(out.question_text, "Someone is looking for a beginner ice hockey coach. Would that work for you?")
+        skater = also_offer(board.listing("ps"), out.offer_add, "2026-10-13T00:00:00Z", out.seek_add)
         self.assertEqual(skater.get("seeking").value, "a figure skating student or an ice hockey student")
         self.assertTrue(w.admit(person("ps"), skater, board).accepted)
         pairs = [(p.person_a, p.person_b, p.close) for p in OfflineMatcher().match(board).proposals]
         self.assertEqual(pairs, [("ph", "ps", "")])
+
+
+class Headlines(unittest.TestCase):
+    """People see headlines in plain words; the stiff matching phrases stay behind the scenes."""
+
+    def test_a_question_quotes_the_other_listings_headline(self):
+        w, board = warden(), Marketboard()
+        seller = replace(listing("px", "Selling 100 cardboard boxes in Tokyo, pickup only.", [
+            fld("first_name", "Kai"), fld("country", "Japan"), fld("city", "Tokyo"),
+            fld("headline", "Selling 100 cardboard boxes"), fld("seeking", "a cardboard box buyer"),
+            fld("offering", "a cardboard box seller"), fld("topics", ("cardboard boxes", "moving supplies"))]),
+            notify_close=True, notify_questions=True)
+        wanter = replace(listing("py", "Looking for free cardboard boxes in Tokyo.", [
+            fld("first_name", "Ren"), fld("country", "Japan"), fld("city", "Tokyo"),
+            fld("headline", "Looking for free cardboard boxes"), fld("seeking", "a free cardboard box giver"),
+            fld("offering", "a cardboard box recipient"), fld("topics", ("cardboard boxes", "moving"))]),
+            notify_close=True, notify_questions=True)
+        for l in (seller, wanter):
+            self.assertTrue(w.admit(person(l.person_id), l, board).accepted)
+        texts = {f.person_id: w.exit_followup(f, board).question_text
+                 for f in OfflineMatcher().match(board).followups if f.question_id == "also_offer"}
+        self.assertEqual(texts, {"px": "Someone is looking for free cardboard boxes. Would that work for you?",
+                                 "py": "Someone is selling 100 cardboard boxes. Would that work for you?"})
+
+    def test_reasons_use_the_headline(self):
+        from belong.warden import reason_text
+        self.assertEqual(reason_text([("seeking", "x", "y"), ("offering", "a", "a cardboard box seller"),
+                                      ("headline", "Looking for free boxes", "Selling 100 cardboard boxes")]),
+                         "They're selling 100 cardboard boxes.")
 
 
 class CloseMatches(unittest.TestCase):
@@ -133,11 +162,11 @@ class CloseMatches(unittest.TestCase):
 class AuditR5(unittest.TestCase):
     def test_the_audit_catches_questions_and_close_matches_nobody_opted_in_to(self):
         w, board = repair_board(customer_close=False, fixer_questions=False)
-        followups = [{"person_id": "pf", "question_id": "wider_net", "phrase": "", "mirror": "",
+        followups = [{"person_id": "pf", "question_id": "wider_net", "phrase": "", "offer_add": "", "seek_add": "",
                       "question_text": "We haven't found a match yet. Should we cast a wider net?"},
-                     {"person_id": "pf", "question_id": "also_offer", "phrase": "an air conditioner repair technician",
-                      "mirror": "an air conditioner repair customer",
-                      "question_text": "Someone is looking for an air conditioner repair technician. Could you help with that too?"}]
+                     {"person_id": "pf", "question_id": "also_offer", "phrase": "looking for an air conditioner repair technician",
+                      "offer_add": "an air conditioner repair technician", "seek_add": "an air conditioner repair customer",
+                      "question_text": "Someone is looking for an air conditioner repair technician. Would that work for you?"}]
         intros = [{"intro_id": "i1", "person_a": "pc", "person_b": "pf", "one_way_to": "pc",
                    "a_view": {"fields": {}, "reason": ""}, "b_view": {"fields": {}, "reason": ""}}]
         report = leak_report(board, intros, followups, [], [], [], set(), {}, 20, 3)
