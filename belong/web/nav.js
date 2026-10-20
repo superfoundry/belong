@@ -3,6 +3,7 @@
 (function () {
   const LINKS = [
     { href: "/demo", label: "Demo" },
+    { href: "/chat", label: "In chat" },
     { href: "/trust", label: "Trust and security" },
     { href: "/inspector", label: "Inspector" },
     { href: "/trust/TRUST.md", label: "Technical details" },
