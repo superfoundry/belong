@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Belong.</title>
+<meta name="description" content="Meet people who are looking for you too.">
+<link rel="stylesheet" href="/ds/tokens.css">
+<link rel="stylesheet" href="/ds/belong.css">
+<style>
+  /* The landing page: just the name, on white, with the three accents as quiet colour. */
+  body { min-height: 100vh; display: flex; flex-direction: column; background: var(--surface-card); }
+  main { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center;
+         padding: var(--space-16) var(--space-6); position: relative; overflow: hidden; }
+  /* Soft colour fields behind the name: coral, mint and cream. Decoration only, out of the reading path. */
+  .glow { position: absolute; border-radius: 50%; filter: blur(70px); opacity: .55; pointer-events: none; z-index: 0; }
+  .glow.coral { width: 420px; height: 420px; background: var(--accent-muted); top: 12%; left: 50%; transform: translateX(-85%); }
+  .glow.mint { width: 380px; height: 380px; background: var(--accent-olive-muted); top: 30%; left: 50%; transform: translateX(-5%); }
+  .glow.cream { width: 520px; height: 300px; background: var(--surface-raised); bottom: 8%; left: 50%; transform: translateX(-50%); opacity: .9; }
+  main > *:not(.glow) { position: relative; z-index: 1; }
+  .name { font-family: var(--font-display); font-weight: 700; letter-spacing: var(--tracking-tight);
+          font-size: clamp(72px, 16vw, 184px); line-height: 1; margin: 0; color: var(--text-primary);
+          text-shadow: var(--shadow-text-ember); }
+  .line { font: var(--text-body-l); color: var(--text-secondary); margin: var(--space-6) 0 var(--space-10); max-width: 40ch; }
+  .actions { display: flex; gap: var(--space-3); flex-wrap: wrap; justify-content: center; }
+  footer { display: flex; justify-content: center; gap: var(--space-6); padding: var(--space-6); font: var(--text-caption); }
+  footer a { color: var(--text-tertiary); text-decoration: none; }
+  footer a:hover { color: var(--text-primary); }
+  @media (prefers-reduced-motion: no-preference) {
+    .name, .line, .actions { animation: rise var(--duration-slow) var(--ease-standard) both; }
+    .line { animation-delay: 80ms; } .actions { animation-delay: 160ms; }
+    @keyframes rise { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+  }
+</style>
+</head>
+<body>
+<main>
+  <span class="glow coral" aria-hidden="true"></span>
+  <span class="glow mint" aria-hidden="true"></span>
+  <span class="glow cream" aria-hidden="true"></span>
+  <h1 class="name">Belong.</h1>
+  <p class="line">Meet people who are looking for you too.</p>
+  <div class="actions">
+    <a class="btn lg" href="/demo">Try the demo</a>
+    <a class="btn lg secondary" href="/trust">How we keep it private</a>
+  </div>
+</main>
+<footer>
+  <a href="/trust">Trust and security</a>
+  <a href="/inspector">Inspector</a>
+  <a href="/trust/TRUST.md">Technical details</a>
+</footer>
+</body>
+</html>

@@ -66,7 +66,7 @@ All pages use the Belong. design system (artifact https://claude.ai/artifact/KDP
 bands and highlight panels, not a tint on everything. Coral (`accent-default`) is the one action colour,
 one primary button per screen, with a dark ink label (`text-on-accent`); a thin coral line (tab underline,
 focus ring, selected border) uses the deeper `border-accent`. Periwinkle (`accent-ai`) marks agent output
-and every hidden field; mint (`accent-olive`) is live status, at most once per screen. Hidden fields use the fixed look: sunken well, periwinkle hairline, "Hidden" badge, "Used for
+and every hidden field; mint (`accent-olive`) is live status, at most once per screen. Each person has their own colour (`tone()` in demo.html: a soft coral, mint or amber tint from their name; never periwinkle, which means the agents). Your own chat bubbles are coral. Hidden fields use the fixed look: sunken well, periwinkle hairline, "Hidden" badge, "Used for
 matching, never shown". Sentence case, no emoji, no lock/shield/eye imagery; say "shown" and
 "hidden", never synonyms. Exception, by the user's choice: after a match say "See what else you
 have in common" / "Compare", not the design system's "Reveal to each other". Also by the user's choice: no "A SuperFoundry company" family mark in the footer. And notification dots on the phone are pure red (`--notify: #ff0000`), outside the token palette. And message reactions use a fixed few emoji (`REACTIONS` in demo.py), the one place emoji appear. And chat bubbles are rounder (18px) than the system's radii.
@@ -82,7 +82,7 @@ Module docstrings say which SPEC section they implement.
 ```bash
 python3 -m unittest -v      # all tests
 python3 -m belong run       # 300-person simulation + leak report (exit 1 on leak)
-python3 -m belong serve     # demo /, trust page /trust, inspector /inspector on localhost:8000
+python3 -m belong serve     # landing /, demo /demo, trust page /trust, inspector /inspector on localhost:8000
 ```
 
 Pure standard library: don't add dependencies without asking. The one exception is the
