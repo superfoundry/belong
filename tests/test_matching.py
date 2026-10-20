@@ -25,9 +25,26 @@ class Quality(unittest.TestCase):
         self.assertGreaterEqual(self.result["metrics"]["coverage"], 0.85)
 
     def test_every_proposal_is_mutual(self):
-        """Both must be looking: nobody is approached who didn't ask."""
-        for p in self.result["proposals_internal"]:
+        """Both must be looking: nobody is approached who didn't ask. (A close match is the one
+        exception, and only for someone who opted in: see the next test.)"""
+        exact = [p for p in self.result["proposals_internal"] if not p["close"]]
+        self.assertTrue(exact)
+        for p in exact:
             self.assertTrue(p["truly_compatible"], p)
+
+    def test_close_matches_go_one_way_to_people_who_opted_in(self):
+        people = {r["id"]: r for r in self.result["people"]}
+        close = [p for p in self.result["proposals_internal"] if p["close"]]
+        self.assertTrue(close)
+        intros = {(i["person_a"], i["person_b"]): i for i in self.result["introductions"]}
+        for p in close:
+            self.assertTrue(people[p["close"]]["notify_close"], p)
+            intro = intros.get((p["person_a"], p["person_b"]))
+            if intro:
+                self.assertEqual(intro["one_way_to"], p["close"])
+                me, other = ("a", "b") if p["close"] == p["person_a"] else ("b", "a")
+                if not intro[f"{me}_said_yes"]:
+                    self.assertIsNone(intro[f"{other}_said_yes"], "the other person saw a close match before a yes")
 
 
 class HiddenFieldRules(unittest.TestCase):

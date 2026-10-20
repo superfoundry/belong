@@ -1,4 +1,4 @@
-"""Tests an outside agent can run against Belong (the trust page's "test it yourself").
+"""Tests an outside agent can run against Belong. (the trust page's "test it yourself").
 
 Each probe builds a fresh SANDBOX: the same Warden code, the same Matchmaker and
 300 synthetic people. Probes never touch real listings.
@@ -115,8 +115,12 @@ def canary_test(body: dict) -> dict:
     intros = [i for i in (warden.exit_introduction(p, board) for p in result.proposals) if i]
     connections, consents, reveals = set(), {}, []
     for intro in intros:
-        for pid in (intro.person_a, intro.person_b):
-            warden.record_decision(intro.intro_id, pid, pid in planted or rng.random() < 0.8)
+        # A close match goes to its one recipient first; the other person sees it only after a yes.
+        for pid in sorted((intro.person_a, intro.person_b), key=lambda pid: pid != intro.one_way_to):
+            yes = pid in planted or rng.random() < 0.8
+            warden.record_decision(intro.intro_id, pid, yes)
+            if intro.one_way_to and not yes:
+                break
         if warden.is_connected(intro.intro_id):
             connections.add(frozenset((intro.person_a, intro.person_b)))
             for pid in (intro.person_a, intro.person_b):
@@ -216,7 +220,7 @@ def attack_suite(body: dict) -> dict:
         person, listing = replace(me, id=pid), replace(a_listing, person_id=pid)
         results_ = [warden.admit(person, listing, scratch).accepted for _ in range(6)]
         return results_[-1] if all(results_[:5]) else None  # first five must pass, sixth must not
-    attempt("entry", "Flood Belong with listing updates (6 in a day)", flood)
+    attempt("entry", "Flood Belong. with listing updates (6 in a day)", flood)
 
     # Getting out: a compromised Matchmaker
     hidden_key = next((f.key for f in a_listing.fields if f.visibility == HIDDEN), "religion")
@@ -239,6 +243,34 @@ def attack_suite(body: dict) -> dict:
     attempt("compromised matchmaker", "Introduce someone to their own other listing", self_intro)
     attempt("compromised matchmaker", "Ask an off-menu question to fish for details",
             lambda: warden.exit_followup(FollowUp(a, "what_is_your_religion"), board))
+
+    # Notification choices: questions and close matches only for people who opted in.
+    def on_board(pid, **prefs):
+        warden.admit(replace(me, id=pid), replace(a_listing, person_id=pid, **prefs), board)
+        return pid
+    quiet = on_board("optedout", notify_questions=False, notify_close=False)
+    keen = on_board("optedin", notify_questions=True, notify_close=True)
+    attempt("compromised matchmaker", "Ask a question of someone who opted out of questions",
+            lambda: warden.exit_followup(FollowUp(quiet, "wider_net"), board))
+    attempt("compromised matchmaker", "Send a close match to someone who didn't opt in",
+            lambda: warden.exit_introduction(P(person_a=quiet, person_b=b, a_intent_met=False, close=quiet,
+                                               reason_fields=_shared_reasons(board, quiet, b)), board))
+    attempt("compromised matchmaker", "Send a close match about someone who never asked for it",
+            lambda: warden.exit_introduction(P(person_a=keen, person_b=b, a_intent_met=False, b_intent_met=False,
+                                               close=keen, reason_fields=_shared_reasons(board, keen, b)), board))
+    def close_seen_early():
+        intro = warden.exit_introduction(P(person_a=keen, person_b=b, a_intent_met=False, close=keen,
+                                           reason_fields=_shared_reasons(board, keen, b)), board)
+        if intro is None:
+            return None
+        warden.record_decision(intro.intro_id, b, True)  # the other person acts before the recipient's yes
+        return True
+    attempt("compromised matchmaker", "Show a close match to the other person before the recipient says yes",
+            close_seen_early)
+    attempt("compromised matchmaker", "Quote someone's request in a question when they didn't opt in",
+            lambda: warden.exit_followup(FollowUp(keen, "also_offer", about=quiet), board))
+    attempt("compromised matchmaker", "Attach another person's listing to an ordinary question",
+            lambda: warden.exit_followup(FollowUp(keen, "wider_net", about=b), board))
 
     def approach_flood():
         # Limit is 3 a week: the first three get through, the fourth must not.

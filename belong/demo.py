@@ -6,10 +6,10 @@ love). Each listing has its own conversation with the person's agent, its own dr
 its own introductions, and is matched on its own; a person is never introduced to their
 own other listing.
 
-Everything Belong receives or sends is recorded in a data log for the presenter:
+Everything Belong. receives or sends is recorded in a data log for the presenter:
 
-  in       Belong received something (KYC facts, a listing, a decision, consents)
-  out      Belong sent something to a person, through the Warden (exact payload logged)
+  in       Belong. received something (KYC facts, a listing, a decision, consents)
+  out      Belong. sent something to a person, through the Warden (exact payload logged)
   blocked  the Warden refused to let something in or out
   inside   private matching activity (presenter view only; never sent to anyone)
 
@@ -26,6 +26,7 @@ import hashlib
 import os
 import random
 import threading
+from dataclasses import replace
 
 from . import agent
 from .agent_llm import AgentUnavailable, ClaudeAgent
@@ -42,6 +43,7 @@ SLOTS = ("A", "B")
 K_CROWD = 20
 APPROACH_LIMIT = 3
 MAX_LISTINGS = 5
+MESSAGE_MAX = 1000  # characters in one message to a match
 
 
 # Listings without a "who you're looking for" phrase are named by their kind.
@@ -68,6 +70,8 @@ class _Listing:
         self.intro_ids = []
         self.my_consents = {}  # intro_id -> set(keys)
         self.reveal_results = {}  # intro_id -> [{"key", "values"}]
+        # Chosen on the privacy screen before the listing starts; both notifications off unless chosen.
+        self.prefs = {"acknowledged": False, "notify_close": False, "notify_questions": False}
 
 
 def _current(attr):
@@ -162,6 +166,7 @@ class DemoSession:
         self.slots = {s: _Slot(s) for s in SLOTS}
         self.events = []
         self.intros = {}  # intro_id -> Introduction
+        self.threads = {}  # intro_id -> [{"from": listing_id, "text"}]: messages between two connected people
         self.introduced_pairs = set()
         self.decisions = {}  # (intro_id, listing_id) -> bool
         self.consents = {}  # (intro_id, listing_id) -> set
@@ -239,29 +244,67 @@ class DemoSession:
         band = AGE_BANDS[age_band_index(age)]
         st.person = Person(id=st.person_id, verified=True, age_band=band, created_at=self.clock.now())
         st.name = name
-        if not st.listings:
-            first = _Listing(slot, 1)
-            first.chat = [{"from": "agent", "text": f"Hi {name}, I'm your agent. I work only for you, and nothing "
-                                                    f"is shared without your OK. Tell me what you're looking for, in your own words."}]
-            st.listings.append(first)
-            st.current = first.id
         self._event("in", f"Identity check for phone {slot}",
-                    "The KYC provider saw the ID document. Belong received only these two facts:",
+                    "The KYC provider saw the ID document. Belong. received only these two facts:",
                     payload={"verified": True, "age_band": band}, slots=[slot])
 
     # -- listings --------------------------------------------------------------------
 
-    def new_listing(self, slot: str) -> str:
-        """Start another listing (e.g. a tutor search alongside dating). It gets its own chat."""
+    @staticmethod
+    def _clean_prefs(prefs) -> dict:
+        prefs = prefs if isinstance(prefs, dict) else {}
+        return {k: prefs.get(k) is True for k in ("acknowledged", "notify_close", "notify_questions")}
+
+    def new_listing(self, slot: str, prefs=None) -> str:
+        """Start another listing (e.g. a tutor search alongside dating). It gets its own chat.
+        `prefs` are the person's choices on the privacy screen that comes before every listing."""
         st = self._verified(slot)
-        if len(st.listings) >= MAX_LISTINGS:
+        prefs = self._clean_prefs(prefs)
+        if len(st.listings) >= MAX_LISTINGS and not any(self._untouched(l) for l in st.listings):
             raise DemoError(f"You can have up to {MAX_LISTINGS} listings.")
-        listing = _Listing(slot, max(l.n for l in st.listings) + 1)
-        listing.chat = [{"from": "agent", "text": "What else are you looking for? I'll keep this listing separate "
-                                                  "from your others, with its own details."}]
+        # An untouched draft is reused rather than piling up empty listings.
+        empty = next((l for l in st.listings if self._untouched(l)), None)
+        if empty is not None:
+            empty.prefs = prefs
+            st.current = empty.id
+            return empty.id
+        listing = _Listing(slot, max((l.n for l in st.listings), default=0) + 1)
+        listing.chat = [{"from": "agent", "text": f"Hi {st.name}, I'm your agent. I work only for you, and nothing is "
+                                                  "shared without your OK. Tell me what you're looking for, in your own words."
+                         if not st.listings else "What else are you looking for? I'll keep this listing separate "
+                                                 "from your others, with its own details."}]
+        listing.prefs = prefs
         st.listings.append(listing)
         st.current = listing.id
         return listing.id
+
+    def set_prefs(self, slot: str, listing_id: str, prefs) -> None:
+        """Change a listing's notification choices. A live listing is re-checked with them."""
+        st = self._verified(slot)
+        mine = st.listing(listing_id)
+        mine.prefs = {**self._clean_prefs(prefs), "acknowledged": True}
+        if mine.id in self.board:
+            current = self.board.listing(mine.id)
+            updated = replace(current, notify_close=mine.prefs["notify_close"],
+                              notify_questions=mine.prefs["notify_questions"],
+                              updated_at=self.clock.now(), version=current.version + 1)
+            start = len(self.warden.receipts)
+            result = self.warden.admit(st.person, updated, self.board)
+            self._event("in" if result.accepted else "blocked", f"{st.name} changed their notification choices",
+                        f"Close matches {'on' if mine.prefs['notify_close'] else 'off'}, questions "
+                        f"{'on' if mine.prefs['notify_questions'] else 'off'}.",
+                        receipts=self._receipts_since(start, slot), slots=[slot])
+            if not mine.prefs["notify_questions"]:
+                mine.followups = []
+
+    def _untouched(self, listing: _Listing) -> bool:
+        return listing.draft is None and listing.id not in self.board and not any(m["from"] == "me" for m in listing.chat)
+
+    def _listing_for(self, st: _Slot, listing_id=None) -> _Listing:
+        """The listing a message is about; the first message creates one if there is none yet."""
+        if not listing_id and not st.listings:
+            self.new_listing(st.slot)
+        return st.listing(listing_id)
 
     def open_listing(self, slot: str, listing_id: str) -> None:
         st = self._verified(slot)
@@ -273,7 +316,7 @@ class DemoSession:
         """Instant profile update as soon as a message is sent, before the agent replies:
         facts stated plainly enough to be sure of go into empty fields (never overwriting)."""
         st = self._verified(slot)
-        listing = st.listing(listing_id)
+        listing = self._listing_for(st, listing_id)
         facts = agent.quick_facts((text or "")[:2000])
         if not facts:
             return
@@ -288,7 +331,7 @@ class DemoSession:
         a model's reply can take a few seconds, and the other phone must keep working meanwhile."""
         with self.lock:
             st = self._verified(slot)
-            listing = st.listing(listing_id)
+            listing = self._listing_for(st, listing_id)
             text = (text or "").strip()[:2000]
             if not text:
                 raise DemoError("Say what you're looking for.")
@@ -358,7 +401,7 @@ class DemoSession:
             self._event("in", f"{st.name}'s listing accepted: {title}",
                         f"{len(listing.fields)} details ({n_hidden} hidden) passed the Warden's entry check.",
                         receipts=receipts, slots=[slot])
-            mine.chat.append({"from": "agent", "text": "You're all set. I'll tell you when Belong finds someone "
+            mine.chat.append({"from": "agent", "text": "You're all set. I'll tell you when Belong. finds someone "
                                                        "who is also looking for you.", "live": True})
         else:
             self._event("blocked", f"{st.name}'s listing was refused",
@@ -385,7 +428,8 @@ class DemoSession:
             exactness = -1.0  # the Warden's schema check will refuse it
         return Listing(person_id=mine.id, intent_text=str(body.get("intent_text", "")),
                        exactness=exactness, fields=tuple(fields), updated_at=self.clock.now(),
-                       version=version, confirmed_shown=tuple(confirmed), owner_id=st.person_id)
+                       version=version, confirmed_shown=tuple(confirmed), owner_id=st.person_id,
+                       notify_close=mine.prefs["notify_close"], notify_questions=mine.prefs["notify_questions"])
 
     # -- 4. the Matchmaker runs ---------------------------------------------------
 
@@ -432,6 +476,19 @@ class DemoSession:
             self.intros[intro.intro_id] = intro
             for _, listing in owners:
                 listing.intro_ids.append(intro.intro_id)
+                # "We haven't found a match yet" no longer applies.
+                listing.followups = [q for q in listing.followups if q["question_id"] != "wider_net"]
+            if intro.one_way_to:
+                to_a = intro.one_way_to == intro.person_a
+                self._event("out", f"Close match for {self._name(intro.one_way_to)}",
+                            f"Sent only to {self._name(intro.one_way_to)}, who opted in. "
+                            f"{self._name(intro.person_b if to_a else intro.person_a)} isn't told unless they say yes:",
+                            payload=[{"to": self._name(intro.one_way_to), "view": intro.a_view if to_a else intro.b_view}],
+                            receipts=receipts, slots=slots)
+                if self._slot_of(intro.one_way_to) is None:
+                    # A synthetic recipient decides for themselves (simulated).
+                    self._record(intro.intro_id, intro.one_way_to, self.rng.random() < 0.6)
+                continue
             self._event("out", f"Introduction: {self._name(p.person_a)} + {self._name(p.person_b)}",
                         "This is everything sent out about this match:",
                         payload=[{"to": self._name(intro.person_a), "view": intro.a_view},
@@ -447,12 +504,14 @@ class DemoSession:
         receipts = self._receipts_since(start, slot)
         name = self.slots[slot].name
         if out is None:
-            self._event("blocked", f"Question to {name} held back",
-                        "Not on the fixed menu.", receipts=receipts, slots=[slot])
+            failed = [r["check"] for r in receipts if r["result"] == "fail"]
+            self._event("blocked", f"Question to {name} held back", f"Failed: {', '.join(failed)}",
+                        receipts=receipts, slots=[slot])
             return
         d = out.to_dict()
         self.outputs["followups"].append(d)
-        listing.followups.append({"question_id": d["question_id"], "question_text": d["question_text"]})
+        listing.followups.append({"question_id": d["question_id"], "question_text": d["question_text"],
+                                  "phrase": d["phrase"]})
         self._event("out", f"Question to {name}", "A fixed-menu question, worded by the Warden:",
                     payload={"question": d["question_text"]}, receipts=receipts, slots=[slot])
 
@@ -479,11 +538,19 @@ class DemoSession:
             fields.append(Field("schedule", str(sched), SHOWN, False))
         elif question_id == "wider_net" and answer.get("yes"):
             exactness = 0.3
+        question = next(q for q in mine.followups if q["question_id"] == question_id)
         mine.followups = [q for q in mine.followups if q["question_id"] != question_id]
-        updated = Listing(mine.id, text, exactness, tuple(fields), self.clock.now(),
-                          listing.version + 1, listing.confirmed_shown, owner_id=st.person_id)
+        if question_id == "also_offer" and not answer.get("yes"):
+            return  # nothing changes, and nobody is told
+        updated = replace(listing, intent_text=text, exactness=exactness, fields=tuple(fields),
+                          updated_at=self.clock.now(), version=listing.version + 1)
+        if question_id == "also_offer":
+            updated = agent.also_offer(updated, question["phrase"], self.clock.now())
         if mine.draft:
-            mine.draft = {**mine.draft, "intent_text": text, "exactness": exactness}
+            offering = (updated.get("offering").value if updated.get("offering") else None)
+            mine.draft = {**mine.draft, "intent_text": text, "exactness": exactness,
+                          "fields": [{**f, "value": offering} if f["key"] == "offering" and offering else f
+                                     for f in mine.draft["fields"]]}
         start = len(self.warden.receipts)
         result = self.warden.admit(st.person, updated, self.board)
         receipts = self._receipts_since(start, slot)
@@ -570,6 +637,27 @@ class DemoSession:
                         "Nothing they both have and both chose. Neither learns which.", receipts=receipts,
                         slots=slots)
 
+    # -- 7. talking to a match -------------------------------------------------------
+
+    def send_message(self, slot: str, intro_id: str, text: str) -> None:
+        """A message to someone you're connected with. Only after both said yes (the Warden's
+        record of decisions), delivered only to the two of them, and never seen by matching:
+        threads are not on the Marketboard and nothing in matching can read them."""
+        st = self._verified(slot)
+        mine = self._listing_with_intro(st, intro_id)
+        if not self.warden.is_connected(intro_id):
+            raise DemoError("You can message someone once you've both said yes.")
+        text = (text or "").strip()[:MESSAGE_MAX]
+        if not text:
+            raise DemoError("Write a message first.")
+        self.threads.setdefault(intro_id, []).append({"from": mine.id, "text": text})
+        intro = self.intros[intro_id]
+        other = intro.person_b if intro.person_a == mine.id else intro.person_a
+        # The presenter sees that a message was delivered, never what it says.
+        self._event("out", f"{st.name} sent {self._name(other)} a message",
+                    "Delivered only to the two of them. Matching never reads messages.",
+                    slots=[s for s in (slot, self._slot_of(other)) if s])
+
     # -- presenter: a compromised Matchmaker ---------------------------------------
 
     def attack(self) -> None:
@@ -627,6 +715,8 @@ class DemoSession:
             other = intro.person_b if me_a else intro.person_a
             my_answer = self.decisions.get((intro_id, mine.id))
             theirs = self.decisions.get((intro_id, other))
+            if intro.one_way_to and intro.one_way_to != mine.id and theirs is not True:
+                continue  # a close match for the other person: you see nothing unless they say yes
             if my_answer is False:
                 continue  # you said no: the match disappears from your list
             if my_answer is None:
@@ -637,17 +727,24 @@ class DemoSession:
                 status = "waiting"
             else:
                 status = "connected"
-            intros.append({"intro_id": intro_id, "view": intro.a_view if me_a else intro.b_view, "status": status,
-                           "reveal_chosen": intro_id in mine.my_consents,
-                           "reveal_result": mine.reveal_results.get(intro_id)})
+            item = {"intro_id": intro_id, "view": intro.a_view if me_a else intro.b_view, "status": status,
+                    "reveal_chosen": intro_id in mine.my_consents,
+                    "reveal_result": mine.reveal_results.get(intro_id),
+                    "close": intro.one_way_to == mine.id}
+            if status == "connected":
+                item["thread"] = [{"mine": m["from"] == mine.id, "text": m["text"]} for m in self.threads.get(intro_id, [])]
+                item["simulated"] = self._slot_of(other) is None  # a synthetic person can't reply
+            intros.append(item)
         hidden_keys = []
         if listed:
             l = self.board.listing(mine.id)
             hidden_keys = [{"key": f.key, "label": agent.LABELS[f.key]} for f in l.fields if f.visibility == HIDDEN]
         return {"id": mine.id, "n": mine.n, "title": self._title(mine.draft, self.board.listing(mine.id) if listed else None),
                 "kind": (mine.draft or {}).get("kind"), "listed": listed, "draft": mine.draft, "chat": mine.chat,
-                "agent_busy": mine.agent_busy, "entry": mine.entry, "followups": mine.followups,
-                "intros": intros, "hidden_keys": hidden_keys}
+                "agent_busy": mine.agent_busy, "entry": mine.entry,
+                "intros": intros, "hidden_keys": hidden_keys, "prefs": mine.prefs,
+                "followups": [{"question_id": q["question_id"], "question_text": q["question_text"]}
+                              for q in mine.followups]}
 
     def phone_state(self, slot: str) -> dict:
         """Only what this person may know."""

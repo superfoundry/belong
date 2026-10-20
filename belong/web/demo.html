@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Belong Demo</title>
+<title>Belong. demo</title>
 <link rel="stylesheet" href="/ds/tokens.css">
 <link rel="stylesheet" href="/ds/belong.css">
 <link rel="stylesheet" href="/ds/theme-dark.css">
@@ -22,6 +22,36 @@
   .phone .top .who { font: var(--text-body-s); color: var(--text-secondary); }
   .phone .top .badge { margin-left: auto; }
   .screen { flex: 1; overflow-y: auto; padding: var(--space-5); }
+  .phone .top { position: relative; }
+  .menu-btn { all: unset; box-sizing: border-box; width: 36px; height: 36px; display: inline-flex; flex-direction: column; justify-content: center;
+              align-items: center; gap: 4px; cursor: pointer; border-radius: var(--radius-md); margin-left: var(--space-2); }
+  .menu-btn span { display: block; width: 16px; height: 2px; background: var(--text-primary); border-radius: 1px;
+                   transition: transform var(--duration-base) var(--ease-standard), opacity var(--duration-base); }
+  .menu-btn:hover { background: var(--surface-raised); }
+  .menu-btn:focus-visible { outline: 2px solid var(--focus-ring); }
+  .menu-btn[aria-expanded="true"] span:nth-child(1) { transform: translateY(6px) rotate(45deg); }
+  .menu-btn[aria-expanded="true"] span:nth-child(2) { opacity: 0; }
+  .menu-btn[aria-expanded="true"] span:nth-child(3) { transform: translateY(-6px) rotate(-45deg); }
+  .menu { position: absolute; top: calc(100% + 4px); right: var(--space-3); z-index: 5; min-width: 180px; background: var(--surface-card);
+          border: 1px solid var(--border-default); border-radius: var(--radius-md); box-shadow: var(--shadow-md); padding: var(--space-1) 0; }
+  .menu button { all: unset; box-sizing: border-box; display: block; width: 100%; padding: var(--space-3) var(--space-4); cursor: pointer; font: var(--text-body-s); }
+  .menu button:hover, .menu button:focus-visible { background: var(--surface-raised); }
+  .menu button.sep { border-top: 1px solid var(--border-subtle); margin-top: var(--space-1); color: var(--text-secondary); }
+  .tabbar { display: grid; grid-template-columns: 1fr 1fr; background: var(--surface-card); border-top: 1px solid var(--border-subtle); flex-shrink: 0; }
+  .tabbar button { all: unset; box-sizing: border-box; position: relative; display: flex; flex-direction: column; align-items: center; gap: 2px;
+                   padding: var(--space-3) 0 var(--space-4); cursor: pointer; color: var(--text-tertiary);
+                   transition: color var(--duration-fast) var(--ease-standard); }
+  .tabbar button + button { border-left: 1px solid var(--border-subtle); }
+  .tabbar button::before { content: ""; position: absolute; top: -1px; left: 28%; right: 28%; height: 2px; background: transparent; border-radius: 0 0 2px 2px; }
+  .tabbar button.on { color: var(--text-primary); }
+  .tabbar button.on::before { background: var(--accent-default); }
+  .tabbar button:hover { color: var(--text-primary); }
+  .tabbar button:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: -2px; }
+  .tab-label { font-family: var(--font-display); font-weight: 700; font-size: 17px; letter-spacing: -0.01em; position: relative; }
+  .tab-sub { font: var(--text-caption); font-size: 11px; }
+  .tabbar .dot { position: absolute; top: 2px; right: -10px; width: 7px; height: 7px; border-radius: 50%; background: var(--accent-default); }
+  .setting-row { display: flex; align-items: center; gap: var(--space-2); padding: var(--space-3) 0; border-bottom: 1px solid var(--border-subtle); }
+  .setting-row:first-child { padding-top: 0; } .setting-row:last-child { border-bottom: 0; padding-bottom: 0; }
   .phone .tabs { background: var(--surface-card); padding: 0 var(--space-4); border-top: 1px solid var(--border-subtle); border-bottom: 0; justify-content: space-between; }
   .phone .tabs button { margin: 0; padding: var(--space-3) 2px var(--space-4); position: relative; font: var(--text-label); font-weight: 600; }
   .phone .tabs .dot { position: absolute; top: 9px; right: -8px; width: 6px; height: 6px; border-radius: 50%; background: var(--accent-default); }
@@ -58,6 +88,48 @@
   .progress { height: 4px; background: var(--surface-raised); border-radius: var(--radius-pill); overflow: hidden; margin-top: var(--space-2); }
   .progress span { display: block; height: 100%; background: var(--accent-default); transition: width var(--duration-slow) var(--ease-standard); }
   .suggest { margin-top: var(--space-3); }
+  .back-bar { display: flex; align-items: center; gap: var(--space-2); margin: calc(-1 * var(--space-2)) 0 var(--space-3) calc(-1 * var(--space-3)); }
+  .back-chev { width: 7px; height: 7px; border-left: 2px solid currentColor; border-bottom: 2px solid currentColor; transform: rotate(45deg); margin-right: 6px; }
+  .list-head { display: flex; align-items: center; gap: var(--space-2); margin-bottom: var(--space-4); }
+  .list-head .heading-m { margin: 0; }
+  .empty { text-align: center; margin-top: var(--space-10); }
+  .empty .heading-l { margin: 0 0 var(--space-2); }
+  .empty .btn { margin-top: var(--space-5); }
+  .listing-open { all: unset; box-sizing: border-box; display: block; width: 100%; cursor: pointer; }
+  .listing-open > .row { display: flex; }
+  .listing-open:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 4px; }
+  .listing-open:hover .text-accent { text-decoration: underline; }
+  .linkish { all: unset; cursor: pointer; color: var(--text-accent); text-decoration: underline; text-underline-offset: 2px; }
+  .found-card { all: unset; box-sizing: border-box; display: flex; gap: var(--space-3); align-items: center; width: 100%; cursor: pointer;
+                background: var(--surface-card); border: 1px solid var(--border-default); border-radius: var(--radius-md); padding: var(--space-3) var(--space-4); }
+  .found-card:hover { border-color: var(--border-strong); }
+  .found-card:focus-visible { outline: 2px solid var(--focus-ring); }
+  .found-card .grow > span { display: block; }
+  .found-card .msg-preview { margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 220px; }
+  .unread-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--accent-default); flex-shrink: 0; }
+  .about-match summary { cursor: pointer; font: var(--text-label); font-weight: 600; color: var(--text-accent); }
+  .chat-sheet.match-chat { height: 64%; }
+  .sheet-head.static { cursor: default; flex-direction: column; align-items: flex-start; gap: 2px; }
+  .bubble.them { background: var(--surface-card); border: 1px solid var(--border-default); border-bottom-left-radius: var(--radius-sm); }
+  .prefs-row { display: flex; align-items: center; gap: var(--space-2); margin-top: var(--space-4); }
+  /* The privacy questions before a new listing: the whole phone screen. */
+  .privacy { display: flex; flex-direction: column; min-height: 100%; }
+  .privacy > .progress { margin: var(--space-2) 0 var(--space-6); }
+  .privacy-body { flex: 1; }
+  .privacy-body .heading-l { margin: 0 0 var(--space-4); }
+  .privacy-foot { padding-top: var(--space-6); }
+  .facts { margin: 0 0 var(--space-4); padding-left: var(--space-5); font: var(--text-body-s); }
+  .facts li + li { margin-top: var(--space-3); }
+  .facts b { font-weight: 600; }
+  .check-row.ack { margin-top: var(--space-4); padding: var(--space-3); border: 1px solid var(--border-default); border-radius: var(--radius-md); background: var(--surface-card); }
+  .one-way { background: var(--surface-sunken); border-radius: var(--radius-md); padding: var(--space-3) var(--space-4); margin: var(--space-4) 0; }
+  .one-way .label { margin: 0 0 var(--space-1); color: var(--text-secondary); }
+  .one-way .body-s { margin: 0; } .one-way .body-s + .body-s { margin-top: var(--space-2); }
+  .choices { display: grid; gap: var(--space-2); }
+  .choice { display: flex; gap: var(--space-3); align-items: center; padding: var(--space-3) var(--space-4); border: 1px solid var(--border-default);
+            border-radius: var(--radius-md); background: var(--surface-card); font: var(--text-body-s); cursor: pointer; }
+  .choice.on { border-color: var(--border-accent); }
+  .choice input { accent-color: var(--accent-default); }
   .listing-nav { margin-bottom: var(--space-2); }
   .listing-card .heading-m { margin: 0; }
   details.matches { margin-top: var(--space-4); border-top: 1px solid var(--border-subtle); padding-top: var(--space-3); }
@@ -121,7 +193,7 @@
   .receipt-row { display: flex; gap: var(--space-2); align-items: center; padding: 6px 0; border-bottom: 1px solid var(--border-subtle); }
   .receipt-row .grow { flex: 1; font: var(--text-body-s); }
 
-  /* ---------- presenter panel ("Belong at night": the panel explaining private matching) ---------- */
+  /* ---------- presenter panel ("Belong. at night": the panel explaining private matching) ---------- */
   .panel { background: var(--surface-app); background-image: var(--gradient-app); color: var(--text-primary); border-radius: var(--radius-md);
            padding: var(--space-8); min-height: 800px; margin-top: 30px; box-shadow: var(--shadow-lg); }
   .panel .sub { color: var(--text-secondary); font: var(--text-body-s); margin: var(--space-2) 0 var(--space-6); }
@@ -210,7 +282,8 @@ let S = null;               // last state from the server
 let scenario = "blank";
 // Per phone: the open tab, the verify form, which listing is open, and per-listing local
 // state (an editable copy of the draft, the half-typed message, chat sheet state).
-const local = { A: { tab: null, form: {}, current: null, ls: {} }, B: { tab: null, form: {}, current: null, ls: {} } };
+const fresh = () => ({ tab: null, view: null, thread: null, q: null, form: {}, current: null, ls: {}, seen: {}, msg: {} });
+const local = { A: fresh(), B: fresh() };
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const val = v => Array.isArray(v) ? v.join(", ") : v;
 const $ = id => document.getElementById(id);
@@ -264,47 +337,72 @@ function applyScenario(draft, sc) {
 // ---------------------------------------------------------------------------------
 // Phone
 // ---------------------------------------------------------------------------------
+// Where a phone is: one of two tabs (Belong.: your listings; Found.: people you've both said yes
+// to), or a screen opened from them (a listing's profile and chat, a chat with a match, the
+// privacy questions before a new listing, receipts).
 function screenFor(slot) {
   const p = S.phones[slot], L = local[slot];
   if (!p.verified) return "verify";
-  if (L.tab) return L.tab;
-  const l = curListing(slot);
-  return l && l.listed ? "listings" : "profile";
+  if (L.signedOut) return "signedout";
+  return L.view || L.tab || "belong";
 }
 
 function needsAnswer(l) { return l.intros.filter(i => i.status === "pending").length + l.followups.length; }
+// A listing someone opened but never wrote anything in isn't shown in the list.
+const untouched = l => !l.listed && !l.draft && !l.chat.some(m => m.from === "me");
+const connected = p => p.listings.flatMap(l => l.intros.filter(i => i.status === "connected").map(i => ({ ...i, listing: l })));
+function unread(slot, i) {
+  const t = i.thread || [], seen = local[slot].seen[i.intro_id] || 0;
+  return t.length > seen && !t[t.length - 1].mine;
+}
 
 function renderPhone(slot) {
   if (S.phones[slot].verified) syncDraft(slot);
   const p = S.phones[slot], L = local[slot], screen = screenFor(slot);
+  if (screen === "thread") { const i = connected(p).find(x => x.intro_id === L.thread); if (i) L.seen[i.intro_id] = (i.thread || []).length; }
   const pending = p.listings.reduce((n, l) => n + needsAnswer(l), 0);
-  const tabs = p.verified ? `<div class="tabs">
-      ${[["profile", "Profile"], ["listings", "Listings"], ["receipts", "Receipts"]].map(([id, label]) =>
-        `<button class="${screen === id ? "on" : ""}" onclick="go('${slot}','${id}')">${label}${id === "listings" && pending ? '<span class="dot" aria-label="needs your answer"></span>' : ""}</button>`).join("")}
-    </div>` : "";
+  const newMessages = connected(p).some(i => unread(slot, i));
+  const onTab = screen === "belong" || screen === "found";
+  const tabs = onTab ? `<nav class="tabbar" aria-label="Main">
+      ${[["belong", "Belong.", "Your listings", pending], ["found", "Found.", "Your matches", newMessages]].map(([id, label, sub, dot]) =>
+        `<button class="${screen === id ? "on" : ""}" aria-current="${screen === id ? "page" : "false"}" onclick="go('${slot}','${id}')">
+          <span class="tab-label">${label}${dot ? '<span class="dot" aria-label="needs you"></span>' : ""}</span><span class="tab-sub">${sub}</span></button>`).join("")}
+    </nav>` : "";
+  const menu = p.verified && !L.signedOut ? `<button class="menu-btn" aria-expanded="${!!L.menu}" aria-label="Menu" onclick="toggleMenu('${slot}')"><span></span><span></span><span></span></button>
+    ${L.menu ? `<div class="menu" role="menu">${[["me", "Profile"], ["settings", "Settings"], ["receipts", "Receipts"]].map(([v, label]) =>
+      `<button role="menuitem" onclick="menuGo('${slot}','${v}')">${label}</button>`).join("")}
+      <button role="menuitem" class="sep" onclick="signOut('${slot}')">Log out</button></div>` : ""}` : "";
   // Tide marks live status, at most once per screen: "Matching" once any listing is live, else "Verified".
-  const status = p.listings.some(l => l.listed) ? badge("olive", "Matching") : p.verified ? badge("olive", "Verified") : "";
+  const status = L.signedOut ? "" : p.listings.some(l => l.listed) ? badge("olive", "Matching") : p.verified ? badge("olive", "Verified") : "";
   // Keep the profile pane's scroll position across redraws (editing, agent updates).
   const oldPane = document.querySelector(`#phone-${slot} .profile-pane`);
   const paneScroll = oldPane ? oldPane.scrollTop : 0;
-  $("phone-" + slot).innerHTML = `
-    <div class="top"><span class="wordmark">Belong</span>${p.verified ? `<span class="who">${esc(p.name)}</span>` : ""}${status}</div>
-    <div class="screen${screen === "profile" ? " split" : ""}" id="screen-${slot}">${SCREENS[screen](slot, p, L)}</div>${tabs}`;
-  if (screen === "profile") {
+  const split = screen === "profile" || screen === "thread";
+  $("phone-" + slot).innerHTML = screen === "privacy"
+    ? `<div class="screen" id="screen-${slot}">${SCREENS.privacy(slot, p, L)}</div>`
+    : `<div class="top"><span class="wordmark">Belong.</span>${status}${menu}</div>
+    <div class="screen${split ? " split" : ""}" id="screen-${slot}">${SCREENS[screen](slot, p, L)}</div>${tabs}`;
+  if (split) {
     const chat = document.querySelector(`#phone-${slot} .chat-pane`); if (chat) chat.scrollTop = chat.scrollHeight;
     const pane = document.querySelector(`#phone-${slot} .profile-pane`); if (pane) pane.scrollTop = paneScroll;
   }
 }
-function go(slot, tab) { local[slot].tab = tab; renderPhone(slot); }
+function go(slot, tab) { Object.assign(local[slot], { tab, view: null, menu: false }); renderPhone(slot); }
+function toggleMenu(slot) { local[slot].menu = !local[slot].menu; renderPhone(slot); }
+function menuGo(slot, view) { Object.assign(local[slot], { view, menu: false }); renderPhone(slot); }
+// The demo has no accounts: logging out just leaves this phone; nothing is deleted.
+function signOut(slot) { Object.assign(local[slot], { signedOut: true, menu: false, view: null }); renderPhone(slot); }
+function openView(slot, view, extra = {}) { Object.assign(local[slot], { view, menu: false }, extra); renderPhone(slot); }
+const backBar = (slot, to, label, title = "") => `<div class="back-bar"><button class="btn ghost sm" onclick="go('${slot}','${to}')"><span class="back-chev" aria-hidden="true"></span>${label}</button>${title ? `<span class="heading-s grow">${title}</span>` : ""}</div>`;
 
 const SCREENS = {
   verify(slot, p, L) {
     const sc = SCENARIOS[scenario]?.[slot] || {};
-    return `<div class="welcome"><span class="wordmark">Belong</span><p>Meet people who are looking for you too. Your hidden details can improve a match without ever being shown.</p></div>
+    return `<div class="welcome"><span class="wordmark">Belong.</span><p>Meet people who are looking for you too. Your hidden details can improve a match without ever being shown.</p></div>
       <div class="card md">
         <p class="eyebrow">Step 1</p>
         <h3 class="heading-m" style="margin: var(--space-2) 0">Verify your identity</h3>
-        <p class="body-s secondary" style="margin: 0 0 var(--space-5)">An independent ID provider checks your document. Belong receives only two facts: that you're verified, and your age band.</p>
+        <p class="body-s secondary" style="margin: 0 0 var(--space-5)">An independent ID provider checks your document. We receive only two facts: that you're verified, and your age band.</p>
         <div class="form-row"><label class="field-label" for="name-${slot}">First name</label><input class="input" id="name-${slot}" value="${esc(L.form.name ?? sc.name ?? "")}" oninput="local['${slot}'].form.name=this.value"></div>
         <div class="form-row"><label class="field-label" for="age-${slot}">Age</label><input class="input" id="age-${slot}" type="number" min="18" max="99" value="${esc(L.form.age ?? sc.age ?? "")}" oninput="local['${slot}'].form.age=this.value"></div>
         <div style="margin-top: var(--space-6)"><button class="btn block" onclick="verify('${slot}')">Verify with the ID provider</button></div>
@@ -312,26 +410,136 @@ const SCREENS = {
       </div>`;
   },
 
+  // Before every new listing: what's shared, and two notification choices (both off by default).
+  privacy(slot, p, L) {
+    const q = L.q, steps = 3, last = q.step === steps - 1;
+    const choice = (key, yes, no) => `<div class="choices" role="radiogroup">
+        ${[[true, yes], [false, no]].map(([v, label]) => `<label class="choice${q[key] === v ? " on" : ""}">
+          <input type="radio" name="${key}-${slot}" ${q[key] === v ? "checked" : ""} onchange="local['${slot}'].q.${key}=${v}; renderPhone('${slot}')"> ${label}</label>`).join("")}</div>`;
+    const body = [
+      `<h2 class="heading-l">What's shared, and what isn't</h2>
+       <ul class="facts">
+         <li><b>Shown details</b> are seen only by people you're introduced to. You choose which details are shown.</li>
+         <li><b>Hidden details</b> are used for matching, never shown: not to a match, and never as the reason for one.</li>
+         <li><b>What you tell your agent</b> is never shown to anyone. Matching reads your description, but no one sees it.</li>
+         <li><b>Introductions need two yeses.</b> You're only introduced if you both say yes, and you can only message each other after that.</li>
+       </ul>
+       <p class="caption tertiary">In this demo your agent runs on a hosted AI model, so use made-up details.</p>
+       <label class="check-row ack"><input type="checkbox" ${q.ack ? "checked" : ""} onchange="local['${slot}'].q.ack=this.checked; renderPhone('${slot}')"> I understand what's shared</label>`,
+      `<h2 class="heading-l">Close matches</h2>
+       <p class="body-s">Sometimes someone is nearly what you asked for: a little further away, or a related skill. Do you want to hear about them?</p>
+       <div class="one-way"><p class="label">One-way</p><p class="body-s">They aren't told about you. If you say yes to one, they get an introduction like any other, and you're only introduced if they say yes too.</p>
+         <p class="body-s">We may also ask someone who's nearly right whether they could help, for example asking a repairman if they also fix air conditioners. They're never told who's asking.</p></div>
+       ${choice("close", "Yes, tell me about close matches", "No, exact matches only")}`,
+      `<h2 class="heading-l">Questions from Belong.</h2>
+       <p class="body-s">Now and then we may ask you a short question that could find you more matches. For example, if someone nearby needs home audio repaired, we might ask a handyman whether they do that too.</p>
+       <div class="one-way"><p class="body-s">Questions come from a fixed list, are worded by the Warden agent, and never say who prompted them. Answering is always up to you.</p></div>
+       ${choice("questions", "Yes, I'm happy to be asked", "No questions, thanks")}`,
+    ][q.step];
+    const next = last ? `<button class="btn block" onclick="finishPrivacy('${slot}')">${q.editing ? "Save" : "Start your listing"}</button>`
+      : `<button class="btn block" ${q.step === 0 && !q.ack ? "disabled" : ""} onclick="local['${slot}'].q.step++; renderPhone('${slot}')">Continue</button>`;
+    return `<div class="privacy">
+      <div class="row"><p class="eyebrow grow">${q.editing ? "Notifications" : "New listing"} · ${q.step + 1} of ${steps}</p>
+        <button class="btn ghost sm" onclick="${q.step > (q.editing ? 1 : 0) ? `local['${slot}'].q.step--; renderPhone('${slot}')` : `closePrivacy('${slot}')`}">${q.step > (q.editing ? 1 : 0) ? "Back" : "Cancel"}</button></div>
+      <div class="progress" aria-hidden="true"><span style="width:${Math.round(100 * (q.step + 1) / steps)}%"></span></div>
+      <div class="privacy-body">${body}</div>
+      <div class="privacy-foot">${next}</div></div>`;
+  },
+
   profile(slot, p, L) {
     // Base layer: the open listing's profile, a work in progress, as a match will see it.
     // Top layer: your agent's chat for this listing, which minimises when you tap its header.
     const l = curListing(slot), c = cur(slot);
     if (!l) return "";
-    const nav = p.listings.length > 1 || l.listed
-      ? `<div class="row listing-nav"><span class="caption secondary grow">Listing ${p.listings.indexOf(l) + 1} of ${p.listings.length}</span>
-          <button class="btn ghost sm" onclick="go('${slot}','listings')">All listings</button></div>` : "";
-    return `<div class="profile-pane${c.chatMin ? " chat-min" : ""}">${nav}${profileCard(slot, p, l, c)}${c.editing && c.draft ? editorHtml(slot, c) : ""}</div>
+    const pr = l.prefs || {};
+    const prefs = `<div class="prefs-row"><span class="caption secondary grow">Close matches ${pr.notify_close ? "on" : "off"} · Questions ${pr.notify_questions ? "on" : "off"}</span>
+      <button class="btn ghost sm" onclick="editPrivacy('${slot}','${l.id}')">Change</button></div>`;
+    return `<div class="profile-pane${c.chatMin ? " chat-min" : ""}">${backBar(slot, "belong", "Belong.")}${profileCard(slot, p, l, c)}${c.editing && c.draft ? editorHtml(slot, c) : ""}${prefs}</div>
       ${chatHtml(slot, l, c)}`;
   },
 
-  listings(slot, p, L) {
-    return `<div class="stack">${p.listings.map(l => listingCard(slot, p, l)).join("")}
-      <button class="btn secondary block" onclick="newListing('${slot}')">New listing</button>
-      <p class="caption tertiary" style="margin: 0; text-align: center">Each listing is matched on its own, with its own details. You're never matched with yourself.</p></div>`;
+  belong(slot, p, L) {
+    const shown = p.listings.filter(l => !untouched(l));
+    if (!shown.length) {
+      return `<div class="empty card md"><h2 class="heading-l">What are you looking for?</h2>
+        <p class="body-s secondary">Create a listing and your agent will help you write it: a tutor, a bandmate, a repair, or someone to love.</p>
+        <button class="btn block" onclick="newListing('${slot}')">Create a listing</button></div>`;
+    }
+    return `<div class="list-head"><h2 class="heading-m grow">Your listings</h2><button class="btn secondary sm" onclick="newListing('${slot}')">New listing</button></div>
+      <div class="stack">${shown.map(l => listingCard(slot, p, l)).join("")}</div>
+      <p class="caption tertiary" style="text-align: center; margin-top: var(--space-6)">You're never matched with yourself. <button class="linkish" onclick="openView('${slot}','receipts')">See your receipts</button></p>`;
+  },
+
+  found(slot, p, L) {
+    const people = connected(p);
+    if (!people.length) {
+      return `<div class="empty card md"><h2 class="heading-l">No one yet</h2>
+        <p class="body-s secondary">When you and a match both say yes, you'll find each other here and can start talking.</p></div>`;
+    }
+    return `<div class="list-head"><h2 class="heading-m grow">People you've found</h2></div>
+      <div class="stack">${people.map(i => {
+        const t = i.thread || [], lastMsg = t[t.length - 1];
+        return `<button class="found-card card sm" onclick="openView('${slot}','thread',{thread:'${i.intro_id}'})">
+          <span class="monogram" aria-hidden="true">${esc((i.view.fields.first_name || "?").slice(0, 1).toUpperCase())}</span>
+          <span class="grow"><span class="heading-s">${esc(i.view.fields.first_name || "Someone")}</span>
+            <span class="caption secondary">${esc(cap(i.listing.title))}</span>
+            <span class="body-s ${lastMsg ? "" : "tertiary"} msg-preview">${lastMsg ? (lastMsg.mine ? "You: " : "") + esc(lastMsg.text) : "Say hello"}</span></span>
+          ${unread(slot, i) ? '<span class="unread-dot" aria-label="New message"></span>' : ""}</button>`;
+      }).join("")}</div>`;
+  },
+
+  thread(slot, p, L) {
+    const i = connected(p).find(x => x.intro_id === L.thread);
+    if (!i) return backBar(slot, "found", "Found.");
+    const name = i.view.fields.first_name || "Someone", t = i.thread || [];
+    const facts = Object.entries(i.view.fields).filter(([k]) => !["first_name", "seeking", "offering"].includes(k)).map(([, v]) => val(v));
+    const text = L.msg[i.intro_id] || "";
+    return `<div class="profile-pane">${backBar(slot, "found", "Found.", esc(name))}
+        <details class="card sm about-match"><summary>Why you matched</summary>
+          <div style="margin-top: var(--space-3)">${tags(facts)}</div><p class="reason">${esc(i.view.reason)}</p>
+          ${connectedBlock(slot, i.listing, i)}</details>
+        ${i.simulated ? `<p class="caption tertiary" style="text-align:center">${esc(name)} is simulated in this demo and won't reply.</p>` : ""}</div>
+      <div class="chat-sheet match-chat">
+        <div class="sheet-head static"><span class="eyebrow">You and ${esc(name)}</span><span class="caption tertiary">Only the two of you see this</span></div>
+        <div class="chat-pane">${t.length ? t.map(m => `<div class="bubble ${m.mine ? "me" : "them"}">${esc(m.text)}</div>`).join("")
+          : `<p class="caption tertiary" style="text-align:center; margin-top: var(--space-6)">You both said yes. Say hello.</p>`}</div>
+        <div class="composer-bar"><textarea class="textarea" id="msg-${slot}" aria-label="Message to ${esc(name)}" placeholder="Message ${esc(name)}"
+            oninput="local['${slot}'].msg['${i.intro_id}']=this.value"
+            onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendMessage('${slot}','${i.intro_id}')}">${esc(text)}</textarea>
+          <button class="btn" onclick="sendMessage('${slot}','${i.intro_id}')">Send</button></div></div>`;
+  },
+
+  me(slot, p, L) {
+    const live = p.listings.filter(l => l.listed).length, found = connected(p).length;
+    return `${backBar(slot, L.tab || "belong", L.tab === "found" ? "Found." : "Belong.", "Profile")}
+      <div class="card md"><div class="row"><span class="monogram" aria-hidden="true">${esc((p.name || "?").slice(0, 1).toUpperCase())}</span>
+        <div class="grow"><div class="heading-m">${esc(p.name)}</div><div class="caption secondary">${esc(p.age_band)}</div></div>${badge("olive", "Verified")}</div>
+        <p class="body-s secondary" style="margin: var(--space-4) 0 0">Your first name and age band came from your ID check. Nothing else about your ID was shared with us.</p></div>
+      <div class="card md" style="margin-top: var(--space-4)">
+        <div class="profile-line"><span class="label tertiary">Listings</span><span class="body-s">${live} matching${p.listings.length > live ? `, ${p.listings.filter(l => !l.listed && !untouched(l)).length} draft` : ""}</span></div>
+        <div class="profile-line"><span class="label tertiary">Found</span><span class="body-s">${found} ${found === 1 ? "person" : "people"}</span></div></div>`;
+  },
+
+  settings(slot, p, L) {
+    const ls = p.listings.filter(l => !untouched(l));
+    return `${backBar(slot, L.tab || "belong", L.tab === "found" ? "Found." : "Belong.", "Settings")}
+      <p class="eyebrow group-title" style="margin-top:0">Notifications, per listing</p>
+      ${ls.length ? `<div class="card md">${ls.map(l => `<div class="setting-row"><div class="grow"><div class="body-s">${esc(cap(l.title))}</div>
+          <div class="caption secondary">Close matches ${l.prefs?.notify_close ? "on" : "off"} · Questions ${l.prefs?.notify_questions ? "on" : "off"}</div></div>
+          <button class="btn ghost sm" onclick="editPrivacy('${slot}','${l.id}')">Change</button></div>`).join("")}</div>`
+        : `<p class="body-s secondary">You'll choose these when you create a listing.</p>`}
+      <p class="eyebrow group-title">Your agent</p>
+      <div class="card md"><p class="body-s" style="margin:0">In this demo your agent runs on a hosted AI model.</p>
+        <p class="caption" style="margin: var(--space-2) 0 0"><span class="connect-agent" aria-disabled="true" title="Coming soon">Connect your own agent</span></p></div>`;
+  },
+
+  signedout(slot, p, L) {
+    return `<div class="welcome"><span class="wordmark">Belong.</span><p>You're logged out. Your listings stay live, and matches wait for you.</p></div>
+      <button class="btn block" onclick="local['${slot}'].signedOut=false; go('${slot}','belong')">Log in as ${esc(p.name)}</button>`;
   },
 
   receipts(slot, p, L) {
-    return `<div class="card sm" style="margin-bottom: var(--space-4)"><p class="body-s secondary" style="margin:0">Every check the Warden agent ran on your listings leaves a receipt: the check, the result, the time and a hash. Receipts never contain your details.</p></div>
+    return `${backBar(slot, L.tab || "belong", L.tab === "found" ? "Found." : "Belong.", "Receipts")}<div class="card sm" style="margin-bottom: var(--space-4)"><p class="body-s secondary" style="margin:0">Every check the Warden agent ran on your listings leaves a receipt: the check, the result, the time and a hash. Receipts never contain your details.</p></div>
       ${p.receipts.slice().reverse().map(r => `<div class="receipt-row">${badge(r.result === "pass" ? "success" : "error", r.result === "pass" ? "Pass" : "Fail")}
         <span class="grow">${esc(r.check.replaceAll("_", " "))}</span><span class="receipt" title="${r.hash}">${r.hash.slice(0, 10)}…</span></div>`).join("")
         || '<p class="body-s tertiary">No receipts yet.</p>'}`;
@@ -348,15 +556,15 @@ function listingCard(slot, p, l) {
   const status = l.listed ? badge("", "Matching") : badge("", "Draft");
   const summary = !l.listed ? "Not matching yet" : total ? `${total} match${total === 1 ? "" : "es"}${waiting ? `, ${waiting} waiting on you` : ""}` : "No matches yet";
   const body = !l.listed
-    ? `<p class="body-s secondary" style="margin: var(--space-3) 0 0">Finish this profile and choose Start matching.</p>`
+    ? ""
     : total
       ? `<details class="matches" ${c.open ? "open" : ""} ontoggle="local['${slot}'].ls['${l.id}'].open=this.open">
-          <summary>${waiting ? "Matches and pending answers" : "Matches"} (${total})</summary>
+          <summary>${waiting ? "Matches and questions" : "Matches"} (${total})</summary>
           <div class="stack" style="margin-top: var(--space-3)">${l.followups.map(q => followupCard(slot, l, q)).join("")}${l.intros.map(i => introCard(slot, l, i)).join("")}</div></details>`
-      : `<p class="body-s secondary" style="margin: var(--space-3) 0 0">The Matchmaker agent only proposes people whose intent you meet and who meet yours.</p>`;
-  return `<div class="card md listing-card"><div class="row"><h3 class="heading-m grow">${esc(cap(l.title))}</h3>${status}</div>
-    <div class="row" style="margin-top: var(--space-1)"><span class="caption secondary grow">${esc(summary)}</span>
-      <button class="btn secondary sm" onclick="openListing('${slot}','${l.id}')">Edit</button></div>${body}</div>`;
+      : "";
+  return `<div class="card md listing-card"><button class="listing-open" onclick="openListing('${slot}','${l.id}')" aria-label="Open ${esc(l.title)}">
+      <span class="row"><span class="heading-m grow">${esc(cap(l.title))}</span>${status}</span>
+      <span class="row" style="margin-top: var(--space-1)"><span class="caption secondary grow">${esc(summary)}</span><span class="caption text-accent">Edit</span></span></button>${body}</div>`;
 }
 
 // ---------------------------------------------------------------------------------
@@ -618,8 +826,10 @@ function followupCard(slot, l, q) {
     <button class="btn" style="margin-top: var(--space-3)" onclick="answer('${slot}','${l.id}','age_range',{min:+$('fu-min-${k}').value,max:+$('fu-max-${k}').value})">Answer</button>`;
   else if (q.question_id === "schedule") controls = `<select class="select" id="fu-s-${k}">${["weekends","weekday evenings","weekday mornings","flexible"].map(o => `<option>${o}</option>`).join("")}</select>
     <button class="btn" style="margin-top: var(--space-3)" onclick="answer('${slot}','${l.id}','schedule',{schedule:$('fu-s-${k}').value})">Answer</button>`;
+  else if (q.question_id === "also_offer") controls = `<div class="row"><button class="btn" onclick="answer('${slot}','${l.id}','also_offer',{yes:true})">Yes, I can</button><button class="btn secondary" onclick="answer('${slot}','${l.id}','also_offer',{yes:false})">No</button></div>
+    <p class="caption tertiary" style="margin: var(--space-2) 0 0">If you say yes, it's added to what you offer. Nobody is told you were asked.</p>`;
   else controls = `<div class="row"><button class="btn" onclick="answer('${slot}','${l.id}','wider_net',{yes:true})">Widen the net</button><button class="btn secondary" onclick="answer('${slot}','${l.id}','wider_net',{yes:false})">Keep it as is</button></div>`;
-  return `<div class="card sm">${badge("ai", "From the Matchmaker agent")}<h3 class="heading-m" style="margin: var(--space-3) 0">${esc(q.question_text)}</h3>${controls}</div>`;
+  return `<div class="card sm intro">${badge("ai", "Question from Belong.")}<h3 class="heading-m" style="margin: var(--space-3) 0">${esc(q.question_text)}</h3>${controls}</div>`;
 }
 
 function introCard(slot, l, i) {
@@ -627,11 +837,12 @@ function introCard(slot, l, i) {
   const facts = Object.entries(f).filter(([k]) => !["first_name", "seeking", "offering"].includes(k)).map(([, v]) => val(v));
   let action = "", status = "";
   if (i.status === "pending") action = `<div class="row" style="margin-top: var(--space-5)"><button class="btn grow" onclick="decide('${slot}','${i.intro_id}',true)">Say yes</button><button class="btn secondary" onclick="decide('${slot}','${i.intro_id}',false)">Not now</button></div>
-    <p class="caption tertiary" style="margin: var(--space-2) 0 0">You're only introduced if you both say yes.</p>`;
+    <p class="caption tertiary" style="margin: var(--space-2) 0 0">${i.close ? "They haven't been told about you. If you say yes, they're asked too." : "You're only introduced if you both say yes."}</p>`;
   else if (i.status === "waiting") status = badge("", "Waiting on the other person");
   else if (i.status === "closed") action = `<p class="body-s secondary" style="margin: var(--space-4) 0 0">Not this time.</p>`;
-  else { status = badge("success", "Introduced"); action = connectedBlock(slot, l, i); }
-  return `<div class="card sm intro"><div class="row"><h3 class="heading-l grow">${esc(f.first_name || "Someone")}</h3>${status}</div>
+  else { status = badge("success", "Introduced"); action = `<button class="btn secondary sm" style="margin-top: var(--space-4)" onclick="openView('${slot}','thread',{thread:'${i.intro_id}'})">Open chat in Found.</button>`; }
+  return `<div class="card sm intro">${i.close ? `<p class="caption text-ai" style="margin:0 0 var(--space-2)">Close match: not exactly what you asked for</p>` : ""}
+    <div class="row"><h3 class="heading-l grow">${esc(f.first_name || "Someone")}</h3>${status}</div>
     <div style="margin-top: var(--space-3)">${tags(facts)}</div>
     <p class="reason">${esc(i.view.reason)}</p>${action}</div>`;
 }
@@ -655,16 +866,13 @@ const LABEL = { income_band: "Income", religion: "Religion", politics: "Politics
 // actions
 async function verify(slot) {
   local[slot].form = { name: $("name-" + slot).value, age: $("age-" + slot).value };
-  if (await api("verify", { slot, name: local[slot].form.name, age: local[slot].form.age })) {
-    local[slot].current = S.phones[slot].current; local[slot].tab = null; render([slot]);
-  }
+  if (await api("verify", { slot, name: local[slot].form.name, age: local[slot].form.age })) go(slot, "belong");
 }
 async function send(slot) {
   const c = cur(slot), listing_id = curId(slot), text = $("chat-" + slot).value.trim();
   if (!text || c.sending) return;
   c.applyScenario = SCENARIOS[scenario]?.[slot]?.message === text;
   Object.assign(c, { sending: text, chatText: "" });
-  local[slot].tab = "profile";
   renderPhone(slot);
   await api("prefill", { slot, listing_id, text });  // instant: facts we're sure of go on the profile now
   await api("agent", { slot, listing_id, text });    // the agent fills in the rest and asks what's missing
@@ -675,18 +883,44 @@ async function submit(slot) {
   const c = cur(slot), listing_id = curId(slot), d = c.draft;
   const listing = { intent_text: d.intent_text, exactness: d.exactness,
     fields: d.fields.filter(f => f.enabled && hasValue(f.value)).map(f => ({ key: f.key, value: f.value, visibility: f.visibility, confirmed: !!f.confirmed })) };
-  if (await api("submit", { slot, listing_id, listing })) {
-    if (curListing(slot).listed) { c.editing = false; c.open = true; local[slot].tab = "listings"; } else local[slot].tab = "profile";
-    render([slot]);
+  const wasListed = curListing(slot).listed;
+  if (await api("submit", { slot, listing_id, listing }) && curListing(slot).listed) {
+    c.editing = false;
+    if (wasListed) { c.open = true; go(slot, "belong"); } else render([slot]);
   }
 }
-async function newListing(slot) {
-  if (await api("new_listing", { slot })) { local[slot].current = S.phones[slot].current; local[slot].tab = "profile"; render([slot]); }
+// A new listing starts with the privacy questions; the listing is made when they're answered.
+function newListing(slot) {
+  local[slot].q = { step: 0, ack: false, close: false, questions: false, editing: null };
+  openView(slot, "privacy");
+}
+function editPrivacy(slot, listing_id) {
+  const pr = S.phones[slot].listings.find(l => l.id === listing_id).prefs || {};
+  local[slot].q = { step: 1, ack: true, close: !!pr.notify_close, questions: !!pr.notify_questions, editing: listing_id };
+  openView(slot, "privacy");
+}
+function closePrivacy(slot) { local[slot].view = local[slot].q && local[slot].q.editing ? "profile" : null; renderPhone(slot); }
+async function finishPrivacy(slot) {
+  const q = local[slot].q, prefs = { acknowledged: true, notify_close: q.close, notify_questions: q.questions };
+  if (q.editing) {
+    if (await api("set_prefs", { slot, listing_id: q.editing, prefs })) openView(slot, "profile");
+  } else if (await api("new_listing", { slot, prefs })) {
+    local[slot].current = S.phones[slot].current;
+    openView(slot, "profile");
+  }
 }
 async function openListing(slot, listing_id) {
-  local[slot].current = listing_id; local[slot].tab = "profile";
-  renderPhone(slot);
+  local[slot].current = listing_id;
+  openView(slot, "profile");
   api("open_listing", { slot, listing_id });
+}
+async function sendMessage(slot, intro_id) {
+  const box = $("msg-" + slot), text = box.value.trim();
+  if (!text) return;
+  local[slot].msg[intro_id] = "";
+  if (!await api("message", { slot, intro_id, text })) local[slot].msg[intro_id] = text;
+  renderPhone(slot);
+  $("msg-" + slot)?.focus();
 }
 const answer = (slot, listing_id, question_id, ans) => api("answer", { slot, listing_id, question_id, answer: ans });
 const decide = (slot, intro_id, yes) => api("decide", { slot, intro_id, yes });
@@ -706,7 +940,7 @@ function renderRoom() {
     <p class="eyebrow">Presenter view</p>
     <h2 class="display-s" style="margin-top: var(--space-2)">Behind the scenes</h2>
     <p class="sub"><b>${esc(r.agent_status)}</b> on each phone. Single-phone views: <a href="/?phone=A" target="_blank">A</a>, <a href="/?phone=B" target="_blank">B</a>.<br>
-      What private matching reads and what Belong sends out. The goal for production is that no one, including Belong, can see this; it's shown here only because the data is synthetic.</p>
+      What private matching reads and what Belong. sends out. The goal for production is that no one can see this, not even the people who run Belong. It's shown here only because the data is synthetic.</p>
     <div class="controls">
       <select class="select" id="scenario" aria-label="Scenario" onchange="scenario=this.value; resetLocal(false); render(['A','B'])">${Object.entries(SCENARIOS).map(([k, s]) => `<option value="${k}" ${k === scenario ? "selected" : ""}>${esc(s.label)}</option>`).join("")}</select>
       <button class="btn secondary sm" onclick="fastForward()">Fast-forward both phones</button>
@@ -719,7 +953,7 @@ function renderRoom() {
       <p class="caption secondary" style="margin:0">${r.listings} listings on the Marketboard. Audited ${lr.checked.views} introduction views, ${lr.checked.followups} questions, ${lr.checked.reveals} compared details and ${lr.checked.receipts} receipts. ${blocked} attempt${blocked === 1 ? "" : "s"} blocked. k = ${r.k}.</p></div></div>
     ${r.inside.length ? `<div class="inside-grid">${r.inside.map(insideCard).join("")}</div>` : ""}
     <p class="eyebrow">Data log</p>
-    <div class="legend">${badge("", "Received")} by Belong ${badge("olive", "Sent")} to a person, after the Warden agent's checks ${badge("error", "Blocked")} by the Warden agent ${badge("ai", "Private")} never sent</div>
+    <div class="legend">${badge("", "Received")} by us ${badge("olive", "Sent")} to a person, after the Warden agent's checks ${badge("error", "Blocked")} by the Warden agent ${badge("ai", "Private")} never sent</div>
     <div class="log">${r.events.slice().reverse().map(eventCard).join("")}</div>`;
 }
 function insideCard(l) {
@@ -749,9 +983,8 @@ function payloadHtml(e) {
 
 function resetLocal(clearForms = true) {
   for (const s of ["A", "B"]) {
-    local[s].tab = null;
-    if (clearForms) Object.assign(local[s], { form: {}, current: null, ls: {} });
-    else { local[s].form = {}; for (const c of Object.values(local[s].ls)) c.chatText = ""; }
+    if (clearForms) local[s] = fresh();
+    else { Object.assign(local[s], { tab: null, view: null, form: {} }); for (const c of Object.values(local[s].ls)) c.chatText = ""; }
   }
 }
 async function reset() { resetLocal(); await api("reset"); }
@@ -759,10 +992,11 @@ async function fastForward() {
   if (scenario === "blank") { toast("Pick a scenario first, or type on each phone."); return; }
   for (const slot of ["A", "B"]) {
     const sc = SCENARIOS[scenario][slot];
-    if (!S.phones[slot].verified) {
-      if (!await api("verify", { slot, name: sc.name, age: sc.age })) return;
-      local[slot].current = S.phones[slot].current;
+    if (!S.phones[slot].verified && !await api("verify", { slot, name: sc.name, age: sc.age })) return;
+    if (!S.phones[slot].listings.length) {
+      if (!await api("new_listing", { slot, prefs: { acknowledged: true, notify_close: false, notify_questions: true } })) return;
     }
+    local[slot].current = S.phones[slot].current;
     const listing_id = curId(slot), c = cur(slot);
     if (!curListing(slot).draft) { c.applyScenario = true; if (!await api("agent", { slot, listing_id, text: sc.message })) return; }
     for (let i = 0; i < 2 && !curListing(slot).draft; i++) {  // a real agent may ask a question first
@@ -770,7 +1004,7 @@ async function fastForward() {
       if (!await api("agent", { slot, listing_id, text: "That's everything for now. Please draft my listing." })) return;
     }
     syncDraft(slot);
-    if (!curListing(slot).listed) { local[slot].tab = null; await submit(slot); }
+    if (!curListing(slot).listed) { openView(slot, "profile"); await submit(slot); }
   }
 }
 

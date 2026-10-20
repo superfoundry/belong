@@ -56,6 +56,9 @@ _SYNONYMS = {
 LANGUAGE_NAMES = {"english", "french", "spanish", "german", "japanese", "portuguese", "italian", "chinese",
                   "mandarin", "cantonese", "korean", "irish", "arabic", "hindi", "dutch", "russian", "polish",
                   "turkish", "greek", "swedish"}
+# A close match is judged as if its person had cast a wide net.
+CLOSE_EXACTNESS = 0.2
+
 ROLE_WORDS = {"teach", "student", "partner"}
 # Purely social wording: someone who just wants company is open to any activity.
 SOCIAL_WORDS = {"social", "hangout", "hang", "out", "meet", "meetup", "company", "chat", "casual", "fun", "time"}
@@ -315,6 +318,8 @@ class OfflineMatcher:
 
         followups = []
         for pid, p in parsed.items():
+            if not listings[pid].notify_questions:
+                continue  # only people who opted in are asked questions
             v = views[pid]
             if p.kind == "dating" and p.age_range is None:
                 followups.append(FollowUp(pid, "age_range"))
@@ -327,34 +332,65 @@ class OfflineMatcher:
                  if listings[a].owner != listings[b].owner}
         crowd = board.value_counts()
 
-        candidates, has_match = [], set()
+        candidates, has_match, also_offer = [], set(), {}
         for a, b in sorted(pairs):
             av, bv = views[a], views[b]
             a_met = intent_met(parsed[a], av, parsed[b], bv)
             b_met = intent_met(parsed[b], bv, parsed[a], av)
+            close = ""
             if not (a_met and b_met):
-                continue  # both must be looking
+                # A close match: one side fully meets the other's intent, and the other is only
+                # nearly met (it would be met with a wide net). Only for someone who opted in.
+                for near, far in ((a, b), (b, a)):
+                    far_met = b_met if far == b else a_met
+                    if far_met and listings[near].notify_close and intent_met(
+                            parsed[near], ShownView(replace(listings[near], exactness=CLOSE_EXACTNESS)),
+                            parsed[far], views[far]):
+                        close = near
+                if not close:
+                    # Nearly: one person is what the other wants, but doesn't (yet) offer what
+                    # that person is looking for. Ask them if they could, without saying who.
+                    for wants, could in ((a, b), (b, a)):
+                        could_met = b_met if could == b else a_met
+                        if (could_met and listings[wants].notify_close and listings[could].notify_questions
+                                and has_phrases(views[wants]) and has_phrases(views[could])
+                                and same_place(views[wants], views[could])):
+                            also_offer.setdefault(could, wants)
+                    continue  # both must be looking
             reasons = reason_fields(parsed[a].kind, av, bv)
             if not reasons:
                 continue  # never the only reason: needs a shown reason
             s = self.shown_score(index, av, bv)
-            threshold = shown_threshold(av.exactness, bv.exactness)
+            threshold = shown_threshold(CLOSE_EXACTNESS if close == a else av.exactness,
+                                        CLOSE_EXACTNESS if close == b else bv.exactness)
             if s < threshold:
                 continue  # never the only reason: shown fields must justify it
             has_match.update((a, b))
             used = self.hidden_overlap(listings[a], listings[b], crowd)
             bonus = min(self.hidden_cap, self.hidden_bonus * len(used))
             candidates.append(Proposal(a, b, a_met, b_met, round(s + bonus, 4), round(s, 4),
-                                       round(threshold, 4), reasons, used))
+                                       round(threshold, 4), reasons, used, close))
 
+        for could, wants in sorted(also_offer.items()):
+            if could not in has_match and could not in {f.person_id for f in followups}:
+                followups.append(FollowUp(could, "also_offer", about=wants))
         asked = {f.person_id for f in followups}
         for pid, v in views.items():
-            if pid not in has_match and pid not in asked and parsed[pid].kind and v.exactness >= 0.5:
+            if (pid not in has_match and pid not in asked and parsed[pid].kind and v.exactness >= 0.5
+                    and listings[pid].notify_questions):
                 followups.append(FollowUp(pid, "wider_net"))
 
-        chosen, count = [], {}
-        for prop in sorted(candidates, key=lambda p: (-p.score, p.person_a, p.person_b)):
+        # Exact matches first; a close match only fills a spare slot, at most one per listing.
+        # Close matches are ranked on shown details alone, so a hidden detail never decides which
+        # close match someone hears about.
+        chosen, count, close_sent = [], {}, set()
+        for prop in sorted(candidates, key=lambda p: (bool(p.close), -(p.shown_score if p.close else p.score),
+                                                      p.person_a, p.person_b)):
+            if prop.close and prop.close in close_sent:
+                continue
             if count.get(prop.person_a, 0) < self.max_per_person and count.get(prop.person_b, 0) < self.max_per_person:
+                if prop.close:
+                    close_sent.add(prop.close)
                 chosen.append(prop)
                 count[prop.person_a] = count.get(prop.person_a, 0) + 1
                 count[prop.person_b] = count.get(prop.person_b, 0) + 1

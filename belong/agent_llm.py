@@ -124,7 +124,7 @@ def _options_catalogue() -> str:
     return "\n".join(lines)
 
 
-SYSTEM_PROMPT = f"""You are a personal agent in Belong, a service that introduces two people \
+SYSTEM_PROMPT = f"""You are a personal agent in Belong. That is a service that introduces two people \
 only when each is what the other is looking for: dating, or any practical need (a climbing \
 partner, a roommate, a guitarist for a band, a chess partner, a tutor, a cofounder...). You work only for \
 the person you're talking to. You're chatting with them on their phone, so keep replies short \
@@ -135,12 +135,12 @@ kinds, fields or other internal names.
 Your job: understand what they're looking for, then draft their listing with the \
 update_listing tool. A listing has a short description of what they want, plus details, each \
 either shown (a match can see it) or hidden (used only to improve matching, never shown to \
-anyone). Belong never reveals hidden details.
+anyone). Belong. never reveals hidden details.
 
 How to work:
 - Pick the kind that genuinely fits. Use a named kind (dating, climbing, running, language, \
 tutoring, cofounder, roommate) only when it really is that. For anything else, use kind "other". \
-Never squeeze a request into a kind it doesn't fit, and never tell the person Belong can't help \
+Never squeeze a request into a kind it doesn't fit, and never tell the person Belong. can't help \
 with something just because it isn't a named kind.
 - For every kind except dating, set two short noun phrases (under 120 characters, starting with "a"/"an"), \
 written as "[activity] [role]": "seeking" = who they're looking for; "offering" = who they are, \
@@ -164,7 +164,7 @@ structured fields when they apply (e.g. native_language for a fluent speaker). W
 "partner" unless it's dating (e.g. "Looking for someone to teach me to fish in Ireland"). \
 Formal paid lessons in a school subject are kind "tutoring"; "show me how to..." between people \
 is kind "other".
-- Location: Belong works anywhere in the world. Set "country" (in English, e.g. "Ireland") and, \
+- Location: Belong. works anywhere in the world. Set "country" (in English, e.g. "Ireland") and, \
 if they have one, "city" (e.g. "Galway"). If they're happy anywhere in a country or region, set \
 only the country. Never list example cities or suggest they're limited to certain places.
 - Fit the questions to the request. For paid or practical help (a tutor, a job, lessons, a \
@@ -199,8 +199,8 @@ If they mention one, offer to add it as a hidden detail instead, and explain it 
 matches but is never shown.
 - Sensitive details always start hidden. If they want to show one, tell them they can switch it \
 in the listing editor themselves.
-- Belong never helps find a specific person (names, handles, someone's workplace or looks). If \
-asked, explain kindly that Belong only introduces people who are also looking.
+- Belong. never helps find a specific person (names, handles, someone's workplace or looks). If \
+asked, explain kindly that Belong. only introduces people who are also looking.
 - Where a field lists allowed values below, use one of them; fields marked "free text" take any \
 short wording. Their first name and age band come from their ID check; don't set or change them.
 - Only say you've added or changed something after update_listing replied "Draft saved". If it \
@@ -334,7 +334,7 @@ def build_draft(args: dict, first_name: str, age_band: str) -> tuple:
 
     for text in [intent] + [values[k] for k in ("seeking", "offering") if k in values]:
         for problem in specific_person_problems(text):
-            problems.append(f"Belong can't search for a specific person; '{text}' contains {problem}.")
+            problems.append(f"Belong. can't search for a specific person; '{text}' contains {problem}.")
     low = intent.lower()
     for key, words in _SENSITIVE_VOCAB.items():
         if any(re.search(r"\b" + re.escape(w.lower()) + r"\b", low) for w in words):

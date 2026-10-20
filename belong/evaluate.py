@@ -65,6 +65,10 @@ def evaluate(personas: dict, admitted: set, proposals: list, introductions: list
                 compat_partners[b] += 1
     matchable = {pid for pid, n in compat_partners.items() if n > 0}
 
+    # Close matches are one-way by design (only nearly what their recipient asked for), so
+    # precision is measured on exact matches, and close matches are counted on their own.
+    close = [p for p in proposals if getattr(p, "close", "")]
+    proposals = [p for p in proposals if not getattr(p, "close", "")]
     correct = [p for p in proposals if compatible(personas[p.person_a], personas[p.person_b])]
     proposed_people = {x for p in proposals for x in (p.person_a, p.person_b)}
     introduced_people = {x for i in introductions for x in (i["person_a"], i["person_b"])}
@@ -96,5 +100,6 @@ def evaluate(personas: dict, admitted: set, proposals: list, introductions: list
         "connections": len(connections),
         "reveals": len(reveals),
         "proposals_using_hidden_fields": sum(1 for p in proposals if p.used_hidden_fields),
+        "close_matches": len(close),
         "by_kind": by_kind,
     }

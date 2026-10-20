@@ -47,9 +47,12 @@ class Introduction(_Sealed):
     both of them show. b_view is the mirror image.
     """
 
-    def __init__(self, seal, intro_id: str, person_a: str, person_b: str, a_view: dict, b_view: dict):
+    def __init__(self, seal, intro_id: str, person_a: str, person_b: str, a_view: dict, b_view: dict,
+                 one_way_to: str = ""):
         super().__init__(seal)
         self.intro_id, self.person_a, self.person_b = intro_id, person_a, person_b
+        # A close match goes to this listing only; the other person sees nothing unless it says yes.
+        self.one_way_to = one_way_to
         self._a, self._b = json.dumps(a_view, ensure_ascii=False), json.dumps(b_view, ensure_ascii=False)
 
     @property
@@ -62,17 +65,18 @@ class Introduction(_Sealed):
 
     def to_dict(self) -> dict:
         return {"intro_id": self.intro_id, "person_a": self.person_a, "person_b": self.person_b,
-                "a_view": self.a_view, "b_view": self.b_view}
+                "a_view": self.a_view, "b_view": self.b_view, "one_way_to": self.one_way_to}
 
 
 class FollowUpOut(_Sealed):
-    def __init__(self, seal, person_id: str, question_id: str):
+    def __init__(self, seal, person_id: str, question_id: str, phrase: str = ""):
         super().__init__(seal)
-        self.person_id, self.question_id = person_id, question_id
-        self.question_text = FOLLOWUP_MENU[question_id]
+        self.person_id, self.question_id, self.phrase = person_id, question_id, phrase
+        self.question_text = FOLLOWUP_MENU[question_id].format(phrase=phrase)
 
     def to_dict(self) -> dict:
-        return {"person_id": self.person_id, "question_id": self.question_id, "question_text": self.question_text}
+        return {"person_id": self.person_id, "question_id": self.question_id, "question_text": self.question_text,
+                "phrase": self.phrase}
 
 
 class Reveal(_Sealed):
@@ -383,10 +387,20 @@ class Warden:
         """
         a_id, b_id = proposal.person_a, proposal.person_b
         subject = {"a": a_id, "b": b_id}
-        if not self._receipt("proposal_mutual", proposal.a_intent_met and proposal.b_intent_met, subject):
+        close = proposal.close
+        if close:
+            # A close match: the other person's intent must be fully met, and it goes one-way to a
+            # listing that opted in to close matches.
+            other_met = proposal.b_intent_met if close == a_id else proposal.a_intent_met
+            mutual = close in (a_id, b_id) and other_met
+        else:
+            mutual = proposal.a_intent_met and proposal.b_intent_met
+        if not self._receipt("proposal_mutual", mutual, subject):
             return None
         known = a_id != b_id and a_id in board and b_id in board
         if not self._receipt("proposal_known_people", known, subject):
+            return None
+        if close and not self._receipt("close_match_opted_in", board.listing(close).notify_close, subject):
             return None
         a, b = board.listing(a_id), board.listing(b_id)
         # A person can have several listings; they are never introduced to themselves.
@@ -418,7 +432,7 @@ class Warden:
         if not ok:
             return None
 
-        intro = Introduction(_SEAL, f"i{self._next_intro:04d}", a_id, b_id, a_view, b_view)
+        intro = Introduction(_SEAL, f"i{self._next_intro:04d}", a_id, b_id, a_view, b_view, one_way_to=close)
         self._next_intro += 1
         self._intros[intro.intro_id] = intro
         for p in (a_id, b_id):
@@ -435,7 +449,31 @@ class Warden:
         ok = followup.question_id in FOLLOWUP_MENU and followup.person_id in board
         if not self._receipt("followup_menu", ok, {"p": followup.person_id, "q": followup.question_id}):
             return None
-        return FollowUpOut(_SEAL, followup.person_id, followup.question_id)
+        # Questions from Belong. only reach people who opted in to them.
+        if not self._receipt("followup_opted_in", board.listing(followup.person_id).notify_questions,
+                             {"p": followup.person_id}):
+            return None
+        if followup.question_id != "also_offer":
+            ok = not followup.about
+            return FollowUpOut(_SEAL, followup.person_id, followup.question_id) if self._receipt(
+                "followup_no_subject", ok, {"p": followup.person_id}) else None
+        # "Could you also help with X?": X is the shown "looking for" phrase of another person's
+        # listing, which opted in to close matches. The Warden writes it; the Matchmaker only names
+        # the listing, and the recipient is never told whose it is.
+        subject = {"p": followup.person_id, "about": followup.about}
+        me = board.listing(followup.person_id)
+        them = board.listing(followup.about) if followup.about in board else None
+        ok = them is not None and them.owner != me.owner and them.notify_close
+        if not self._receipt("also_offer_requester_opted_in", ok, subject):
+            return None
+        phrase = them.shown().get("seeking")
+        if not self._receipt("also_offer_phrase_shown", isinstance(phrase, str) and bool(phrase.strip()), subject):
+            return None
+        forbidden = _strings_of(me, HIDDEN) | _strings_of(them, HIDDEN)
+        clean = not find_forbidden(phrase, forbidden, _strings_of(them, SHOWN))
+        if not self._receipt("no_hidden_values", clean, subject):
+            return None
+        return FollowUpOut(_SEAL, followup.person_id, "also_offer", phrase)
 
     # -- Decisions and mutual reveal -------------------------------------------
 
@@ -443,6 +481,9 @@ class Warden:
         intro = self._intros[intro_id]
         if person_id not in (intro.person_a, intro.person_b):
             raise ValueError("only the two people in an introduction can answer it")
+        if intro.one_way_to and person_id != intro.one_way_to and \
+                self._decisions.get(intro_id, {}).get(intro.one_way_to) is not True:
+            raise PermissionError("a close match reaches the other person only after its recipient says yes")
         self._decisions.setdefault(intro_id, {})[person_id] = yes
 
     def is_connected(self, intro_id: str) -> bool:

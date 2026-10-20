@@ -42,7 +42,9 @@ SESSION = DemoSession()
 ACTIONS = {
     "reset": lambda s, b: s.reset(),
     "verify": lambda s, b: s.verify(b.get("slot"), b.get("name"), b.get("age")),
-    "new_listing": lambda s, b: s.new_listing(b.get("slot")),
+    "new_listing": lambda s, b: s.new_listing(b.get("slot"), b.get("prefs")),
+    "set_prefs": lambda s, b: s.set_prefs(b.get("slot"), b.get("listing_id"), b.get("prefs")),
+    "message": lambda s, b: s.send_message(b.get("slot"), b.get("intro_id"), b.get("text")),
     "open_listing": lambda s, b: s.open_listing(b.get("slot"), b.get("listing_id")),
     "prefill": lambda s, b: s.prefill(b.get("slot"), b.get("text"), b.get("listing_id")),
     "agent": lambda s, b: s.agent_message(b.get("slot"), b.get("text"), b.get("listing_id")),
@@ -89,7 +91,7 @@ class _Handler(BaseHTTPRequestHandler):
         self._send(200, route[0].read_bytes(), route[1])
 
     def _design_file(self, rel: str):
-        """Belong design system files (tokens, components, fonts). Fixed list, no paths from the URL."""
+        """Belong. design system files (tokens, components, fonts). Fixed list, no paths from the URL."""
         files = {"tokens.css": "text/css; charset=utf-8", "belong.css": "text/css; charset=utf-8",
                  "theme-dark.css": "text/css; charset=utf-8"}
         files.update({f"fonts/{f.name}": "font/woff2" for f in (WEB / "ds" / "fonts").glob("*.woff2")})

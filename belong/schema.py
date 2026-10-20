@@ -78,6 +78,9 @@ FOLLOWUP_MENU: dict[str, str] = {
     "age_range": "What age range are you open to?",
     "schedule": "When are you usually free?",
     "wider_net": "We haven't found a match yet. Should we cast a wider net?",
+    # {phrase} is filled in by the Warden, never the Matchmaker: it is the shown "looking for"
+    # phrase of a listing whose person opted in to close matches. It never says who.
+    "also_offer": "Someone is looking for {phrase}. Could you help with that too?",
 }
 
 
@@ -115,6 +118,11 @@ class Listing:
     confirmed_shown: tuple = ()
     # The person who owns this listing ("" = the person whose id is person_id).
     owner_id: str = ""
+    # The person's notification choices for this listing, both off unless they opt in:
+    # close matches (one-way: the other person isn't told unless this person says yes)
+    # and questions from Belong. (fixed-menu follow-ups). The Warden enforces both.
+    notify_close: bool = False
+    notify_questions: bool = False
 
     @property
     def owner(self) -> str:
