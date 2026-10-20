@@ -223,5 +223,31 @@ class OpenEnded(unittest.TestCase):
         self.assertEqual(other["precision"], 1.0)
 
 
+
+class UnstatedPreferences(unittest.TestCase):
+    """Something you didn't say is a preference you don't have; something the other person
+    didn't say only fails a strict request."""
+
+    def board(self, a_fields, b_exactness):
+        from belong.schema import Field, Listing, Person, SHOWN
+        w, board = warden(), Marketboard()
+        people = [("pa", "Looking for a climbing partner in Osaka.", 0.6, a_fields),
+                  ("pb", "Looking for a climbing partner in Osaka, intermediate, weekends.", b_exactness,
+                   {"level": "intermediate", "schedule": "weekends"})]
+        for pid, intent, ex, extra in people:
+            fields = [Field("country", "Japan", SHOWN, False), Field("city", "Osaka", SHOWN, False)]
+            fields += [Field(k, v, SHOWN, False) for k, v in extra.items()]
+            self.assertTrue(w.admit(Person(pid, True, "25-29", "t"), Listing(pid, intent, ex, tuple(fields), "t"), board).accepted)
+        return board
+
+    def test_no_level_given_still_matches(self):
+        pairs = {frozenset((p.person_a, p.person_b)) for p in OfflineMatcher().match(self.board({}, 0.6)).proposals}
+        self.assertIn(frozenset(("pa", "pb")), pairs)
+
+    def test_a_strict_request_needs_the_detail(self):
+        pairs = {frozenset((p.person_a, p.person_b)) for p in OfflineMatcher().match(self.board({}, 0.9)).proposals}
+        self.assertNotIn(frozenset(("pa", "pb")), pairs)
+
+
 if __name__ == "__main__":
     unittest.main()

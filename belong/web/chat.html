@@ -145,7 +145,7 @@
 // (an introduction you've already answered updates in place). Anything that changes data asks
 // for confirmation first; saying yes only ever comes from your own tap on the card.
 let ME = null;
-const L = { log: [], sending: false, confirm: null, popup: null, form: {}, remember: {} };
+const L = { log: [], sending: false, confirm: null, popup: null, form: {}, remember: {}, seen: {} };
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const cap = t => t ? t.charAt(0).toUpperCase() + t.slice(1) : t;
@@ -197,6 +197,21 @@ function questionCard(qid, lid) {
     <div class="actions"><button class="btn primary" onclick="ask('answer_yes','${lid}:${qid}')">Yes</button>
       <button class="btn secondary" onclick="ask('answer_no','${lid}:${qid}')">No</button></div></div>`;
 }
+// A live card: while the chat is open it keeps checking with Belong. (a widget can call the app's
+// tools itself), and when someone new turns up it offers to show them. Only the latest one is live.
+function statusCard(latest) {
+  const l = listing();
+  if (!l || !l.listed) return "";
+  const fresh = l.intros.filter(i => i.status === "pending" && !L.seen[i.intro_id]);
+  if (latest && fresh.length) {
+    return `<div class="card"><p class="title">${fresh.length === 1 ? "1 new introduction" : `${fresh.length} new introductions`}<span class="badge">New</span></p>
+      <p class="sub">${esc(cap(l.title))}</p>
+      <div class="actions"><button class="btn primary" onclick="showNew()">Show them</button></div></div>`;
+  }
+  return `<div class="card"><p class="title">Matching${latest ? "" : '<span class="badge plain">Earlier</span>'}</p>
+    <p class="sub">${latest ? "Belong. is looking for people who are also looking for you." : esc(cap(l.title))}</p>
+    ${latest ? `<p class="sub" style="margin-top: 10px; font-size: 12px">Mockup: updates while this chat is open. Real ChatGPT may only allow this while the chat is on screen.</p>` : ""}</div>`;
+}
 function emptyCard() { return `<div class="card"><p class="title">No introductions yet</p><p class="sub">Belong. matches in private. Nobody, including ChatGPT, sees the other listings.</p></div>`; }
 
 // ---- rendering ----
@@ -207,7 +222,7 @@ function render() {
     if (t.me) out.push(`<div class="me">${esc(t.me)}</div>`);
     if (t.app) {
       out.push(label());
-      for (const c of t.cards || []) out.push(c.kind === "listing" ? (c.latest ? listingCard() : "") :
+      for (const c of t.cards || []) out.push(c.kind === "listing" ? (c.latest ? listingCard() : "") : c.kind === "status" ? statusCard(c.latest) :
         c.kind === "intro" ? introCard(c.id) : c.kind === "question" ? questionCard(c.id, c.lid) : emptyCard());
     }
     if (t.bot) out.push(`<div class="bot">${esc(t.bot)}</div>`);
@@ -265,10 +280,28 @@ async function checkMatches() {
   const cards = [...l.followups.map(q => ({ kind: "question", id: q.question_id, lid: l.id })),
                  ...l.intros.filter(i => i.status === "pending").slice(0, 3).map(i => ({ kind: "intro", id: i.intro_id }))];
   const n = l.intros.filter(i => i.status === "pending").length;
+  for (const i of l.intros) L.seen[i.intro_id] = true;
   L.log.push({ app: true, cards: cards.length ? cards : [{ kind: "empty" }],
     bot: n ? `${n === 1 ? "One person" : `${n} people`} ${n === 1 ? "is" : "are"} also looking for you. Only you can say yes, and you're introduced only if they say yes too.`
            : cards.length ? "Answering could find you more matches." : "Nothing yet. Ask me again later." });
 }
+
+// "Show them" on the live card posts a message from the card (sendFollowUpMessage), then the
+// introductions appear as a normal turn.
+async function showNew() {
+  if (L.sending) return;
+  L.log.push({ me: "Show me my new introductions" }); L.sending = true; L.jump = true; render();
+  try { await checkMatches(); } finally { L.sending = false; L.jump = true; render(); }
+}
+// While the chat is open, the live card checks with Belong. now and then (in the demo, that runs matching).
+setInterval(async () => {
+  const live = L.log.some(t => (t.cards || []).some(c => c.kind === "status" && c.latest));
+  if (!ME || !live || L.sending || L.confirm || L.popup) return;
+  const l = listing(); if (!l || !l.listed) return;
+  const before = l.intros.length;
+  await api("match");
+  if (listing().intros.length !== before) render();
+}, 6000);
 
 // ---- changing anything goes through ChatGPT's confirmation ----
 const ACTIONS = {
@@ -293,7 +326,8 @@ async function run(kind, arg) {
       fields: d.fields.filter(f => f.enabled && f.value !== null && f.value !== "" && !(Array.isArray(f.value) && !f.value.length))
         .map(f => ({ key: f.key, value: f.value, visibility: f.visibility, confirmed: !!f.confirmed })) };
     if (await api("submit", { listing_id: l.id, listing: body })) {
-      L.log.push({ app: true, cards: [], bot: "Your listing is live. Belong. matches in private; ask me “any matches?” whenever you like." });
+      for (const t of L.log) for (const c of t.cards || []) if (c.kind === "status") c.latest = false;
+      L.log.push({ app: true, cards: [{ kind: "status", latest: true }], bot: "Your listing is live. I'll update the card above when Belong. finds someone, or ask me any time." });
     }
   } else if (kind === "say_yes" || kind === "not_now") {
     await api("decide", { intro_id: arg, yes: kind === "say_yes" });

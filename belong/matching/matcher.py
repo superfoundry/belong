@@ -267,8 +267,12 @@ def intent_met(ap: ParsedIntent, av: ShownView, bp: ParsedIntent, bv: ShownView)
     if kind in ("climbing", "running"):
         key = "level" if kind == "climbing" else "pace"
         mine, theirs = av.get(key), bv.get(key)
-        if mine is None or theirs is None:
-            return ex < 0.5  # a wide net tolerates an unknown level
+        # Something you didn't say is a preference you don't have: no level of your own, no level
+        # required. Something they didn't say only fails a strict ("exactly") request.
+        if mine is None:
+            return not (ex >= 0.8 and not schedules_overlap(av.get("schedule"), bv.get("schedule")))
+        if theirs is None:
+            return ex < 0.8
         tolerance = 0 if ex >= 0.8 else 1
         if abs(LEVEL_SCALES[key].index(mine) - LEVEL_SCALES[key].index(theirs)) > tolerance:
             return False
