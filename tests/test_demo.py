@@ -187,6 +187,8 @@ class Reactions(unittest.TestCase):
         s.react("B", intro, 0, "👍")
         with self.assertRaises(DemoError):
             s.react("B", intro, 0, "<script>")
+        with self.assertRaises(DemoError):
+            s.react("A", intro, 0, "👍")  # not your own message
         seen_by_a = next(i for i in s.phone_state("A")["intros"] if i["intro_id"] == intro)["thread"][0]["reactions"]
         self.assertEqual(seen_by_a, [{"emoji": "👍", "mine": False}])
         s.react("B", intro, 0, "👍")  # the same again takes it back

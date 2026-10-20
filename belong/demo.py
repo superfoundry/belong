@@ -706,6 +706,8 @@ class DemoSession:
         thread = self.threads.get(intro_id, [])
         if not isinstance(index, int) or not 0 <= index < len(thread):
             raise DemoError("No such message.")
+        if thread[index]["from"] == mine.id:
+            raise DemoError("You can react to their messages, not your own.")
         reactions = thread[index]["reactions"]
         if reactions.get(mine.id) == emoji:
             del reactions[mine.id]

@@ -148,10 +148,12 @@
   .react-picker button { all: unset; cursor: pointer; font-size: 20px; width: 34px; height: 34px; display: inline-flex; align-items: center;
                          justify-content: center; border-radius: 50%; transition: transform var(--duration-fast) var(--ease-standard); }
   .react-picker button:hover { background: var(--surface-raised); transform: scale(1.15); }
-  .reactions { display: flex; gap: 4px; margin-top: -5px; padding: 0 8px; position: relative; }
-  .reaction { all: unset; cursor: pointer; font-size: 13px; padding: 1px 6px; border-radius: var(--radius-pill); background: var(--surface-card);
-              border: 1px solid var(--border-default); box-shadow: var(--shadow-sm); }
-  .reaction.mine { border-color: var(--border-accent); }
+  .reaction { all: unset; flex-shrink: 0; font-size: 15px; width: 24px; height: 24px; display: inline-flex; align-items: center;
+              justify-content: center; border-radius: 50%; }
+  button.reaction { cursor: pointer; }
+  button.reaction:hover { background: var(--surface-raised); }
+  button.reaction:focus-visible { outline: 2px solid var(--focus-ring); }
+  .react-picker button.on { background: var(--accent-muted); }
   .avatar { width: 26px; height: 26px; flex-shrink: 0; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center;
             background: var(--accent-muted); color: var(--text-accent); font-family: var(--font-display); font-weight: 700; font-size: 12px; }
   .thread-head .avatar { width: 40px; height: 40px; font-size: 16px; }
@@ -463,22 +465,24 @@ function messageRow(slot, i, m, n, t, theirName, myName) {
   const avatar = m.mine ? "" : last ? `<span class="avatar" aria-hidden="true">${esc((theirName || "?").slice(0, 1).toUpperCase())}</span>`
                                     : `<span class="avatar-space"></span>`;
   const open = local[slot].reactOpen === `${i.intro_id}:${n}`;
-  const counts = {};
-  for (const r of m.reactions || []) { counts[r.emoji] ||= { n: 0, mine: false }; counts[r.emoji].n++; counts[r.emoji].mine ||= r.mine; }
-  const chips = Object.entries(counts).map(([e, c]) =>
-    `<button class="reaction${c.mine ? " mine" : ""}" onclick="react('${slot}','${i.intro_id}',${n},'${e}')" aria-label="${c.mine ? "Remove your reaction" : "React"} ${e}">${e}${c.n > 1 ? ` ${c.n}` : ""}</button>`).join("");
-  const picker = open ? `<div class="react-picker" role="menu">${REACTIONS.map(e =>
-    `<button role="menuitem" onclick="react('${slot}','${i.intro_id}',${n},'${e}')" aria-label="React ${e}">${e}</button>`).join("")}</div>` : "";
+  // A reaction sits beside the bubble, where the react button is. You react only to their
+  // messages; on yours you see the reaction they left.
+  const theirs = (m.reactions || []).find(r => !r.mine), mineR = (m.reactions || []).find(r => r.mine);
+  let side;
+  if (m.mine) {
+    side = theirs ? `<span class="reaction" aria-label="${esc(theirName)} reacted ${theirs.emoji}">${theirs.emoji}</span>` : "";
+  } else {
+    side = `<button class="${mineR ? "reaction mine" : "react-btn"}" aria-label="${mineR ? `Your reaction ${mineR.emoji}, change it` : "React to this message"}"
+      onclick="toggleReact('${slot}','${i.intro_id}:${n}')">${mineR ? mineR.emoji : SMILE_PLUS}</button>`;
+  }
+  const picker = open && !m.mine ? `<div class="react-picker" role="menu">${REACTIONS.map(e =>
+    `<button role="menuitem" class="${mineR && mineR.emoji === e ? "on" : ""}" onclick="react('${slot}','${i.intro_id}',${n},'${e}')" aria-label="React ${e}">${e}</button>`).join("")}</div>` : "";
   return `<div class="msg-row ${who}${first ? " first" : ""}${last ? " last" : ""}">
-    ${m.mine ? "" : avatar}
+    ${avatar}
     <div class="msg-col">
-      <div class="bubble-wrap">${m.mine ? `<button class="react-btn" aria-label="React to this message" onclick="toggleReact('${slot}','${i.intro_id}:${n}')">${SMILE_PLUS}</button>` : ""}
-        <div class="bubble ${who}">${esc(m.text)}</div>
-        ${m.mine ? "" : `<button class="react-btn" aria-label="React to this message" onclick="toggleReact('${slot}','${i.intro_id}:${n}')">${SMILE_PLUS}</button>`}${picker}</div>
-      ${chips ? `<div class="reactions">${chips}</div>` : ""}
+      <div class="bubble-wrap">${m.mine ? side : ""}<div class="bubble ${who}">${esc(m.text)}</div>${m.mine ? "" : side}${picker}</div>
       ${last ? `<span class="msg-time">${esc(msgTime(m.at))}</span>` : ""}
-    </div>
-    ${m.mine ? avatar : ""}</div>`;
+    </div></div>`;
 }
 // Tapping anywhere else closes an open reaction picker.
 document.addEventListener("click", e => {
