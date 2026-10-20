@@ -334,7 +334,7 @@ function renderLayer() {
           <li>Ask before it changes anything. Saying yes is always your tap.</li></ul>
         <p>Your hidden details are never shown to matches. What you tell ChatGPT goes to OpenAI under their terms.</p>
         <label class="choice"><input type="checkbox" ${L.form.close ? "checked" : ""} onchange="L.form.close=this.checked"><span><b>Close matches</b><small>People who are almost what you asked for. One-way: they aren't told.</small></span></label>
-        <label class="choice"><input type="checkbox" ${L.form.questions ? "checked" : ""} onchange="L.form.questions=this.checked"><span><b>Questions</b><small>Short questions that could find you more matches. We never say who asked.</small></span></label>
+        <label class="choice"><input type="checkbox" ${L.form.questions ? "checked" : ""} onchange="L.form.questions=this.checked"><span><b>Follow-up questions</b><small>Short questions that could find you more matches. We never say who asked.</small></span></label>
         <button class="go" onclick="popupDone()">Allow and connect</button>`}
       <p class="fine">Mockup of the sign-in a real connector would open (OAuth) on Belong.'s own site.</p></div></div></div>`;
   } else layer.innerHTML = "";

@@ -43,7 +43,7 @@
                    transition: color var(--duration-fast) var(--ease-standard); }
   .tabbar button + button { border-left: 1px solid var(--border-subtle); }
   .tabbar button::before { content: ""; position: absolute; top: -1px; left: 28%; right: 28%; height: 2px; background: transparent; border-radius: 0 0 2px 2px; }
-  .tabbar button.on { color: var(--text-primary); }
+  .tabbar button.on { color: var(--text-primary); background: linear-gradient(var(--accent-muted), transparent 70%); }
   .tabbar button.on::before { background: var(--border-accent); }
   .tabbar button:hover { color: var(--text-primary); }
   .tabbar button:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: -2px; }
@@ -212,6 +212,10 @@
   .listing-card .heading-m { margin: 0; }
   details.matches { margin-top: var(--space-4); border-top: 1px solid var(--border-subtle); padding-top: var(--space-3); }
   details.matches > summary { cursor: pointer; font: var(--text-label); font-weight: 600; color: var(--text-accent); }
+  /* The listings page in shades of paper: off-white screen, white listing cards, cream matches,
+     deeper cream questions, with coral for status and the matches heading. */
+  .screen:has(> .list-head) { background: var(--sf-paper-100); }
+  .card.intro.question { background: var(--sf-paper-400) !important; }
   .card.intro { box-shadow: none; background: var(--surface-raised); border-color: transparent; }
   .profile-card .posted { margin-top: var(--space-4); padding-top: var(--space-4); border-top: 1px solid var(--border-subtle); }
   .profile-card .posted .monogram { width: 32px; height: 32px; font-size: 15px; }
@@ -593,7 +597,7 @@ const SCREENS = {
        <div class="one-way"><p class="body-s"><b>It's one-way.</b> They won't know about you unless you say yes.</p>
          <p class="body-s">We might also ask someone close to help, like asking a guitar teacher if they teach bass too. They're never told who asked.</p></div>
        ${choice("close", "Yes, show me close matches", "No, only exact matches")}`,
-      `<h2 class="heading-l">Questions</h2>
+      `<h2 class="heading-l">Follow-up questions</h2>
        <p class="body-s">Can we ask you the odd question to find you more matches?</p>
        <div class="one-way"><p class="body-s">For example: "Someone is looking for a bass teacher. Could you help with that too?"</p>
          <p class="body-s">We never say who asked, and you can always say no.</p></div>
@@ -645,7 +649,7 @@ const SCREENS = {
           <span class="grow"><span class="heading-s">${esc(i.view.fields.first_name || "Someone")}</span>
             <span class="caption secondary">${esc(cap(i.listing.title))}</span>
             <span class="body-s ${lastMsg ? "" : "tertiary"} msg-preview">${lastMsg ? (lastMsg.mine ? "You: " : "") + esc(lastMsg.text) : "Say hello"}</span></span>
-          ${unread(slot, i) ? '<span class="unread-dot" aria-label="New message"></span>' : !(i.thread || []).length ? badge("", "New") : ""}</button>`;
+          ${unread(slot, i) ? '<span class="unread-dot" aria-label="New message"></span>' : !(i.thread || []).length ? badge("accent", "New") : ""}</button>`;
       }).join("")}</div>`;
   },
 
@@ -700,7 +704,7 @@ const SCREENS = {
       <p class="eyebrow group-title" style="margin-top:0">New listings start with</p>
       <div class="card md">
         ${toggle("notify_close", "Close matches", "Hear about people who are almost what you asked for. One-way: they aren't told.")}
-        ${toggle("notify_questions", "Questions", "Short questions that could find you more matches. We never say who asked.")}
+        ${toggle("notify_questions", "Follow-up questions", "Short questions that could find you more matches. We never say who asked.")}
       </div>
       <div class="card md" style="margin-top: var(--space-4)">
         ${toggle("ask_each_time", "Ask me each time", "Show the privacy questions whenever I create a listing.")}
@@ -732,7 +736,7 @@ function listingCard(slot, p, l) {
   const waiting = needsAnswer(l), total = l.intros.length + l.followups.length;
   if (c.open === undefined) c.open = waiting > 0;
   const paused = l.listed && l.active === false;
-  const status = l.unsaved ? badge("warning", "Unsaved changes") : paused ? badge("", "Paused") : l.listed ? badge("", "Matching") : badge("", "Draft");
+  const status = l.unsaved ? badge("warning", "Unsaved changes") : paused ? badge("", "Paused") : l.listed ? badge("accent", "Matching") : badge("", "Draft");
   const summary = !l.listed ? "Not matching yet" : total ? `${total} match${total === 1 ? "" : "es"}${waiting ? `, ${waiting} waiting on you` : ""}` : "No matches yet";
   const body = !l.listed
     ? ""
@@ -742,13 +746,13 @@ function listingCard(slot, p, l) {
           <div class="stack" style="margin-top: var(--space-3)">${l.followups.map(q => followupCard(slot, l, q)).join("")}${l.intros.map(i => introCard(slot, l, i)).join("")}</div></details>`
       : "";
   const pr = l.prefs || {}, open = local[slot].gear === l.id;
-  const sw = (label, note, on, change, disabled) => `<label class="setting-row toggle-row${disabled ? " disabled" : ""}"><div class="grow">
-      <div class="body-s">${label}</div><div class="caption secondary">${note}</div></div>
+  const sw = (label, on, change, disabled) => `<label class="setting-row toggle-row${disabled ? " disabled" : ""}"><div class="grow">
+      <div class="body-s">${label}</div></div>
       <input type="checkbox" class="switch" ${on ? "checked" : ""} ${disabled ? "disabled" : ""} onchange="${change}"></label>`;
   const pop = open ? `<div class="gear-pop" role="dialog" aria-label="Settings for ${esc(l.title)}">
-      ${sw("Active", l.listed ? "Paused listings aren't matched." : "Start matching first.", l.listed && l.active !== false, `setActive('${slot}','${l.id}',this.checked)`, !l.listed)}
-      ${sw("Close matches", "One-way: they aren't told.", pr.notify_close, `setPref('${slot}','${l.id}','notify_close',this.checked)`)}
-      ${sw("Questions", "We never say who asked.", pr.notify_questions, `setPref('${slot}','${l.id}','notify_questions',this.checked)`)}
+      ${sw("Active", l.listed && l.active !== false, `setActive('${slot}','${l.id}',this.checked)`, !l.listed)}
+      ${sw("Close matches", pr.notify_close, `setPref('${slot}','${l.id}','notify_close',this.checked)`)}
+      ${sw("Follow-up questions", pr.notify_questions, `setPref('${slot}','${l.id}','notify_questions',this.checked)`)}
     </div>` : "";
   return `<div class="card md listing-card${paused ? " paused" : ""}">
     <button class="gear" onclick="toggleGear('${slot}','${l.id}')" aria-expanded="${open}" aria-label="Settings for ${esc(l.title)}" title="Settings">${GEAR}</button>${pop}
@@ -1028,7 +1032,7 @@ function followupCard(slot, l, q) {
   else if (q.question_id === "also_offer") controls = `<div class="row"><button class="btn" onclick="answer('${slot}','${l.id}','also_offer',{yes:true})">Yes, I can</button><button class="btn secondary" onclick="answer('${slot}','${l.id}','also_offer',{yes:false})">No</button></div>
     <p class="caption tertiary" style="margin: var(--space-2) 0 0">If you say yes, it's added to what you offer. Nobody is told you were asked.</p>`;
   else controls = `<div class="row"><button class="btn" onclick="answer('${slot}','${l.id}','wider_net',{yes:true})">Widen the net</button><button class="btn secondary" onclick="answer('${slot}','${l.id}','wider_net',{yes:false})">Keep it as is</button></div>`;
-  return `<div class="card sm intro">${badge("ai", "Question from Belong.")}<h3 class="heading-m" style="margin: var(--space-3) 0">${esc(q.question_text)}</h3>${controls}</div>`;
+  return `<div class="card sm intro question">${badge("accent", "Question from Belong.")}<h3 class="heading-m" style="margin: var(--space-3) 0">${esc(q.question_text)}</h3>${controls}</div>`;
 }
 
 function introCard(slot, l, i) {
