@@ -57,6 +57,9 @@ FIELD_REGISTRY: dict[str, FieldSpec] = {
     # Open-ended matches ("something else"): short phrases written with the person.
     "seeking": FieldSpec(False, SHOWN),   # what they're looking for, e.g. "a guitarist"
     "offering": FieldSpec(False, SHOWN),  # what they bring, e.g. "a ska band"
+    # A few broader areas the listing is about, written by the person's agent, so related
+    # requests can be recognised without a built-in list of activities.
+    "topics": FieldSpec(False, SHOWN, multi=True),
     # Paid or practical requests: shown so the other side knows the terms up front.
     "pay": FieldSpec(False, SHOWN),       # e.g. "¥4,000 per hour" (offered or charged), a rent budget
     "format": FieldSpec(False, SHOWN),    # "In person", "Online", "In person or online"

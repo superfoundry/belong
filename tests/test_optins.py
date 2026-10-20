@@ -63,11 +63,13 @@ def skating_board():
     w, board = warden(), Marketboard()
     hockey = replace(listing("ph", "I'm a beginner and want an ice hockey coach in Toronto.", [
         fld("first_name", "Sam"), fld("country", "Canada"), fld("city", "Toronto"), fld("schedule", "weekends"),
-        fld("seeking", "a beginner ice hockey coach"), fld("offering", "an ice hockey student")]),
+        fld("seeking", "a beginner ice hockey coach"), fld("offering", "an ice hockey student"),
+        fld("topics", ("ice skating", "hockey"))]),
         notify_close=True, notify_questions=True)
     skater = replace(listing("ps", "Figure skater in Toronto, happy to teach.", [
         fld("first_name", "Lea"), fld("country", "Canada"), fld("city", "Toronto"), fld("schedule", "flexible"),
-        fld("seeking", "a figure skating student"), fld("offering", "a figure skating coach")]),
+        fld("seeking", "a figure skating student"), fld("offering", "a figure skating coach"),
+        fld("topics", ("ice skating", "figure skating"))]),
         notify_close=False, notify_questions=True)
     for l in (hockey, skater):
         assert w.admit(person(l.person_id), l, board).accepted
@@ -76,11 +78,20 @@ def skating_board():
 
 class RelatedActivities(unittest.TestCase):
     def test_nearly(self):
+        """No built-in list of activities: related requests are found through shared words or
+        stems, or the topics each person's agent wrote."""
         from belong.matching.matcher import nearly
-        self.assertTrue(nearly("a beginner ice hockey coach", "a figure skating coach"))
-        self.assertTrue(nearly("an air conditioner repair technician", "a repairman"))
-        self.assertFalse(nearly("a beginner ice hockey coach", "a figure skating student"))  # roles must line up
-        self.assertFalse(nearly("a piano teacher", "a figure skating coach"))
+        self.assertTrue(nearly("an air conditioner repair technician", "a repairman"))  # a shared stem
+        self.assertFalse(nearly("a beginner ice hockey coach", "a figure skating coach"))  # nothing in common...
+        self.assertTrue(nearly("a beginner ice hockey coach", "a figure skating coach",
+                               ("ice skating", "hockey"), ("ice skating", "figure skating")))  # ...until topics say so
+        self.assertTrue(nearly("a bass teacher", "a guitar teacher", ("bass guitar",), ("guitar", "bass guitar")))
+        self.assertFalse(nearly("a beginner ice hockey coach", "a figure skating student",
+                                ("ice skating",), ("ice skating",)))  # roles must line up
+        self.assertFalse(nearly("a piano teacher", "a figure skating coach", ("piano",), ("ice skating",)))
+        self.assertTrue(nearly("a snowboarding teacher", "a skiing tutor", ("snowboarding",), ("skiing", "snow sports")))
+        # an umbrella word alone ("sports") connects nothing
+        self.assertFalse(nearly("an ice hockey coach", "a surfing coach", ("team sports",), ("water sports",)))
 
     def test_the_figure_skater_is_asked_about_ice_hockey_and_yes_makes_a_match(self):
         from belong.agent import also_offer

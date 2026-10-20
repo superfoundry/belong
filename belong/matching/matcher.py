@@ -49,7 +49,6 @@ _SYNONYMS = {
     "mentor": "teach", "coach": "teach", "instructor": "teach", "tutor": "teach", "guide": "teach",
     "learn": "student", "begin": "student", "apprentice": "student", "pupil": "student", "novice": "student",
     "partn": "partner", "buddy": "partner", "friend": "partner", "companion": "partner", "pal": "partner",
-    "angl": "fish",
 }
 
 
@@ -160,53 +159,43 @@ def _head(tokens: list) -> str:
     return roles[-1] if roles else tokens[-1]
 
 
-# Activities close enough that someone who does one might help with another (stems as
-# phrase_tokens makes them). Used only for "nearly": close matches and "could you help with
-# that too?" questions, never for an exact match.
-_FAMILIES = [
-    {"ice", "hockey", "skat", "skate", "curl"},
-    {"tennis", "squash", "badminton", "padel", "pickleball"},
-    {"guitar", "bass", "ukulele", "banjo", "mandolin"},
-    {"violin", "viola", "cello", "fiddle"},
-    {"piano", "keyboard", "organ", "synth"},
-    {"drum", "percussion"},
-    {"sing", "vocal", "voice", "choir"},
-    {"climb", "boulder"},
-    {"run", "jog", "marathon"},
-    {"swim", "surf", "kayak", "canoe", "paddle", "div"},
-    {"ski", "snowboard"},
-    {"danc", "dance", "salsa", "tango", "ballet", "bachata", "swing"},
-    {"yoga", "pilate", "stretch"},
-    {"cook", "bak", "chef", "pastry"},
-    {"repair", "repairman", "fix", "handyman", "technician", "mechanic"},
-    {"program", "cod", "software", "develop", "web"},
-    {"paint", "draw", "sketch", "illustrat"},
-    {"karate", "judo", "box", "kickbox", "taekwondo", "jiu", "jitsu"},
-    {"cycl", "bike", "bik"},
-]
-_FAMILY = {w: n for n, fam in enumerate(_FAMILIES) for w in fam}
+# Umbrella words that say nothing about the activity itself ("winter sports", "music lessons").
+# They never count as something two listings share.
+_UMBRELLA = {"sport", "lesson", "class", "classe", "service", "job", "work", "activity", "activitie", "hobby",
+             "hobbie", "skill", "thing", "general", "other", "beginner", "basic", "advanced", "help"}
 
 
 def _related(a: str, b: str) -> bool:
-    return a == b or (len(a) >= 5 and len(b) >= 5 and a[:5] == b[:5]) or \
-        (a in _FAMILY and _FAMILY.get(a) == _FAMILY.get(b))
+    """The same word or stem: "repair" / "repairman", "snow" / "snowboard"."""
+    if a in _UMBRELLA or b in _UMBRELLA:
+        return False
+    short, long_ = sorted((a, b), key=len)
+    return a == b or (len(a) >= 5 and len(b) >= 5 and a[:5] == b[:5]) or (len(short) >= 4 and long_.startswith(short))
 
 
-def nearly(wanted, offered) -> bool:
-    """Is `offered` nearly what `wanted` asks for: a related activity (ice hockey / figure
-    skating, an air conditioner repair technician / a repairman), with roles that line up (a
-    coach is never nearly a student)? Shown phrases only."""
+def _topic_words(topics) -> set:
+    return {t for topic in (topics or ()) for t in phrase_tokens(str(topic))
+            if t not in ROLE_WORDS and t not in SOCIAL_WORDS}
+
+
+def nearly(wanted, offered, wanted_topics=(), offered_topics=()) -> bool:
+    """Is `offered` nearly what `wanted` asks for? Roles must line up (a coach is never nearly a
+    student), and the two must share an activity: a word or stem in their phrases, or one of the
+    broader topics each person's agent wrote for the listing (someone wanting an ice hockey
+    coach and a figure skating coach might both list "ice skating"). There is no built-in list
+    of activities; shown fields only."""
     if not wanted or not offered:
         return False
+    tw, th = _topic_words(wanted_topics), _topic_words(offered_topics)
     for w in alternatives(wanted):
         for h in alternatives(offered):
             if _language_clash(w, h):
                 continue
             if any(t in ROLE_WORDS for t in w) and any(t in ROLE_WORDS for t in h) and _head(w) != _head(h):
                 continue
-            act_w = [t for t in w if t not in ROLE_WORDS and t not in SOCIAL_WORDS]
-            act_h = [t for t in h if t not in ROLE_WORDS and t not in SOCIAL_WORDS]
-            if any(_related(a, b) for a in act_w for b in act_h):
+            act_w = {t for t in w if t not in ROLE_WORDS and t not in SOCIAL_WORDS}
+            act_h = {t for t in h if t not in ROLE_WORDS and t not in SOCIAL_WORDS}
+            if any(_related(a, b) for a in act_w | tw for b in act_h | th):
                 return True
     return False
 
@@ -400,19 +389,20 @@ class OfflineMatcher:
                             # a related activity: if the other person takes questions, asking
                             # them (below) is better, since a yes makes a match that fits both
                             not listings[far].notify_questions
-                            and nearly(views[near].get("seeking"), views[far].get("offering")))):
+                            and nearly(views[near].get("seeking"), views[far].get("offering"),
+                                       views[near].get("topics"), views[far].get("topics")))):
                         close = near
                 if not close:
-                    # Nearly: one person offers something close to what the other wants (a
-                    # figure skating coach, for a beginner ice hockey coach), and would welcome
-                    # them. Ask if they could help with that too, without saying who.
+                    # Nearly: one person offers something close to what the other wants, and
+                    # would welcome them. Ask if they could help with that too, without saying who.
                     for wants, could in ((a, b), (b, a)):
                         wants_met, could_met = (a_met, b_met) if wants == a else (b_met, a_met)
                         wv, cv = views[wants], views[could]
                         if (not wants_met and listings[wants].notify_close and listings[could].notify_questions
                                 and has_phrases(wv) and has_phrases(cv) and same_place(wv, cv)
-                                and nearly(wv.get("seeking"), cv.get("offering"))
-                                and (could_met or nearly(cv.get("seeking"), wv.get("offering")))):
+                                and nearly(wv.get("seeking"), cv.get("offering"), wv.get("topics"), cv.get("topics"))
+                                and (could_met or nearly(cv.get("seeking"), wv.get("offering"),
+                                                         cv.get("topics"), wv.get("topics")))):
                             also_offer.setdefault(could, wants)
                     continue  # both must be looking
             reasons = reason_fields(parsed[a].kind, av, bv)

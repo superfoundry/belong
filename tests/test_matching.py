@@ -152,7 +152,7 @@ class OpenEnded(unittest.TestCase):
         from belong.schema import Field, Listing, Person, SHOWN
         w, board = warden(), Marketboard()
         people = [
-            ("aoife", "Looking for someone to teach me to fish in Ireland.", None, "a fishing teacher", "a beginner angler"),
+            ("aoife", "Looking for someone to teach me to fish in Ireland.", None, "a fishing teacher", "a beginner fishing student"),
             ("sean", "Happy to teach fishing to a beginner around Galway.", "Galway", "a fishing student", "a fishing mentor"),
             ("hans", "Happy to teach fishing to a beginner around Munich.", "Munich", "a fishing student", "a fishing mentor"),
         ]

@@ -101,7 +101,7 @@ LABELS = {
     "gender": "Gender",
     "interests": "Interests", "schedule": "Free time", "level": "Climbing level", "pace": "Running pace",
     "native_language": "Native language", "learning_language": "Learning", "role": "Your role",
-    "subject": "Subject", "move_in": "Moving in", "seeking": "Looking for", "offering": "You are (to them)", "pay": "Pay", "format": "Format",
+    "subject": "Subject", "move_in": "Moving in", "seeking": "Looking for", "offering": "You are (to them)", "topics": "Related topics", "pay": "Pay", "format": "Format",
     "diet": "Diet", "smoking": "Smoking",
     "children": "Children", "neighborhood": "Neighborhood", "employer": "Employer",
     "income_band": "Income", "religion": "Religion", "politics": "Politics", "health": "Health",
