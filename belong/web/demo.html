@@ -636,10 +636,12 @@ const SCREENS = {
       <div class="card md"><div class="row"><span class="monogram" aria-hidden="true">${esc((p.name || "?").slice(0, 1).toUpperCase())}</span>
         <div class="grow"><div class="heading-m">${esc(p.name)}</div><div class="caption secondary">${esc(p.age_band)}</div></div>${badge("olive", "Verified")}</div>
         <div class="form-row" style="margin-top: var(--space-5)"><label class="field-label" for="pname-${slot}">First name</label>
-          <input class="input" id="pname-${slot}" value="${esc(L.pname ?? p.name)}" maxlength="30" oninput="local['${slot}'].pname=this.value"></div>
+          <input class="input" id="pname-${slot}" value="${esc(L.pname ?? p.name)}" maxlength="30"
+            oninput="local['${slot}'].pname=this.value; $('save-name-${slot}').disabled = !this.value.trim() || this.value.trim() === S.phones['${slot}'].name"
+            onkeydown="if(event.key==='Enter' && !$('save-name-${slot}').disabled) saveProfile('${slot}')"></div>
         <p class="caption secondary" style="margin: var(--space-2) 0 0">Shown on all your listings. Your age band comes from your ID check and can't be changed.</p>
         <div class="row" style="margin-top: var(--space-4)"><span class="grow"></span>
-          <button class="btn sm" ${(L.pname ?? p.name) === p.name ? "disabled" : ""} onclick="saveProfile('${slot}')">Save</button></div></div>
+          <button class="btn sm" id="save-name-${slot}" ${!(L.pname ?? p.name).trim() || (L.pname ?? p.name).trim() === p.name ? "disabled" : ""} onclick="saveProfile('${slot}')">Save</button></div></div>
       <div class="card md" style="margin-top: var(--space-4)">
         <div class="profile-line"><span class="label tertiary">Listings</span><span class="body-s">${live} matching${p.listings.length > live ? `, ${p.listings.filter(l => !l.listed && !untouched(l)).length} draft` : ""}</span></div>
         <div class="profile-line"><span class="label tertiary">Found</span><span class="body-s">${found} ${found === 1 ? "person" : "people"}</span></div></div>`;
