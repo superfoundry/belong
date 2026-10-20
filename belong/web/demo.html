@@ -238,10 +238,11 @@
                   border-top: 1px solid var(--border-subtle); background: var(--surface-card); flex-shrink: 0; }
   .composer-bar .textarea { min-height: 44px; max-height: 120px; }
 
-  .start { display: flex; flex-direction: column; align-items: center; justify-content: space-between; height: 100%;
-           padding: 38% var(--space-2) var(--space-6); }
-  .start .wordmark { font-size: 56px; text-shadow: var(--shadow-text-ember); }
-  .start .btn { width: 100%; }
+  /* The phone's first screen: the name in the middle, on a very slight off-white. */
+  .screen:has(> .start) { background: var(--sf-paper-100); }
+  .start { position: relative; height: 100%; display: flex; align-items: center; justify-content: center; }
+  .start .wordmark { font-size: 56px; }
+  .start .btn { position: absolute; left: 0; right: 0; bottom: var(--space-2); width: 100%; }
   .welcome { text-align: center; padding: var(--space-10) var(--space-2) var(--space-8); }
   .welcome .wordmark { font-size: 44px; display: block; margin-bottom: var(--space-4); }
   .welcome p { color: var(--text-secondary); margin: 0; font: var(--text-body-s); }
