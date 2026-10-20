@@ -1,6 +1,6 @@
-# How Belong keeps its privacy promises
+# How Belong. keeps its privacy promises
 
-This document is for anyone who wants to **check** Belong's privacy claims rather
+This document is for anyone who wants to **check** the privacy claims of Belong. rather
 than take them on faith. Every promise below links to the code that enforces it and
 the test that proves it. If a promise has no test, the promise isn't kept yet.
 
@@ -28,7 +28,7 @@ With the server running:
   verifies the Warden's source and the receipt chain *in your browser*, and runs the
   canary test and attack suite against a sandbox.
 - **http://localhost:8000/** is the two-person demo: two phones, with a presenter
-  panel in between that logs everything Belong receives and sends.
+  panel in between that logs everything Belong. receives and sends.
 - **http://localhost:8000/inspector** is the batch-run inspector.
 
 ---
@@ -97,7 +97,7 @@ that nothing published relies on unpublished code.
 
 | # | Promise | Enforced by | Proved by |
 |---|---|---|---|
-| 6 | **Both must be looking.** A pair is proposed only if each person's intent is met by the other. | `intent_met` (called both ways) in [matcher.py](belong/matching/matcher.py); Warden's `proposal_mutual` check | `test_every_proposal_is_mutual`, `test_one_sided_proposal_is_rejected` |
+| 6 | **Both must be looking.** A pair is proposed only if each person's intent is met by the other. The one exception is a close match (#27), and only for someone who asked for them. | `intent_met` (called both ways) in [matcher.py](belong/matching/matcher.py); Warden's `proposal_mutual` check | `test_every_proposal_is_mutual`, `test_one_sided_proposal_is_rejected` |
 | 7 | **Never the only reason.** Whether a pair qualifies is decided from shown fields alone. Hidden fields can only raise the score of a pair that already qualifies. | Qualifying code receives a `ShownView`, which can't return hidden fields ([narrow.py](belong/matching/narrow.py)). Hidden values are read in exactly one function, `hidden_overlap`. | `test_removing_hidden_fields_never_removes_a_match`: delete every hidden field and every proposal still qualifies. Also `test_hidden_fields_only_raise_scores_and_never_justify_a_match`, audit R1 |
 | 8 | **Only counts in a crowd.** A hidden value can raise a score only if at least *k* = 20 people share it. | `hidden_overlap` + `Marketboard.value_counts` | `test_crowd_threshold_blocks_rare_hidden_values`, audit R2 |
 | 9 | Hidden fields don't influence who gets shortlisted. | Text embeddings use intent + shown fields only (`ShownView.profile_text`) | Covered by #7: the shown-only board yields a superset of matches |
@@ -121,8 +121,13 @@ that nothing published relies on unpublished code.
 | 21 | **The published source of both agents is the code that was measured** (one measurement per agent). | [attest.py](belong/attest.py) `measurements()` | `test_published_source_hashes_to_the_measurement`; the trust page re-hashes every file in the browser |
 | 22 | The trust API serves the published files of both agents, and nothing else. | `open_source_text` | `test_only_published_files_are_served` |
 | 23 | **A phone only receives what its person may know.** Nobody is told who said no; a person who opted into a reveal isn't told whether the other side shares the detail or simply declined. | `DemoSession.phone_state` in [demo.py](belong/demo.py) | [test_demo.py](tests/test_demo.py): `test_phones_never_receive_the_other_persons_hidden_details`, `test_a_no_is_never_attributed` |
+| 24 | **Your choices come first.** Before every listing, the person sees what is shown and what is hidden, and chooses two notifications: close matches and questions. Both are off unless they opt in, and can be changed later. | `Listing.notify_close` / `notify_questions` in [schema.py](belong/schema.py) (default off); the privacy screen in [demo.html](belong/web/demo.html); `DemoSession.new_listing` / `set_prefs` | `test_choices_are_on_the_listing_and_off_by_default` |
+| 25 | **Questions only for people who opted in.** The Warden refuses any follow-up question to a listing that didn't opt in. | Warden's `followup_opted_in` check | `test_no_questions_for_someone_who_opted_out`, `test_no_question_without_both_opt_ins`, attack suite: "Ask a question of someone who opted out of questions", audit R5 |
+| 26 | **"Could you help with that too?" never says who's asking.** If someone who opted in to close matches is looking for something a nearby person nearly offers (an air conditioner technician, from a repairman), the person who opted in to questions may be asked. The Matchmaker only names the listing; the Warden writes the question itself, from a fixed template and that listing's *shown* "looking for" phrase, string-checked for hidden values. No name or id is sent. | `exit_followup` (`also_offer_requester_opted_in`, `also_offer_phrase_shown`, `no_hidden_values`, `followup_no_subject`); `FOLLOWUP_MENU["also_offer"]` | [test_optins.py](tests/test_optins.py): `test_the_matchmaker_asks_the_repairman_about_air_conditioners`, `test_saying_yes_makes_it_a_match`; `test_the_repairman_is_asked_and_saying_yes_makes_a_match`; attack suite: "Quote someone's request in a question when they didn't opt in", "Attach another person's listing to an ordinary question"; audit R5 |
+| 27 | **Close matches are one-way.** A person who opted in may hear about someone who fully meets that person's own criteria but is only nearly what they asked for. The other person isn't told: the Warden refuses their answer until the recipient has said yes, and their phone shows nothing until then. Close matches are ranked on shown details only, and never take a slot from an exact match. | Warden's `proposal_mutual` (other side must be met), `close_match_opted_in`, and `record_decision` (one-way order); `Introduction.one_way_to`; `OfflineMatcher.match` ranking; `_listing_state` in [demo.py](belong/demo.py) | `test_a_close_match_goes_one_way`, `test_only_for_someone_who_opted_in`, `test_close_matches_go_one_way_to_people_who_opted_in`, attack suite: "Send a close match to someone who didn't opt in", "Show a close match to the other person before the recipient says yes"; audit R5 |
+| 28 | **Messages only between two people who both said yes**, delivered only to them, never read by matching, and never logged: the presenter panel shows that a message was sent, not what it says. | `DemoSession.send_message` (requires the Warden's `is_connected`); threads are kept outside the Marketboard | `test_no_messages_until_both_say_yes`, `test_messages_reach_only_the_two_people_and_never_matching` |
 
-### Testing Belong with your own agent
+### Testing Belong. with your own agent
 
 The trust page and its API (in [probe.py](belong/probe.py)) let anyone, or their agent,
 test a sandbox that runs the same Warden and Matchmaker:
@@ -132,7 +137,7 @@ test a sandbox that runs the same Warden and Matchmaker:
   was sent out. Canaries never consent to a reveal, so any hit is a leak. Agents can
   bring their own listings and secrets.
   `test_canary_test_catches_a_sabotaged_warden` proves the test detects a real leak.
-- **Attack suite** (`POST /api/probe/attacks`): 22 attempts to get bad data in or
+- **Attack suite** (`POST /api/probe/attacks`): 28 attempts to get bad data in or
   private data out. Each result names the rule that stopped it. Agents can add their
   own intents.
 
@@ -172,7 +177,7 @@ Adding `import logging` to a matching file failed the isolation test. Both guard
 These need to be true before real people use Belong. They are deliberately visible
 here so nobody mistakes the prototype for the finished service.
 
-1. **No secure hardware, so "not even Belong" is not yet true.** Matching is a Python
+1. **No secure hardware, so "not even us" is not yet true.** Matching is a Python
    package whose isolation is enforced by tests, not by hardware, and it runs on a
    machine its operators control. The strongest promise needs all of these (Step 3):
    - matching inside a hardware enclave (Nitro Enclaves / Confidential Space /
@@ -219,8 +224,16 @@ here so nobody mistakes the prototype for the finished service.
 12. **The demo's personal agent uses a hosted model.** A person's chat with their own
     agent goes to the OpenAI or Claude API. That's the person's agent, not matching, and nothing
     the agent writes skips the person's review or the Warden. Real people need a
-    decision here: a Belong-certified agent of their choice, or one Belong runs under
+    decision here: an agent of their choice that Belong. has certified, or one that Belong. runs under
     its own privacy terms.
+13. **Messages are held by the demo server in memory.** Matching never reads them, but the
+    service could. Before real people use it, messages need end-to-end encryption between the
+    two phones, so only the two of them can read them.
+14. **A close match or an "also offer" question tells someone a little.** A close match shows the
+    recipient the other person's shown details before that person has chosen them, which is why
+    it needs the other person's criteria to be fully met and is one-way. An "also offer" question
+    tells someone that a person somewhere is looking for a thing, without who or where; it only
+    quotes a phrase that person chose to show.
 
 ---
 

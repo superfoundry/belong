@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Belong Trust</title>
+<title>Belong. trust</title>
 <link rel="stylesheet" href="/ds/tokens.css">
 <link rel="stylesheet" href="/ds/belong.css">
 <style>
@@ -118,8 +118,8 @@
           <p class="body-s secondary">You can read how it matches, but you don't have to rely on it. It can only hand the Warden agent a proposal: two ids, yes-or-no flags, scores and field names. There's no free text, so there's nowhere to hide a hidden detail. The Warden agent then writes the introduction itself from shown details only, and checks it for hidden values. Privacy rests on the Warden agent, and its code never depends on the Matchmaker's.</p>
         </div>
         <div class="card md">
-          <h3 class="heading-m">What "not even Belong" requires</h3>
-          <p class="body-s secondary">Open code isn't enough on its own. You also need proof that the open code is what is running, and that nobody, including Belong, can reach inside private matching. That's the job of the hardware enclave: see <a href="#roadmap">the roadmap</a>.</p>
+          <h3 class="heading-m">What "not even us" requires</h3>
+          <p class="body-s secondary">Open code isn't enough on its own. You also need proof that the open code is what is running, and that nobody can reach inside private matching, not even the people who run Belong. That's the job of the hardware enclave: see <a href="#roadmap">the roadmap</a>.</p>
         </div>
       </div>
     </section>
@@ -139,14 +139,14 @@
         <div class="card check">
           <span class="caption tertiary">Check 2</span>
           <h3 class="heading-l">The attestation document</h3>
-          <p class="what">You pick a random nonce; Belong answers with its measurements and rules. In production the enclave hardware signs this document, so it can't be faked or replayed.</p>
+          <p class="what">You pick a random nonce; Belong. answers with its measurements and rules. In production the enclave hardware signs this document, so it can't be faked or replayed.</p>
           <div class="actions"><button class="btn secondary" onclick="getAttestation()">Fetch with a fresh nonce</button></div>
           <div class="result" id="res-att"></div>
         </div>
         <div class="card check">
           <span class="caption tertiary">Check 3</span>
           <h3 class="heading-l">Nobody has deleted or edited a receipt</h3>
-          <p class="what">Every check the Warden agent runs writes a receipt: the check, the result, the time and a hash, never content. Each receipt's hash covers the one before it, so removing or changing any receipt breaks the chain from that point on. Belong can't quietly rewrite history either.</p>
+          <p class="what">Every check the Warden agent runs writes a receipt: the check, the result, the time and a hash, never content. Each receipt's hash covers the one before it, so removing or changing any receipt breaks the chain from that point on. Not even Belong. can quietly rewrite history.</p>
           <div class="actions">
             <button class="btn secondary" id="btn-chain" onclick="verifyChain(false)">Verify the receipt chain</button>
             <button class="btn ghost" onclick="verifyChain(true)">Show a tampered copy failing</button>
@@ -186,7 +186,7 @@
     <section id="api">
       <p class="eyebrow">API for agents</p>
       <h2 class="display-m">Your agent can run all of this</h2>
-      <p class="intro">Everything above is available over plain HTTP. A certified agent can run these before it trusts Belong with your details, and again whenever it likes.</p>
+      <p class="intro">Everything above is available over plain HTTP. A certified agent can run these before it trusts Belong. with your details, and again whenever it likes.</p>
       <div class="card md scroll"><table>
         <thead><tr><th>Call</th><th>What it gives you</th></tr></thead>
         <tbody>
@@ -203,7 +203,7 @@
 
     <section id="roadmap">
       <p class="eyebrow">Roadmap</p>
-      <h2 class="display-m">From prototype to "not even Belong"</h2>
+      <h2 class="display-m">From prototype to "not even us"</h2>
       <p class="intro">What has to be true before the strongest promise holds, and where each piece stands.</p>
       <div class="card md scroll"><table><thead><tr><th>Requirement</th><th>Why it matters</th><th>Status</th></tr></thead><tbody id="roadmap-rows"></tbody></table></div>
     </section>
@@ -211,7 +211,7 @@
     <p class="closing">Every promise, with the code that enforces it and the test that proves it: <a href="/trust/TRUST.md">technical details</a>. To see it from a person's side, <a href="/">open the two-person demo</a>.</p>
   </div>
 </main>
-<footer class="site-footer"><span class="wordmark">Belong</span></footer>
+<footer class="site-footer"><span class="wordmark">Belong.</span></footer>
 <script>
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const $ = id => document.getElementById(id);
@@ -225,21 +225,21 @@ const PROMISES = [
   ["No one can search for one specific person", "Attack suite, plus your own test intents", NOW],
   ["A hidden detail is shared only if both of you have it and both choose to compare it", "Canary test: canaries never agree, so their secrets must never appear", NOW],
   ["Both agents' code is open and is what was measured", "Check 1 (hashes computed in your browser)", NOW],
-  ["Receipts can't be quietly deleted or edited, even by Belong", "Check 3 (recomputed in your browser)", NOW],
+  ["Receipts can't be quietly deleted or edited, even by us", "Check 3 (recomputed in your browser)", NOW],
   ["The measured code is what's actually running", "A hardware-signed attestation document", SIM],
-  ["Belong can't see your hidden details", "Enclave isolation, attestation-gated keys and encryption on your device", LATER],
+  ["We can't see your hidden details", "Enclave isolation, attestation-gated keys and encryption on your device", LATER],
 ];
 const ROADMAP = [
-  ["Run private matching inside a hardware enclave (for example AWS Nitro Enclaves)", "The host machine, including Belong's operators, can't read private matching's memory", LATER],
+  ["Run private matching inside a hardware enclave (for example AWS Nitro Enclaves)", "The host machine and its operators can't read private matching's memory", LATER],
   ["Hardware-signed attestation, checked by your agent", "Proves which exact code is running before your agent sends anything", SIM],
   ["Encrypt listings on your device to the enclave's attested key", "Your details are never readable outside the enclave, even in transit through our servers", LATER],
   ["Keys released only to attested code", "If anyone changes the code, the keys stop working", LATER],
   ["No debug or operator access to the enclave", "Removes the way in an operator could otherwise use", LATER],
   ["Reproducible builds of both agents", "Anyone can rebuild them and get the same measurements", LATER],
-  ["Independent security audit of the Warden agent's rules", "Experts outside Belong check the rules, not just the code", LATER],
+  ["Independent security audit of the Warden agent's rules", "Outside experts check the rules, not just the code", LATER],
   ["Open-source Warden and Matchmaker agents", "You can read every check and how matching works; the Matchmaker agent still can't get past the checks", NOW],
   ["Hash-chained public receipt log", "The history of checks can't be rewritten", NOW],
-  ["Agent test API (canary test and attack suite)", "Your agent can test Belong itself", NOW],
+  ["Agent test API (canary test and attack suite)", "Your agent can test Belong. itself", NOW],
 ];
 $("promises").innerHTML = PROMISES.map(([p, h, s]) => `<tr><td>${esc(p)}</td><td class="how">${esc(h)}</td><td>${s}</td></tr>`).join("");
 $("roadmap-rows").innerHTML = ROADMAP.map(([p, h, s]) => `<tr><td>${esc(p)}</td><td class="how">${esc(h)}</td><td>${s}</td></tr>`).join("");

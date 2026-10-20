@@ -6,10 +6,11 @@ a connection. It only ever sees its own person's data.
 """
 from __future__ import annotations
 
+import hashlib
 import random
 from dataclasses import replace
 
-from .schema import AGE_BAND_BOUNDS, AGE_BANDS, FIELD_REGISTRY, HIDDEN, Field, Listing
+from .schema import AGE_BAND_BOUNDS, AGE_BANDS, FIELD_REGISTRY, FREE_TEXT_MAX, HIDDEN, Field, Listing
 from .synth import Persona
 
 
@@ -24,13 +25,22 @@ def draft_listing(p: Persona, now: str) -> Listing:
         if spec.sensitive and key not in p.sensitive_on:
             continue
         fields.append(Field(key=key, value=value, visibility=p.visibility[key], sensitive=spec.sensitive))
+    # Synthetic people's notification choices, fixed per person: most take questions, about
+    # half want close matches.
+    pick = int(hashlib.sha256(p.person.id.encode()).hexdigest()[:4], 16)
     return Listing(person_id=p.person.id, intent_text=p.intent_text, exactness=p.truth.exactness,
-                   fields=tuple(fields), updated_at=now, confirmed_shown=tuple(sorted(p.confirmed_shown)))
+                   fields=tuple(fields), updated_at=now, confirmed_shown=tuple(sorted(p.confirmed_shown)),
+                   notify_questions=pick % 10 < 8, notify_close=pick % 2 == 0)
 
 
-def answer_followup(p: Persona, listing: Listing, question_id: str, now: str, rng: random.Random) -> Listing:
+def answer_followup(p: Persona, listing: Listing, question_id: str, now: str, rng: random.Random,
+                    phrase: str = "") -> Listing:
     """The person answers a fixed-menu question; the agent updates the listing."""
     text, exactness = listing.intent_text, listing.exactness
+    if question_id == "also_offer":
+        # Synthetic people have exactly one role in their ground truth, so they honestly can't
+        # take on another: they decline. Real people answer this on their phone (also_offer).
+        return listing
     if question_id == "age_range":
         lo, hi = p.truth.age_range
         lo_age = AGE_BAND_BOUNDS[lo][0]
@@ -47,6 +57,17 @@ def answer_followup(p: Persona, listing: Listing, question_id: str, now: str, rn
             p.truth.exactness = 0.3
     p.intent_text = text
     return replace(listing, intent_text=text, exactness=exactness, updated_at=now, version=listing.version + 1)
+
+
+def also_offer(listing: Listing, phrase: str, now: str) -> Listing:
+    """Yes to "Could you help with that too?": the phrase becomes one more thing they offer."""
+    fields = []
+    for f in listing.fields:
+        both = f"{f.value} or {phrase}"
+        if f.key == "offering" and phrase.lower() not in str(f.value).lower() and len(both) <= FREE_TEXT_MAX:
+            f = replace(f, value=both)
+        fields.append(f)
+    return replace(listing, fields=tuple(fields), updated_at=now, version=listing.version + 1)
 
 
 def reveal_consents(listing: Listing, rng: random.Random) -> set:

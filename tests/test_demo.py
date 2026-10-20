@@ -143,6 +143,85 @@ class Entry(unittest.TestCase):
         self.assertFalse(s.slots["A"].entry["accepted"])
 
 
+
+class Messages(unittest.TestCase):
+    """After both say yes, the two people can talk; nobody else sees what they write."""
+
+    def setUp(self):
+        self.s = DemoSession(seed=7, agent=None)
+        climbers(self.s)
+        self.s.run_matchmaker()
+        self.intro = next(i["intro_id"] for i in self.s.phone_state("A")["intros"]
+                          if {self.s.intros[i["intro_id"]].person_a, self.s.intros[i["intro_id"]].person_b}
+                          == {"demoA-1", "demoB-1"})
+
+    def test_no_messages_until_both_say_yes(self):
+        with self.assertRaises(DemoError):
+            self.s.send_message("A", self.intro, "Hi!")
+        self.s.decide("A", self.intro, True)
+        with self.assertRaises(DemoError):
+            self.s.send_message("A", self.intro, "Hi!")
+
+    def test_messages_reach_only_the_two_people_and_never_matching(self):
+        self.s.decide("A", self.intro, True)
+        self.s.decide("B", self.intro, True)
+        self.s.send_message("A", self.intro, "Hi Ren, Saturday at the bouldering gym?")
+        thread_b = next(i for i in self.s.phone_state("B")["intros"] if i["intro_id"] == self.intro)["thread"]
+        self.assertEqual(thread_b, [{"mine": False, "text": "Hi Ren, Saturday at the bouldering gym?"}])
+        room = json.dumps(self.s.room_state())
+        self.assertNotIn("Saturday at the bouldering gym", room)  # the presenter sees that, not what
+        self.assertNotIn("bouldering gym", json.dumps([l.intent_text for l in self.s.board.listings()]))
+
+
+def repair_people(s: DemoSession, close=True, questions=True):
+    """A wants an AC technician; B is a repairman who wants repair customers."""
+    def person(slot, name, age, prefs, intent, fields):
+        s.verify(slot, name, age)
+        lid = s.new_listing(slot, prefs)
+        s.submit(slot, {"intent_text": intent, "exactness": 0.6,
+                        "fields": [{"key": k, "value": v, "visibility": SHOWN} for k, v in fields.items()]}, lid)
+        return lid
+    a = person("A", "Mia", 30, {"acknowledged": True, "notify_close": close, "notify_questions": True},
+               "Need my air conditioner fixed in Tokyo this weekend.",
+               {"first_name": "Mia", "country": "Japan", "city": "Tokyo", "schedule": "weekends",
+                "seeking": "an air conditioner repair technician", "offering": "an air conditioner repair customer"})
+    b = person("B", "Ken", 42, {"acknowledged": True, "notify_close": False, "notify_questions": questions},
+               "I'm a repairman in Tokyo looking for repair jobs.",
+               {"first_name": "Ken", "country": "Japan", "city": "Tokyo", "schedule": "flexible",
+                "seeking": "a repair customer", "offering": "a repairman"})
+    return a, b
+
+
+class Notifications(unittest.TestCase):
+    def test_the_repairman_is_asked_and_saying_yes_makes_a_match(self):
+        s = DemoSession(seed=7, agent=None)
+        a, b = repair_people(s)
+        s.run_matchmaker()
+        q = s.phone_state("B")["listings"][0]["followups"]
+        self.assertEqual([x["question_text"] for x in q],
+                         ["Someone is looking for an air conditioner repair technician. Could you help with that too?"])
+        self.assertNotIn("Mia", json.dumps(s.phone_state("B")))
+        s.answer_followup("B", "also_offer", {"yes": True}, b)
+        s.run_matchmaker()
+        self.assertTrue(s.phone_state("A")["listings"][0]["intros"])
+        self.assertTrue(s.room_state()["leak_report"]["ok"])
+
+    def test_no_questions_for_someone_who_opted_out(self):
+        s = DemoSession(seed=7, agent=None)
+        repair_people(s, questions=False)
+        s.run_matchmaker()
+        self.assertEqual(s.phone_state("B")["listings"][0]["followups"], [])
+
+    def test_choices_are_on_the_listing_and_off_by_default(self):
+        s = DemoSession(seed=7, agent=None)
+        s.verify("A", "Mia", 30)
+        lid = s.new_listing("A")
+        self.assertEqual(s.phone_state("A")["listings"][0]["prefs"],
+                         {"acknowledged": False, "notify_close": False, "notify_questions": False})
+        s.set_prefs("A", lid, {"notify_close": True})
+        self.assertTrue(s.phone_state("A")["listings"][0]["prefs"]["notify_close"])
+
+
 if __name__ == "__main__":
     unittest.main()
 

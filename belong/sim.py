@@ -48,7 +48,7 @@ def run(n: int = 300, seed: int = 7, matcher=None, k_crowd: int = 20, approach_l
     followups_out = [fo for fo in (warden.exit_followup(f, board) for f in round1.followups) if fo]
     for fo in followups_out:
         p = personas[fo.person_id]
-        updated = agent.answer_followup(p, board.listing(fo.person_id), fo.question_id, clock.now(), rng)
+        updated = agent.answer_followup(p, board.listing(fo.person_id), fo.question_id, clock.now(), rng, fo.phrase)
         warden.admit(p.person, updated, board)
 
     # Day 2: proposals -> introductions
@@ -62,10 +62,14 @@ def run(n: int = 300, seed: int = 7, matcher=None, k_crowd: int = 20, approach_l
     for intro in intros:
         a, b = personas[intro.person_a], personas[intro.person_b]
         good = compatible(a, b)
-        for pid in (intro.person_a, intro.person_b):
+        # A close match goes to its one recipient first; the other person only sees it after a yes.
+        order = sorted((intro.person_a, intro.person_b), key=lambda pid: pid != intro.one_way_to)
+        for pid in order:
             yes = rng.random() < (0.85 if good else 0.25)
             decisions[(intro.intro_id, pid)] = yes
             warden.record_decision(intro.intro_id, pid, yes)
+            if intro.one_way_to and not yes:
+                break
         if warden.is_connected(intro.intro_id):
             connections.add(frozenset((intro.person_a, intro.person_b)))
             ca = agent.reveal_consents(board.listing(intro.person_a), rng)
@@ -118,6 +122,8 @@ def _person_row(p, board, entry) -> dict:
         "kind": p.truth.kind,
         "intent_text": listing.intent_text if listing else p.intent_text,
         "exactness": listing.exactness if listing else p.truth.exactness,
+        "notify_close": bool(listing and listing.notify_close),
+        "notify_questions": bool(listing and listing.notify_questions),
         "fields": [{"key": f.key, "value": value_to_json(f.value), "visibility": f.visibility,
                     "sensitive": f.sensitive} for f in listing.fields] if listing else [],
     }
@@ -129,4 +135,5 @@ def _proposal_row(pr, personas) -> dict:
         "score": pr.score, "shown_score": pr.shown_score, "shown_threshold": pr.shown_threshold,
         "reason_fields": list(pr.reason_fields), "used_hidden_fields": list(pr.used_hidden_fields),
         "truly_compatible": compatible(personas[pr.person_a], personas[pr.person_b]),
+        "close": pr.close,
     }

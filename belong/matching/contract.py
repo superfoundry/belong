@@ -27,12 +27,18 @@ class Proposal:
     shown_threshold: float  # shown_score had to reach this
     reason_fields: tuple  # keys shown by BOTH people
     used_hidden_fields: tuple  # hidden keys that raised the score
+    # A close match: the listing whose intent is only nearly met (one-way, to that listing only,
+    # which must have opted in). "" for an ordinary match, where both intents are met.
+    close: str = ""
 
 
 @dataclass(frozen=True)
 class FollowUp:
     person_id: str
     question_id: str  # must be a key of FOLLOWUP_MENU
+    # For "also_offer": the listing the question is about. The Matchmaker names it; the Warden
+    # writes the question from that listing's shown phrase, and the recipient is never told who.
+    about: str = ""
 
 
 @dataclass

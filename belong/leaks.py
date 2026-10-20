@@ -23,6 +23,9 @@ Audits:
   R2  only counts in a crowd  every hidden field used had a shared value >= k people
   R3  approach limit          no listing introduced more than the weekly limit
   R4  distinct people         no one is introduced to their own other listing
+  R5  opt-ins                 follow-ups only to listings that opted in to questions;
+                              close matches only to listings that opted in to them, and
+                              each one names one of its two people as its one recipient
 """
 from __future__ import annotations
 
@@ -91,7 +94,10 @@ def leak_report(board, introductions: list, followups: list, reveals: list, rece
 
     # A3: follow-ups
     for fu in followups:
-        if FOLLOWUP_MENU.get(fu["question_id"]) != fu["question_text"] or set(fu) != {"person_id", "question_id", "question_text"}:
+        template = FOLLOWUP_MENU.get(fu["question_id"])
+        expected = template.format(phrase=fu.get("phrase", "")) if template else None
+        if expected != fu["question_text"] or set(fu) != {"person_id", "question_id", "question_text", "phrase"} \
+                or (fu.get("phrase") and fu["question_id"] != "also_offer"):
             find("A3", f"follow-up to {fu['person_id']} is not a fixed-menu question")
         for s in every_hidden:
             if _contains(fu["question_text"], s):
@@ -155,6 +161,27 @@ def leak_report(board, introductions: list, followups: list, reveals: list, rece
         a, b = listings.get(intro["person_a"]), listings.get(intro["person_b"])
         if a and b and a.owner == b.owner:
             find("R4", f"{intro['intro_id']}: two listings of the same person were introduced")
+
+    # R5: notification opt-ins
+    for fu in followups:
+        l = listings.get(fu["person_id"])
+        if l is not None and not l.notify_questions:
+            find("R5", f"follow-up sent to {fu['person_id']}, who didn't opt in to questions")
+    # An "also offer" question quotes the shown phrase of someone who opted in to close matches.
+    for fu in followups:
+        if fu["question_id"] != "also_offer":
+            continue
+        sources = [l for l in listings.values() if l.notify_close and l.owner != getattr(listings.get(fu["person_id"]), "owner", None)
+                   and any(f.key == "seeking" and f.visibility == SHOWN and f.value == fu["phrase"] for f in l.fields)]
+        if not sources:
+            find("R5", f"question to {fu['person_id']} quotes a phrase no opted-in listing shows")
+    for intro in introductions:
+        to = intro.get("one_way_to") or ""
+        if not to:
+            continue
+        l = listings.get(to)
+        if to not in (intro["person_a"], intro["person_b"]) or l is None or not l.notify_close:
+            find("R5", f"{intro['intro_id']}: close match sent to {to}, who didn't opt in to close matches")
 
     # R3: approach limit
     for person, n in intro_count.items():
