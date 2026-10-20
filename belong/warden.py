@@ -439,11 +439,25 @@ class Warden:
         if not self._receipt("approach_limit", under_limit, subject):
             return None
 
+        views = self._checked_views(a, b, reasons, subject)
+        if views is None:
+            return None
+        a_view, b_view = views
+
+        intro = Introduction(_SEAL, f"i{self._next_intro:04d}", a_id, b_id, a_view, b_view, one_way_to=close)
+        self._next_intro += 1
+        self._intros[intro.intro_id] = intro
+        for p in (a_id, b_id):
+            self._approaches.setdefault(p, []).append(self.clock.now())
+        return intro
+
+    def _checked_views(self, a: Listing, b: Listing, reasons: list, subject: dict):
+        """Build both people's views from shown fields only, and check them. None if any check fails."""
+        a_shown, b_shown = a.shown(), b.shown()
         a_view = {"fields": {k: value_to_json(v) for k, v in b_shown.items()},
                   "reason": reason_text([(k, a_shown[k], b_shown[k]) for k in reasons])}
         b_view = {"fields": {k: value_to_json(v) for k, v in a_shown.items()},
                   "reason": reason_text([(k, b_shown[k], a_shown[k]) for k in reasons])}
-
         ok = True
         for viewer, other, view in ((a, b, a_view), (b, a, b_view)):
             ok &= self._receipt("introduction_schema", _view_schema_ok(view), subject)
@@ -451,14 +465,26 @@ class Warden:
             ok &= self._receipt("reason_refs_only_reason_fields",
                                 _reason_uses_only(view["reason"], reasons, viewer, other), subject)
             ok &= self._receipt("no_hidden_values", not _hidden_in_view(view, viewer, other, reasons), subject)
-        if not ok:
-            return None
+        return (a_view, b_view) if ok else None
 
-        intro = Introduction(_SEAL, f"i{self._next_intro:04d}", a_id, b_id, a_view, b_view, one_way_to=close)
-        self._next_intro += 1
-        self._intros[intro.intro_id] = intro
-        for p in (a_id, b_id):
-            self._approaches.setdefault(p, []).append(self.clock.now())
+    def refresh_introduction(self, intro_id: str, reasons: list, board: Marketboard):
+        """Reissue an introduction after either person updated their listing, so each sees the
+        other's current shown details (a new first name, a city they now show) and nothing they've
+        since hidden. Same id, decisions and one-way recipient; the same checks as at first. Reason
+        fields either person no longer shows are dropped. Returns the new Introduction, or None
+        (the old one stands) if the checks fail."""
+        old = self._intros.get(intro_id)
+        if old is None or old.person_a not in board or old.person_b not in board:
+            return None
+        a, b = board.listing(old.person_a), board.listing(old.person_b)
+        subject = {"intro": intro_id, "refresh": True}
+        a_shown, b_shown = a.shown(), b.shown()
+        reasons = [k for k in reasons if k in a_shown and k in b_shown]
+        views = self._checked_views(a, b, reasons, subject)
+        if views is None:
+            return None
+        intro = Introduction(_SEAL, intro_id, old.person_a, old.person_b, views[0], views[1], one_way_to=old.one_way_to)
+        self._intros[intro_id] = intro
         return intro
 
     def _approaches_this_week(self, person_id: str) -> int:

@@ -175,6 +175,7 @@ class DemoSession:
         self.slots = {s: _Slot(s) for s in SLOTS}
         self.events = []
         self.intros = {}  # intro_id -> Introduction
+        self.intro_reasons = {}  # intro_id -> the reason fields it was made with
         self.threads = {}  # intro_id -> [{"from": listing_id, "text"}]: messages between two connected people
         self.introduced_pairs = set()
         self.decisions = {}  # (intro_id, listing_id) -> bool
@@ -280,9 +281,26 @@ class DemoSession:
                 start = len(self.warden.receipts)
                 result = self.warden.admit(st.person, replace(current, fields=fields, updated_at=self.clock.now(),
                                                               version=current.version + 1), self.board)
+                if result.accepted:
+                    self._refresh_intros(mine.id)
                 self._event("in" if result.accepted else "blocked", f"{name} updated their profile",
                             "Re-checked by the Warden like any update." if result.accepted else "; ".join(result.problems),
                             receipts=self._receipts_since(start, slot), slots=[slot])
+
+    def _refresh_intros(self, listing_id: str) -> None:
+        """After a listing changes, the Warden reissues its introductions so the other person
+        sees its current shown details (a new name, say) and nothing since hidden."""
+        for intro_id, intro in list(self.intros.items()):
+            if listing_id not in (intro.person_a, intro.person_b):
+                continue
+            start = len(self.warden.receipts)
+            new = self.warden.refresh_introduction(intro_id, self.intro_reasons.get(intro_id, []), self.board)
+            receipts = self._receipts_since(start)
+            for s in (self._slot_of(intro.person_a), self._slot_of(intro.person_b)):
+                if s:
+                    self.slots[s].receipts += receipts
+            if new is not None:
+                self.intros[intro_id] = new
 
     # -- listings --------------------------------------------------------------------
 
@@ -339,6 +357,8 @@ class DemoSession:
                               updated_at=self.clock.now(), version=current.version + 1)
             start = len(self.warden.receipts)
             result = self.warden.admit(st.person, updated, self.board)
+            if result.accepted:
+                self._refresh_intros(mine.id)
             self._event("in" if result.accepted else "blocked", f"{st.name} changed their notification choices",
                         f"Close matches {'on' if mine.prefs['notify_close'] else 'off'}, questions "
                         f"{'on' if mine.prefs['notify_questions'] else 'off'}.",
@@ -447,6 +467,7 @@ class DemoSession:
         title = self._title(mine.draft, listing)
         if result.accepted:
             mine.followups = []
+            self._refresh_intros(mine.id)
             self._event("in", f"{st.name}'s listing accepted: {title}",
                         f"{len(listing.fields)} details ({n_hidden} hidden) passed the Warden's entry check.",
                         receipts=receipts, slots=[slot])
@@ -523,6 +544,7 @@ class DemoSession:
                 continue
             self.introduced_pairs.add(pair)
             self.intros[intro.intro_id] = intro
+            self.intro_reasons[intro.intro_id] = list(p.reason_fields)
             for _, listing in owners:
                 listing.intro_ids.append(intro.intro_id)
                 # "We haven't found a match yet" no longer applies.
@@ -605,6 +627,8 @@ class DemoSession:
         start = len(self.warden.receipts)
         result = self.warden.admit(st.person, updated, self.board)
         receipts = self._receipts_since(start, slot)
+        if result.accepted:
+            self._refresh_intros(mine.id)
         self._event("in" if result.accepted else "blocked", f"{st.name}'s answer updated their listing",
                     "Re-checked by the Warden like any update." if result.accepted else "; ".join(result.problems),
                     receipts=receipts, slots=[slot])

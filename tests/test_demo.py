@@ -241,6 +241,20 @@ class Notifications(unittest.TestCase):
         self.assertEqual(s.board.listing("demoA-1").get("first_name").value, "Yu")
         self.assertEqual(s.phone_state("A")["name"], "Yu")
 
+    def test_the_other_person_sees_your_new_name(self):
+        s = DemoSession(seed=7, agent=None)
+        climbers(s)
+        s.run_matchmaker()
+        intro = next(i["intro_id"] for i in s.phone_state("B")["intros"]
+                     if {s.intros[i["intro_id"]].person_a, s.intros[i["intro_id"]].person_b} == {"demoA-1", "demoB-1"})
+        s.decide("A", intro, True)
+        s.decide("B", intro, True)
+        s.update_profile("A", "Yu")
+        seen_by_b = next(i for i in s.phone_state("B")["intros"] if i["intro_id"] == intro)
+        self.assertEqual(seen_by_b["view"]["fields"]["first_name"], "Yu")
+        self.assertEqual(seen_by_b["status"], "connected")  # same introduction, decisions kept
+        self.assertTrue(s.room_state()["leak_report"]["ok"])
+
     def test_defaults_apply_to_new_listings_once_asking_is_off(self):
         s = DemoSession(seed=7, agent=None)
         s.verify("A", "Mia", 30)
