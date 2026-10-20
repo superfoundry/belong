@@ -203,8 +203,13 @@ function statusCard(latest) {
   const l = listing();
   if (!l || !l.listed) return "";
   const fresh = l.intros.filter(i => i.status === "pending" && !L.seen[i.intro_id]);
-  if (latest && fresh.length) {
-    return `<div class="card"><p class="title">${fresh.length === 1 ? "1 new introduction" : `${fresh.length} new introductions`}<span class="badge">New</span></p>
+  const exact = fresh.filter(i => !i.close).length, close = fresh.length - exact;
+  const questions = l.followups.filter(q => !L.seen[`q:${l.id}:${q.question_id}`]).length;
+  const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
+  const parts = [exact && plural(exact, "new introduction", "new introductions"), close && plural(close, "close match", "close matches"),
+                 questions && plural(questions, "follow-up question", "follow-up questions")].filter(Boolean);
+  if (latest && parts.length) {
+    return `<div class="card"><p class="title">${parts.join(" · ")}<span class="badge">New</span></p>
       <p class="sub">${esc(cap(l.title))}</p>
       <div class="actions"><button class="btn primary" onclick="showNew()">Show them</button></div></div>`;
   }
@@ -281,6 +286,7 @@ async function checkMatches() {
                  ...l.intros.filter(i => i.status === "pending").slice(0, 3).map(i => ({ kind: "intro", id: i.intro_id }))];
   const n = l.intros.filter(i => i.status === "pending").length;
   for (const i of l.intros) L.seen[i.intro_id] = true;
+  for (const q of l.followups) L.seen[`q:${l.id}:${q.question_id}`] = true;
   L.log.push({ app: true, cards: cards.length ? cards : [{ kind: "empty" }],
     bot: n ? `${n === 1 ? "One person" : `${n} people`} ${n === 1 ? "is" : "are"} also looking for you. Only you can say yes, and you're introduced only if they say yes too.`
            : cards.length ? "Answering could find you more matches." : "Nothing yet. Ask me again later." });
@@ -290,7 +296,7 @@ async function checkMatches() {
 // introductions appear as a normal turn.
 async function showNew() {
   if (L.sending) return;
-  L.log.push({ me: "Show me my new introductions" }); L.sending = true; L.jump = true; render();
+  L.log.push({ me: "Show me what's new from Belong." }); L.sending = true; L.jump = true; render();
   try { await checkMatches(); } finally { L.sending = false; L.jump = true; render(); }
 }
 // While the chat is open, the live card checks with Belong. now and then (in the demo, that runs matching).
@@ -298,9 +304,10 @@ setInterval(async () => {
   const live = L.log.some(t => (t.cards || []).some(c => c.kind === "status" && c.latest));
   if (!ME || !live || L.sending || L.confirm || L.popup) return;
   const l = listing(); if (!l || !l.listed) return;
-  const before = l.intros.length;
+  const sig = x => JSON.stringify([x.intros.map(i => i.intro_id), x.followups.map(q => q.question_id)]);
+  const before = sig(l);
   await api("match");
-  if (listing().intros.length !== before) render();
+  if (sig(listing()) !== before) render();
 }, 6000);
 
 // ---- changing anything goes through ChatGPT's confirmation ----
