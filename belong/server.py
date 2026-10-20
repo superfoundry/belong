@@ -46,6 +46,7 @@ ACTIONS = {
     "update_profile": lambda s, b: s.update_profile(b.get("slot"), b.get("name")),
     "set_prefs": lambda s, b: s.set_prefs(b.get("slot"), b.get("listing_id"), b.get("prefs")),
     "message": lambda s, b: s.send_message(b.get("slot"), b.get("intro_id"), b.get("text")),
+    "react": lambda s, b: s.react(b.get("slot"), b.get("intro_id"), b.get("index"), b.get("emoji")),
     "open_listing": lambda s, b: s.open_listing(b.get("slot"), b.get("listing_id")),
     "prefill": lambda s, b: s.prefill(b.get("slot"), b.get("text"), b.get("listing_id")),
     "agent": lambda s, b: s.agent_message(b.get("slot"), b.get("text"), b.get("listing_id")),

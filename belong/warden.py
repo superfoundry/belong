@@ -69,17 +69,19 @@ class Introduction(_Sealed):
 
 
 class FollowUpOut(_Sealed):
-    def __init__(self, seal, person_id: str, question_id: str, phrase: str = "", mirror: str = ""):
+    def __init__(self, seal, person_id: str, question_id: str, phrase: str = "", offer_add: str = "",
+                 seek_add: str = ""):
         super().__init__(seal)
         self.person_id, self.question_id, self.phrase = person_id, question_id, phrase
-        # For "also_offer": who the asker is (their shown "you are" phrase). Never shown in the
-        # question; if the person says yes, it joins who they're looking for, so a match can follow.
-        self.mirror = mirror
+        # For "also_offer": if the person says yes, the asker's shown phrases join theirs (what the
+        # asker wants joins what they offer; who the asker is joins who they look for), so a match
+        # can follow. Never shown in the question.
+        self.offer_add, self.seek_add = offer_add, seek_add
         self.question_text = FOLLOWUP_MENU[question_id].format(phrase=phrase)
 
     def to_dict(self) -> dict:
         return {"person_id": self.person_id, "question_id": self.question_id, "question_text": self.question_text,
-                "phrase": self.phrase, "mirror": self.mirror}
+                "phrase": self.phrase, "offer_add": self.offer_add, "seek_add": self.seek_add}
 
 
 class Reveal(_Sealed):
@@ -230,6 +232,19 @@ def _strings_of(listing: Listing, visibility: str) -> set:
 # Reason text: written by the Warden from reason_fields only (SPEC §6: never in the reason).
 # --------------------------------------------------------------------------------------
 
+def _lower_first(text: str) -> str:
+    return text[:1].lower() + text[1:]
+
+
+def quoted_phrase(shown: dict) -> str:
+    """How a question describes another listing: its headline ("selling 100 cardboard boxes"),
+    or "looking for" plus its phrase when it has no usable headline."""
+    headline = shown.get("headline")
+    if isinstance(headline, str) and re.match(r"^[A-Za-z]+ing\b", headline):
+        return _lower_first(headline.strip().rstrip("."))
+    return f"looking for {shown.get('seeking')}"
+
+
 def reason_text(key_values: list[tuple[str, object, object]]) -> str:
     """key_values: (key, my_value, their_value) for each reason field, from the
     recipient's point of view. Uses nothing else."""
@@ -237,6 +252,7 @@ def reason_text(key_values: list[tuple[str, object, object]]) -> str:
     # "They're looking for X" only describes the reader (that's why they were matched), so
     # say who they are instead whenever "offering" is a reason.
     has_offering = any(key == "offering" for key, _, _ in key_values)
+    has_headline = any(key == "headline" for key, _, _ in key_values)
     for key, mine, theirs in key_values:
         if key in ("city", "country"):
             parts.append(f"You're both in {theirs}.")
@@ -263,8 +279,10 @@ def reason_text(key_values: list[tuple[str, object, object]]) -> str:
             parts.append(f"You both plan to move in {theirs}.")
         elif key == "seeking" and not has_offering:
             parts.append(f"They're looking for {theirs}.")
-        elif key == "offering":
+        elif key == "offering" and not has_headline:
             parts.append(f"They're {theirs}.")
+        elif key == "headline":
+            parts.append(f"They're {_lower_first(str(theirs).strip().rstrip('.'))}.")
     return " ".join(parts)
 
 
@@ -329,7 +347,8 @@ class Warden:
         check("sensitive_defaults", not sens, f"sensitive fields shown without confirmation: {sens}")
         # The rule covers the intent and the free-text fields ("seeking", "offering").
         texts = [listing.intent_text] + [s for f in listing.fields
-                                         if f.key in ("seeking", "offering", "pay", "format", "topics") for s in f.strings()]
+                                         if f.key in ("seeking", "offering", "pay", "format", "topics", "headline")
+                                         for s in f.strings()]
         sp = sorted({p for t in texts for p in specific_person_problems(t)})
         check("specific_person", not sp, f"intent could identify one person ({', '.join(sp)})")
         check("update_rate_limit", self._within_update_limit(listing.person_id), "too many listing updates today")
@@ -469,15 +488,17 @@ class Warden:
         ok = them is not None and them.owner != me.owner and them.notify_close
         if not self._receipt("also_offer_requester_opted_in", ok, subject):
             return None
-        phrase, mirror = them.shown().get("seeking"), them.shown().get("offering")
-        shown = all(isinstance(x, str) and bool(x.strip()) for x in (phrase, mirror))
-        if not self._receipt("also_offer_phrase_shown", shown, subject):
+        shown_them = them.shown()
+        seeking, offering = shown_them.get("seeking"), shown_them.get("offering")
+        ok = all(isinstance(x, str) and bool(x.strip()) for x in (seeking, offering))
+        if not self._receipt("also_offer_phrase_shown", ok, subject):
             return None
+        phrase = quoted_phrase(shown_them)
         forbidden = _strings_of(me, HIDDEN) | _strings_of(them, HIDDEN)
-        clean = not find_forbidden(f"{phrase} {mirror}", forbidden, _strings_of(them, SHOWN))
+        clean = not find_forbidden(f"{phrase} {seeking} {offering}", forbidden, _strings_of(them, SHOWN))
         if not self._receipt("no_hidden_values", clean, subject):
             return None
-        return FollowUpOut(_SEAL, followup.person_id, "also_offer", phrase, mirror)
+        return FollowUpOut(_SEAL, followup.person_id, "also_offer", phrase, seeking, offering)
 
     # -- Decisions and mutual reveal -------------------------------------------
 

@@ -39,6 +39,19 @@ RECEIPT_KEYS = {"seq", "check", "result", "timestamp", "commitment", "hash"}
 _HEX64 = re.compile(r"[0-9a-f]{64}")
 
 
+def _shown(listing, key):
+    f = listing.get(key)
+    return f.value if f is not None and f.visibility == SHOWN else None
+
+
+def _as_quoted(headline):
+    """Re-implemented, not imported from the Warden: a headline as a question quotes it."""
+    if not isinstance(headline, str) or not re.match(r"^[A-Za-z]+ing\b", headline):
+        return None
+    h = headline.strip().rstrip(".")
+    return h[:1].lower() + h[1:]
+
+
 def _contains(text: str, s: str) -> bool:
     return re.search(r"(?<!\w)" + re.escape(s) + r"(?!\w)", text, flags=re.I) is not None
 
@@ -96,8 +109,9 @@ def leak_report(board, introductions: list, followups: list, reveals: list, rece
     for fu in followups:
         template = FOLLOWUP_MENU.get(fu["question_id"])
         expected = template.format(phrase=fu.get("phrase", "")) if template else None
-        if expected != fu["question_text"] or set(fu) != {"person_id", "question_id", "question_text", "phrase", "mirror"} \
-                or ((fu.get("phrase") or fu.get("mirror")) and fu["question_id"] != "also_offer"):
+        if expected != fu["question_text"] or set(fu) != {"person_id", "question_id", "question_text", "phrase",
+                                                          "offer_add", "seek_add"} \
+                or ((fu.get("phrase") or fu.get("offer_add") or fu.get("seek_add")) and fu["question_id"] != "also_offer"):
             find("A3", f"follow-up to {fu['person_id']} is not a fixed-menu question")
         for s in every_hidden:
             if _contains(fu["question_text"], s):
@@ -172,8 +186,8 @@ def leak_report(board, introductions: list, followups: list, reveals: list, rece
         if fu["question_id"] != "also_offer":
             continue
         sources = [l for l in listings.values() if l.notify_close and l.owner != getattr(listings.get(fu["person_id"]), "owner", None)
-                   and any(f.key == "seeking" and f.visibility == SHOWN and f.value == fu["phrase"] for f in l.fields)
-                   and any(f.key == "offering" and f.visibility == SHOWN and f.value == fu["mirror"] for f in l.fields)]
+                   and _shown(l, "seeking") == fu["offer_add"] and _shown(l, "offering") == fu["seek_add"]
+                   and fu["phrase"] in (_as_quoted(_shown(l, "headline")), f"looking for {_shown(l, 'seeking')}")]
         if not sources:
             find("R5", f"question to {fu['person_id']} quotes a phrase no opted-in listing shows")
     for intro in introductions:

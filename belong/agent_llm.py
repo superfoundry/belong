@@ -26,7 +26,7 @@ import re
 from . import synth as vocab
 from .agent import _BY_KIND, _COMMON, _KIND_NAMES, _SENSITIVE_VOCAB, ALL_MONTHS, LABELS, field_options
 from .matching.intent import REMOTE_KINDS, parse_intent
-from .schema import FIELD_REGISTRY, FREE_TEXT_MAX, HIDDEN, SHOWN
+from .schema import HEADLINE_MAX, FIELD_REGISTRY, FREE_TEXT_MAX, HIDDEN, SHOWN
 from .warden import specific_person_problems
 
 MODEL = "claude-opus-5-5"
@@ -151,7 +151,13 @@ guitarist / drummer etc. Examples: "teach me to fish" -> seeking "a fishing teac
 fishing student"; someone happy to teach fishing -> seeking "a fishing student", offering "a \
 fishing teacher"; a band leader -> seeking "a ska guitarist", offering "a ska band"; a guitarist \
 looking for a band -> seeking "a ska band", offering "a ska guitarist"; "someone to play chess with" \
--> seeking and offering "a chess partner". Also set "topics": two to five broader skills or areas the \
+-> seeking and offering "a chess partner". Those two phrases are for matching only and can sound \
+stiff; people never see them as titles. Also set "headline": the listing in plain, natural words, as \
+the person would say it, starting with an -ing word, under 60 characters: "Selling 100 cardboard \
+boxes", "Looking for free cardboard boxes", "Teaching beginner guitar", "Looking for someone to fix \
+a leaking tap", "Starting a punk band and need a drummer". Leave out the place, times and price: they \
+have their own fields. It's the listing's title, so update it \
+whenever the request changes. Also set "topics": two to five broader skills or areas the \
 listing is about, so related requests can be found even when the words differ (someone wanting a bass teacher: \
 "bass guitar", "music theory"; a guitarist who teaches: "guitar", "bass guitar"; a leaking tap: \
 "plumbing", "home repair"). Specific enough to mean something: never just \
@@ -249,6 +255,11 @@ def _clean_value(key: str, values: list, city) -> tuple:
     return values[0], None
 
 
+# A headline starts with an -ing word ("Selling...", "Looking for..."), so the Warden can quote it
+# in a sentence: "Someone is selling 100 cardboard boxes."
+_ING = re.compile(r"^[A-Za-z]+ing\b")
+
+
 def _suggestions(raw) -> list:
     """The agent's suggestions for what to add next, as short plain strings (they're shown only
     to the person, as buttons that start a message)."""
@@ -332,6 +343,13 @@ def build_draft(args: dict, first_name: str, age_band: str) -> tuple:
         if "topics" in values:
             visibility["topics"] = SHOWN  # used to spot related requests, so it must be shown
             values["topics"] = values["topics"][:5]
+        if "headline" in values:
+            visibility["headline"] = SHOWN  # it's the listing's title
+            if len(values["headline"]) > HEADLINE_MAX or not _ING.match(values["headline"]):
+                problems.append(f"headline must be under {HEADLINE_MAX} characters and start with an -ing word, "
+                                "e.g. 'Selling 100 cardboard boxes', 'Looking for free cardboard boxes'.")
+        else:
+            missing.append("a headline (e.g. 'Selling 100 cardboard boxes')")
     known = next((c for c in vocab.CITIES if city and city.lower() == c.lower()), None)
     if "country" not in values and known:
         values["country"] = vocab.COUNTRY_NAMES[vocab.CITIES[known][0]]  # a city we know: fill in its country
@@ -354,7 +372,7 @@ def build_draft(args: dict, first_name: str, age_band: str) -> tuple:
     options = field_options(kind, city)
     # The kind's usual fields, the two phrases for every non-dating listing, and anything else
     # the agent set (e.g. native_language on an open-ended listing). Nothing set is dropped.
-    keys = list(dict.fromkeys(_COMMON + _BY_KIND.get(kind, []) + ([] if kind == "dating" else ["seeking", "offering", "topics"])
+    keys = list(dict.fromkeys(_COMMON + _BY_KIND.get(kind, []) + ([] if kind == "dating" else ["headline", "seeking", "offering", "topics"])
                               + [k for k in values if k in FIELD_REGISTRY]))
     fields = []
     for key in keys:

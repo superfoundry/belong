@@ -68,7 +68,7 @@ marks agent output and every hidden field; tide (`accent-olive`) is live status,
 screen. Hidden fields use the fixed look: sunken well, dusk hairline, "Hidden" badge, "Used for
 matching, never shown". Sentence case, no emoji, no lock/shield/eye imagery; say "shown" and
 "hidden", never synonyms. Exception, by the user's choice: after a match say "See what else you
-have in common" / "Compare", not the design system's "Reveal to each other". Also by the user's choice: no "A SuperFoundry company" family mark in the footer. And notification dots on the phone are pure red (`--notify: #ff0000`), outside the token palette.
+have in common" / "Compare", not the design system's "Reveal to each other". Also by the user's choice: no "A SuperFoundry company" family mark in the footer. And notification dots on the phone are pure red (`--notify: #ff0000`), outside the token palette. And message reactions use a fixed few emoji (`REACTIONS` in demo.py), the one place emoji appear.
 
 ## Documentation
 

@@ -108,6 +108,51 @@
   .found-card .grow > span { display: block; }
   .found-card .msg-preview { margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 220px; }
   .unread-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--notify); flex-shrink: 0; }
+  .thread { display: flex; flex-direction: column; height: 100%; background: var(--surface-app); }
+  .thread-head { display: flex; align-items: center; gap: var(--space-3); padding: var(--space-5) var(--space-4) var(--space-3);
+                 background: var(--surface-card); border-bottom: 1px solid var(--border-subtle); }
+  .thread-head .back { padding: var(--space-2); }
+  .thread-head .back .back-chev { margin: 0 0 0 4px; }
+  .thread-head .heading-s { margin: 0; }
+  .why { all: unset; cursor: pointer; display: inline-flex; align-items: center; gap: 2px; font: var(--text-caption); color: var(--text-accent); }
+  .why .chevron { width: 6px; height: 6px; margin: -3px 0 0 4px; border-color: var(--text-accent); }
+  .why[aria-expanded="true"] .chevron { transform: rotate(-135deg); margin-top: 3px; }
+  .why-panel { background: var(--surface-card); border-bottom: 1px solid var(--border-subtle); padding: var(--space-3) var(--space-4) var(--space-4); }
+  .thread-pane { flex: 1; overflow-y: auto; padding: var(--space-4); }
+  .thread-note { text-align: center; margin: var(--space-2) 0 var(--space-4); }
+  .msg-row { display: flex; align-items: flex-end; gap: var(--space-2); margin: 2px 0; }
+  .msg-row.first { margin-top: var(--space-3); }
+  .msg-row.me { justify-content: flex-end; }
+  .msg-col { display: flex; flex-direction: column; max-width: 74%; }
+  .msg-row.me .msg-col { align-items: flex-end; }
+  .bubble-wrap { position: relative; display: flex; align-items: center; gap: 4px; }
+  .msg-row .bubble { margin: 0; max-width: 100%; }
+  /* Rounded like a chat app; the corner by the avatar is square only on the last in a group. */
+  .msg-row .bubble.them { border-radius: var(--radius-lg); }
+  .msg-row .bubble.me { border-radius: var(--radius-lg); }
+  .msg-row.last .bubble.them { border-bottom-left-radius: var(--radius-sm); }
+  .msg-row.last .bubble.me { border-bottom-right-radius: var(--radius-sm); }
+  .avatar-space { width: 30px; flex-shrink: 0; }
+  .msg-time { font: var(--text-caption); font-size: 11px; color: var(--text-tertiary); margin-top: 4px; padding: 0 4px; }
+  .react-btn { all: unset; cursor: pointer; width: 26px; height: 26px; border-radius: 50%; display: inline-flex; align-items: center;
+               justify-content: center; color: var(--text-tertiary); opacity: .45; transition: opacity var(--duration-fast); }
+  .bubble-wrap:hover .react-btn, .react-btn:focus-visible { opacity: 1; }
+  .react-btn:hover { background: var(--surface-raised); color: var(--text-primary); }
+  .react-btn:focus-visible { outline: 2px solid var(--focus-ring); }
+  .react-picker { position: absolute; bottom: calc(100% + 4px); z-index: 3; display: flex; gap: 2px; padding: 4px;
+                  background: var(--surface-card); border: 1px solid var(--border-default); border-radius: var(--radius-pill); box-shadow: var(--shadow-md); }
+  .msg-row.them .react-picker { left: 0; } .msg-row.me .react-picker { right: 0; }
+  .react-picker button { all: unset; cursor: pointer; font-size: 20px; width: 34px; height: 34px; display: inline-flex; align-items: center;
+                         justify-content: center; border-radius: 50%; transition: transform var(--duration-fast) var(--ease-standard); }
+  .react-picker button:hover { background: var(--surface-raised); transform: scale(1.15); }
+  .reactions { display: flex; gap: 4px; margin-top: -6px; padding: 0 6px; position: relative; }
+  .reaction { all: unset; cursor: pointer; font-size: 13px; padding: 1px 6px; border-radius: var(--radius-pill); background: var(--surface-card);
+              border: 1px solid var(--border-default); box-shadow: var(--shadow-sm); }
+  .reaction.mine { border-color: var(--border-accent); }
+  .avatar { width: 30px; height: 30px; flex-shrink: 0; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center;
+            background: var(--surface-sunken); color: var(--text-secondary); font-family: var(--font-display); font-weight: 700; font-size: 13px; }
+  .thread-head .avatar { width: 40px; height: 40px; font-size: 16px; }
+  .msg-row.me .avatar { background: var(--surface-inverse); color: var(--text-inverse); }
   .about-match summary { cursor: pointer; font: var(--text-label); font-weight: 600; color: var(--text-accent); }
   .chat-sheet.match-chat { height: 64%; }
   .sheet-head.static { cursor: default; flex-direction: column; align-items: flex-start; gap: 2px; }
@@ -283,7 +328,7 @@ let S = null;               // last state from the server
 let scenario = "blank";
 // Per phone: the open tab, the verify form, which listing is open, and per-listing local
 // state (an editable copy of the draft, the half-typed message, chat sheet state).
-const fresh = () => ({ tab: null, view: null, thread: null, q: null, form: {}, current: null, ls: {}, seen: {}, msg: {} });
+const fresh = () => ({ tab: null, view: null, thread: null, q: null, form: {}, current: null, ls: {}, seen: {}, msg: {}, seenFound: {} });
 const local = { A: fresh(), B: fresh() };
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const val = v => Array.isArray(v) ? v.join(", ") : v;
@@ -362,7 +407,8 @@ function renderPhone(slot) {
   const p = S.phones[slot], L = local[slot], screen = screenFor(slot);
   if (screen === "thread") { const i = connected(p).find(x => x.intro_id === L.thread); if (i) L.seen[i.intro_id] = (i.thread || []).length; }
   const pending = p.listings.reduce((n, l) => n + needsAnswer(l), 0);
-  const newMessages = connected(p).some(i => unread(slot, i));
+  if (screen === "found" || screen === "thread") for (const i of connected(p)) L.seenFound[i.intro_id] = true;
+  const newMessages = connected(p).some(i => unread(slot, i) || !L.seenFound[i.intro_id]);
   const onTab = screen === "belong" || screen === "found";
   const tabs = onTab ? `<nav class="tabbar" aria-label="Main">
       ${[["belong", "Belong.", pending], ["found", "Found.", newMessages]].map(([id, label, dot]) =>
@@ -378,15 +424,68 @@ function renderPhone(slot) {
   // Keep the profile pane's scroll position across redraws (editing, agent updates).
   const oldPane = document.querySelector(`#phone-${slot} .profile-pane`);
   const paneScroll = oldPane ? oldPane.scrollTop : 0;
-  const split = screen === "profile" || screen === "thread";
+  const split = screen === "profile";
   $("phone-" + slot).innerHTML = screen === "privacy"
     ? `<div class="screen" id="screen-${slot}">${SCREENS.privacy(slot, p, L)}</div>`
+    : screen === "thread" ? SCREENS.thread(slot, p, L)
     : `<div class="top"><span class="wordmark">Belong.</span>${status}${menu}</div>
     <div class="screen${split ? " split" : ""}" id="screen-${slot}">${SCREENS[screen](slot, p, L)}</div>${tabs}`;
+  if (screen === "thread") renderThreadScroll(slot);
   if (split) {
     const chat = document.querySelector(`#phone-${slot} .chat-pane`); if (chat) chat.scrollTop = chat.scrollHeight;
     const pane = document.querySelector(`#phone-${slot} .profile-pane`); if (pane) pane.scrollTop = paneScroll;
   }
+}
+// Like a chat app: messages in a row from the same person form a group; only the latest in a
+// group shows the avatar and the time. Each message can get one of a few reactions.
+const REACTIONS = ["👍", "❤️", "😂", "😮", "🙏"];
+const SMILE_PLUS = `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 11v1a10 10 0 1 1-9-10"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><line x1="9" x2="9.01" y1="9" y2="9"/><line x1="15" x2="15.01" y1="9" y2="9"/><path d="M16 5h6"/><path d="M19 2v6"/></svg>`;  // Lucide "smile-plus"
+function msgTime(at) {
+  if (!at) return "";
+  const d = new Date(at), now = new Date();
+  const time = d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+  return d.toDateString() === now.toDateString() ? time : `${d.toLocaleDateString([], { month: "short", day: "numeric" })}, ${time}`;
+}
+function messageRow(slot, i, m, n, t, theirName, myName) {
+  const next = t[n + 1], last = !next || next.mine !== m.mine;
+  const first = n === 0 || t[n - 1].mine !== m.mine;
+  const who = m.mine ? "me" : "them";
+  const avatar = last ? `<span class="avatar" aria-hidden="true">${esc(((m.mine ? myName : theirName) || "?").slice(0, 1).toUpperCase())}</span>`
+                      : `<span class="avatar-space"></span>`;
+  const open = local[slot].reactOpen === `${i.intro_id}:${n}`;
+  const counts = {};
+  for (const r of m.reactions || []) { counts[r.emoji] ||= { n: 0, mine: false }; counts[r.emoji].n++; counts[r.emoji].mine ||= r.mine; }
+  const chips = Object.entries(counts).map(([e, c]) =>
+    `<button class="reaction${c.mine ? " mine" : ""}" onclick="react('${slot}','${i.intro_id}',${n},'${e}')" aria-label="${c.mine ? "Remove your reaction" : "React"} ${e}">${e}${c.n > 1 ? ` ${c.n}` : ""}</button>`).join("");
+  const picker = open ? `<div class="react-picker" role="menu">${REACTIONS.map(e =>
+    `<button role="menuitem" onclick="react('${slot}','${i.intro_id}',${n},'${e}')" aria-label="React ${e}">${e}</button>`).join("")}</div>` : "";
+  return `<div class="msg-row ${who}${first ? " first" : ""}${last ? " last" : ""}">
+    ${m.mine ? "" : avatar}
+    <div class="msg-col">
+      <div class="bubble-wrap">${m.mine ? `<button class="react-btn" aria-label="React to this message" onclick="toggleReact('${slot}','${i.intro_id}:${n}')">${SMILE_PLUS}</button>` : ""}
+        <div class="bubble ${who}">${esc(m.text)}</div>
+        ${m.mine ? "" : `<button class="react-btn" aria-label="React to this message" onclick="toggleReact('${slot}','${i.intro_id}:${n}')">${SMILE_PLUS}</button>`}${picker}</div>
+      ${chips ? `<div class="reactions">${chips}</div>` : ""}
+      ${last ? `<span class="msg-time">${esc(msgTime(m.at))}</span>` : ""}
+    </div>
+    ${m.mine ? avatar : ""}</div>`;
+}
+// Tapping anywhere else closes an open reaction picker.
+document.addEventListener("click", e => {
+  for (const slot of ["A", "B"]) {
+    if (local[slot].reactOpen && !e.target.closest(`#phone-${slot} .react-picker, #phone-${slot} .react-btn`)) {
+      local[slot].reactOpen = null; renderPhone(slot);
+    }
+  }
+});
+function toggleReact(slot, key) { local[slot].reactOpen = local[slot].reactOpen === key ? null : key; renderPhone(slot); }
+async function react(slot, intro_id, index, emoji) {
+  local[slot].reactOpen = null;
+  await api("react", { slot, intro_id, index, emoji });
+  renderPhone(slot);
+}
+function renderThreadScroll(slot) {
+  const pane = document.querySelector(`#phone-${slot} .thread-pane`); if (pane) pane.scrollTop = pane.scrollHeight;
 }
 function go(slot, tab) { Object.assign(local[slot], { tab, view: null, menu: false }); renderPhone(slot); }
 function toggleMenu(slot) { local[slot].menu = !local[slot].menu; renderPhone(slot); }
@@ -487,62 +586,33 @@ const SCREENS = {
           <span class="grow"><span class="heading-s">${esc(i.view.fields.first_name || "Someone")}</span>
             <span class="caption secondary">${esc(cap(i.listing.title))}</span>
             <span class="body-s ${lastMsg ? "" : "tertiary"} msg-preview">${lastMsg ? (lastMsg.mine ? "You: " : "") + esc(lastMsg.text) : "Say hello"}</span></span>
-          ${unread(slot, i) ? '<span class="unread-dot" aria-label="New message"></span>' : ""}</button>`;
+          ${unread(slot, i) ? '<span class="unread-dot" aria-label="New message"></span>' : !(i.thread || []).length ? badge("", "New") : ""}</button>`;
       }).join("")}</div>`;
   },
 
+  // Full screen: the person's name with why you matched underneath, then your conversation.
   thread(slot, p, L) {
     const i = connected(p).find(x => x.intro_id === L.thread);
-    if (!i) return backBar(slot, "found", "Found.");
+    if (!i) return `<div class="screen">${backBar(slot, "found", "Found.")}</div>`;
     const name = i.view.fields.first_name || "Someone", t = i.thread || [];
-    const facts = Object.entries(i.view.fields).filter(([k]) => !["first_name", "seeking", "offering"].includes(k)).map(([, v]) => val(v));
+    const facts = Object.entries(i.view.fields).filter(([k]) => !["first_name", "seeking", "offering", "headline"].includes(k)).map(([, v]) => val(v));
+    const avatar = n => `<span class="avatar" aria-hidden="true">${esc((n || "?").slice(0, 1).toUpperCase())}</span>`;
     const text = L.msg[i.intro_id] || "";
-    return `<div class="profile-pane">${backBar(slot, "found", "Found.", esc(name))}
-        <details class="card sm about-match"><summary>Why you matched</summary>
-          <div style="margin-top: var(--space-3)">${tags(facts)}</div><p class="reason">${esc(i.view.reason)}</p>
-          ${connectedBlock(slot, i.listing, i)}</details>
-        ${i.simulated ? `<p class="caption tertiary" style="text-align:center">${esc(name)} is simulated in this demo and won't reply.</p>` : ""}</div>
-      <div class="chat-sheet match-chat">
-        <div class="sheet-head static"><span class="eyebrow">You and ${esc(name)}</span><span class="caption tertiary">Only the two of you see this</span></div>
-        <div class="chat-pane">${t.length ? t.map(m => `<div class="bubble ${m.mine ? "me" : "them"}">${esc(m.text)}</div>`).join("")
-          : `<p class="caption tertiary" style="text-align:center; margin-top: var(--space-6)">You both said yes. Say hello.</p>`}</div>
-        <div class="composer-bar"><textarea class="textarea" id="msg-${slot}" aria-label="Message to ${esc(name)}" placeholder="Message ${esc(name)}"
-            oninput="local['${slot}'].msg['${i.intro_id}']=this.value"
-            onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendMessage('${slot}','${i.intro_id}')}">${esc(text)}</textarea>
-          <button class="btn" onclick="sendMessage('${slot}','${i.intro_id}')">Send</button></div></div>`;
-  },
-
-  me(slot, p, L) {
-    const live = p.listings.filter(l => l.listed).length, found = connected(p).length;
-    return `${backBar(slot, L.tab || "belong", L.tab === "found" ? "Found." : "Belong.", "Profile")}
-      <div class="card md"><div class="row"><span class="monogram" aria-hidden="true">${esc((p.name || "?").slice(0, 1).toUpperCase())}</span>
-        <div class="grow"><div class="heading-m">${esc(p.name)}</div><div class="caption secondary">${esc(p.age_band)}</div></div>${badge("olive", "Verified")}</div>
-        <div class="form-row" style="margin-top: var(--space-5)"><label class="field-label" for="pname-${slot}">First name</label>
-          <input class="input" id="pname-${slot}" value="${esc(L.pname ?? p.name)}" maxlength="30" oninput="local['${slot}'].pname=this.value"></div>
-        <p class="caption secondary" style="margin: var(--space-2) 0 0">Shown on all your listings. Your age band comes from your ID check and can't be changed.</p>
-        <div class="row" style="margin-top: var(--space-4)"><span class="grow"></span>
-          <button class="btn sm" ${(L.pname ?? p.name) === p.name ? "disabled" : ""} onclick="saveProfile('${slot}')">Save</button></div></div>
-      <div class="card md" style="margin-top: var(--space-4)">
-        <div class="profile-line"><span class="label tertiary">Listings</span><span class="body-s">${live} matching${p.listings.length > live ? `, ${p.listings.filter(l => !l.listed && !untouched(l)).length} draft` : ""}</span></div>
-        <div class="profile-line"><span class="label tertiary">Found</span><span class="body-s">${found} ${found === 1 ? "person" : "people"}</span></div></div>`;
-  },
-
-  settings(slot, p, L) {
-    const ls = p.listings.filter(l => !untouched(l));
-    return `${backBar(slot, L.tab || "belong", L.tab === "found" ? "Found." : "Belong.", "Settings")}
-      <p class="eyebrow group-title" style="margin-top:0">Notifications, per listing</p>
-      ${ls.length ? `<div class="card md">${ls.map(l => `<div class="setting-row"><div class="grow"><div class="body-s">${esc(cap(l.title))}</div>
-          <div class="caption secondary">Close matches ${l.prefs?.notify_close ? "on" : "off"} · Questions ${l.prefs?.notify_questions ? "on" : "off"}</div></div>
-          <button class="btn ghost sm" onclick="editPrivacy('${slot}','${l.id}')">Change</button></div>`).join("")}</div>`
-        : `<p class="body-s secondary">You'll choose these when you create a listing.</p>`}
-      <p class="eyebrow group-title">Your agent</p>
-      <div class="card md"><p class="body-s" style="margin:0">In this demo your agent runs on a hosted AI model.</p>
-        <p class="caption" style="margin: var(--space-2) 0 0"><span class="connect-agent" aria-disabled="true" title="Coming soon">Connect your own agent</span></p></div>`;
-  },
-
-  signedout(slot, p, L) {
-    return `<div class="welcome"><span class="wordmark">Belong.</span><p>You're logged out. Your listings stay live, and matches wait for you.</p></div>
-      <button class="btn block" onclick="local['${slot}'].signedOut=false; go('${slot}','belong')">Log in as ${esc(p.name)}</button>`;
+    return `<div class="thread">
+      <div class="thread-head">
+        <button class="btn ghost sm back" onclick="go('${slot}','found')" aria-label="Back to Found."><span class="back-chev" aria-hidden="true"></span></button>
+        ${avatar(name)}
+        <div class="grow"><div class="heading-s">${esc(name)}</div>
+          <button class="why" aria-expanded="${!!L.why}" onclick="local['${slot}'].why=!local['${slot}'].why; renderPhone('${slot}')">Why you matched<span class="chevron" aria-hidden="true"></span></button></div></div>
+      ${L.why ? `<div class="why-panel"><p class="reason" style="margin-top:0">${esc(i.view.reason)}</p><div>${tags(facts)}</div>${connectedBlock(slot, i.listing, i)}</div>` : ""}
+      <div class="chat-pane thread-pane">
+        <p class="caption tertiary thread-note">You both said yes. Only the two of you can see this conversation.</p>
+        ${t.map((m, n) => messageRow(slot, i, m, n, t, name, p.name)).join("")}
+        ${i.simulated ? `<p class="caption tertiary thread-note">${esc(name)} is simulated in this demo and won't reply.</p>` : ""}</div>
+      <div class="composer-bar"><textarea class="textarea" id="msg-${slot}" aria-label="Message to ${esc(name)}" placeholder="Message ${esc(name)}"
+          oninput="local['${slot}'].msg['${i.intro_id}']=this.value"
+          onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendMessage('${slot}','${i.intro_id}')}">${esc(text)}</textarea>
+        <button class="btn" onclick="sendMessage('${slot}','${i.intro_id}')">Send</button></div></div>`;
   },
 
   receipts(slot, p, L) {
@@ -668,7 +738,7 @@ function profileCard(slot, p, l, c) {
   const entry = l.entry;
   const fact = (label, value, empty) => `<div class="profile-line"><span class="label tertiary">${label}</span>${value
     ? `<span class="body-s">${esc(value)}</span>` : `<span class="body-s tertiary">${empty || "Not added yet"}</span>`}</div>`;
-  const used = new Set(["first_name", "age_band", "city", "country", "seeking", "offering", "gender", "pay", "format", "schedule", "role", "subject"]);
+  const used = new Set(["first_name", "age_band", "city", "country", "seeking", "offering", "headline", "gender", "pay", "format", "schedule", "role", "subject"]);
   const extra = Object.entries(shown).filter(([k]) => !used.has(k)).map(([, v]) => val(v));
   const who = `<div class="row"><span class="monogram" aria-hidden="true">${esc((p.name || "?").slice(0, 1).toUpperCase())}</span>
       <div class="grow"><div class="heading-m">${esc(p.name || "")}</div>
@@ -684,7 +754,7 @@ function profileCard(slot, p, l, c) {
   let body;
   if (layout === "offer") {
     const sd = sides(shown), offering = shown.role === "tutor" || sd.side === "offers";
-    const headline = (offering ? shown.offering : shown.seeking) || (d && d.intent_text);
+    const headline = shown.headline || (offering ? shown.offering : shown.seeking) || (d && d.intent_text);
     body = `<p class="eyebrow">${offering ? "Offering" : "Wanted"}</p>
       ${headline
         ? `<h3 class="heading-l" style="margin: var(--space-1) 0 var(--space-3)">${esc(cap(headline))}</h3>`
@@ -703,8 +773,9 @@ function profileCard(slot, p, l, c) {
   } else {
     const sd = sides(shown);
     body = `${who}
-      ${sd.side === "offers" ? fact("Offering", sd.main) : fact("Looking for", shown.seeking, "Your agent will fill this in as you chat")}
-      ${sd.other ? fact("You are", sd.other) : ""}
+      ${shown.headline ? `<h3 class="heading-l" style="margin: var(--space-4) 0 var(--space-1)">${esc(cap(shown.headline))}</h3>`
+        : sd.side === "offers" ? fact("Offering", sd.main) : fact("Looking for", shown.seeking, "Your agent will fill this in as you chat")}
+      ${sd.other && !shown.headline ? fact("You are", sd.other) : ""}
       ${shown.schedule ? fact("When", shown.schedule) : ""}
       ${shown.pay ? fact("Pay", shown.pay) : ""}${shown.format ? fact("Format", shown.format) : ""}`;
   }
@@ -847,7 +918,7 @@ function followupCard(slot, l, q) {
 
 function introCard(slot, l, i) {
   const f = i.view.fields;
-  const facts = Object.entries(f).filter(([k]) => !["first_name", "seeking", "offering"].includes(k)).map(([, v]) => val(v));
+  const facts = Object.entries(f).filter(([k]) => !["first_name", "seeking", "offering", "headline"].includes(k)).map(([, v]) => val(v));
   let action = "", status = "";
   if (i.status === "pending") action = `<div class="row" style="margin-top: var(--space-5)"><button class="btn grow" onclick="decide('${slot}','${i.intro_id}',true)">Say yes</button><button class="btn secondary" onclick="decide('${slot}','${i.intro_id}',false)">Not now</button></div>
     <p class="caption tertiary" style="margin: var(--space-2) 0 0">${i.close ? "They haven't been told about you. If you say yes, they're asked too." : "You're only introduced if you both say yes."}</p>`;

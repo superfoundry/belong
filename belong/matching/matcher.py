@@ -306,6 +306,8 @@ def reason_fields(kind: str, av: ShownView, bv: ShownView) -> tuple:
         keys.append("move_in")
     if both("seeking") and both("offering") and kind != "dating":
         keys += ["seeking", "offering"]
+        if both("headline"):
+            keys.append("headline")  # the reason says who they are in their own words
     return tuple(keys)
 
 
