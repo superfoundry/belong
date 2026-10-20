@@ -69,8 +69,26 @@ UPDATE_LISTING_TOOL = {
                     "additionalProperties": False,
                 },
             },
+            "suggestions": {
+                "type": "array",
+                "description": "Two to four things that would most improve this particular profile, "
+                               "by common sense for what they asked (not a fixed checklist), and not "
+                               "already on it. Shown to the person only, as buttons.",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "label": {"type": "string", "description": "A few words, e.g. 'The problem', "
+                                                                    "'Your budget', 'Your interests'."},
+                        "ask": {"type": "string", "description": "The plain start of a sentence the person "
+                                                                  "could finish, e.g. 'The problem is'. No "
+                                                                  "examples or brackets."},
+                    },
+                    "required": ["label", "ask"],
+                    "additionalProperties": False,
+                },
+            },
         },
-        "required": ["kind", "intent_text", "exactness", "fields"],
+        "required": ["kind", "intent_text", "exactness", "fields", "suggestions"],
         "additionalProperties": False,
     },
 }
@@ -166,6 +184,10 @@ message, with everything you're sure of (pick the closest kind, or "other"), the
 about what's still missing. The profile on their screen updates every time you save, so never \
 wait until you know everything. Each save replaces the draft, so always include what's already \
 on the profile (shown to you below) plus what's new. Never invent details they didn't give.
+- With each save, suggest the two to four things that would most help this particular person find \
+the right match, using common sense for what they asked: for a repair, the problem and when; for \
+dating, interests; for a band, the music they play. Don't suggest what doesn't fit the request \
+(no interests for a plumber), and drop a suggestion once it's on the profile.
 - Write intent_text in plain first-person words that name the kind of match, e.g. "Looking for a \
 climbing partner in Osaka on weekends", "Looking for a long-term relationship with a woman in \
 Lisbon, aged 30 to 39", "I tutor maths in Kyoto and I'm looking for new students", "Need a \
@@ -220,6 +242,21 @@ def _clean_value(key: str, values: list, city) -> tuple:
     if len(values) > 1:
         return None, f"{key} takes a single value"
     return values[0], None
+
+
+def _suggestions(raw) -> list:
+    """The agent's suggestions for what to add next, as short plain strings (they're shown only
+    to the person, as buttons that start a message)."""
+    out = []
+    for s in raw if isinstance(raw, list) else []:
+        if not isinstance(s, dict):
+            continue
+        label = " ".join(str(s.get("label", "")).split())[:40]
+        ask = re.sub(r"\s*\([^)]*\)", "", str(s.get("ask", "")))  # no "(e.g. ...)" hints in their message box
+        ask = " ".join(ask.split()).rstrip(":").rstrip()[:80]
+        if label and label.lower() not in {o["label"].lower() for o in out}:
+            out.append({"label": label, "ask": (ask + " ") if ask else ""})
+    return out[:4]
 
 
 def build_draft(args: dict, first_name: str, age_band: str) -> tuple:
@@ -325,7 +362,8 @@ def build_draft(args: dict, first_name: str, age_band: str) -> tuple:
     where = values.get("city") or values.get("country")
     understood = f"Looking for {_KIND_NAMES[kind]}" + (f" in {where}" if where else "")
     draft = {"intent_text": intent, "exactness": exactness, "kind": kind, "fields": fields,
-             "understood": understood, "notes": notes, "missing": missing, "complete": not missing, "by": "claude"}
+             "understood": understood, "notes": notes, "missing": missing, "complete": not missing, "by": "claude",
+             "suggestions": _suggestions(args.get("suggestions"))}
     return draft, [], notes
 
 

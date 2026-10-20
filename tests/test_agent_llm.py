@@ -75,6 +75,17 @@ class Drafting(unittest.TestCase):
         self.assertEqual(by_key["first_name"]["value"], "Yuki")  # from the ID check, not the agent
         self.assertTrue(any("religion" in n for n in notes))
 
+    def test_suggestions_are_kept_short_and_capped(self):
+        args = dict(CLIMBER, suggestions=[{"label": "The problem", "ask": "The problem is"},
+                                          {"label": "the problem", "ask": "dup"}, {"label": "x" * 99, "ask": "y"},
+                                          {"label": "", "ask": "no label"}, "junk", {"label": "When", "ask": "I'm free (day and time):"},
+                                          {"label": "Budget", "ask": "I can pay"}, {"label": "Fifth", "ask": "z"}])
+        draft, _, _ = build_draft(args, "Yuki", "25-29")
+        self.assertEqual([x["label"] for x in draft["suggestions"]], ["The problem", "x" * 40, "When", "Budget"])
+        self.assertEqual(draft["suggestions"][0]["ask"], "The problem is ")
+        self.assertEqual(draft["suggestions"][2]["ask"], "I'm free ")
+        self.assertEqual(build_draft(CLIMBER, "Yuki", "25-29")[0]["suggestions"], [])
+
     def test_problems_are_reported_instead_of_saved(self):
         cases = {
             "reads like dating": {**CLIMBER, "intent_text": "Looking for a relationship in Osaka."},
