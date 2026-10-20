@@ -20,7 +20,7 @@ import urllib.error
 import urllib.request
 
 from .agent_llm import (MAX_TOOL_ROUNDS, SYSTEM_PROMPT, UPDATE_LISTING_TOOL, AgentUnavailable, _summary,
-                        build_draft, honest)
+                        build_draft, honest, profile_so_far)
 
 API_URL = "https://api.openai.com/v1/chat/completions"
 DEFAULT_MODEL = "gpt-5"
@@ -52,20 +52,21 @@ class OpenAIAgent:
         self.model = model or os.environ.get("OPENAI_MODEL") or DEFAULT_MODEL
         self._post = post
 
-    def respond(self, conversation: list, user_text: str, first_name: str, age_band: str) -> tuple:
+    def respond(self, conversation: list, user_text: str, first_name: str, age_band: str, current=None) -> tuple:
         """Append the person's message, run the agent, and return (reply, draft or None).
         `conversation` is this person's message history; it is only ever appended to,
         except that a turn which fails part-way is removed again."""
         start = len(conversation)
         conversation.append({"role": "user", "content": user_text})
         try:
-            return self._run(conversation, first_name, age_band)
+            return self._run(conversation, first_name, age_band, current)
         except AgentUnavailable:
             del conversation[start:]
             raise
 
-    def _run(self, conversation: list, first_name: str, age_band: str) -> tuple:
-        system = SYSTEM_PROMPT + f"\nThe person you work for: first name {first_name}, age band {age_band}."
+    def _run(self, conversation: list, first_name: str, age_band: str, current=None) -> tuple:
+        system = (SYSTEM_PROMPT + f"\nThe person you work for: first name {first_name}, age band {age_band}.\n"
+                  + profile_so_far(current))
         replies, draft, attempted = [], None, False
         for _ in range(MAX_TOOL_ROUNDS):
             choice = self._call(system, conversation)["choices"][0]

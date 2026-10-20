@@ -42,6 +42,7 @@ SESSION = DemoSession()
 ACTIONS = {
     "reset": lambda s, b: s.reset(),
     "verify": lambda s, b: s.verify(b.get("slot"), b.get("name"), b.get("age")),
+    "prefill": lambda s, b: s.prefill(b.get("slot"), b.get("text")),
     "agent": lambda s, b: s.agent_message(b.get("slot"), b.get("text")),
     "submit": lambda s, b: s.submit(b.get("slot"), b.get("listing") or {}),
     "match": lambda s, b: s.run_matchmaker(),

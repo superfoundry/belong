@@ -17,6 +17,7 @@ may know. Room internals go only into `room_state()`, the presenter's panel.
 """
 from __future__ import annotations
 
+import copy
 import hashlib
 import os
 import random
@@ -174,6 +175,21 @@ class DemoSession:
 
     # -- 2. talking to the agent -------------------------------------------------
 
+    def prefill(self, slot: str, text: str) -> None:
+        """Instant profile update as soon as a message is sent, before the agent replies:
+        facts stated plainly enough to be sure of go into empty fields (never overwriting)."""
+        st = self._slot(slot)
+        if not st.person:
+            raise DemoError("Verify your identity first.")
+        facts = agent.quick_facts((text or "")[:2000])
+        if not facts:
+            return
+        if st.draft is None:
+            st.draft = agent.empty_draft(st.name, st.person.age_band)
+        else:
+            st.draft = copy.deepcopy(st.draft)
+        agent.fill_gaps(st.draft, facts)
+
     def agent_message(self, slot: str, text: str) -> None:
         """The person writes to their agent. Called WITHOUT the session lock: a Claude reply
         can take a few seconds, and the other phone must keep working meanwhile."""
@@ -190,11 +206,12 @@ class DemoSession:
             st.agent_busy = True
             generation, llm = self.generation, self.llm
             name, band, conversation = st.name, st.person.age_band, st.agent_conversation
+            current = copy.deepcopy(st.draft)
 
         reply = draft = None
         if llm is not None:
             try:
-                reply, draft = llm.respond(conversation, text, name, band)
+                reply, draft = llm.respond(conversation, text, name, band, current)
             except AgentUnavailable as e:
                 with self.lock:
                     if self.llm is llm:
@@ -208,6 +225,11 @@ class DemoSession:
                 self._rules_reply(st, text)
                 return
             if draft:
+                # Keep anything already on the profile that the agent's draft left empty.
+                if st.draft:
+                    agent.fill_gaps(draft, {f["key"]: f["value"] for f in st.draft["fields"]
+                                            if f.get("enabled") and f["value"] not in (None, "", [])
+                                            and not f.get("sensitive") and f["key"] not in ("first_name", "age_band")})
                 st.draft = draft
             # The tick on the phone comes from what actually happened, not from what the agent says.
             st.chat.append({"from": "agent", "text": reply, "draft_updated": bool(draft)})

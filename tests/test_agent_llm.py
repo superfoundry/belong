@@ -38,6 +38,8 @@ CLIMBER = {
     ],
 }
 NO_PHRASES = {**CLIMBER, "fields": [f for f in CLIMBER["fields"] if f["key"] not in ("seeking", "offering")]}
+# A value that isn't allowed: never saved.
+INVALID = {**CLIMBER, "fields": CLIMBER["fields"] + [{"key": "level", "values": ["expert"], "visibility": SHOWN}]}
 
 
 class ScriptedClient:
@@ -76,11 +78,9 @@ class Drafting(unittest.TestCase):
     def test_problems_are_reported_instead_of_saved(self):
         cases = {
             "reads like dating": {**CLIMBER, "intent_text": "Looking for a relationship in Osaka."},
-            "needs a 'seeking' phrase": NO_PHRASES,
             "specific person": {**CLIMBER, "intent_text": "Looking for a climbing partner, ideally @sakura_climbs."},
             "Don't put religion": {**CLIMBER, "intent_text": "Looking for a Buddhist climbing partner in Osaka."},
-            "isn't an allowed value": {**CLIMBER, "fields": CLIMBER["fields"][:1] + [{"key": "level", "values": ["expert"], "visibility": SHOWN}]},
-            "country is required": {**CLIMBER, "fields": []},
+            "isn't an allowed value": INVALID,
         }
         for expected, args in cases.items():
             draft, problems, _ = build_draft(args, "Yuki", "25-29")
@@ -99,9 +99,9 @@ class Drafting(unittest.TestCase):
         # Phrases are never used for dating.
         _, problems, _ = build_draft({**ren, "kind": "dating"}, "Ren", "25-29")
         self.assertTrue(problems)
-        # Missing the offer is refused.
-        _, problems, _ = build_draft({**ren, "fields": ren["fields"][:2]}, "Ren", "25-29")
-        self.assertTrue(any("offering" in p for p in problems))
+        # Missing the offer: saved, with the offer on the to-ask list.
+        draft, problems, _ = build_draft({**ren, "fields": ren["fields"][:2]}, "Ren", "25-29")
+        self.assertTrue(any("offering" in m for m in draft["missing"]))
 
     def test_any_place_in_the_world_works(self):
         fishing = {"kind": "other", "exactness": 0.6, "intent_text": "Looking for someone to teach me to fish in Ireland.",
@@ -131,11 +131,21 @@ class Drafting(unittest.TestCase):
         self.assertEqual(problems, [])
         self.assertIn("seeking", {f["key"] for f in draft["fields"] if f["value"]})
 
+    def test_missing_details_are_saved_as_a_work_in_progress(self):
+        """Save early: what isn't known yet goes on a to-ask list instead of blocking the save."""
+        draft, problems, _ = build_draft(NO_PHRASES, "Yuki", "25-29")
+        self.assertEqual(problems, [])
+        self.assertFalse(draft["complete"])
+        self.assertTrue(any("seeking" in m for m in draft["missing"]))
+        draft, problems, _ = build_draft({**CLIMBER, "fields": []}, "Yuki", "25-29")
+        self.assertEqual(problems, [])
+        self.assertTrue(any("where they are" in m for m in draft["missing"]))
+
     def test_dating_needs_who_they_want_to_meet(self):
         args = {"kind": "dating", "exactness": 0.6, "intent_text": "Looking for a relationship in Lisbon, aged 30 to 39.",
                 "fields": [{"key": "city", "values": ["Lisbon"], "visibility": SHOWN}]}
-        _, problems, _ = build_draft(args, "Inês", "30-34")
-        self.assertTrue(any("who they want to meet" in p for p in problems))
+        draft, problems, _ = build_draft(args, "Inês", "30-34")
+        self.assertTrue(any("who they want to meet" in m for m in draft["missing"]))
 
 
 class Conversation(unittest.TestCase):
@@ -152,16 +162,16 @@ class Conversation(unittest.TestCase):
         self.assertEqual(second["fallbacks"], "default")
 
     def test_a_rejected_draft_goes_back_to_the_model_to_fix(self):
-        client = ScriptedClient(reply(tool(NO_PHRASES, "t1")), reply(tool(CLIMBER, "t2")), reply(text("Done.")))
+        client = ScriptedClient(reply(tool(INVALID, "t1")), reply(tool(CLIMBER, "t2")), reply(text("Done.")))
         _, draft = ClaudeAgent(client=client).respond([], "climbing in Osaka", "Yuki", "25-29")
         error = client.requests[1]["messages"][-1]["content"][0]
         self.assertTrue(error["is_error"])
-        self.assertIn("needs a 'seeking' phrase", error["content"])
+        self.assertIn("isn't an allowed value", error["content"])
         self.assertEqual(draft["intent_text"], CLIMBER["intent_text"])
 
     def test_never_claims_a_change_that_was_not_saved(self):
         """The model says it updated the listing, but every save was refused."""
-        client = ScriptedClient(*[reply(tool(NO_PHRASES, f"t{i}")) for i in range(5)])
+        client = ScriptedClient(*[reply(tool(INVALID, f"t{i}")) for i in range(5)])
         message, draft = ClaudeAgent(client=client).respond([], "add that I'm a fluent French speaker", "Ren", "25-29")
         self.assertIsNone(draft)
         self.assertIn("wasn't able to save", message)
@@ -251,7 +261,7 @@ class OpenAIConversation(unittest.TestCase):
         self.assertTrue(post.requests[0]["tools"][0]["function"]["strict"])
 
     def test_a_rejected_draft_goes_back_to_the_model_to_fix(self):
-        post = ScriptedPost(oa_tool(NO_PHRASES, "c1"), oa_tool(CLIMBER, "c2"), oa_text("Done."))
+        post = ScriptedPost(oa_tool(INVALID, "c1"), oa_tool(CLIMBER, "c2"), oa_text("Done."))
         _, draft = OpenAIAgent(api_key="test", post=post).respond([], "climbing", "Yuki", "25-29")
         self.assertTrue(post.requests[1]["messages"][-1]["content"].startswith("ERROR"))
         self.assertEqual(draft["intent_text"], CLIMBER["intent_text"])
@@ -291,3 +301,32 @@ class DotEnv(unittest.TestCase):
                 self.assertEqual(os.environ["BELONG_TEST_A"], "from-file")
                 self.assertEqual(os.environ["BELONG_TEST_B"], "already-set")
             os.environ.pop("BELONG_TEST_A", None)
+
+
+class InstantProfile(unittest.TestCase):
+    """The profile updates the moment a message is sent, before the agent replies."""
+
+    def test_plain_facts_are_picked_up(self):
+        from belong.agent import quick_facts
+        self.assertEqual(quick_facts("I live in Galway and I'm free on weekends. I'm a beginner."),
+                         {"city": "Galway", "schedule": "weekends", "level": "beginner"})
+        self.assertEqual(quick_facts("i live in malaga, spain, looking to meet people")["city"], "Malaga")
+        self.assertEqual(quick_facts("yes, i enjoy chess and languages")["interests"], ["chess", "languages"])
+
+    def test_vague_messages_fill_nothing(self):
+        from belong.agent import quick_facts
+        for text in ["I would love to meet someone kind", "i live in the city", "hello"]:
+            self.assertEqual(quick_facts(text), {}, text)
+
+    def test_prefill_never_overwrites_and_the_agent_draft_keeps_it(self):
+        client = ScriptedClient(reply(tool(CLIMBER)), reply(text("Saved.")))
+        s = DemoSession(seed=7, agent=ClaudeAgent(client=client))
+        s.verify("A", "Yuki", 27)
+        s.prefill("A", "I'm free on weekends and I'm into tennis")
+        fields = {f["key"]: f["value"] for f in s.slots["A"].draft["fields"]}
+        self.assertEqual((fields["schedule"], fields["interests"]), ("weekends", ["tennis"]))
+        s.prefill("A", "evenings work too")  # already set: not overwritten
+        self.assertEqual({f["key"]: f["value"] for f in s.slots["A"].draft["fields"]}["schedule"], "weekends")
+        s.agent_message("A", "climbing partner in Osaka")
+        # The agent was told what's already on the profile.
+        self.assertIn("schedule (shown): weekends", client.requests[0]["system"])
