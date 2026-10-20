@@ -58,6 +58,46 @@ class AlsoOffer(unittest.TestCase):
         self.assertEqual(pairs, [("pc", "pf", "")])
 
 
+def skating_board():
+    """A beginner wants an ice hockey coach; a figure skater wants to teach."""
+    w, board = warden(), Marketboard()
+    hockey = replace(listing("ph", "I'm a beginner and want an ice hockey coach in Toronto.", [
+        fld("first_name", "Sam"), fld("country", "Canada"), fld("city", "Toronto"), fld("schedule", "weekends"),
+        fld("seeking", "a beginner ice hockey coach"), fld("offering", "an ice hockey student")]),
+        notify_close=True, notify_questions=True)
+    skater = replace(listing("ps", "Figure skater in Toronto, happy to teach.", [
+        fld("first_name", "Lea"), fld("country", "Canada"), fld("city", "Toronto"), fld("schedule", "flexible"),
+        fld("seeking", "a figure skating student"), fld("offering", "a figure skating coach")]),
+        notify_close=False, notify_questions=True)
+    for l in (hockey, skater):
+        assert w.admit(person(l.person_id), l, board).accepted
+    return w, board
+
+
+class RelatedActivities(unittest.TestCase):
+    def test_nearly(self):
+        from belong.matching.matcher import nearly
+        self.assertTrue(nearly("a beginner ice hockey coach", "a figure skating coach"))
+        self.assertTrue(nearly("an air conditioner repair technician", "a repairman"))
+        self.assertFalse(nearly("a beginner ice hockey coach", "a figure skating student"))  # roles must line up
+        self.assertFalse(nearly("a piano teacher", "a figure skating coach"))
+
+    def test_the_figure_skater_is_asked_about_ice_hockey_and_yes_makes_a_match(self):
+        from belong.agent import also_offer
+        w, board = skating_board()
+        result = OfflineMatcher().match(board)
+        self.assertEqual(result.proposals, [])
+        q = [f for f in result.followups if f.question_id == "also_offer"]
+        self.assertEqual([(f.person_id, f.about) for f in q], [("ps", "ph")])
+        out = w.exit_followup(q[0], board)
+        self.assertEqual(out.question_text, "Someone is looking for a beginner ice hockey coach. Could you help with that too?")
+        skater = also_offer(board.listing("ps"), out.phrase, "2026-10-13T00:00:00Z", out.mirror)
+        self.assertEqual(skater.get("seeking").value, "a figure skating student or an ice hockey student")
+        self.assertTrue(w.admit(person("ps"), skater, board).accepted)
+        pairs = [(p.person_a, p.person_b, p.close) for p in OfflineMatcher().match(board).proposals]
+        self.assertEqual(pairs, [("ph", "ps", "")])
+
+
 class CloseMatches(unittest.TestCase):
     def proposal(self, **kw):
         return Proposal(**{"person_a": "pc", "person_b": "pf", "a_intent_met": False, "b_intent_met": True,
@@ -82,9 +122,10 @@ class CloseMatches(unittest.TestCase):
 class AuditR5(unittest.TestCase):
     def test_the_audit_catches_questions_and_close_matches_nobody_opted_in_to(self):
         w, board = repair_board(customer_close=False, fixer_questions=False)
-        followups = [{"person_id": "pf", "question_id": "wider_net", "phrase": "",
+        followups = [{"person_id": "pf", "question_id": "wider_net", "phrase": "", "mirror": "",
                       "question_text": "We haven't found a match yet. Should we cast a wider net?"},
                      {"person_id": "pf", "question_id": "also_offer", "phrase": "an air conditioner repair technician",
+                      "mirror": "an air conditioner repair customer",
                       "question_text": "Someone is looking for an air conditioner repair technician. Could you help with that too?"}]
         intros = [{"intro_id": "i1", "person_a": "pc", "person_b": "pf", "one_way_to": "pc",
                    "a_view": {"fields": {}, "reason": ""}, "b_view": {"fields": {}, "reason": ""}}]

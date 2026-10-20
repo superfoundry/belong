@@ -179,8 +179,9 @@ the kind of match and where (country, and city if relevant) before drafting. For
 anyone) and an age range. For a language exchange: their native language and the one they're \
 learning. For tutoring: the subject and whether they teach or want lessons. For a cofounder: \
 whether they're the technical or business side.
-- Save early and often. Call update_listing as soon as you learn anything, even from the first \
-message, with everything you're sure of (pick the closest kind, or "other"), then keep asking \
+- Save early and often. On the person's very first message, ALWAYS call update_listing before you \
+reply, even if you only know one thing (e.g. "I'm offering piano lessons" is enough to save them as a \
+piano teacher looking for students). Call update_listing as soon as you learn anything, with everything you're sure of (pick the closest kind, or "other"), then keep asking \
 about what's still missing. The profile on their screen updates every time you save, so never \
 wait until you know everything. Each save replaces the draft, so always include what's already \
 on the profile (shown to you below) plus what's new. Never invent details they didn't give.

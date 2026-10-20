@@ -212,6 +212,13 @@ class Notifications(unittest.TestCase):
         s.run_matchmaker()
         self.assertEqual(s.phone_state("B")["listings"][0]["followups"], [])
 
+    def test_changing_your_name_updates_live_listings(self):
+        s = DemoSession(seed=7, agent=None)
+        climbers(s)
+        s.update_profile("A", "Yu")
+        self.assertEqual(s.board.listing("demoA-1").get("first_name").value, "Yu")
+        self.assertEqual(s.phone_state("A")["name"], "Yu")
+
     def test_choices_are_on_the_listing_and_off_by_default(self):
         s = DemoSession(seed=7, agent=None)
         s.verify("A", "Mia", 30)

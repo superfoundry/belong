@@ -69,14 +69,17 @@ class Introduction(_Sealed):
 
 
 class FollowUpOut(_Sealed):
-    def __init__(self, seal, person_id: str, question_id: str, phrase: str = ""):
+    def __init__(self, seal, person_id: str, question_id: str, phrase: str = "", mirror: str = ""):
         super().__init__(seal)
         self.person_id, self.question_id, self.phrase = person_id, question_id, phrase
+        # For "also_offer": who the asker is (their shown "you are" phrase). Never shown in the
+        # question; if the person says yes, it joins who they're looking for, so a match can follow.
+        self.mirror = mirror
         self.question_text = FOLLOWUP_MENU[question_id].format(phrase=phrase)
 
     def to_dict(self) -> dict:
         return {"person_id": self.person_id, "question_id": self.question_id, "question_text": self.question_text,
-                "phrase": self.phrase}
+                "phrase": self.phrase, "mirror": self.mirror}
 
 
 class Reveal(_Sealed):
@@ -466,14 +469,15 @@ class Warden:
         ok = them is not None and them.owner != me.owner and them.notify_close
         if not self._receipt("also_offer_requester_opted_in", ok, subject):
             return None
-        phrase = them.shown().get("seeking")
-        if not self._receipt("also_offer_phrase_shown", isinstance(phrase, str) and bool(phrase.strip()), subject):
+        phrase, mirror = them.shown().get("seeking"), them.shown().get("offering")
+        shown = all(isinstance(x, str) and bool(x.strip()) for x in (phrase, mirror))
+        if not self._receipt("also_offer_phrase_shown", shown, subject):
             return None
         forbidden = _strings_of(me, HIDDEN) | _strings_of(them, HIDDEN)
-        clean = not find_forbidden(phrase, forbidden, _strings_of(them, SHOWN))
+        clean = not find_forbidden(f"{phrase} {mirror}", forbidden, _strings_of(them, SHOWN))
         if not self._receipt("no_hidden_values", clean, subject):
             return None
-        return FollowUpOut(_SEAL, followup.person_id, "also_offer", phrase)
+        return FollowUpOut(_SEAL, followup.person_id, "also_offer", phrase, mirror)
 
     # -- Decisions and mutual reveal -------------------------------------------
 

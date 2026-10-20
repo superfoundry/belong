@@ -25,6 +25,7 @@ import copy
 import hashlib
 import os
 import random
+import re
 import threading
 from dataclasses import replace
 
@@ -46,6 +47,9 @@ MAX_LISTINGS = 5
 MESSAGE_MAX = 1000  # characters in one message to a match
 
 
+# Words for the person being served; a listing looking for one is named by what it offers.
+_CLIENT_WORDS = {"student", "students", "customer", "customers", "client", "clients", "learner", "learners",
+                 "beginner", "beginners", "pupil", "pupils", "patient", "patients", "tenant", "tenants"}
 # Listings without a "who you're looking for" phrase are named by their kind.
 KIND_TITLES = {"dating": "Dating", "climbing": "Climbing partner", "running": "Running buddy",
                "language": "Language exchange", "roommate": "Roommate", "cofounder": "Cofounder", "tutoring": "Tutoring"}
@@ -220,8 +224,11 @@ class DemoSession:
     def _title(draft, board_listing=None) -> str:
         """A short name for a listing, from what it's looking for."""
         fields = {f["key"]: f["value"] for f in (draft or {}).get("fields", []) if f.get("value")}
-        if fields.get("seeking"):
-            return str(fields["seeking"])[:60]
+        seeking, offering = fields.get("seeking"), fields.get("offering")
+        if seeking and offering and _CLIENT_WORDS & set(re.findall(r"[a-z]+", str(seeking).lower())):
+            return str(offering)[:60]  # a teacher looking for students: name it by what they offer
+        if seeking:
+            return str(seeking)[:60]
         kind = (draft or {}).get("kind") or ""
         if kind in KIND_TITLES:
             return KIND_TITLES[kind]
@@ -247,6 +254,28 @@ class DemoSession:
         self._event("in", f"Identity check for phone {slot}",
                     "The KYC provider saw the ID document. Belong. received only these two facts:",
                     payload={"verified": True, "age_band": band}, slots=[slot])
+
+    def update_profile(self, slot: str, name: str) -> None:
+        """Change the first name shown on all of this person's listings. Live listings are
+        re-checked by the Warden. The age band comes from the ID check and can't change."""
+        st = self._verified(slot)
+        name = (name or "").strip()[:30]
+        if not name:
+            raise DemoError("Please enter your first name.")
+        st.name = name
+        for mine in st.listings:
+            if mine.draft:
+                mine.draft = {**mine.draft, "fields": [{**f, "value": name} if f["key"] == "first_name" else f
+                                                       for f in mine.draft["fields"]]}
+            if mine.id in self.board:
+                current = self.board.listing(mine.id)
+                fields = tuple(replace(f, value=name) if f.key == "first_name" else f for f in current.fields)
+                start = len(self.warden.receipts)
+                result = self.warden.admit(st.person, replace(current, fields=fields, updated_at=self.clock.now(),
+                                                              version=current.version + 1), self.board)
+                self._event("in" if result.accepted else "blocked", f"{name} updated their profile",
+                            "Re-checked by the Warden like any update." if result.accepted else "; ".join(result.problems),
+                            receipts=self._receipts_since(start, slot), slots=[slot])
 
     # -- listings --------------------------------------------------------------------
 
@@ -511,7 +540,7 @@ class DemoSession:
         d = out.to_dict()
         self.outputs["followups"].append(d)
         listing.followups.append({"question_id": d["question_id"], "question_text": d["question_text"],
-                                  "phrase": d["phrase"]})
+                                  "phrase": d["phrase"], "mirror": d["mirror"]})
         self._event("out", f"Question to {name}", "A fixed-menu question, worded by the Warden:",
                     payload={"question": d["question_text"]}, receipts=receipts, slots=[slot])
 
@@ -545,11 +574,11 @@ class DemoSession:
         updated = replace(listing, intent_text=text, exactness=exactness, fields=tuple(fields),
                           updated_at=self.clock.now(), version=listing.version + 1)
         if question_id == "also_offer":
-            updated = agent.also_offer(updated, question["phrase"], self.clock.now())
+            updated = agent.also_offer(updated, question["phrase"], self.clock.now(), question.get("mirror", ""))
         if mine.draft:
-            offering = (updated.get("offering").value if updated.get("offering") else None)
+            new = {k: updated.get(k).value for k in ("offering", "seeking") if updated.get(k)}
             mine.draft = {**mine.draft, "intent_text": text, "exactness": exactness,
-                          "fields": [{**f, "value": offering} if f["key"] == "offering" and offering else f
+                          "fields": [{**f, "value": new[f["key"]]} if f["key"] in new else f
                                      for f in mine.draft["fields"]]}
         start = len(self.warden.receipts)
         result = self.warden.admit(st.person, updated, self.board)

@@ -160,6 +160,57 @@ def _head(tokens: list) -> str:
     return roles[-1] if roles else tokens[-1]
 
 
+# Activities close enough that someone who does one might help with another (stems as
+# phrase_tokens makes them). Used only for "nearly": close matches and "could you help with
+# that too?" questions, never for an exact match.
+_FAMILIES = [
+    {"ice", "hockey", "skat", "skate", "curl"},
+    {"tennis", "squash", "badminton", "padel", "pickleball"},
+    {"guitar", "bass", "ukulele", "banjo", "mandolin"},
+    {"violin", "viola", "cello", "fiddle"},
+    {"piano", "keyboard", "organ", "synth"},
+    {"drum", "percussion"},
+    {"sing", "vocal", "voice", "choir"},
+    {"climb", "boulder"},
+    {"run", "jog", "marathon"},
+    {"swim", "surf", "kayak", "canoe", "paddle", "div"},
+    {"ski", "snowboard"},
+    {"danc", "dance", "salsa", "tango", "ballet", "bachata", "swing"},
+    {"yoga", "pilate", "stretch"},
+    {"cook", "bak", "chef", "pastry"},
+    {"repair", "repairman", "fix", "handyman", "technician", "mechanic"},
+    {"program", "cod", "software", "develop", "web"},
+    {"paint", "draw", "sketch", "illustrat"},
+    {"karate", "judo", "box", "kickbox", "taekwondo", "jiu", "jitsu"},
+    {"cycl", "bike", "bik"},
+]
+_FAMILY = {w: n for n, fam in enumerate(_FAMILIES) for w in fam}
+
+
+def _related(a: str, b: str) -> bool:
+    return a == b or (len(a) >= 5 and len(b) >= 5 and a[:5] == b[:5]) or \
+        (a in _FAMILY and _FAMILY.get(a) == _FAMILY.get(b))
+
+
+def nearly(wanted, offered) -> bool:
+    """Is `offered` nearly what `wanted` asks for: a related activity (ice hockey / figure
+    skating, an air conditioner repair technician / a repairman), with roles that line up (a
+    coach is never nearly a student)? Shown phrases only."""
+    if not wanted or not offered:
+        return False
+    for w in alternatives(wanted):
+        for h in alternatives(offered):
+            if _language_clash(w, h):
+                continue
+            if any(t in ROLE_WORDS for t in w) and any(t in ROLE_WORDS for t in h) and _head(w) != _head(h):
+                continue
+            act_w = [t for t in w if t not in ROLE_WORDS and t not in SOCIAL_WORDS]
+            act_h = [t for t in h if t not in ROLE_WORDS and t not in SOCIAL_WORDS]
+            if any(_related(a, b) for a in act_w for b in act_h):
+                return True
+    return False
+
+
 def phrase_overlap(wanted: str, offered: str) -> float:
     """Best share of wanted words found in the offered phrase, over the options (0..1)."""
     best = 0.0
@@ -343,18 +394,25 @@ class OfflineMatcher:
                 # nearly met (it would be met with a wide net). Only for someone who opted in.
                 for near, far in ((a, b), (b, a)):
                     far_met = b_met if far == b else a_met
-                    if far_met and listings[near].notify_close and intent_met(
+                    if far_met and listings[near].notify_close and (intent_met(
                             parsed[near], ShownView(replace(listings[near], exactness=CLOSE_EXACTNESS)),
-                            parsed[far], views[far]):
+                            parsed[far], views[far]) or (
+                            # a related activity: if the other person takes questions, asking
+                            # them (below) is better, since a yes makes a match that fits both
+                            not listings[far].notify_questions
+                            and nearly(views[near].get("seeking"), views[far].get("offering")))):
                         close = near
                 if not close:
-                    # Nearly: one person is what the other wants, but doesn't (yet) offer what
-                    # that person is looking for. Ask them if they could, without saying who.
+                    # Nearly: one person offers something close to what the other wants (a
+                    # figure skating coach, for a beginner ice hockey coach), and would welcome
+                    # them. Ask if they could help with that too, without saying who.
                     for wants, could in ((a, b), (b, a)):
-                        could_met = b_met if could == b else a_met
-                        if (could_met and listings[wants].notify_close and listings[could].notify_questions
-                                and has_phrases(views[wants]) and has_phrases(views[could])
-                                and same_place(views[wants], views[could])):
+                        wants_met, could_met = (a_met, b_met) if wants == a else (b_met, a_met)
+                        wv, cv = views[wants], views[could]
+                        if (not wants_met and listings[wants].notify_close and listings[could].notify_questions
+                                and has_phrases(wv) and has_phrases(cv) and same_place(wv, cv)
+                                and nearly(wv.get("seeking"), cv.get("offering"))
+                                and (could_met or nearly(cv.get("seeking"), wv.get("offering")))):
                             also_offer.setdefault(could, wants)
                     continue  # both must be looking
             reasons = reason_fields(parsed[a].kind, av, bv)

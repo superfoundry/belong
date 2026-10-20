@@ -59,12 +59,15 @@ def answer_followup(p: Persona, listing: Listing, question_id: str, now: str, rn
     return replace(listing, intent_text=text, exactness=exactness, updated_at=now, version=listing.version + 1)
 
 
-def also_offer(listing: Listing, phrase: str, now: str) -> Listing:
-    """Yes to "Could you help with that too?": the phrase becomes one more thing they offer."""
+def also_offer(listing: Listing, phrase: str, now: str, mirror: str = "") -> Listing:
+    """Yes to "Could you help with that too?": the phrase becomes one more thing they offer, and
+    the asker's kind of person (mirror) one more kind they're looking for."""
+    add = {"offering": phrase, "seeking": mirror}
     fields = []
     for f in listing.fields:
-        both = f"{f.value} or {phrase}"
-        if f.key == "offering" and phrase.lower() not in str(f.value).lower() and len(both) <= FREE_TEXT_MAX:
+        extra = add.get(f.key)
+        both = f"{f.value} or {extra}"
+        if extra and extra.lower() not in str(f.value).lower() and len(both) <= FREE_TEXT_MAX:
             f = replace(f, value=both)
         fields.append(f)
     return replace(listing, fields=tuple(fields), updated_at=now, version=listing.version + 1)
@@ -364,6 +367,22 @@ def quick_facts(text: str) -> dict:
     if in_person or online:
         out["format"] = "In person or online" if in_person and online else "In person" if in_person else "Online"
 
+    # Teaching, stated plainly: "I'm offering piano lessons", "I teach guitar" -> they're the
+    # teacher; "looking for a beginner ice hockey coach" -> they're the student.
+    m = _re.search(r"\b(?:i'?m |i am )?(?:offering|giving|teaching|i teach|i give|i offer|i can teach)\s+"
+                   r"(?:(?:private|group|beginner|online) )?([a-z][a-z ]{1,30}?)\s*(?:lessons?|classes|coaching|tutoring)\b", low) \
+        or _re.search(r"\bi (?:teach|coach|tutor)\s+([a-z][a-z ]{1,30}?)(?=[.!?;,]|$|\s(?:to|in|for|on|and)\b)", low)
+    if m and m.group(1).strip() not in ("some", "a", "the"):
+        activity = m.group(1).strip()
+        out["offering"], out["seeking"] = f"{_article(activity)} {activity} teacher", f"{_article(activity)} {activity} student"
+    m = _re.search(r"\b(?:looking for|need|want|find|searching for)\s+(?:a |an )?((?:beginner |private |good )?"
+                   r"[a-z][a-z ]{1,30}?)\s+(teacher|tutor|coach|instructor|mentor)\b", low)
+    if m and "offering" not in out:
+        what, role = m.group(1).strip(), m.group(2)
+        activity = _re.sub(r"^(?:beginner|private|good) ", "", what)
+        out["seeking"] = f"{_article(what)} {what} {role}"
+        out["offering"] = f"{_article(activity)} {activity} student"
+
     # Interests, only when introduced plainly: "I'm into chess and hiking", "I enjoy jazz".
     m = _re.search(r"\b(?:i'm into|i am into|into|i enjoy|i love|who loves|who enjoys|my hobbies are|i'm interested in|i like)\s+"
                    r"([a-z][a-z ,'\-]{2,80}?)(?=[.!?;]|$)", low)
@@ -374,6 +393,10 @@ def quick_facts(text: str) -> dict:
         if items:
             out["interests"] = items[:6]
     return out
+
+
+def _article(phrase: str) -> str:
+    return "an" if phrase[:1] in "aeiou" else "a"
 
 
 def empty_draft(first_name: str, age_band: str) -> dict:
