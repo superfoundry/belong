@@ -22,6 +22,9 @@
 
   section { padding: var(--space-24) 0 0; }
   section > .eyebrow { margin-bottom: var(--space-3); }
+  /* Cream is the accent surface: a full-bleed band behind every third section, never two touching. */
+  section.band { background: var(--surface-raised); box-shadow: 0 0 0 100vmax var(--surface-raised); clip-path: inset(0 -100vmax);
+                 padding-bottom: var(--space-24); margin-top: var(--space-24); }
   section > .display-m { margin-bottom: var(--space-4); max-width: 22ch; }
   section > .intro { color: var(--text-secondary); max-width: var(--content-narrow); margin: 0 0 var(--space-8); }
 
@@ -71,7 +74,7 @@
   <div class="chapter">
     <header class="hero">
       <p class="eyebrow">Trust and security</p>
-      <h1 class="display-l">Don't trust us. <span class="drop-clay">Check.</span></h1>
+      <h1 class="display-l">Don't trust us. <span class="drop-coral">Check.</span></h1>
       <p class="lead">Your hidden details can improve a match, but they are never shown: not to other people, and not to Belong. This page shows how it works, and gives you and your agent the tools to test it yourselves.</p>
       <nav class="onpage" aria-label="On this page">
         <a href="#promises-section">What we promise</a><a href="#how">How it's built</a><a href="#verify">Verify in your browser</a>
@@ -124,7 +127,7 @@
       </div>
     </section>
 
-    <section id="verify">
+    <section id="verify" class="band">
       <p class="eyebrow">Verify in your browser</p>
       <h2 class="display-m">These checks run on your computer</h2>
       <p class="intro">They use your browser's own cryptography, so they don't take our word for anything.</p>
@@ -201,7 +204,7 @@
       </div>
     </section>
 
-    <section id="roadmap">
+    <section id="roadmap" class="band">
       <p class="eyebrow">Roadmap</p>
       <h2 class="display-m">From prototype to "not even us"</h2>
       <p class="intro">What has to be true before the strongest promise holds, and where each piece stands.</p>

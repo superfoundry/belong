@@ -1,54 +1,54 @@
 /* Belong. — OPT-IN dark treatment ("Belong. at night").
-   Not part of tokens.json on purpose: the default ground of Belong. is linen, as in the
+   Not part of tokens.json on purpose: the default ground of Belong. is cream, as in the
    SuperFoundry family. Link this file in the rare deliverable that needs dark (decks,
    the private-matching explainer panel, video), then scope with data-theme="dark". */
 [data-theme="dark"] {
-  --surface-app: #0f0f16;
-  --surface-raised: #16161e;
-  --surface-card: #1b1b24;
-  --surface-sunken: #08080e;
-  --surface-overlay: rgba(4, 4, 8, 0.6);
+  --surface-app: #13131c;
+  --surface-raised: #1b1a26;
+  --surface-card: #1f1f2c;
+  --surface-sunken: #0c0c15;
+  --surface-overlay: rgba(4, 4, 10, 0.6);
   --surface-inverse: var(--sf-white);
-  --surface-nav-blur: rgba(15, 15, 22, 0.82);
+  --surface-nav-blur: rgba(19, 19, 28, 0.82);
 
-  --gradient-app: linear-gradient(160deg, #16161E 0%, #0F0F16 45%, #08080E 100%); /* @kind other */
+  --gradient-app: linear-gradient(160deg, #1B1A26 0%, #13131C 45%, #0C0C15 100%); /* @kind other */
 
-  --border-subtle: rgba(248, 244, 239, 0.08);
-  --border-default: rgba(248, 244, 239, 0.14);
-  --border-strong: rgba(248, 244, 239, 0.28);
-  --border-accent: var(--sf-ember-300);
+  --border-subtle: rgba(251, 246, 238, 0.08);
+  --border-default: rgba(251, 246, 238, 0.14);
+  --border-strong: rgba(251, 246, 238, 0.28);
+  --border-accent: var(--sf-ember-400);
 
   --text-primary: var(--sf-white);
-  --text-secondary: rgba(248, 244, 239, 0.70);
-  --text-tertiary: rgba(248, 244, 239, 0.52);
-  --text-disabled: rgba(248, 244, 239, 0.28);
+  --text-secondary: rgba(251, 246, 238, 0.72);
+  --text-tertiary: rgba(251, 246, 238, 0.54);
+  --text-disabled: rgba(251, 246, 238, 0.28);
   --text-accent: var(--sf-ember-300);
   --text-on-accent: var(--sf-ink-900);
   --text-inverse: var(--sf-ink-900);
 
-  --accent-default: var(--sf-ember-300);
-  --accent-hover: var(--sf-ember-200);
-  --accent-active: var(--sf-ember-400);
-  --accent-muted: rgba(218, 133, 100, 0.16);
+  --accent-default: var(--sf-ember-400);
+  --accent-hover: var(--sf-ember-300);
+  --accent-active: var(--sf-ember-500);
+  --accent-muted: rgba(250, 118, 82, 0.18);
 
-  --accent-ai: var(--sf-azure-300);
-  --accent-ai-hover: var(--sf-azure-200);
-  --accent-ai-active: var(--sf-azure-400);
-  --accent-ai-muted: rgba(156, 158, 217, 0.14);
+  --accent-ai: var(--sf-azure-400);
+  --accent-ai-hover: var(--sf-azure-300);
+  --accent-ai-active: var(--sf-azure-500);
+  --accent-ai-muted: rgba(120, 127, 232, 0.18);
   --text-ai: var(--sf-azure-300);
-  --border-ai: var(--sf-azure-300);
+  --border-ai: var(--sf-azure-400);
 
   --accent-olive: var(--sf-olive-400);
-  --accent-olive-muted: rgba(82, 162, 155, 0.16);
+  --accent-olive-muted: rgba(83, 209, 171, 0.16);
   --text-olive: var(--sf-olive-300);
   --border-olive: var(--sf-olive-400);
 
-  --text-success: #93c089;
-  --text-warning: #e1b671;
-  --text-error: #e68582;
-  --accent-success-muted: rgba(83, 131, 73, 0.18);
-  --accent-warning-muted: rgba(219, 167, 81, 0.18);
-  --accent-error-muted: rgba(164, 40, 58, 0.22);
+  --text-success: #8aca8b;
+  --text-warning: #eabc6e;
+  --text-error: #f28885;
+  --accent-success-muted: rgba(71, 148, 76, 0.20);
+  --accent-warning-muted: rgba(237, 179, 69, 0.18);
+  --accent-error-muted: rgba(164, 40, 58, 0.24);
 
-  --focus-ring: var(--sf-ember-300);
+  --focus-ring: var(--sf-ember-400);
 }

@@ -44,7 +44,7 @@
   .tabbar button + button { border-left: 1px solid var(--border-subtle); }
   .tabbar button::before { content: ""; position: absolute; top: -1px; left: 28%; right: 28%; height: 2px; background: transparent; border-radius: 0 0 2px 2px; }
   .tabbar button.on { color: var(--text-primary); }
-  .tabbar button.on::before { background: var(--accent-default); }
+  .tabbar button.on::before { background: var(--border-accent); }
   .tabbar button:hover { color: var(--text-primary); }
   .tabbar button:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: -2px; }
   .tab-label { font-family: var(--font-display); font-weight: 700; font-size: 17px; letter-spacing: -0.01em; position: relative; }
@@ -54,7 +54,7 @@
   .setting-row { display: flex; align-items: center; gap: var(--space-2); padding: var(--space-3) 0; border-bottom: 1px solid var(--border-subtle); }
   .setting-row:first-child { padding-top: 0; } .setting-row:last-child { border-bottom: 0; padding-bottom: 0; }
   .toggle-row { cursor: pointer; gap: var(--space-4); }
-  /* A switch, from the system's Switch: clay when on. */
+  /* A switch, from the system's Switch: coral when on. */
   .switch { appearance: none; flex-shrink: 0; width: 40px; height: 24px; border-radius: var(--radius-pill); background: var(--border-strong);
             position: relative; cursor: pointer; transition: background var(--duration-base) var(--ease-standard); margin: 0; }
   .switch::after { content: ""; position: absolute; top: 3px; left: 3px; width: 18px; height: 18px; border-radius: 50%; background: var(--surface-card);
@@ -64,7 +64,7 @@
   .switch:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
   .phone .tabs { background: var(--surface-card); padding: 0 var(--space-4); border-top: 1px solid var(--border-subtle); border-bottom: 0; justify-content: space-between; }
   .phone .tabs button { margin: 0; padding: var(--space-3) 2px var(--space-4); position: relative; font: var(--text-label); font-weight: 600; }
-  .phone .tabs .dot { position: absolute; top: 9px; right: -8px; width: 6px; height: 6px; border-radius: 50%; background: var(--accent-default); }
+  .phone .tabs .dot { position: absolute; top: 9px; right: -8px; width: 6px; height: 6px; border-radius: 50%; background: var(--notify); }
   .stack > * + * { margin-top: var(--space-4); }
   .screen.split { padding: 0; position: relative; overflow: hidden; }
   /* Base layer: the profile, full screen. Bottom padding keeps it scrollable clear of the sheet. */
@@ -144,7 +144,7 @@
   .msg-row.me .msg-col { align-items: flex-end; }
   .bubble-wrap { position: relative; display: flex; align-items: center; gap: 4px; }
   .msg-row .bubble { margin: 0; max-width: 100%; padding: 7px 12px; font-size: 14px; line-height: 1.35; border-radius: var(--bubble); }
-  .msg-row .bubble.them { background: var(--surface-card); border: 0; box-shadow: 0 1px 2px rgba(22, 22, 33, 0.08); }
+  .msg-row .bubble.them { background: var(--surface-raised); border: 0; }
   /* In a run, the bubbles hug each other on the speaker's side; the latest keeps a small tail. */
   .msg-row.them:not(.first) .bubble { border-top-left-radius: var(--bubble-tail); }
   .msg-row.them:not(.last) .bubble { border-bottom-left-radius: var(--bubble-tail); }
@@ -194,7 +194,7 @@
   .facts li + li { margin-top: var(--space-3); }
   .facts b { font-weight: 600; }
   .check-row.ack { margin-top: var(--space-4); padding: var(--space-3); border: 1px solid var(--border-default); border-radius: var(--radius-md); background: var(--surface-card); }
-  .one-way { background: var(--surface-sunken); border-radius: var(--radius-md); padding: var(--space-3) var(--space-4); margin: var(--space-4) 0; }
+  .one-way { background: var(--surface-raised); border-radius: var(--radius-md); padding: var(--space-3) var(--space-4); margin: var(--space-4) 0; }
   .one-way .label { margin: 0 0 var(--space-1); color: var(--text-secondary); }
   .one-way .body-s { margin: 0; } .one-way .body-s + .body-s { margin-top: var(--space-2); }
   .choices { display: grid; gap: var(--space-2); }
@@ -206,7 +206,7 @@
   .listing-card .heading-m { margin: 0; }
   details.matches { margin-top: var(--space-4); border-top: 1px solid var(--border-subtle); padding-top: var(--space-3); }
   details.matches > summary { cursor: pointer; font: var(--text-label); font-weight: 600; color: var(--text-accent); }
-  .card.intro { box-shadow: none; background: var(--surface-app); }
+  .card.intro { box-shadow: none; background: var(--surface-raised); border-color: transparent; }
   .profile-card .posted { margin-top: var(--space-4); padding-top: var(--space-4); border-top: 1px solid var(--border-subtle); }
   .profile-card .posted .monogram { width: 32px; height: 32px; font-size: 15px; }
   .profile-card .posted .heading-m { font: var(--text-body-s); font-weight: 600; }
@@ -447,7 +447,7 @@ function renderPhone(slot) {
     ${L.menu ? `<div class="menu" role="menu">${[["me", "Profile"], ["settings", "Settings"], ["receipts", "Receipts"]].map(([v, label]) =>
       `<button role="menuitem" onclick="menuGo('${slot}','${v}')">${label}</button>`).join("")}
       <button role="menuitem" class="sep" onclick="signOut('${slot}')">Log out</button></div>` : ""}` : "";
-  // Tide marks live status, at most once per screen: "Matching" once any listing is live, else "Verified".
+  // Mint marks live status, at most once per screen: "Matching" once any listing is live, else "Verified".
   const status = L.signedOut ? "" : p.listings.some(l => l.listed) ? badge("olive", "Matching") : p.verified ? badge("olive", "Verified") : "";
   // Keep the profile pane's scroll position across redraws (editing, agent updates).
   const oldPane = document.querySelector(`#phone-${slot} .profile-pane`);
@@ -952,7 +952,7 @@ function fieldRow(slot, f) {
       <button class="${f.visibility === "shown" ? "on" : ""}" onclick="setVis(${at},'shown')">Shown</button>
       <button class="hidden-choice ${f.visibility === "hidden" ? "on" : ""}" onclick="setVis(${at},'hidden')">Hidden</button></span>`;
   const off = f.sensitive ? `<button class="btn ghost sm" onclick="enable(${at},false)">Turn off</button>` : "";
-  // The fixed hidden look (sunken well, dusk hairline, "Hidden" badge) once the field holds a value.
+  // The fixed hidden look (sunken well, periwinkle hairline, "Hidden" badge) once the field holds a value.
   const hidden = f.visibility === "hidden" && !f.locked && hasValue(f.value);
   return `<div class="field${hidden ? " hidden-field" : ""}"><div class="head"><span class="label">${label}</span>${hidden ? badge("ai", "Hidden") : ""}${choice}${off}</div>${control}
     ${hidden ? `<div class="hidden-note">Used for matching, never shown</div>` : ""}</div>`;
