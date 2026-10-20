@@ -1,278 +1,362 @@
 <!doctype html>
-<html lang="en" data-theme="dark">
+<html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Belong. in chat</title>
-<meta name="description" content="Mockup: using Belong. inside a ChatGPT-style chat, through a connector.">
+<meta name="description" content="Mockup: Belong. as an app inside a ChatGPT-style chat, following the Apps SDK UI guidelines.">
 <link rel="stylesheet" href="/ds/tokens.css">
-<link rel="stylesheet" href="/ds/belong.css">
-<link rel="stylesheet" href="/ds/theme-dark.css">
 <style>
-  /* Mockup of a ChatGPT-style chat app in dark mode, with Belong. as a connector. It depicts
-     another company's app, so it uses plain dark greys and no logos; Belong.'s own colours appear
-     only on what Belong. contributes (tool calls, cards, confirmations). */
-  html, body { height: 100%; }
-  body { margin: 0; background: var(--surface-app); background-image: none; color: var(--text-primary); }
+  /* A mockup of Belong. as an app inside ChatGPT, built to OpenAI's Apps SDK UI guidelines
+     (developers.openai.com/apps-sdk/concepts/ui-guidelines):
+     - the system font and system colours for text, icons, dividers and backgrounds;
+     - Belong.'s colour only on primary buttons and small badges, never on backgrounds or text;
+     - inline cards appear before the model's reply, with at most two actions at the bottom,
+       no tabs or drill-ins, no nested scrolling, and no logo inside (ChatGPT adds the app's
+       name and icon above the card);
+     - the model's follow-up is short and doesn't repeat the card.
+     The chat app itself is plain dark greys with no logos: it isn't the real ChatGPT.
+     The sign-in popup is Belong.'s own website, so it uses the Belong. design system. */
+  :root {
+    --sys-bg: #212121; --sys-side: #181818; --sys-raise: #2f2f2f; --sys-card: #272727;
+    --sys-line: rgba(255, 255, 255, 0.10); --sys-line-2: rgba(255, 255, 255, 0.16);
+    --sys-text: #ececec; --sys-text-2: #b4b4b4; --sys-text-3: #8f8f8f;
+    --sys-font: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, Roboto, "Helvetica Neue", Arial, sans-serif;
+    --brand: var(--sf-ember-400); --brand-ink: var(--sf-ink-900);
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body { background: var(--sys-bg); color: var(--sys-text); font: 16px/1.5 var(--sys-font); }
+  button { font: inherit; color: inherit; }
   .app { display: grid; grid-template-columns: 260px 1fr; height: 100vh; }
   @media (max-width: 760px) { .app { grid-template-columns: 1fr; } .side { display: none; } }
 
-  .side { background: var(--surface-sunken); display: flex; flex-direction: column; gap: 2px; padding: var(--space-3); overflow-y: auto; }
-  .side button, .side a { all: unset; box-sizing: border-box; display: flex; align-items: center; gap: 10px; padding: 8px 10px;
-                          border-radius: 8px; font: var(--text-body-s); color: var(--text-secondary); cursor: pointer;
-                          white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .side button:hover, .side a:hover { background: var(--border-subtle); color: var(--text-primary); }
-  .side .on { background: var(--border-default); color: var(--text-primary); }
-  .side .new { color: var(--text-primary); font-weight: 600; }
-  .side-label { font: var(--text-caption); color: var(--text-tertiary); margin: var(--space-4) 10px 4px; }
-  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--border-strong); flex-shrink: 0; }
-  .dot.on { background: var(--accent-olive); }
-  .side-note { margin-top: auto; padding: var(--space-3) 10px 0; font: var(--text-caption); color: var(--text-tertiary); }
-  .side-note a { all: revert; color: var(--text-secondary); }
+  .side { background: var(--sys-side); padding: 10px; display: flex; flex-direction: column; gap: 2px; overflow-y: auto; font-size: 14px; }
+  .side .item { all: unset; display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 8px; color: var(--sys-text);
+                white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer; }
+  .side .item:hover { background: var(--sys-raise); }
+  .side .item.on { background: var(--sys-raise); }
+  .side .muted { color: var(--sys-text-2); }
+  .side-label { font-size: 12px; color: var(--sys-text-3); margin: 18px 10px 6px; }
+  .side-note { margin-top: auto; padding: 12px 10px 4px; font-size: 12px; color: var(--sys-text-3); line-height: 1.45; }
+  .side-note a { color: var(--sys-text-2); }
 
   .main { display: flex; flex-direction: column; min-width: 0; height: 100vh; }
-  .top { display: flex; align-items: center; gap: var(--space-3); padding: var(--space-3) var(--space-5); }
-  .model { font-family: var(--font-display); font-weight: 600; font-size: 18px; }
-  .top .badge { margin-left: auto; }
-  .pane { flex: 1; overflow-y: auto; padding: var(--space-6) var(--space-5) var(--space-4); }
-  .col { max-width: 720px; margin: 0 auto; display: flex; flex-direction: column; gap: var(--space-4); }
-  .me { align-self: flex-end; max-width: 80%; background: var(--surface-card); padding: 10px 16px; border-radius: 22px; font: var(--text-body-m); white-space: pre-wrap; }
-  .bot { font: var(--text-body-m); line-height: 1.6; white-space: pre-wrap; }
-  .typing { display: inline-flex; gap: 5px; padding: 8px 0; }
-  .typing span { width: 7px; height: 7px; border-radius: 50%; background: var(--text-tertiary); animation: blink 1.2s infinite; }
+  .top { display: flex; align-items: center; gap: 8px; padding: 12px 20px; }
+  .model { font-size: 18px; font-weight: 600; }
+  .pane { flex: 1; overflow-y: auto; padding: 24px 20px 12px; }
+  .col { max-width: 720px; margin: 0 auto; display: flex; flex-direction: column; gap: 14px; }
+  .me { align-self: flex-end; max-width: 75%; background: var(--sys-raise); padding: 10px 16px; border-radius: 22px; white-space: pre-wrap; }
+  .bot { white-space: pre-wrap; }
+  .typing { display: inline-flex; gap: 5px; padding: 6px 0; }
+  .typing span { width: 7px; height: 7px; border-radius: 50%; background: var(--sys-text-3); animation: blink 1.2s infinite; }
   .typing span:nth-child(2) { animation-delay: .2s; } .typing span:nth-child(3) { animation-delay: .4s; }
   @keyframes blink { 0%, 80%, 100% { opacity: .25; } 40% { opacity: 1; } }
 
-  /* What Belong. contributes, in its own colours */
-  .tool { align-self: flex-start; display: inline-flex; align-items: center; gap: 8px; font: var(--text-caption); color: var(--text-ai);
-          background: var(--accent-ai-muted); border-radius: var(--radius-pill); padding: 4px 12px; }
-  .tool b { font-weight: 600; }
-  .tool .t-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--accent-ai); }
-  .card { background: var(--surface-card); border: 1px solid var(--border-default); box-shadow: none; padding: var(--space-4) var(--space-5); }
-  .card .eyebrow { margin: 0 0 var(--space-2); }
-  .card.agent .eyebrow { color: var(--text-ai); }
-  .card.confirm { border-color: var(--border-accent); }
-  .card h3 { margin: 0 0 var(--space-2); }
-  .card p { margin: 0 0 var(--space-3); }
-  .row { display: flex; gap: var(--space-2); align-items: center; flex-wrap: wrap; }
-  .grow { flex: 1; }
-  .facts { list-style: none; padding: 0; margin: 0 0 var(--space-4); display: grid; gap: var(--space-2); }
-  .facts li { padding: var(--space-2) var(--space-3); border-radius: var(--radius-md); background: var(--surface-raised); font: var(--text-body-s); }
-  .facts .hid { background: var(--accent-ai-muted); } .facts .hid b { color: var(--text-ai); }
-  .facts .yes { background: var(--accent-muted); } .facts .yes b { color: var(--text-accent); }
-  .choice { display: flex; gap: var(--space-3); align-items: flex-start; padding: var(--space-3) 0; border-top: 1px solid var(--border-subtle); cursor: pointer; }
-  .choice input { margin-top: 3px; accent-color: var(--accent-default); }
-  .choice .caption { display: block; color: var(--text-secondary); }
-  .fine { font: var(--text-caption); color: var(--text-tertiary); margin: var(--space-2) 0 0 !important; }
-  .preview .line { display: grid; grid-template-columns: 90px 1fr; gap: var(--space-2); font: var(--text-body-s); margin-top: 4px; }
-  .preview .line span:first-child { color: var(--text-tertiary); }
-  .their { background: var(--surface-raised); border-radius: var(--radius-md); padding: var(--space-3) var(--space-4); }
-  .their .label { color: var(--text-secondary); }
-  .their p { margin: var(--space-1) 0; }
-  .input { background: var(--surface-app); }
+  /* The app's label, drawn by ChatGPT above the app's content: icon and name. */
+  .app-label { display: flex; align-items: center; gap: 8px; font-size: 14px; color: var(--sys-text-2); margin-bottom: -4px; }
+  .app-icon { width: 20px; height: 20px; border-radius: 6px; background: var(--sys-raise); border: 1px solid var(--sys-line-2);
+              display: inline-flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; color: var(--sys-text); }
 
-  .compose { padding: 0 var(--space-5) var(--space-4); }
-  .box { max-width: 720px; margin: 0 auto; display: flex; align-items: flex-end; gap: 8px; background: var(--surface-card);
-         border-radius: 28px; padding: 8px 8px 8px 20px; }
-  .box textarea { all: unset; flex: 1; font: var(--text-body-m); padding: 9px 0; max-height: 160px; overflow-y: auto; white-space: pre-wrap; }
-  .box textarea::placeholder { color: var(--text-tertiary); }
-  .send { all: unset; cursor: pointer; width: 36px; height: 36px; border-radius: 50%; background: var(--text-primary); flex-shrink: 0;
-          display: inline-flex; align-items: center; justify-content: center; }
-  .send span { width: 0; height: 0; border-left: 6px solid transparent; border-right: 6px solid transparent; border-bottom: 9px solid var(--surface-app); }
+  /* An inline card: system surface and type; headline, supporting text, then up to two actions. */
+  .card { border: 1px solid var(--sys-line); border-radius: 16px; padding: 16px; background: var(--sys-card); }
+  .card .title { font-weight: 600; margin: 0 0 4px; }
+  .card .sub { color: var(--sys-text-2); font-size: 14px; margin: 0; }
+  .card .meta { display: grid; grid-template-columns: 96px 1fr; gap: 4px 12px; font-size: 14px; margin: 12px 0 0; }
+  .card .meta dt { color: var(--sys-text-3); } .card .meta dd { margin: 0; }
+  .card .quote { margin: 12px 0 0; padding: 0 0 0 12px; border-left: 2px solid var(--sys-line-2); color: var(--sys-text-2); font-size: 14px; }
+  .card .actions { display: flex; gap: 8px; margin-top: 16px; }
+  .badge { display: inline-block; font-size: 12px; font-weight: 600; padding: 2px 8px; border-radius: 999px; margin-left: 8px; vertical-align: 2px;
+           background: var(--brand); color: var(--brand-ink); }
+  .badge.plain { background: var(--sys-raise); color: var(--sys-text-2); }
+  .btn { all: unset; cursor: pointer; padding: 8px 14px; border-radius: 999px; font-size: 14px; font-weight: 600; text-align: center; }
+  .btn.primary { background: var(--brand); color: var(--brand-ink); }   /* brand accent on the primary button only */
+  .btn.secondary { border: 1px solid var(--sys-line-2); color: var(--sys-text); }
+  .btn.system { background: var(--sys-text); color: var(--sys-bg); }
+  .btn:disabled, .btn[aria-disabled="true"] { opacity: .45; cursor: default; }
+  .btn:focus-visible { outline: 2px solid var(--sys-text); outline-offset: 2px; }
+
+  .compose { padding: 0 20px 14px; }
+  .box { max-width: 720px; margin: 0 auto; display: flex; align-items: flex-end; gap: 8px; background: var(--sys-raise); border-radius: 28px; padding: 8px 8px 8px 20px; }
+  .box textarea { all: unset; flex: 1; padding: 9px 0; max-height: 160px; overflow-y: auto; white-space: pre-wrap; }
+  .box textarea::placeholder { color: var(--sys-text-3); }
+  .send { all: unset; cursor: pointer; width: 36px; height: 36px; border-radius: 50%; background: var(--sys-text); display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .send span { width: 0; height: 0; border-left: 6px solid transparent; border-right: 6px solid transparent; border-bottom: 9px solid var(--sys-bg); }
   .send:disabled { opacity: .3; cursor: not-allowed; }
-  .foot { text-align: center; font: var(--text-caption); color: var(--text-tertiary); margin: var(--space-2) 0 0; }
-  #toast { position: fixed; bottom: 90px; left: 50%; transform: translateX(-50%); display: none; z-index: 5; }
+  .foot { text-align: center; font-size: 12px; color: var(--sys-text-3); margin: 8px 0 0; }
+
+  /* ChatGPT's own confirmation, before an app changes anything. */
+  .scrim { position: fixed; inset: 0; background: rgba(0, 0, 0, .55); display: flex; align-items: center; justify-content: center; z-index: 10; }
+  .sheet { width: min(440px, 92vw); background: var(--sys-raise); border-radius: 18px; padding: 20px; box-shadow: 0 12px 40px rgba(0,0,0,.45); }
+  .sheet h2 { font-size: 17px; margin: 0 0 6px; }
+  .sheet p { margin: 0 0 12px; color: var(--sys-text-2); font-size: 14px; }
+  .sheet pre { background: var(--sys-bg); border-radius: 10px; padding: 10px 12px; font: 13px/1.45 ui-monospace, SFMono-Regular, Menlo, monospace; color: var(--sys-text-2); white-space: pre-wrap; margin: 0 0 14px; }
+  .sheet label { display: flex; gap: 8px; align-items: center; font-size: 14px; color: var(--sys-text-2); }
+  .sheet .actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
+
+  /* The sign-in popup is Belong.'s own website (OAuth), so it uses the Belong. design system. */
+  .popup { width: min(420px, 94vw); background: var(--surface-card); color: var(--text-primary); border-radius: 14px; overflow: hidden;
+           box-shadow: 0 12px 40px rgba(0,0,0,.5); font: var(--text-body-s); }
+  .popup .chrome { background: #ececec; color: #555; font: 12px var(--sys-font); padding: 8px 12px; display: flex; gap: 8px; align-items: center; }
+  .popup .chrome .url { background: #fff; border-radius: 6px; padding: 3px 10px; flex: 1; }
+  .popup .body { padding: 24px; background: var(--sf-paper-100); }
+  .popup .wordmark { font-family: var(--font-display); font-weight: 700; font-size: 26px; letter-spacing: var(--tracking-tight); }
+  .popup h3 { font: var(--text-heading-m); margin: 16px 0 6px; }
+  .popup p { color: var(--text-secondary); margin: 0 0 14px; }
+  .popup label.f { display: block; font: var(--text-label); color: var(--text-secondary); margin: 10px 0 4px; }
+  .popup input.i { width: 100%; font: var(--text-body-s); padding: 9px 12px; border: 1px solid var(--border-default); border-radius: var(--radius-md); background: var(--surface-card); }
+  .popup .facts { list-style: none; padding: 0; margin: 0 0 12px; display: grid; gap: 6px; }
+  .popup .facts li { padding: 8px 10px; border-radius: var(--radius-md); background: var(--surface-raised); }
+  .popup .choice { display: flex; gap: 10px; align-items: flex-start; padding: 10px 0; border-top: 1px solid var(--border-subtle); }
+  .popup .choice input { margin-top: 3px; accent-color: var(--accent-default); }
+  .popup .choice small { display: block; color: var(--text-secondary); }
+  .popup .go { all: unset; cursor: pointer; display: block; text-align: center; margin-top: 16px; padding: 11px; border-radius: var(--radius-md);
+               background: var(--accent-default); color: var(--text-on-accent); font-weight: 600; }
+  .popup .fine { font: var(--text-caption); color: var(--text-tertiary); margin: 12px 0 0; }
+  #toast { position: fixed; bottom: 96px; left: 50%; transform: translateX(-50%); display: none; z-index: 20;
+           background: var(--sys-text); color: var(--sys-bg); padding: 8px 14px; border-radius: 10px; font-size: 14px; }
 </style>
 </head>
 <body>
 <div class="app">
   <aside class="side" id="side"></aside>
   <main class="main">
-    <div class="top"><span class="model">ChatGPT</span><span id="conn"></span></div>
+    <div class="top"><span class="model">ChatGPT</span></div>
     <div class="pane" id="pane"><div class="col" id="col"></div></div>
     <div class="compose">
       <div class="box"><textarea id="box" rows="1" placeholder="Ask anything"></textarea>
         <button class="send" id="send" aria-label="Send"><span aria-hidden="true"></span></button></div>
-      <p class="foot">Mockup: not the real ChatGPT and not affiliated with OpenAI. Replies come from the Belong. demo agent.</p>
+      <p class="foot">Mockup of Belong. as a ChatGPT app. Not the real ChatGPT, not affiliated with OpenAI; replies come from the Belong. demo agent.</p>
     </div>
   </main>
 </div>
-<div class="toast" id="toast" role="status"></div>
+<div id="layer"></div>
+<div id="toast" role="status"></div>
 <script>
-// One person using Belong. inside their chat app, through a connector (MCP). The other side is
-// the demo's synthetic people. Saying yes and going live always need the person's own tap; other
-// people's words are shown as theirs, never as instructions to the assistant.
+// The transcript is kept here, turn by turn, the way ChatGPT shows it: your message, the app's
+// label, at most one card per app result, then the model's short reply. Cards show live state
+// (an introduction you've already answered updates in place). Anything that changes data asks
+// for confirmation first; saying yes only ever comes from your own tap on the card.
 let ME = null;
-const L = { form: {}, close: false, questions: false, ack: false, current: null, sending: null, draft: null };
+const L = { log: [], sending: false, confirm: null, popup: null, form: {}, remember: {} };
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const cap = t => t ? t.charAt(0).toUpperCase() + t.slice(1) : t;
 const val = v => Array.isArray(v) ? v.join(", ") : v;
-const badge = (tone, text) => `<span class="badge ${tone}">${esc(text)}</span>`;
-const tool = (name, detail) => `<div class="tool"><span class="t-dot" aria-hidden="true"></span>Used <b>Belong.</b> · ${esc(name)}${detail ? ` · ${esc(detail)}` : ""}</div>`;
-function toast(msg) { const t = $("toast"); t.textContent = msg; t.style.display = "flex"; clearTimeout(t._h); t._h = setTimeout(() => t.style.display = "none", 3500); }
+function toast(msg) { const t = $("toast"); t.textContent = msg; t.style.display = "block"; clearTimeout(t._h); t._h = setTimeout(() => t.style.display = "none", 3000); }
 
 async function api(action, body = {}) {
   const r = await fetch("/api/chat/" + action, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
   const data = await r.json();
   if (data.error) toast(data.error);
-  if (data.me) { ME = data.me; render(); }
+  if (data.me) ME = data.me;
   return !data.error;
 }
-// "new" = a fresh chat that hasn't made its listing yet (the privacy card comes first).
-const listing = () => L.current === "new" ? null
-  : ME.listings.find(l => l.id === (L.current || ME.current)) || ME.listings[ME.listings.length - 1] || null;
-const shown = l => Object.fromEntries(((l && l.draft) ? l.draft.fields : []).filter(f => f.enabled && f.value !== null && f.value !== "" && !(Array.isArray(f.value) && !f.value.length) && f.visibility !== "hidden").map(f => [f.key, f.value]));
+const listing = () => ME.listings.find(l => l.id === ME.current) || ME.listings[ME.listings.length - 1] || null;
+const shownOf = l => Object.fromEntries(((l && l.draft) ? l.draft.fields : []).filter(f => f.enabled && f.visibility !== "hidden" &&
+  f.value !== null && f.value !== "" && !(Array.isArray(f.value) && !f.value.length)).map(f => [f.key, f.value]));
+const label = () => `<div class="app-label"><span class="app-icon" aria-hidden="true">B.</span>Belong.</div>`;
 
-function items() {
-  const out = [];
-  if (!ME.verified) {
-    out.push(`<div class="bot">To find people through Belong. here, connect your verified Belong. account. Your ID check happens on the Belong. site, once, and I only ever act as you.</div>`);
-    out.push(`<div class="card confirm"><p class="eyebrow">Connect Belong.</p>
-      <div class="row"><input class="input grow" id="name" placeholder="First name" value="${esc(L.form.name || "")}" oninput="L.form.name=this.value">
-        <input class="input" id="age" type="number" placeholder="Age" style="max-width:100px" value="${esc(L.form.age || "")}" oninput="L.form.age=this.value"></div>
-      <div class="row" style="margin-top: var(--space-3)"><button class="btn" onclick="connect()">Sign in with Belong.</button></div>
-      <p class="fine">Mockup: a real connector signs you in on the Belong. site (OAuth), never by typing details into the chat.</p></div>`);
-    return out;
-  }
-  out.push(tool("connected", `signed in as ${ME.name}`));
+// ---- cards (live: they read the current state) ----
+function listingCard() {
   const l = listing();
-  if (!l) {  // before the first listing: what's shared, and the two notification choices
-    out.push(`<div class="bot">Before I make your first listing, here's how Belong. handles your details.</div>`);
-    out.push(`<div class="card agent"><p class="eyebrow">What's shared</p>
-      <ul class="facts"><li><b>Shown details</b> are seen only by people you're introduced to.</li>
-        <li class="hid"><b>Hidden details</b> help find your matches, but are never shown.</li>
-        <li class="hid"><b>What you tell me</b> stays between us; matches never see it.</li>
-        <li class="yes"><b>You only meet if you both say yes.</b></li></ul>
-      <label class="choice"><input type="checkbox" ${L.close ? "checked" : ""} onchange="L.close=this.checked"><span><b>Close matches</b>
-        <span class="caption">Hear about people who are almost what you asked for. One-way: they aren't told.</span></span></label>
-      <label class="choice"><input type="checkbox" ${L.questions ? "checked" : ""} onchange="L.questions=this.checked"><span><b>Questions</b>
-        <span class="caption">Short questions that could find you more matches. Belong. never says who asked.</span></span></label>
-      <div class="row" style="margin-top: var(--space-3)"><button class="btn" onclick="startListing()">Got it, continue</button></div></div>`);
-    return out;
-  }
-  const chat = l.chat;
-  if (!chat.some(m => m.from === "me")) out.push(`<div class="bot">Great. Tell me who you'd like to meet, or what you need, in your own words. I'll draft your Belong. listing as we talk.</div>`);
-  chat.forEach((m, n) => {
-    if (n === 0 && m.from === "agent") return;  // Belong.'s greeting: here the assistant speaks for itself
-    if (m.from === "me") { out.push(`<div class="me">${esc(m.text)}</div>`); return; }
-    if (m.draft_updated) out.push(tool("update listing", "checked by Belong."));
-    if (m.live) out.push(tool("start matching", "accepted by the Warden agent"));
-    out.push(`<div class="bot">${esc(m.text)}</div>`);
-  });
-  if (L.sending) out.push(`<div class="me">${esc(L.sending)}</div>`);
-  if (L.sending || l.agent_busy) out.push(`<div class="typing" aria-label="Replying"><span></span><span></span><span></span></div>`);
-  const busy = L.sending || l.agent_busy;
-  const s = shown(l);
-  if (l.draft && !busy && (!l.listed || l.unsaved)) {
-    const lines = [["Where", [s.city, s.country].filter(Boolean).join(", ")], ["When", s.schedule], ["Pay", s.pay], ["Format", s.format],
-                   ["Interests", val(s.interests)]].filter(([, v]) => v);
-    out.push(`<div class="card confirm preview"><p class="eyebrow">${l.listed ? "Changes to your listing" : "Your listing"}</p>
-      <h3 class="heading-m">${esc(cap(s.headline || s.seeking || l.title))}</h3>
-      ${lines.map(([k, v]) => `<div class="line"><span>${k}</span><span>${esc(v)}</span></div>`).join("")}
-      <div class="row" style="margin-top: var(--space-4)"><button class="btn" onclick="goLive()">${l.listed ? "Save changes" : "Start matching"}</button>
-        <span class="caption tertiary">Needs your tap: I can't make a listing live for you.</span></div></div>`);
-  }
-  if (l.listed && !busy) {
-    if (l.followups.length) out.push(tool("get questions"));
-    for (const q of l.followups) {
-      out.push(`<div class="card agent"><p class="eyebrow">Question from Belong.</p><p class="body-m">${esc(q.question_text)}</p>
-        ${["also_offer", "wider_net"].includes(q.question_id) ? `<div class="row"><button class="btn sm" onclick="answer('${l.id}','${q.question_id}',true)">Yes</button>
-          <button class="btn secondary sm" onclick="answer('${l.id}','${q.question_id}',false)">No</button></div>`
-          : `<p class="fine">You can answer this one in the Belong. app.</p>`}</div>`);
-    }
-    const pending = l.intros.filter(i => i.status === "pending");
-    if (pending.length) {
-      out.push(tool("get introductions", `${pending.length} new`));
-      const exact = pending.filter(i => !i.close).length;
-      out.push(`<div class="bot">${exact === pending.length
-        ? `Belong. found ${pending.length === 1 ? "someone" : `${pending.length} people`} who ${pending.length === 1 ? "is" : "are"} also looking for you.`
-        : `Belong. found ${pending.length} ${pending.length === 1 ? "person" : "people"}, some close to what you asked for.`} Take a look:</div>`);
-    }
-    for (const i of l.intros) {
-      const name = i.view.fields.first_name || "Someone";
-      const facts = Object.entries(i.view.fields).filter(([k]) => !["first_name", "seeking", "offering", "headline", "topics"].includes(k)).map(([, v]) => val(v));
-      if (i.status === "pending") {
-        out.push(`<div class="card confirm"><p class="eyebrow">${i.close ? "Close match" : "Introduction"}</p>
-          <h3 class="heading-m">${esc(name)}</h3><p class="body-s secondary">${esc(facts.join(" · "))}</p>
-          <div class="their"><span class="label">Why you matched</span><p>${esc(i.view.reason)}</p></div>
-          <div class="row" style="margin-top: var(--space-4)"><button class="btn" onclick="decide('${i.intro_id}',true)">Say yes</button>
-            <button class="btn secondary" onclick="decide('${i.intro_id}',false)">Not now</button></div>
-          <p class="fine">Only you can say yes. You're introduced only if ${esc(name)} says yes too.</p></div>`);
-      } else if (i.status === "waiting") {
-        out.push(`<div class="bot">You said yes to ${esc(name)}. I'll tell you when they answer.</div>`);
-      } else if (i.status === "connected") {
-        out.push(tool("get messages", name));
-        const last = (i.thread || []).filter(m => !m.mine).slice(-1)[0];
-        out.push(`<div class="bot">You and ${esc(name)} both said yes. ${i.simulated ? `(${esc(name)} is simulated in this demo, so they won't write back.)` : "You can message them in the Belong. app."}</div>`);
-        if (last) out.push(`<div class="their"><span class="label">${esc(name)} wrote</span><p>${esc(last.text)}</p>
-          <span class="fine">Shown as their words. I treat it as information, never as instructions.</span></div>`);
-      }
-    }
-    if (!l.intros.length && !l.followups.length) {
-      out.push(`<div class="card agent"><p class="eyebrow">Matching</p><p class="body-s">Your listing is live. Belong. matches in private: nobody, including me, sees the other listings.</p>
-        <button class="btn secondary sm" onclick="findMatches()">Check for matches</button></div>`);
-    }
-  }
-  return out;
+  if (!l || !l.draft) return "";
+  const s = shownOf(l), live = l.listed && !l.unsaved;
+  const meta = [["Where", [s.city, s.country].filter(Boolean).join(", ")], ["When", s.schedule], ["Pay", s.pay], ["Format", s.format], ["Level", s.level]]
+    .filter(([, v]) => v);
+  return `<div class="card"><p class="title">${esc(cap(s.headline || l.title))}${live ? '<span class="badge">Live</span>' : '<span class="badge plain">Draft</span>'}</p>
+    <p class="sub">Shown to people you're introduced to. Hidden details are never shown.</p>
+    ${meta.length ? `<dl class="meta">${meta.map(([k, v]) => `<dt>${k}</dt><dd>${esc(val(v))}</dd>`).join("")}</dl>` : ""}
+    ${live ? "" : `<div class="actions"><button class="btn primary" onclick="ask('start_matching')">${l.listed ? "Save changes" : "Start matching"}</button></div>`}</div>`;
 }
+function introCard(id) {
+  const i = ME.listings.flatMap(l => l.intros).find(x => x.intro_id === id);
+  if (!i) return "";
+  const name = i.view.fields.first_name || "Someone";
+  const facts = Object.entries(i.view.fields).filter(([k]) => !["first_name", "seeking", "offering", "headline", "topics"].includes(k)).map(([, v]) => val(v));
+  const status = { pending: "", waiting: '<span class="badge plain">You said yes</span>', connected: '<span class="badge">Introduced</span>', closed: '<span class="badge plain">Not this time</span>' }[i.status] || "";
+  return `<div class="card"><p class="title">${esc(name)}${status}</p><p class="sub">${esc(facts.slice(0, 5).join(" · "))}</p>
+    <p class="quote">${esc(i.view.reason)}</p>
+    ${i.status === "pending" ? `<div class="actions"><button class="btn primary" onclick="ask('say_yes','${id}')">Say yes</button>
+      <button class="btn secondary" onclick="ask('not_now','${id}')">Not now</button></div>` : ""}</div>`;
+}
+function questionCard(qid, lid) {
+  const l = ME.listings.find(x => x.id === lid), q = l && l.followups.find(x => x.question_id === qid);
+  if (!q) return `<div class="card"><p class="title">Question from Belong.<span class="badge plain">Answered</span></p></div>`;
+  return `<div class="card"><p class="title">Question from Belong.</p><p class="sub">${esc(q.question_text)}</p>
+    <div class="actions"><button class="btn primary" onclick="ask('answer_yes','${lid}:${qid}')">Yes</button>
+      <button class="btn secondary" onclick="ask('answer_no','${lid}:${qid}')">No</button></div></div>`;
+}
+function emptyCard() { return `<div class="card"><p class="title">No introductions yet</p><p class="sub">Belong. matches in private. Nobody, including ChatGPT, sees the other listings.</p></div>`; }
 
+// ---- rendering ----
 function render() {
   if (!ME) return;
-  const l = ME.verified ? listing() : null;
-  $("conn").innerHTML = ME.verified ? badge("ai", "Belong. connected") : "";
-  $("side").innerHTML = `<button class="new" onclick="newChat()">New chat</button>
-    <p class="side-label">Connectors</p><a><span class="dot ${ME.verified ? "on" : ""}"></span>Belong.</a>
-    <p class="side-label">Chats</p>
-    ${ME.listings.filter(x => x.chat.some(m => m.from === "me") || x.listed).map(x => `<button class="${l && x.id === l.id ? "on" : ""}" onclick="openChat('${x.id}')">${esc(cap(x.title))}</button>`).join("")}
-    <button>Weekend trip ideas</button><button>Fix my CV</button>
-    <p class="side-note">A mockup of Belong. as a connector in a chat app. <a href="/demo">The phone demo</a> · <a href="/trust">Trust</a></p>`;
-  const col = $("col"), pane = $("pane"), atEnd = pane.scrollHeight - pane.scrollTop - pane.clientHeight < 80;
-  col.innerHTML = items().join("");
+  const out = [];
+  for (const t of L.log) {
+    if (t.me) out.push(`<div class="me">${esc(t.me)}</div>`);
+    if (t.app) {
+      out.push(label());
+      for (const c of t.cards || []) out.push(c.kind === "listing" ? (c.latest ? listingCard() : "") :
+        c.kind === "intro" ? introCard(c.id) : c.kind === "question" ? questionCard(c.id, c.lid) : emptyCard());
+    }
+    if (t.bot) out.push(`<div class="bot">${esc(t.bot)}</div>`);
+    if (t.connect && !ME.verified) out.push(`<div><button class="btn system" onclick="openPopup()">Connect Belong.</button></div>`);
+  }
+  if (!L.log.length) out.push(`<div class="bot">What can I help with?</div>`);
+  if (L.sending) out.push(`<div class="typing" aria-label="Thinking"><span></span><span></span><span></span></div>`);
+  const pane = $("pane"), atEnd = pane.scrollHeight - pane.scrollTop - pane.clientHeight < 120;
+  $("col").innerHTML = out.join("");
   if (atEnd || L.jump) { pane.scrollTop = pane.scrollHeight; L.jump = false; }
-  const ready = ME.verified && l;
-  $("box").disabled = !ready;
-  $("box").placeholder = !ME.verified ? "Connect Belong. to start" : !l ? "Choose your settings above to start" : "Ask anything";
-  $("send").disabled = !ready || !!(L.sending || (l && l.agent_busy));
+  $("send").disabled = L.sending;
+  $("side").innerHTML = `<button class="item">New chat</button>
+    <p class="side-label">Apps</p><div class="item">${ME.verified ? "Belong. · connected" : '<span class="muted">Belong. · not connected</span>'}</div>
+    <p class="side-label">Chats</p><div class="item on">Belong. listing</div><div class="item muted">Weekend trip ideas</div><div class="item muted">Fix my CV</div>
+    <p class="side-note">A mockup of Belong. as an app in ChatGPT, following OpenAI's Apps SDK UI guidelines. <a href="/demo">Phone demo</a> · <a href="/trust">Trust</a></p>`;
+  renderLayer();
 }
 
-async function connect() { if (await api("verify", { name: L.form.name, age: L.form.age })) L.jump = true, render(); }
-async function startListing() {
-  if (await api("new_listing", { prefs: { acknowledged: true, notify_close: L.close, notify_questions: L.questions } })) {
-    L.current = ME.current; L.jump = true; render(); $("box").focus();
-  }
-}
-function newChat() {
-  if (!ME.verified) return;
-  // A new chat is a new listing: the privacy card comes first, before anything is made.
-  Object.assign(L, { current: "new", close: false, questions: false, jump: true });
-  render();
-}
-function openChat(id) { L.current = id; L.jump = true; render(); }
+// ---- the conversation ----
+const CHECK = /\b(match|matches|matched|anyone|anybody|someone|found|introduc\w*|news|update|who)\b/i;
 async function sendMsg() {
-  const l = listing(), text = $("box").value.trim();
-  if (!text || !l || L.sending) return;
-  L.sending = text; $("box").value = ""; L.jump = true; render();
+  const text = $("box").value.trim();
+  if (!text || L.sending) return;
+  $("box").value = ""; $("box").style.height = "auto";
+  L.log.push({ me: text }); L.sending = true; L.jump = true; render();
+  try {
+    if (!ME.verified) {
+      L.log.push({ bot: "I can do that with the Belong. app. Connect it first: you'll sign in on the Belong. website, where your ID check and privacy choices live.", connect: true });
+      L.pendingText = text;
+      return;
+    }
+    const l = listing();
+    if (l && l.listed && CHECK.test(text)) return await checkMatches();
+    await draftWith(text);
+  } finally { L.sending = false; L.jump = true; render(); }
+}
+async function draftWith(text) {
+  if (!listing()) await api("new_listing", {});  // uses the choices made when connecting
+  const l = listing(), before = l.chat.length;
   await api("prefill", { listing_id: l.id, text });
   await api("agent", { listing_id: l.id, text });
-  L.sending = null; L.jump = true; render();
+  const now = listing(), fresh = now.chat.slice(before).filter(m => m.from === "agent");
+  const updated = fresh.some(m => m.draft_updated);
+  if (updated) for (const t of L.log) for (const c of t.cards || []) if (c.kind === "listing") c.latest = false;  // only the latest preview stays
+  // ChatGPT writes its own short follow-up from what the app returns, and it doesn't repeat the card:
+  // with a card shown, keep only the agent's last paragraph (its next question or step).
+  const text = fresh.map(m => m.text).join("\n\n").trim();
+  const followUp = updated ? (text.split(/\n\s*\n/).filter(Boolean).pop() || "") : text;
+  L.log.push({ app: updated, cards: updated ? [{ kind: "listing", latest: true }] : [], bot: followUp || "Done." });
 }
-async function goLive() {
-  const l = listing(), d = l.draft;
-  const body = { intent_text: d.intent_text, exactness: d.exactness,
-    fields: d.fields.filter(f => f.enabled && f.value !== null && f.value !== "" && !(Array.isArray(f.value) && !f.value.length))
-      .map(f => ({ key: f.key, value: f.value, visibility: f.visibility, confirmed: !!f.confirmed })) };
-  if (await api("submit", { listing_id: l.id, listing: body })) { L.jump = true; await findMatches(); }
+async function checkMatches() {
+  await api("match");
+  const l = listing();
+  const cards = [...l.followups.map(q => ({ kind: "question", id: q.question_id, lid: l.id })),
+                 ...l.intros.filter(i => i.status === "pending").slice(0, 3).map(i => ({ kind: "intro", id: i.intro_id }))];
+  const n = l.intros.filter(i => i.status === "pending").length;
+  L.log.push({ app: true, cards: cards.length ? cards : [{ kind: "empty" }],
+    bot: n ? `${n === 1 ? "One person" : `${n} people`} ${n === 1 ? "is" : "are"} also looking for you. Only you can say yes, and you're introduced only if they say yes too.`
+           : cards.length ? "Answering could find you more matches." : "Nothing yet. Ask me again later." });
 }
-async function findMatches() { if (await api("match")) { L.jump = true; render(); } }
-const answer = (listing_id, question_id, yes) => api("answer", { listing_id, question_id, answer: { yes } }).then(() => api("match"));
-const decide = (intro_id, yes) => api("decide", { intro_id, yes });
+
+// ---- changing anything goes through ChatGPT's confirmation ----
+const ACTIONS = {
+  start_matching: { tool: "start_matching", ask: () => `Make your listing live for matching?`, args: () => ({ listing: listing().title }) },
+  say_yes: { tool: "say_yes", ask: id => `Say yes to ${nameOf(id)}?`, args: id => ({ introduction: nameOf(id) }) },
+  not_now: { tool: "not_now", ask: id => `Pass on ${nameOf(id)} for now?`, args: id => ({ introduction: nameOf(id) }) },
+  answer_yes: { tool: "answer_question", ask: () => `Answer “Yes” to the question from Belong.?`, args: () => ({ answer: "yes" }) },
+  answer_no: { tool: "answer_question", ask: () => `Answer “No” to the question from Belong.?`, args: () => ({ answer: "no" }) },
+};
+const nameOf = id => (ME.listings.flatMap(l => l.intros).find(x => x.intro_id === id) || { view: { fields: {} } }).view.fields.first_name || "this person";
+function ask(kind, arg) {
+  const a = ACTIONS[kind];
+  // "Say yes" is never remembered: it always needs this tap and this confirmation.
+  if (L.remember[a.tool] && kind !== "say_yes") return run(kind, arg);
+  L.confirm = { kind, arg }; renderLayer();
+}
+async function run(kind, arg) {
+  L.confirm = null; renderLayer();
+  const l = listing();
+  if (kind === "start_matching") {
+    const d = l.draft, body = { intent_text: d.intent_text, exactness: d.exactness,
+      fields: d.fields.filter(f => f.enabled && f.value !== null && f.value !== "" && !(Array.isArray(f.value) && !f.value.length))
+        .map(f => ({ key: f.key, value: f.value, visibility: f.visibility, confirmed: !!f.confirmed })) };
+    if (await api("submit", { listing_id: l.id, listing: body })) {
+      L.log.push({ app: true, cards: [], bot: "Your listing is live. Belong. matches in private; ask me “any matches?” whenever you like." });
+    }
+  } else if (kind === "say_yes" || kind === "not_now") {
+    await api("decide", { intro_id: arg, yes: kind === "say_yes" });
+    const i = ME.listings.flatMap(x => x.intros).find(x => x.intro_id === arg);
+    if (kind === "say_yes") L.log.push({ bot: i && i.status === "connected"
+      ? `${nameOf(arg)} said yes too, so you're introduced. Message them in the Belong. app.`
+      : `Done. I'll let you know if ${nameOf(arg)} says yes too; ask me any time.` });
+  } else {
+    const [lid, qid] = arg.split(":");
+    await api("answer", { listing_id: lid, question_id: qid, answer: { yes: kind === "answer_yes" } });
+    L.log.push({ bot: kind === "answer_yes" ? "Thanks, I've updated your listing. Ask me for matches again in a bit." : "No problem." });
+  }
+  L.jump = true; render();
+}
+
+// ---- overlays: the confirmation sheet, and the sign-in popup on Belong.'s site ----
+function renderLayer() {
+  const c = L.confirm, layer = $("layer");
+  if (c) {
+    const a = ACTIONS[c.kind];
+    layer.innerHTML = `<div class="scrim"><div class="sheet" role="dialog" aria-modal="true" aria-labelledby="cf-t">
+      <h2 id="cf-t">${esc(a.ask(c.arg))}</h2><p>Belong. wants to use the <b>${a.tool}</b> action.</p>
+      <pre>${esc(JSON.stringify(a.args(c.arg), null, 2))}</pre>
+      ${c.kind === "say_yes" ? "" : `<label><input type="checkbox" id="cf-r"> Remember for this conversation</label>`}
+      <div class="actions"><button class="btn secondary" onclick="L.confirm=null; renderLayer()">Cancel</button>
+        <button class="btn system" onclick="confirmIt()">Confirm</button></div></div></div>`;
+  } else if (L.popup) {
+    const step = L.popup.step;
+    layer.innerHTML = `<div class="scrim"><div class="popup" role="dialog" aria-modal="true" aria-label="Sign in to Belong.">
+      <div class="chrome"><span>●●●</span><span class="url">belong.example/connect</span></div>
+      <div class="body"><span class="wordmark">Belong.</span>
+      ${step === 0 ? `<h3>Connect to ChatGPT</h3><p>Sign in with your verified Belong. account. An independent ID provider checks your document; we receive only that you're verified and your age band.</p>
+        <label class="f" for="pn">First name</label><input class="i" id="pn" value="${esc(L.form.name || "")}" oninput="L.form.name=this.value">
+        <label class="f" for="pa">Age</label><input class="i" id="pa" type="number" value="${esc(L.form.age || "")}" oninput="L.form.age=this.value">
+        <button class="go" onclick="popupNext()">Continue</button>`
+      : `<h3>What ChatGPT can do</h3>
+        <ul class="facts"><li>Draft and update your listings, with you.</li><li>Show you introductions and questions when you ask.</li>
+          <li>Ask before it changes anything. Saying yes is always your tap.</li></ul>
+        <p>Your hidden details are never shown to matches. What you tell ChatGPT goes to OpenAI under their terms.</p>
+        <label class="choice"><input type="checkbox" ${L.form.close ? "checked" : ""} onchange="L.form.close=this.checked"><span><b>Close matches</b><small>People who are almost what you asked for. One-way: they aren't told.</small></span></label>
+        <label class="choice"><input type="checkbox" ${L.form.questions ? "checked" : ""} onchange="L.form.questions=this.checked"><span><b>Questions</b><small>Short questions that could find you more matches. We never say who asked.</small></span></label>
+        <button class="go" onclick="popupDone()">Allow and connect</button>`}
+      <p class="fine">Mockup of the sign-in a real connector would open (OAuth) on Belong.'s own site.</p></div></div></div>`;
+  } else layer.innerHTML = "";
+}
+function confirmIt() {
+  const c = L.confirm, r = $("cf-r");
+  if (r && r.checked) L.remember[ACTIONS[c.kind].tool] = true;
+  run(c.kind, c.arg);
+}
+function openPopup() { L.popup = { step: 0 }; renderLayer(); }
+function popupNext() { if (!L.form.name || !L.form.age) return toast("Enter your first name and age."); L.popup.step = 1; renderLayer(); }
+async function popupDone() {
+  if (!await api("verify", { name: L.form.name, age: L.form.age })) { L.popup.step = 0; return renderLayer(); }
+  await api("set_defaults", { defaults: { notify_close: !!L.form.close, notify_questions: !!L.form.questions, ask_each_time: false } });
+  await api("new_listing", { prefs: { acknowledged: true, notify_close: !!L.form.close, notify_questions: !!L.form.questions } });
+  L.popup = null;
+  L.log.push({ app: true, cards: [], bot: `Belong. is connected. ${L.pendingText ? "Let's start on that." : "Tell me who you'd like to meet, or what you need."}` });
+  render();
+  if (L.pendingText) { const t = L.pendingText; L.pendingText = null; L.sending = true; render(); try { await draftWith(t); } finally { L.sending = false; L.jump = true; render(); } }
+}
 
 $("send").onclick = sendMsg;
 $("box").addEventListener("keydown", e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMsg(); } });
 $("box").addEventListener("input", e => { e.target.style.height = "auto"; e.target.style.height = Math.min(160, e.target.scrollHeight) + "px"; });
-fetch("/api/chat/state").then(r => r.json()).then(d => { ME = d.me; render(); });
-setInterval(async () => { if (L.sending) return; try { const d = await (await fetch("/api/chat/state")).json(); if (JSON.stringify(d.me) !== JSON.stringify(ME)) { ME = d.me; render(); } } catch (_) {} }, 3000);
+fetch("/api/chat/state").then(r => r.json()).then(d => {
+  ME = d.me;
+  // A fresh visit rebuilds the conversation from what Belong. holds for this chat.
+  const l = ME.verified ? listing() : null;
+  if (l) for (const m of l.chat.slice(1)) L.log.push(m.from === "me" ? { me: m.text } : { app: !!m.draft_updated, cards: [], bot: m.text });
+  if (l && l.draft) L.log.push({ app: true, cards: [{ kind: "listing", latest: true }] });
+  render();
+});
+setInterval(async () => { if (L.sending || L.confirm || L.popup) return; try { const d = await (await fetch("/api/chat/state")).json(); if (JSON.stringify(d.me) !== JSON.stringify(ME)) { ME = d.me; render(); } } catch (_) {} }, 3000);
 </script>
 </body>
 </html>
