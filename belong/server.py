@@ -1,7 +1,7 @@
 """Local web server, loopback only (127.0.0.1 and ::1), never on a network interface.
 
-  /                         landing page (belong/web/landing.html)
-  /demo                     two-person demo (belong/web/demo.html); /?phone=A still opens it
+  /, /demo                  two-person demo (belong/web/demo.html)
+  /welcome                  landing page (belong/web/landing.html)
   /chat                     mockup: one person using Belong. inside a ChatGPT-style chat, through a connector
                             (belong/web/chat.html), on its own demo session
   /trust                    trust page (belong/web/trust.html)
@@ -30,8 +30,9 @@ from .demo import DemoError, DemoSession
 ROOT = Path(__file__).resolve().parent.parent
 WEB = ROOT / "belong" / "web"
 FILES = {
-    "/": (WEB / "landing.html", "text/html; charset=utf-8"),
+    "/": (WEB / "demo.html", "text/html; charset=utf-8"),
     "/demo": (WEB / "demo.html", "text/html; charset=utf-8"),
+    "/welcome": (WEB / "landing.html", "text/html; charset=utf-8"),
     "/chat": (WEB / "chat.html", "text/html; charset=utf-8"),
     "/trust": (WEB / "trust.html", "text/html; charset=utf-8"),
     "/trust/TRUST.md": (ROOT / "TRUST.md", "text/plain; charset=utf-8"),
@@ -113,8 +114,6 @@ class _Handler(BaseHTTPRequestHandler):
             q = parse_qs(urlparse(self.path).query)
             with SESSION.lock:
                 return self._json(200, SESSION.options("A", (q.get("kind") or [None])[0], (q.get("city") or [None])[0]))
-        if path == "/" and "phone=" in self.path:
-            path = "/demo"  # old single-phone links (/?phone=A) still open the demo
         route = FILES.get(path)
         if route is None or not route[0].exists():
             return self.send_error(404)

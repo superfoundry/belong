@@ -343,7 +343,6 @@
 
   #toast { position: fixed; bottom: var(--space-6); left: 50%; transform: translateX(-50%); display: none; z-index: 30; }
 
-  body.at-start .site-nav { display: none; }
   body.only-A .stage, body.only-B .stage { grid-template-columns: minmax(0, 420px); justify-content: center; }
   body.only-A .panel, body.only-B .panel, body.only-A .phone-wrap:last-child, body.only-B .phone-wrap:first-child { display: none; }
 </style>
@@ -1248,8 +1247,6 @@ function render(force = []) {
     const snap = JSON.stringify(S.phones[slot]);
     if (force.includes(slot) || snap !== last[slot]) { last[slot] = snap; renderPhone(slot); }
   }
-  const shown = ONLY ? [ONLY] : ["A", "B"];
-  document.body.classList.toggle("at-start", shown.every(s => !S.phones[s].verified));
   const roomSnap = JSON.stringify(S.room) + scenario + ffBusy;
   if (roomSnap !== last.room) { last.room = roomSnap; renderRoom(); }
 }

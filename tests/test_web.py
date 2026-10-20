@@ -21,17 +21,21 @@ class Screens(unittest.TestCase):
 
 
 class Script(unittest.TestCase):
-    def test_the_page_script_parses(self):
+    """Every page's own script parses (a syntax error blanks the whole page)."""
+
+    def test_every_page_script_parses(self):
         import shutil, subprocess, tempfile
         node = shutil.which("node")
         if not node:
             self.skipTest("node isn't installed")
-        js = PAGE[PAGE.index("<script>\n// ----") + len("<script>"):]
-        js = js[:js.index("</script>")]
-        with tempfile.NamedTemporaryFile("w", suffix=".js", delete=False) as f:
-            f.write(js)
-        result = subprocess.run([node, "--check", f.name], capture_output=True, text=True)
-        self.assertEqual(result.returncode, 0, result.stderr)
+        web = Path(__file__).resolve().parent.parent / "belong" / "web"
+        for page in sorted(web.glob("*.html")):
+            html = page.read_text()
+            for n, block in enumerate(re.findall(r"<script>(.*?)</script>", html, flags=re.S)):
+                with tempfile.NamedTemporaryFile("w", suffix=".js", delete=False) as f:
+                    f.write(block)
+                result = subprocess.run([node, "--check", f.name], capture_output=True, text=True)
+                self.assertEqual(result.returncode, 0, f"{page.name} script {n}: {result.stderr}")
 
 
 if __name__ == "__main__":

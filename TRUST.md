@@ -27,7 +27,7 @@ With the server running:
 - **http://localhost:8000/trust** is the trust page for the public and their agents. It
   verifies the Warden's source and the receipt chain *in your browser*, and runs the
   canary test and attack suite against a sandbox.
-- **http://localhost:8000/demo** is the two-person demo: two phones, with a presenter
+- **http://localhost:8000/** is the two-person demo: two phones, with a presenter
   panel in between that logs everything Belong. receives and sends.
 - **http://localhost:8000/inspector** is the batch-run inspector.
 
