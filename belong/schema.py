@@ -18,7 +18,8 @@ AGE_BANDS = ["18-24", "25-29", "30-34", "35-39", "40-49", "50+"]
 AGE_BAND_BOUNDS = [(18, 24), (25, 29), (30, 34), (35, 39), (40, 49), (50, 99)]
 
 
-FREE_TEXT_FIELDS = ("first_name", "city", "country", "neighborhood", "employer", "subject", "seeking", "offering")
+FREE_TEXT_FIELDS = ("first_name", "city", "country", "neighborhood", "employer", "subject", "seeking", "offering",
+                    "pay", "format")
 FREE_TEXT_MAX = 120
 
 
@@ -56,6 +57,9 @@ FIELD_REGISTRY: dict[str, FieldSpec] = {
     # Open-ended matches ("something else"): short phrases written with the person.
     "seeking": FieldSpec(False, SHOWN),   # what they're looking for, e.g. "a guitarist"
     "offering": FieldSpec(False, SHOWN),  # what they bring, e.g. "a ska band"
+    # Paid or practical requests: shown so the other side knows the terms up front.
+    "pay": FieldSpec(False, SHOWN),       # e.g. "¥4,000 per hour" (offered or charged), a rent budget
+    "format": FieldSpec(False, SHOWN),    # "In person", "Online", "In person or online"
     "diet": FieldSpec(False, SHOWN),
     "smoking": FieldSpec(False, SHOWN),
     "children": FieldSpec(False, HIDDEN),

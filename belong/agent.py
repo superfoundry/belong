@@ -77,7 +77,7 @@ LABELS = {
     "gender": "Gender",
     "interests": "Interests", "schedule": "Free time", "level": "Climbing level", "pace": "Running pace",
     "native_language": "Native language", "learning_language": "Learning", "role": "Your role",
-    "subject": "Subject", "move_in": "Moving in", "seeking": "Looking for", "offering": "You are (to them)",
+    "subject": "Subject", "move_in": "Moving in", "seeking": "Looking for", "offering": "You are (to them)", "pay": "Pay", "format": "Format",
     "diet": "Diet", "smoking": "Smoking",
     "children": "Children", "neighborhood": "Neighborhood", "employer": "Employer",
     "income_band": "Income", "religion": "Religion", "politics": "Politics", "health": "Health",
@@ -88,8 +88,8 @@ _COMMON = ["first_name", "country", "city", "age_band", "interests", "schedule",
            "neighborhood", "employer", "income_band", "religion", "politics", "health"]
 _BY_KIND = {
     "dating": ["gender", "children", "kinks"], "climbing": ["level"], "running": ["pace"],
-    "language": ["native_language", "learning_language"], "cofounder": ["role"],
-    "tutoring": ["role", "subject"], "roommate": ["move_in"], "other": ["seeking", "offering"],
+    "language": ["native_language", "learning_language"], "tutoring": ["role", "subject", "pay", "format"], "roommate": ["move_in", "pay"], "cofounder": ["role"],
+    "other": ["seeking", "offering", "pay", "format"],
 }
 _KIND_NAMES = {
     "dating": "a relationship or date", "climbing": "a climbing partner", "running": "a running buddy",
@@ -242,3 +242,149 @@ def draft_from_message(message: str, first_name: str, age_band: str) -> dict:
         understood.append("(online/remote is fine)")
     return {"intent_text": text, "exactness": exactness, "kind": kind, "fields": fields,
             "understood": " ".join(understood), "notes": notes}
+
+
+# --------------------------------------------------------------------------------------
+# Instant profile updates (used by the demo while the agent is still replying).
+#
+# Picks out only facts stated plainly enough to be sure of ("I live in Galway", "free on
+# weekends", "I'm into chess and hiking"). Anything uncertain is left for the agent.
+# --------------------------------------------------------------------------------------
+
+COUNTRIES = [
+    "Ireland", "United Kingdom", "UK", "England", "Scotland", "Wales", "France", "Germany", "Spain", "Portugal",
+    "Italy", "Netherlands", "Belgium", "Switzerland", "Austria", "Sweden", "Norway", "Denmark", "Finland",
+    "Poland", "Greece", "Turkey", "Japan", "China", "South Korea", "Korea", "Taiwan", "Singapore", "India",
+    "Thailand", "Vietnam", "Indonesia", "Philippines", "Australia", "New Zealand", "Canada", "United States",
+    "USA", "US", "Mexico", "Brazil", "Argentina", "Chile", "Colombia", "South Africa", "Nigeria", "Kenya", "Egypt",
+    "Morocco", "Israel", "United Arab Emirates", "UAE",
+]
+_COUNTRY_ALIASES = {"uk": "United Kingdom", "england": "United Kingdom", "scotland": "United Kingdom",
+                    "wales": "United Kingdom", "usa": "United States", "us": "United States", "korea": "South Korea",
+                    "uae": "United Arab Emirates"}
+_PLACE = r"([a-zà-ÿ][a-zà-ÿ'\-]*(?:\s[a-zà-ÿ][a-zà-ÿ'\-]*){0,2}(?:,\s*[a-zà-ÿ][a-zà-ÿ'\-]*(?:\s[a-zà-ÿ][a-zà-ÿ'\-]*)?)?)"
+_PLACE_STOP = {"the", "a", "my", "town", "the city", "the area", "person", "love", "need", "search", "here", "there"}
+
+
+def _country(name: str):
+    low = name.strip().lower()
+    if low in _COUNTRY_ALIASES:
+        return _COUNTRY_ALIASES[low]
+    return next((c for c in COUNTRIES if c.lower() == low), None)
+
+
+def _title(place: str) -> str:
+    return " ".join(w if w.isupper() else w[:1].upper() + w[1:] for w in place.split())
+
+
+def quick_facts(text: str) -> dict:
+    """Facts stated plainly in one message, as field -> value. Only what we're sure of."""
+    low = " ".join(text.lower().split())
+    out = {}
+
+    # Where: "I live in Galway", "based in Tokyo, Japan", "in malaga, spain"; or a country on its own.
+    m = _re.search(r"\b(?:i live in|i'm in|i am in|based in|living in|located in|i'm from|i am from|moved to)\s+"
+                   + _PLACE + r"(?=[.!?;,]|$|\s(?:and|but|so|on|for|with|looking)\b)", low)
+    place = m.group(1).strip(" ,") if m else None
+    if place and place not in _PLACE_STOP:
+        if "," in place:
+            city, country = (p.strip() for p in place.split(",", 1))
+            out["city"], out["country"] = _title(city), (_country(country) or _title(country))
+        elif _country(place):
+            out["country"] = _country(place)
+        else:
+            out["city"] = _title(place)
+    known_city = next((c for c in _vocab.CITIES if _re.search(r"\b" + c.lower() + r"\b", low)), None)
+    if known_city:
+        out.setdefault("city", known_city)
+        if out["city"] == known_city:
+            out.setdefault("country", _vocab.COUNTRY_NAMES[_vocab.CITIES[known_city][0]])
+    if "country" not in out:
+        found = next((c for c in COUNTRIES if len(c) > 3 and _re.search(r"\b" + _re.escape(c.lower()) + r"\b", low)), None)
+        if found:
+            out["country"] = _country(found)
+
+    # When they're free.
+    for pattern, sched in [(r"\bweekends?\b", "weekends"), (r"\b(?:weekday )?evenings?\b|\bafter work\b", "weekday evenings"),
+                           (r"\b(?:weekday )?mornings?\b", "weekday mornings"), (r"\bflexible\b|\bany ?time\b|\bwhenever\b", "flexible")]:
+        if _re.search(pattern, low):
+            out["schedule"] = sched
+            break
+
+    level = next((l for l in _vocab.LEVELS if _re.search(r"\b" + l + r"\b", low)), None)
+    if level:
+        out["level"] = level
+    m = _re.search(r"\b(?:i'm|i am|as) an? (woman|man)\b|\bi'm (nonbinary|non-binary)\b", low)
+    if m:
+        out["gender"] = "nonbinary" if m.group(2) else m.group(1)
+
+    native = _find_language(r"speak (\w+) natively|native (\w+) speaker|my native language is (\w+)|fluent (\w+) speaker|"
+                            r"i'm a native (\w+)|i speak fluent (\w+)", low)
+    learning = _find_language(r"(?:learning|learn|practice|practise|improve my) (\w+)", low)
+    if native:
+        out["native_language"] = native
+    if learning and learning != native:
+        out["learning_language"] = learning
+
+    # Pay: "4000 yen per hour", "¥4,000/hr", "$30 an hour", "€500 a month".
+    m = _re.search(r"(?:(?P<sym>[¥$€£])\s?(?P<a1>\d[\d,]*(?:\.\d+)?)(?P<k1>k)?|(?P<a2>\d[\d,]*(?:\.\d+)?)(?P<k2>k)?\s?"
+                   r"(?P<word>yen|dollars?|usd|euros?|eur|pounds?|gbp))"
+                   r"(?:\s*(?:per|an|a|/)\s*(?P<unit>hour|hr|h|session|lesson|class|month|week|day))?", low)
+    if m and (m.group("unit") or _re.search(r"\b(?:pay|offer|budget|rate|charge|salary)\w*\b", low)):
+        symbol = m.group("sym") or {"yen": "¥", "dollar": "$", "dollars": "$", "usd": "$", "euro": "€", "euros": "€",
+                                    "eur": "€", "pound": "£", "pounds": "£", "gbp": "£"}[m.group("word")]
+        amount = float((m.group("a1") or m.group("a2")).replace(",", ""))
+        if m.group("k1") or m.group("k2"):
+            amount *= 1000
+        unit = {"hr": "hour", "h": "hour"}.get(m.group("unit"), m.group("unit"))
+        out["pay"] = f"{symbol}{amount:,.0f}" + (f" per {unit}" if unit else "")
+    in_person = bool(_re.search(r"\bin[- ]person\b|\bface to face\b|\bmeet up\b|\bmeetups?\b", low))
+    online = bool(_re.search(r"\bonline\b|\bremote(?:ly)?\b|\bover (?:zoom|video)\b|\bvideo call", low))
+    if in_person or online:
+        out["format"] = "In person or online" if in_person and online else "In person" if in_person else "Online"
+
+    # Interests, only when introduced plainly: "I'm into chess and hiking", "I enjoy jazz".
+    m = _re.search(r"\b(?:i'm into|i am into|into|i enjoy|i love|who loves|who enjoys|my hobbies are|i'm interested in|i like)\s+"
+                   r"([a-z][a-z ,'\-]{2,80}?)(?=[.!?;]|$)", low)
+    if m and not _re.match(r"(?:to |meeting|meet |you|people)", m.group(1)):
+        items = [i.strip() for i in _re.split(r",|\band\b|\bor\b", m.group(1))]
+        items = [_re.sub(r"^(?:playing|doing|going|some)\s+", "", i) for i in items]
+        items = [i for i in items if i and len(i.split()) <= 3 and len(i) <= 30]
+        if items:
+            out["interests"] = items[:6]
+    return out
+
+
+def empty_draft(first_name: str, age_band: str) -> dict:
+    """A blank work-in-progress profile, shown before the agent has drafted anything."""
+    fields = []
+    for key in _COMMON:
+        spec = FIELD_REGISTRY[key]
+        value = {"first_name": first_name, "age_band": age_band}.get(key)
+        fields.append({"key": key, "label": LABELS[key], "value": value, "visibility": spec.default,
+                       "sensitive": spec.sensitive, "multi": spec.multi, "enabled": not spec.sensitive,
+                       "locked": key == "age_band", "options": field_options(None, None).get(key, [])})
+    return {"intent_text": "", "exactness": 0.6, "kind": None, "fields": fields, "understood": "",
+            "notes": [], "missing": [], "complete": False, "by": "quick"}
+
+
+def fill_gaps(draft: dict, facts: dict) -> list:
+    """Put facts into empty fields of a draft (never overwriting anything set). Returns the
+    keys filled. Fields the draft doesn't have yet are added."""
+    filled = []
+    by_key = {f["key"]: f for f in draft["fields"]}
+    for key, value in facts.items():
+        spec = FIELD_REGISTRY.get(key)
+        if spec is None or spec.sensitive:
+            continue
+        f = by_key.get(key)
+        if f is None:
+            f = {"key": key, "label": LABELS[key], "value": None, "visibility": spec.default, "sensitive": False,
+                 "multi": spec.multi, "enabled": True, "locked": False,
+                 "options": field_options(draft.get("kind"), None).get(key, [])}
+            draft["fields"].append(f)
+            by_key[key] = f
+        if f["value"] in (None, "", []):
+            f["value"] = list(value) if isinstance(value, (list, tuple)) else value
+            filled.append(key)
+    return filled

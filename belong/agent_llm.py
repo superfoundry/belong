@@ -148,6 +148,11 @@ is kind "other".
 - Location: Belong works anywhere in the world. Set "country" (in English, e.g. "Ireland") and, \
 if they have one, "city" (e.g. "Galway"). If they're happy anywhere in a country or region, set \
 only the country. Never list example cities or suggest they're limited to certain places.
+- Fit the questions to the request. For paid or practical help (a tutor, a job, lessons, a \
+service, a room), set "pay" with what they offer or charge (e.g. "¥4,000 per hour") and "format" \
+("In person", "Online" or "In person or online"), and ask about those, the subject or skill, and \
+when; don't ask about hobbies or interests. Ask about interests only for social requests \
+(dating, friends, activity partners).
 - Ask at most one or two questions at a time, and only about things you really need. When they \
 answer "either", "both" or "not sure", treat every option as fine and move on; never ask them to \
 pick between options they've said they're open to. You need \
@@ -155,8 +160,11 @@ the kind of match and where (country, and city if relevant) before drafting. For
 anyone) and an age range. For a language exchange: their native language and the one they're \
 learning. For tutoring: the subject and whether they teach or want lessons. For a cofounder: \
 whether they're the technical or business side.
-- Draft as soon as you have the essentials, then offer to add more (interests, schedule, \
-private details) rather than interrogating them.
+- Save early and often. Call update_listing as soon as you learn anything, even from the first \
+message, with everything you're sure of (pick the closest kind, or "other"), then keep asking \
+about what's still missing. The profile on their screen updates every time you save, so never \
+wait until you know everything. Each save replaces the draft, so always include what's already \
+on the profile (shown to you below) plus what's new. Never invent details they didn't give.
 - Write intent_text in plain first-person words that name the kind of match, e.g. "Looking for a \
 climbing partner in Osaka on weekends", "Looking for a long-term relationship with a woman in \
 Lisbon, aged 30 to 39", "I tutor maths in Kyoto and I'm looking for new students", "Need a \
@@ -221,7 +229,9 @@ def build_draft(args: dict, first_name: str, age_band: str) -> tuple:
         exactness = min(1.0, max(0.0, float(args.get("exactness", 0.6))))
     except (TypeError, ValueError):
         exactness = 0.6
-    problems, notes = [], []
+    # problems: wrong values or privacy issues; the draft is not saved.
+    # missing:  things not known yet; the draft IS saved (a work in progress) and the agent asks next.
+    problems, notes, missing = [], [], []
     if kind not in KINDS:
         problems.append(f"kind must be one of {', '.join(KINDS)}")
         return None, problems, notes
@@ -250,20 +260,20 @@ def build_draft(args: dict, first_name: str, age_band: str) -> tuple:
     parsed = parse_intent(intent)
     open_ended = [k for k in ("seeking", "offering") if k in values]
     if not intent:
-        problems.append("intent_text is empty")
+        missing.append("what they're looking for (intent_text)")
     elif kind == "dating":
         if open_ended:
             problems.append("seeking/offering aren't used for dating; remove them.")
         if parsed.kind != "dating":
-            problems.append("intent_text doesn't clearly say this is dating. Rephrase it using plain words like the "
-                            "examples in your instructions.")
+            missing.append("a description that clearly says this is dating, e.g. 'Looking for a relationship with "
+                           "a woman in Lisbon, aged 30 to 39'")
         else:
             if not parsed.seeking:
-                problems.append("intent_text must say who they want to meet: 'a man', 'a woman', 'men', 'women' or 'anyone'.")
+                missing.append("who they want to meet ('a man', 'a woman' or 'anyone', in intent_text)")
             if parsed.age_range is None:
-                notes.append("No age range in the description yet: ask for one (e.g. 'aged 30 to 39').")
+                missing.append("an age range (e.g. 'aged 30 to 39' in intent_text)")
             if "gender" not in values:
-                notes.append("Their gender isn't set yet; it must be shown for dating matches. Ask them.")
+                missing.append("their gender (shown for dating matches)")
             elif visibility.get("gender") == HIDDEN:
                 visibility["gender"] = SHOWN
                 notes.append("gender was set to shown: dating matches need it.")
@@ -273,8 +283,7 @@ def build_draft(args: dict, first_name: str, age_band: str) -> tuple:
                             "or 'partner'.")
         for k in ("seeking", "offering"):
             if k not in values:
-                problems.append(f"every listing except dating needs a '{k}' phrase (a short noun phrase, e.g. "
-                                f"'a fishing teacher').")
+                missing.append(f"a '{k}' phrase (a short noun phrase, e.g. 'a fishing teacher')")
             else:
                 visibility[k] = SHOWN  # matching needs both phrases to find the other person
     known = next((c for c in vocab.CITIES if city and city.lower() == c.lower()), None)
@@ -283,7 +292,7 @@ def build_draft(args: dict, first_name: str, age_band: str) -> tuple:
         visibility["country"] = SHOWN
     if kind not in REMOTE_KINDS or not parsed.remote_ok:
         if "country" not in values:
-            problems.append("country is required (and city if they have one). Any place in the world is fine.")
+            missing.append("where they are: country, and city if they have one")
 
     for text in [intent] + [values[k] for k in ("seeking", "offering") if k in values]:
         for problem in specific_person_problems(text):
@@ -315,7 +324,7 @@ def build_draft(args: dict, first_name: str, age_band: str) -> tuple:
     where = values.get("city") or values.get("country")
     understood = f"Looking for {_KIND_NAMES[kind]}" + (f" in {where}" if where else "")
     draft = {"intent_text": intent, "exactness": exactness, "kind": kind, "fields": fields,
-             "understood": understood, "notes": notes, "by": "claude"}
+             "understood": understood, "notes": notes, "missing": missing, "complete": not missing, "by": "claude"}
     return draft, [], notes
 
 
@@ -330,6 +339,19 @@ def honest(reply: str, attempted: bool, saved: bool) -> str:
     return reply
 
 
+def profile_so_far(draft) -> str:
+    """What's on the person's profile right now, for the agent to build on."""
+    if not draft:
+        return "The profile is empty so far."
+    parts = [f"kind: {draft.get('kind') or 'not set'}", f"intent_text: {draft.get('intent_text') or '(empty)'}"]
+    for f in draft.get("fields", []):
+        value = f.get("value")
+        if f.get("enabled") and value not in (None, "", []) and f["key"] not in ("first_name", "age_band"):
+            shown = ", ".join(value) if isinstance(value, list) else value
+            parts.append(f"{f['key']} ({f.get('visibility')}): {shown}")
+    return "The profile so far (keep all of it when you save, unless they change something): " + "; ".join(parts) + "."
+
+
 def _summary(draft: dict) -> str:
     shown = [f"{f['key']}={f['value']}" for f in draft["fields"] if f["value"] and f["enabled"] and f["visibility"] == SHOWN]
     hidden = [f["key"] for f in draft["fields"] if f["value"] and f["enabled"] and f["visibility"] == HIDDEN]
@@ -339,6 +361,8 @@ def _summary(draft: dict) -> str:
            f"'Review changes' and save.")
     if draft["notes"]:
         out += " Notes: " + " ".join(draft["notes"])
+    if draft.get("missing"):
+        out += " Still missing (ask about these next, one or two at a time): " + "; ".join(draft["missing"]) + "."
     return out
 
 
@@ -355,19 +379,21 @@ class ClaudeAgent:
         self.client = client
         self.model = model
 
-    def respond(self, conversation: list, user_text: str, first_name: str, age_band: str) -> tuple:
+    def respond(self, conversation: list, user_text: str, first_name: str, age_band: str, current=None) -> tuple:
         """Append the person's message, run the agent, and return (reply, draft or None).
-        `conversation` is this person's message history; it is only ever appended to."""
+        `conversation` is this person's message history; it is only ever appended to.
+        `current` is the profile draft as it stands (so the agent builds on it)."""
         start = len(conversation)
         conversation.append({"role": "user", "content": user_text})
         try:
-            return self._run(conversation, first_name, age_band)
+            return self._run(conversation, first_name, age_band, current)
         except AgentUnavailable:
             del conversation[start:]  # drop the unfinished turn so a later retry starts clean
             raise
 
-    def _run(self, conversation: list, first_name: str, age_band: str) -> tuple:
-        system = SYSTEM_PROMPT + f"\nThe person you work for: first name {first_name}, age band {age_band}."
+    def _run(self, conversation: list, first_name: str, age_band: str, current=None) -> tuple:
+        system = (SYSTEM_PROMPT + f"\nThe person you work for: first name {first_name}, age band {age_band}.\n"
+                  + profile_so_far(current))
         replies, draft, attempted = [], None, False
         for _ in range(MAX_TOOL_ROUNDS):
             response = self._call(system, conversation)

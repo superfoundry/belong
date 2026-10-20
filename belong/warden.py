@@ -319,7 +319,7 @@ class Warden:
         check("sensitive_defaults", not sens, f"sensitive fields shown without confirmation: {sens}")
         # The rule covers the intent and the free-text fields ("seeking", "offering").
         texts = [listing.intent_text] + [f.value for f in listing.fields
-                                         if f.key in ("seeking", "offering") and isinstance(f.value, str)]
+                                         if f.key in ("seeking", "offering", "pay", "format") and isinstance(f.value, str)]
         sp = sorted({p for t in texts for p in specific_person_problems(t)})
         check("specific_person", not sp, f"intent could identify one person ({', '.join(sp)})")
         check("update_rate_limit", self._within_update_limit(person.id), "too many listing updates today")
