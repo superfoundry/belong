@@ -58,6 +58,11 @@
   .progress { height: 4px; background: var(--surface-raised); border-radius: var(--radius-pill); overflow: hidden; margin-top: var(--space-2); }
   .progress span { display: block; height: 100%; background: var(--accent-default); transition: width var(--duration-slow) var(--ease-standard); }
   .suggest { margin-top: var(--space-3); }
+  .listing-nav { margin-bottom: var(--space-2); }
+  .listing-card .heading-m { margin: 0; }
+  details.matches { margin-top: var(--space-4); border-top: 1px solid var(--border-subtle); padding-top: var(--space-3); }
+  details.matches > summary { cursor: pointer; font: var(--text-label); font-weight: 600; color: var(--text-accent); }
+  .card.intro { box-shadow: none; background: var(--surface-app); }
   .profile-card .posted { margin-top: var(--space-4); padding-top: var(--space-4); border-top: 1px solid var(--border-subtle); }
   .profile-card .posted .monogram { width: 32px; height: 32px; font-size: 15px; }
   .profile-card .posted .heading-m { font: var(--text-body-s); font-weight: 600; }
@@ -171,8 +176,10 @@
 // ---------------------------------------------------------------------------------
 // Scenarios: presets the presenter can load. They only fill in what a person would
 // type and choose; everything still goes through the agent and the Warden agent.
+// The demo starts blank: people type their own.
 // ---------------------------------------------------------------------------------
 const SCENARIOS = {
+  blank: { label: "Blank (type your own)", A: {}, B: {} },
   climbers: { label: "Climbers in Osaka", A: { name: "Yuki", age: 27,
       message: "Looking for a climbing partner in Osaka on weekends. I'm an intermediate climber, into bouldering and ramen.",
       hidden: { religion: "Buddhist", smoking: "doesn't smoke" } },
@@ -200,14 +207,28 @@ const SCENARIOS = {
 };
 
 let S = null;               // last state from the server
-let scenario = "climbers";
-const local = { A: { tab: null, draft: null, draftFrom: null, chatText: "", form: {} },
-                B: { tab: null, draft: null, draftFrom: null, chatText: "", form: {} } };
+let scenario = "blank";
+// Per phone: the open tab, the verify form, which listing is open, and per-listing local
+// state (an editable copy of the draft, the half-typed message, chat sheet state).
+const local = { A: { tab: null, form: {}, current: null, ls: {} }, B: { tab: null, form: {}, current: null, ls: {} } };
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const val = v => Array.isArray(v) ? v.join(", ") : v;
 const $ = id => document.getElementById(id);
 const badge = (tone, text) => `<span class="badge ${tone}">${esc(text)}</span>`;
 const tags = values => values.map(v => `<span class="tag">${esc(v)}</span>`).join("");
+const cap = t => t ? t.charAt(0).toUpperCase() + t.slice(1) : t;
+const hasValue = v => Array.isArray(v) ? v.length > 0 : v !== null && v !== undefined && v !== "";
+
+function curId(slot) { return local[slot].current || (S && S.phones[slot].current) || null; }
+function curListing(slot) {
+  const ls = S.phones[slot].listings;
+  return ls.find(l => l.id === curId(slot)) || ls[ls.length - 1] || null;
+}
+function cur(slot) {
+  const id = curId(slot) || "_";
+  return local[slot].ls[id] ||= { draft: null, draftFrom: null, chatText: "", editing: false, chatMin: false,
+                                  seenChat: 0, sending: null, applyScenario: false };
+}
 
 let inflight = 0;
 async function api(action, body = {}) {
@@ -222,16 +243,16 @@ async function api(action, body = {}) {
 }
 function toast(msg) { const t = $("toast"); t.textContent = msg; t.style.display = "flex"; clearTimeout(t._h); t._h = setTimeout(() => t.style.display = "none", 4000); }
 
-// Keep a local, editable copy of the agent's draft until the person submits.
+// Keep a local, editable copy of the open listing's draft until the person saves it.
 function syncDraft(slot) {
-  const p = S.phones[slot], L = local[slot];
-  if (p.draft && L.draftFrom !== JSON.stringify(p.draft)) {
-    L.draftFrom = JSON.stringify(p.draft);
-    L.draft = JSON.parse(L.draftFrom);
+  const l = curListing(slot), c = cur(slot);
+  if (l && l.draft && c.draftFrom !== JSON.stringify(l.draft)) {
+    c.draftFrom = JSON.stringify(l.draft);
+    c.draft = JSON.parse(c.draftFrom);
     const sc = SCENARIOS[scenario]?.[slot];
-    if (sc && L.applyScenario) { applyScenario(L.draft, sc); L.applyScenario = false; }
+    if (sc && c.applyScenario) { applyScenario(c.draft, sc); c.applyScenario = false; }
   }
-  if (!p.draft) { L.draft = null; L.draftFrom = null; }
+  if (!l || !l.draft) { c.draft = null; c.draftFrom = null; }
 }
 function applyScenario(draft, sc) {
   for (const f of draft.fields) {
@@ -247,19 +268,22 @@ function screenFor(slot) {
   const p = S.phones[slot], L = local[slot];
   if (!p.verified) return "verify";
   if (L.tab) return L.tab;
-  return p.listed ? "matches" : "profile";
+  const l = curListing(slot);
+  return l && l.listed ? "listings" : "profile";
 }
 
+function needsAnswer(l) { return l.intros.filter(i => i.status === "pending").length + l.followups.length; }
+
 function renderPhone(slot) {
-  syncDraft(slot);
+  if (S.phones[slot].verified) syncDraft(slot);
   const p = S.phones[slot], L = local[slot], screen = screenFor(slot);
-  const pending = p.intros.filter(i => i.status === "pending").length + p.followups.length;
+  const pending = p.listings.reduce((n, l) => n + needsAnswer(l), 0);
   const tabs = p.verified ? `<div class="tabs">
-      ${[["profile", "Profile"], ["matches", "Matches"], ["receipts", "Receipts"]].map(([id, label]) =>
-        `<button class="${screen === id ? "on" : ""}" onclick="go('${slot}','${id}')">${label}${id === "matches" && pending ? '<span class="dot" aria-label="needs your answer"></span>' : ""}</button>`).join("")}
+      ${[["profile", "Profile"], ["listings", "Listings"], ["receipts", "Receipts"]].map(([id, label]) =>
+        `<button class="${screen === id ? "on" : ""}" onclick="go('${slot}','${id}')">${label}${id === "listings" && pending ? '<span class="dot" aria-label="needs your answer"></span>' : ""}</button>`).join("")}
     </div>` : "";
-  // Tide marks live status, at most once per screen: "Matching" once listed, else "Verified".
-  const status = p.listed ? badge("olive", "Matching") : p.verified ? badge("olive", "Verified") : "";
+  // Tide marks live status, at most once per screen: "Matching" once any listing is live, else "Verified".
+  const status = p.listings.some(l => l.listed) ? badge("olive", "Matching") : p.verified ? badge("olive", "Verified") : "";
   // Keep the profile pane's scroll position across redraws (editing, agent updates).
   const oldPane = document.querySelector(`#phone-${slot} .profile-pane`);
   const paneScroll = oldPane ? oldPane.scrollTop : 0;
@@ -289,37 +313,58 @@ const SCREENS = {
   },
 
   profile(slot, p, L) {
-    // Base layer: your profile, a work in progress, as a match will see it.
-    // Top layer: your agent's chat, which minimises to a bar when you tap its header.
-    return `<div class="profile-pane${L.chatMin ? " chat-min" : ""}">${profileCard(slot, p, L)}${L.editing && L.draft ? editorHtml(slot, p, L) : ""}</div>
-      ${chatHtml(slot, p, L)}`;
+    // Base layer: the open listing's profile, a work in progress, as a match will see it.
+    // Top layer: your agent's chat for this listing, which minimises when you tap its header.
+    const l = curListing(slot), c = cur(slot);
+    if (!l) return "";
+    const nav = p.listings.length > 1 || l.listed
+      ? `<div class="row listing-nav"><span class="caption secondary grow">Listing ${p.listings.indexOf(l) + 1} of ${p.listings.length}</span>
+          <button class="btn ghost sm" onclick="go('${slot}','listings')">All listings</button></div>` : "";
+    return `<div class="profile-pane${c.chatMin ? " chat-min" : ""}">${nav}${profileCard(slot, p, l, c)}${c.editing && c.draft ? editorHtml(slot, c) : ""}</div>
+      ${chatHtml(slot, l, c)}`;
   },
 
-  matches(slot, p, L) {
-    if (!p.listed) return `<div class="card md"><p class="body-s secondary" style="margin:0">Finish your profile and choose <b>Start matching</b> first.</p></div>`;
-    const fu = p.followups.map(q => followupCard(slot, q)).join("");
-    const intros = p.intros.map(i => introCard(slot, p, i)).join("");
-    return `<div class="stack">${fu}${intros || `<div class="card md"><h3 class="heading-m" style="margin:0 0 var(--space-2)">Waiting for a match</h3>
-      <p class="body-s secondary" style="margin:0 0 var(--space-2)">The Matchmaker agent only proposes people whose intent you meet and who meet yours. No one is approached who didn't ask.</p>
-      <p class="caption tertiary" style="margin:0">Presenter: choose Run Matchmaker.</p></div>`}</div>`;
+  listings(slot, p, L) {
+    return `<div class="stack">${p.listings.map(l => listingCard(slot, p, l)).join("")}
+      <button class="btn secondary block" onclick="newListing('${slot}')">New listing</button>
+      <p class="caption tertiary" style="margin: 0; text-align: center">Each listing is matched on its own, with its own details. You're never matched with yourself.</p></div>`;
   },
 
   receipts(slot, p, L) {
-    return `<div class="card sm" style="margin-bottom: var(--space-4)"><p class="body-s secondary" style="margin:0">Every check the Warden agent ran on your listing leaves a receipt: the check, the result, the time and a hash. Receipts never contain your details.</p></div>
+    return `<div class="card sm" style="margin-bottom: var(--space-4)"><p class="body-s secondary" style="margin:0">Every check the Warden agent ran on your listings leaves a receipt: the check, the result, the time and a hash. Receipts never contain your details.</p></div>
       ${p.receipts.slice().reverse().map(r => `<div class="receipt-row">${badge(r.result === "pass" ? "success" : "error", r.result === "pass" ? "Pass" : "Fail")}
         <span class="grow">${esc(r.check.replaceAll("_", " "))}</span><span class="receipt" title="${r.hash}">${r.hash.slice(0, 10)}…</span></div>`).join("")
         || '<p class="body-s tertiary">No receipts yet.</p>'}`;
   },
 };
 
-const hasValue = v => Array.isArray(v) ? v.length > 0 : v !== null && v !== undefined && v !== "";
+// ---------------------------------------------------------------------------------
+// Listings: every listing, each with its matches in a collapsible section
+// ---------------------------------------------------------------------------------
+function listingCard(slot, p, l) {
+  const c = local[slot].ls[l.id] ||= { draft: null, draftFrom: null, chatText: "", editing: false, chatMin: false, seenChat: 0, sending: null };
+  const waiting = needsAnswer(l), total = l.intros.length + l.followups.length;
+  if (c.open === undefined) c.open = waiting > 0;
+  const status = l.listed ? badge("", "Matching") : badge("", "Draft");
+  const summary = !l.listed ? "Not matching yet" : total ? `${total} match${total === 1 ? "" : "es"}${waiting ? `, ${waiting} waiting on you` : ""}` : "No matches yet";
+  const body = !l.listed
+    ? `<p class="body-s secondary" style="margin: var(--space-3) 0 0">Finish this profile and choose Start matching.</p>`
+    : total
+      ? `<details class="matches" ${c.open ? "open" : ""} ontoggle="local['${slot}'].ls['${l.id}'].open=this.open">
+          <summary>${waiting ? "Matches and pending answers" : "Matches"} (${total})</summary>
+          <div class="stack" style="margin-top: var(--space-3)">${l.followups.map(q => followupCard(slot, l, q)).join("")}${l.intros.map(i => introCard(slot, l, i)).join("")}</div></details>`
+      : `<p class="body-s secondary" style="margin: var(--space-3) 0 0">The Matchmaker agent only proposes people whose intent you meet and who meet yours.</p>`;
+  return `<div class="card md listing-card"><div class="row"><h3 class="heading-m grow">${esc(cap(l.title))}</h3>${status}</div>
+    <div class="row" style="margin-top: var(--space-1)"><span class="caption secondary grow">${esc(summary)}</span>
+      <button class="btn secondary sm" onclick="openListing('${slot}','${l.id}')">Edit</button></div>${body}</div>`;
+}
 
 // ---------------------------------------------------------------------------------
 // Profile: the listing shown as a work-in-progress profile, filled in with the agent
 // ---------------------------------------------------------------------------------
-function draftValues(L) {
+function draftValues(c) {
   const shown = {}, hidden = [];
-  for (const f of (L.draft ? L.draft.fields : [])) {
+  for (const f of (c.draft ? c.draft.fields : [])) {
     if (!f.enabled || !hasValue(f.value)) continue;
     if (f.visibility === "hidden") hidden.push(f); else shown[f.key] = f.value;
   }
@@ -328,20 +373,20 @@ function draftValues(L) {
 
 // The profile adapts to the request: a job-style post for paid help, a personal profile
 // for dating, and an activity profile for everything else. Each has its own checklist.
-function layoutFor(L) {
-  const d = L.draft, { shown } = draftValues(L);
+function layoutFor(c) {
+  const d = c.draft, { shown } = draftValues(c);
   if (d && d.kind === "dating") return "dating";
   if ((d && ["tutoring", "cofounder"].includes(d.kind)) || shown.pay) return "offer";
   return "activity";
 }
 
-function checklist(L) {
-  const d = L.draft, { shown, hidden } = draftValues(L);
+function checklist(c) {
+  const d = c.draft, { shown, hidden } = draftValues(c);
   const missing = (d && d.missing) || [];
   const where = { done: !!(shown.city || shown.country), label: "Where", ask: "I'm based in " };
   const looking = { done: !!shown.seeking, label: "Who you're looking for", ask: "I'm looking for " };
   const hiddenItem = { done: hidden.length > 0, label: "A hidden detail", optional: true, ask: "Something private that could improve my matches: " };
-  switch (layoutFor(L)) {
+  switch (layoutFor(c)) {
     case "offer": {
       const offering = shown.role === "tutor";
       return [looking, where,
@@ -363,16 +408,14 @@ function checklist(L) {
   }
 }
 
-const cap = t => t ? t.charAt(0).toUpperCase() + t.slice(1) : t;
-
-function profileCard(slot, p, L) {
-  const d = L.draft, { shown, hidden } = draftValues(L);
-  const layout = layoutFor(L), items = checklist(L);
+function profileCard(slot, p, l, c) {
+  const d = c.draft, { shown, hidden } = draftValues(c);
+  const layout = layoutFor(c), items = checklist(c);
   const required = items.filter(i => !i.optional), done = required.filter(i => i.done).length;
   const ready = d && items[0].done && items[1].done;  // essentials: who and where
   const place = [shown.city, shown.country].filter(Boolean).join(", ");
   const missing = items.map((it, n) => ({ ...it, n })).filter(i => !i.done).slice(0, 3);
-  const entry = p.entry;
+  const entry = l.entry;
   const fact = (label, value, empty) => `<div class="profile-line"><span class="label tertiary">${label}</span>${value
     ? `<span class="body-s">${esc(value)}</span>` : `<span class="body-s tertiary">${empty || "Not added yet"}</span>`}</div>`;
   const used = new Set(["first_name", "age_band", "city", "country", "seeking", "offering", "gender", "pay", "format", "schedule", "role", "subject"]);
@@ -380,7 +423,7 @@ function profileCard(slot, p, L) {
   const who = `<div class="row"><span class="monogram" aria-hidden="true">${esc((p.name || "?").slice(0, 1).toUpperCase())}</span>
       <div class="grow"><div class="heading-m">${esc(p.name || "")}</div>
         <div class="caption secondary">${esc([p.age_band, place].filter(Boolean).join(" · ") || "Add where you are")}</div></div>
-      ${p.listed ? "" : badge("", "Draft")}</div>`;
+      ${l.listed ? "" : badge("", "Draft")}</div>`;
 
   let body;
   if (layout === "offer") {
@@ -419,21 +462,21 @@ function profileCard(slot, p, L) {
         <div class="progress" role="progressbar" aria-valuemin="0" aria-valuemax="${required.length}" aria-valuenow="${done}"><span style="width:${Math.round(100 * done / required.length)}%"></span></div></div>
       ${missing.length ? `<div class="suggest">${missing.map(i => `<button class="tag" onclick="suggest('${slot}', ${i.n})">Add ${esc(i.label.toLowerCase())}</button>`).join("")}</div>` : ""}
       <div class="row" style="margin-top: var(--space-4)">
-        ${d ? `<button class="btn secondary sm" onclick="toggleEdit('${slot}')">${L.editing ? "Done editing" : "Edit details"}</button>` : ""}
+        ${d ? `<button class="btn secondary sm" onclick="toggleEdit('${slot}')">${c.editing ? "Done editing" : "Edit details"}</button>` : ""}
         <span class="grow"></span>
-        ${d ? `<button class="btn sm" ${ready ? "" : "disabled"} onclick="submit('${slot}')">${p.listed ? "Save changes" : "Start matching"}</button>` : ""}</div>
+        ${d ? `<button class="btn sm" ${ready ? "" : "disabled"} onclick="submit('${slot}')">${l.listed ? "Save changes" : "Start matching"}</button>` : ""}</div>
       ${d && !ready ? `<p class="caption tertiary" style="margin: var(--space-2) 0 0; text-align: right">Add who you're looking for and where first</p>` : ""}
     </div>`;
 }
 
-function editorHtml(slot, p, L) {
-  const d = L.draft;
+function editorHtml(slot, c) {
+  const d = c.draft;
   const normal = d.fields.filter(f => !f.sensitive), sensitive = d.fields.filter(f => f.sensitive);
   return `<div class="editor">
       <div class="row"><p class="eyebrow grow">What you're looking for</p>${d.by === "claude" ? badge("ai", "Agent draft") : ""}</div>
-      <textarea class="textarea" style="margin-top: var(--space-2)" aria-label="What you're looking for" oninput="local['${slot}'].draft.intent_text=this.value">${esc(d.intent_text)}</textarea>
+      <textarea class="textarea" style="margin-top: var(--space-2)" aria-label="What you're looking for" oninput="cur('${slot}').draft.intent_text=this.value">${esc(d.intent_text)}</textarea>
       <p class="caption text-ai" style="margin: var(--space-2) 0 0">Used for matching, never shown to anyone.</p>
-      <div class="exactness">Wide net <input type="range" min="0" max="1" step="0.1" value="${d.exactness}" aria-label="How exact" oninput="local['${slot}'].draft.exactness=+this.value"> Exact</div>
+      <div class="exactness">Wide net <input type="range" min="0" max="1" step="0.1" value="${d.exactness}" aria-label="How exact" oninput="cur('${slot}').draft.exactness=+this.value"> Exact</div>
       <p class="eyebrow group-title">Your details</p>
       <div class="card md">${normal.map(f => fieldRow(slot, f)).join("")}</div>
       <p class="eyebrow group-title">Sensitive details</p>
@@ -442,47 +485,48 @@ function editorHtml(slot, p, L) {
     </div>`;
 }
 
-function chatHtml(slot, p, L) {
+function chatHtml(slot, l, c) {
   const sc = SCENARIOS[scenario]?.[slot];
-  // The scenario's opening line pre-fills the box only before the first message.
-  const text = L.chatText || (!p.chat.some(m => m.from === "me") && sc ? sc.message : "");
-  const lastMine = [...p.chat].reverse().find(m => m.from === "me");
-  const pending = L.sending && !(p.agent_busy && lastMine && lastMine.text === L.sending) ? `<div class="bubble me">${esc(L.sending)}</div>` : "";
-  const busy = L.sending || p.agent_busy;
-  const unread = L.chatMin && p.chat.length && p.chat[p.chat.length - 1].from === "agent" && p.chat.length !== L.seenChat;
-  return `<div class="chat-sheet${L.chatMin ? " min" : ""}">
-    <button class="sheet-head" aria-expanded="${!L.chatMin}" onclick="toggleChat('${slot}')"><span class="handle" aria-hidden="true"></span>
+  // The scenario's opening line pre-fills the first listing's box, only before its first message.
+  const text = c.chatText || (l.n === 1 && !l.chat.some(m => m.from === "me") && sc && sc.message ? sc.message : "");
+  const lastMine = [...l.chat].reverse().find(m => m.from === "me");
+  const pending = c.sending && !(l.agent_busy && lastMine && lastMine.text === c.sending) ? `<div class="bubble me">${esc(c.sending)}</div>` : "";
+  const busy = c.sending || l.agent_busy;
+  const unread = c.chatMin && l.chat.length && l.chat[l.chat.length - 1].from === "agent" && l.chat.length !== c.seenChat;
+  // "Save changes" only applies to updates made after the listing last went live.
+  const liveAt = l.chat.map(m => !!m.live).lastIndexOf(true);
+  return `<div class="chat-sheet${c.chatMin ? " min" : ""}">
+    <button class="sheet-head" aria-expanded="${!c.chatMin}" onclick="toggleChat('${slot}')"><span class="handle" aria-hidden="true"></span>
       <span class="eyebrow">Your agent</span>${unread ? '<span class="unread" aria-label="New message"></span>' : ""}
-      <span class="caption tertiary">${L.chatMin ? "Open" : "Minimize"}</span><span class="chevron" aria-hidden="true"></span></button>
+      <span class="caption tertiary">${c.chatMin ? "Open" : "Minimize"}</span><span class="chevron" aria-hidden="true"></span></button>
     <div class="chat-pane">
-      ${p.chat.map(m => `<div class="bubble ${m.from}">${esc(m.text)}</div>` +
-        (m.draft_updated ? `<div class="bubble-note">${badge("ai", "Profile updated")}${p.listed ? ` <span class="caption secondary">Save changes to make it live</span>` : ""}</div>` : "")).join("")}${pending}
+      ${l.chat.map((m, n) => `<div class="bubble ${m.from}">${esc(m.text)}</div>` +
+        (m.draft_updated ? `<div class="bubble-note">${badge("ai", "Profile updated")}${l.listed && n > liveAt ? ` <span class="caption secondary">Save changes to make it live</span>` : ""}</div>` : "")).join("")}${pending}
       ${busy ? `<div class="bubble agent typing" aria-label="Your agent is replying"><span></span><span></span><span></span></div>` : ""}</div>
-    <div class="composer-bar"><textarea class="textarea" id="chat-${slot}" aria-label="Message to your agent" placeholder="${p.chat.length > 1 ? "Reply to your agent" : "What are you looking for?"}" oninput="local['${slot}'].chatText=this.value"
+    <div class="composer-bar"><textarea class="textarea" id="chat-${slot}" aria-label="Message to your agent" placeholder="${l.chat.length > 1 ? "Reply to your agent" : "What are you looking for?"}" oninput="cur('${slot}').chatText=this.value"
         onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();send('${slot}')}">${esc(text)}</textarea>
       <button class="btn" ${busy ? "disabled" : ""} onclick="send('${slot}')">Send</button></div>
   </div>`;
 }
 
 function toggleChat(slot) {
-  const L = local[slot]; L.chatMin = !L.chatMin;
-  if (!L.chatMin) L.seenChat = S.phones[slot].chat.length;
+  const c = cur(slot); c.chatMin = !c.chatMin;
+  if (!c.chatMin) c.seenChat = curListing(slot).chat.length;
   renderPhone(slot);
 }
 function toggleEdit(slot) {
-  const L = local[slot]; L.editing = !L.editing;
-  if (L.editing) L.chatMin = true;  // editing needs the whole screen
+  const c = cur(slot); c.editing = !c.editing;
+  if (c.editing) c.chatMin = true;  // editing needs the whole screen
   renderPhone(slot);
 }
 function suggest(slot, n) {
-  const ask = checklist(local[slot])[n].ask;
-  local[slot].chatText = ask; local[slot].chatMin = false; local[slot].seenChat = S.phones[slot].chat.length; renderPhone(slot);
+  const c = cur(slot), ask = checklist(c)[n].ask;
+  c.chatText = ask; c.chatMin = false; c.seenChat = curListing(slot).chat.length; renderPhone(slot);
   const box = $("chat-" + slot); box.focus(); box.setSelectionRange(ask.length, ask.length);
 }
 
-
 function fieldRow(slot, f) {
-  const i = local[slot].draft.fields.indexOf(f);
+  const i = cur(slot).draft.fields.indexOf(f);
   const at = `'${slot}',${i}`;
   const label = esc(f.label.replace(" (from ID check)", ""));
   if (f.sensitive && !f.enabled) {
@@ -492,9 +536,9 @@ function fieldRow(slot, f) {
   let control;
   if (f.locked) control = `<span class="body-s">${esc(f.value)}</span> <span class="caption tertiary">from your ID check</span>`;
   else if (f.multi && f.options && f.options.length) control = `<div>${f.options.map(o => `<button class="tag${(f.value || []).includes(o) ? " on" : ""}" onclick="toggleChip(${at},'${esc(o)}')">${esc(o)}</button>`).join("")}</div>`;
-  else if (f.multi) control = `<input class="input" value="${esc(val(f.value) ?? "")}" placeholder="Separate with commas" oninput="local['${slot}'].draft.fields[${i}].value=this.value.split(',').map(s=>s.trim()).filter(Boolean)">`;
+  else if (f.multi) control = `<input class="input" value="${esc(val(f.value) ?? "")}" placeholder="Separate with commas" oninput="cur('${slot}').draft.fields[${i}].value=this.value.split(',').map(s=>s.trim()).filter(Boolean)">`;
   else if (f.options && f.options.length) control = `<select class="select" onchange="setVal(${at},this.value)"><option value="">Choose…</option>${f.options.map(o => `<option ${o === f.value ? "selected" : ""}>${esc(o)}</option>`).join("")}</select>`;
-  else control = `<input class="input" value="${esc(f.value ?? "")}" oninput="local['${slot}'].draft.fields[${i}].value=this.value">`;
+  else control = `<input class="input" value="${esc(f.value ?? "")}" oninput="cur('${slot}').draft.fields[${i}].value=this.value">`;
   const always = ["seeking", "offering"].includes(f.key);
   const choice = f.locked ? "" : always ? `<span class="caption tertiary push">Always shown, so the right person can find you</span>` :
     `<span class="segmented push" role="group" aria-label="${label}: shown or hidden">
@@ -507,40 +551,41 @@ function fieldRow(slot, f) {
     ${hidden ? `<div class="hidden-note">Used for matching, never shown</div>` : ""}</div>`;
 }
 function setVal(slot, i, v) {
-  const f = local[slot].draft.fields[i]; f.value = v;
+  const f = cur(slot).draft.fields[i]; f.value = v;
   if (f.key === "city") refreshOptions(slot, v); else renderPhone(slot);
 }
 function toggleChip(slot, i, o) {
-  const f = local[slot].draft.fields[i]; const s = new Set(f.value || []);
+  const f = cur(slot).draft.fields[i]; const s = new Set(f.value || []);
   s.has(o) ? s.delete(o) : s.add(o); f.value = [...s]; renderPhone(slot);
 }
 function setVis(slot, i, v) {
-  const f = local[slot].draft.fields[i];
+  const f = cur(slot).draft.fields[i];
   if (f.sensitive && v === "shown") {
     if (!confirm(`Show your ${f.label.toLowerCase()} to matches? Sensitive details are safest hidden: hidden, they can still improve a match.`)) return;
     f.confirmed = true;
   }
   f.visibility = v; renderPhone(slot);
 }
-function enable(slot, i, on) { const f = local[slot].draft.fields[i]; f.enabled = on; if (on) f.visibility = "hidden"; renderPhone(slot); }
+function enable(slot, i, on) { const f = cur(slot).draft.fields[i]; f.enabled = on; if (on) f.visibility = "hidden"; renderPhone(slot); }
 async function refreshOptions(slot, city) {
-  const d = local[slot].draft;
+  const d = cur(slot).draft;
   const opts = await (await fetch(`/api/options?kind=${encodeURIComponent(d.kind || "")}&city=${encodeURIComponent(city)}`)).json();
   for (const f of d.fields) if (opts[f.key] && opts[f.key].length) { f.options = opts[f.key]; if (!f.multi && f.value && !opts[f.key].includes(f.value)) f.value = null; }
   renderPhone(slot);
 }
 
-function followupCard(slot, q) {
+function followupCard(slot, l, q) {
+  const k = `${slot}-${l.id}`;
   let controls = "";
-  if (q.question_id === "age_range") controls = `<div class="row"><input class="input" id="fu-min-${slot}" type="number" value="25" min="18" aria-label="From age"><span class="body-s secondary">to</span><input class="input" id="fu-max-${slot}" type="number" value="40" min="18" aria-label="To age"></div>
-    <button class="btn" style="margin-top: var(--space-3)" onclick="answer('${slot}','age_range',{min:+$('fu-min-${slot}').value,max:+$('fu-max-${slot}').value})">Answer</button>`;
-  else if (q.question_id === "schedule") controls = `<select class="select" id="fu-s-${slot}">${["weekends","weekday evenings","weekday mornings","flexible"].map(o => `<option>${o}</option>`).join("")}</select>
-    <button class="btn" style="margin-top: var(--space-3)" onclick="answer('${slot}','schedule',{schedule:$('fu-s-${slot}').value})">Answer</button>`;
-  else controls = `<div class="row"><button class="btn" onclick="answer('${slot}','wider_net',{yes:true})">Widen the net</button><button class="btn secondary" onclick="answer('${slot}','wider_net',{yes:false})">Keep it as is</button></div>`;
-  return `<div class="card md">${badge("ai", "From the Matchmaker agent")}<h3 class="heading-m" style="margin: var(--space-3) 0">${esc(q.question_text)}</h3>${controls}</div>`;
+  if (q.question_id === "age_range") controls = `<div class="row"><input class="input" id="fu-min-${k}" type="number" value="25" min="18" aria-label="From age"><span class="body-s secondary">to</span><input class="input" id="fu-max-${k}" type="number" value="40" min="18" aria-label="To age"></div>
+    <button class="btn" style="margin-top: var(--space-3)" onclick="answer('${slot}','${l.id}','age_range',{min:+$('fu-min-${k}').value,max:+$('fu-max-${k}').value})">Answer</button>`;
+  else if (q.question_id === "schedule") controls = `<select class="select" id="fu-s-${k}">${["weekends","weekday evenings","weekday mornings","flexible"].map(o => `<option>${o}</option>`).join("")}</select>
+    <button class="btn" style="margin-top: var(--space-3)" onclick="answer('${slot}','${l.id}','schedule',{schedule:$('fu-s-${k}').value})">Answer</button>`;
+  else controls = `<div class="row"><button class="btn" onclick="answer('${slot}','${l.id}','wider_net',{yes:true})">Widen the net</button><button class="btn secondary" onclick="answer('${slot}','${l.id}','wider_net',{yes:false})">Keep it as is</button></div>`;
+  return `<div class="card sm">${badge("ai", "From the Matchmaker agent")}<h3 class="heading-m" style="margin: var(--space-3) 0">${esc(q.question_text)}</h3>${controls}</div>`;
 }
 
-function introCard(slot, p, i) {
+function introCard(slot, l, i) {
   const f = i.view.fields;
   const facts = Object.entries(f).filter(([k]) => !["first_name", "seeking", "offering"].includes(k)).map(([, v]) => val(v));
   let action = "", status = "";
@@ -548,12 +593,12 @@ function introCard(slot, p, i) {
     <p class="caption tertiary" style="margin: var(--space-2) 0 0">You're only introduced if you both say yes.</p>`;
   else if (i.status === "waiting") status = badge("", "Waiting on the other person");
   else if (i.status === "closed") action = `<p class="body-s secondary" style="margin: var(--space-4) 0 0">Not this time.</p>`;
-  else { status = badge("success", "Introduced"); action = connectedBlock(slot, p, i); }
-  return `<div class="card md"><div class="row"><h3 class="heading-l grow">${esc(f.first_name || "Someone")}</h3>${status}</div>
+  else { status = badge("success", "Introduced"); action = connectedBlock(slot, l, i); }
+  return `<div class="card sm intro"><div class="row"><h3 class="heading-l grow">${esc(f.first_name || "Someone")}</h3>${status}</div>
     <div style="margin-top: var(--space-3)">${tags(facts)}</div>
     <p class="reason">${esc(i.view.reason)}</p>${action}</div>`;
 }
-function connectedBlock(slot, p, i) {
+function connectedBlock(slot, l, i) {
   const name = esc(i.view.fields.first_name || "them");
   if (i.reveal_result) {
     return i.reveal_result.length
@@ -561,10 +606,10 @@ function connectedBlock(slot, p, i) {
       : `<p class="body-s secondary" style="margin: var(--space-4) 0 0">No other shared details to show.</p>`;
   }
   if (i.reveal_chosen) return `<p class="body-s secondary" style="margin: var(--space-4) 0 0">We'll let you know if you have anything else in common.</p>`;
-  if (!p.hidden_keys.length) return "";
+  if (!l.hidden_keys.length) return "";
   return `<details class="compare"><summary>See what else you have in common</summary>
     <p class="caption secondary" style="margin: var(--space-2) 0">Choose any hidden details you'd be happy to compare with ${name}. Nothing is shown unless you both choose it and both have it.</p>
-    ${p.hidden_keys.map(h => `<label class="check-row"><input type="checkbox" value="${h.key}" class="rv-${slot}-${i.intro_id}"> ${esc(h.label)}</label>`).join("")}
+    ${l.hidden_keys.map(h => `<label class="check-row"><input type="checkbox" value="${h.key}" class="rv-${slot}-${i.intro_id}"> ${esc(h.label)}</label>`).join("")}
     <button class="btn sm" style="margin-top: var(--space-2)" onclick="reveal('${slot}','${i.intro_id}')">Compare</button></details>`;
 }
 const LABEL = { income_band: "Income", religion: "Religion", politics: "Politics", health: "Health", kinks: "Intimacy preferences",
@@ -573,29 +618,40 @@ const LABEL = { income_band: "Income", religion: "Religion", politics: "Politics
 // actions
 async function verify(slot) {
   local[slot].form = { name: $("name-" + slot).value, age: $("age-" + slot).value };
-  if (await api("verify", { slot, name: local[slot].form.name, age: local[slot].form.age })) { local[slot].tab = null; render([slot]); }
+  if (await api("verify", { slot, name: local[slot].form.name, age: local[slot].form.age })) {
+    local[slot].current = S.phones[slot].current; local[slot].tab = null; render([slot]);
+  }
 }
 async function send(slot) {
-  const L = local[slot], text = $("chat-" + slot).value.trim();
-  if (!text || L.sending) return;
-  L.applyScenario = SCENARIOS[scenario]?.[slot]?.message === text;
-  Object.assign(L, { sending: text, chatText: "", tab: "profile" });
+  const c = cur(slot), listing_id = curId(slot), text = $("chat-" + slot).value.trim();
+  if (!text || c.sending) return;
+  c.applyScenario = SCENARIOS[scenario]?.[slot]?.message === text;
+  Object.assign(c, { sending: text, chatText: "" });
+  local[slot].tab = "profile";
   renderPhone(slot);
-  await api("prefill", { slot, text });  // instant: facts we're sure of go on the profile now
-  await api("agent", { slot, text });   // the agent fills in the rest and asks what's missing
-  L.sending = null;
+  await api("prefill", { slot, listing_id, text });  // instant: facts we're sure of go on the profile now
+  await api("agent", { slot, listing_id, text });    // the agent fills in the rest and asks what's missing
+  c.sending = null;
   render([slot]);
 }
 async function submit(slot) {
-  const d = local[slot].draft;
+  const c = cur(slot), listing_id = curId(slot), d = c.draft;
   const listing = { intent_text: d.intent_text, exactness: d.exactness,
     fields: d.fields.filter(f => f.enabled && hasValue(f.value)).map(f => ({ key: f.key, value: f.value, visibility: f.visibility, confirmed: !!f.confirmed })) };
-  if (await api("submit", { slot, listing })) {
-    if (S.phones[slot].listed) { local[slot].editing = false; local[slot].tab = "matches"; } else local[slot].tab = "profile";
+  if (await api("submit", { slot, listing_id, listing })) {
+    if (curListing(slot).listed) { c.editing = false; c.open = true; local[slot].tab = "listings"; } else local[slot].tab = "profile";
     render([slot]);
   }
 }
-const answer = (slot, question_id, ans) => api("answer", { slot, question_id, answer: ans });
+async function newListing(slot) {
+  if (await api("new_listing", { slot })) { local[slot].current = S.phones[slot].current; local[slot].tab = "profile"; render([slot]); }
+}
+async function openListing(slot, listing_id) {
+  local[slot].current = listing_id; local[slot].tab = "profile";
+  renderPhone(slot);
+  api("open_listing", { slot, listing_id });
+}
+const answer = (slot, listing_id, question_id, ans) => api("answer", { slot, listing_id, question_id, answer: ans });
 const decide = (slot, intro_id, yes) => api("decide", { slot, intro_id, yes });
 function reveal(slot, intro_id) {
   const keys = [...document.querySelectorAll(`.rv-${slot}-${intro_id}`)].filter(c => c.checked).map(c => c.value);
@@ -630,7 +686,7 @@ function renderRoom() {
     <div class="log">${r.events.slice().reverse().map(eventCard).join("")}</div>`;
 }
 function insideCard(l) {
-  return `<div class="inside"><p class="label" style="margin:0">What the Matchmaker agent reads about ${esc(l.name)} (${l.slot})</p>
+  return `<div class="inside"><p class="label" style="margin:0">What the Matchmaker agent reads about ${esc(l.name)} (${l.slot}): ${esc(l.title)}</p>
     <p class="intent">${esc(l.intent_text)}</p>
     ${l.fields.map(f => `<div class="frow"><span class="k">${esc(f.label.replace(" (from ID check)", ""))}</span>
       <span>${f.visibility === "hidden" ? `<span class="hidden-well">${esc(f.value)}</span> ${badge("ai", "Hidden")}
@@ -655,20 +711,29 @@ function payloadHtml(e) {
 }
 
 function resetLocal(clearForms = true) {
-  for (const s of ["A", "B"]) Object.assign(local[s], { tab: null, chatText: "", ...(clearForms ? { form: {}, draft: null, draftFrom: null } : { form: {} }) });
+  for (const s of ["A", "B"]) {
+    local[s].tab = null;
+    if (clearForms) Object.assign(local[s], { form: {}, current: null, ls: {} });
+    else { local[s].form = {}; for (const c of Object.values(local[s].ls)) c.chatText = ""; }
+  }
 }
 async function reset() { resetLocal(); await api("reset"); }
 async function fastForward() {
+  if (scenario === "blank") { toast("Pick a scenario first, or type on each phone."); return; }
   for (const slot of ["A", "B"]) {
     const sc = SCENARIOS[scenario][slot];
-    if (!S.phones[slot].verified && !await api("verify", { slot, name: sc.name, age: sc.age })) return;
-    if (!S.phones[slot].draft) { local[slot].applyScenario = true; if (!await api("agent", { slot, text: sc.message })) return; }
-    for (let i = 0; i < 2 && !S.phones[slot].draft; i++) {  // a real agent may ask a question first
-      local[slot].applyScenario = true;
-      if (!await api("agent", { slot, text: "That's everything for now. Please draft my listing." })) return;
+    if (!S.phones[slot].verified) {
+      if (!await api("verify", { slot, name: sc.name, age: sc.age })) return;
+      local[slot].current = S.phones[slot].current;
+    }
+    const listing_id = curId(slot), c = cur(slot);
+    if (!curListing(slot).draft) { c.applyScenario = true; if (!await api("agent", { slot, listing_id, text: sc.message })) return; }
+    for (let i = 0; i < 2 && !curListing(slot).draft; i++) {  // a real agent may ask a question first
+      c.applyScenario = true;
+      if (!await api("agent", { slot, listing_id, text: "That's everything for now. Please draft my listing." })) return;
     }
     syncDraft(slot);
-    if (!S.phones[slot].listed) { local[slot].tab = null; await submit(slot); }
+    if (!curListing(slot).listed) { local[slot].tab = null; await submit(slot); }
   }
 }
 

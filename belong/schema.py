@@ -102,6 +102,9 @@ class Field:
 
 @dataclass(frozen=True)
 class Listing:
+    # The listing's own id in matching. A person may have several listings (say, one looking
+    # for a tutor and one looking for love); each is matched on its own. For a person's only
+    # listing this is simply their person id.
     person_id: str
     intent_text: str
     exactness: float  # 1 = exact, 0 = wide net
@@ -110,6 +113,12 @@ class Listing:
     version: int = 1
     # Sensitive keys the person explicitly chose to show (overriding the default).
     confirmed_shown: tuple = ()
+    # The person who owns this listing ("" = the person whose id is person_id).
+    owner_id: str = ""
+
+    @property
+    def owner(self) -> str:
+        return self.owner_id or self.person_id
 
     def get(self, key: str) -> Optional[Field]:
         for f in self.fields:

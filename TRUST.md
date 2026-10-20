@@ -113,10 +113,11 @@ that nothing published relies on unpublished code.
 | 14 | No hidden value of either person appears anywhere in an introduction (string check). | `no_hidden_values` → `find_forbidden` | `test_hidden_values_stay_out_even_when_one_side_shows_the_same_key`, audit A2 |
 | 15 | Follow-up questions come only from the fixed menu, and the Warden attaches the wording. | `FOLLOWUP_MENU` in [schema.py](belong/schema.py); `exit_followup` | Audit A3 |
 | 16 | **Mutual reveal.** A hidden detail is revealed only if both people share it, are connected (both said yes), and both opted in. Each person is asked about *all* their hidden details, so the question itself reveals nothing. | `exit_reveal`; `reveal_consents` in [agent.py](belong/agent.py) | `test_shared_detail_revealed_only_when_both_opt_in`, `test_nothing_revealed_before_both_say_yes`, audit A4 |
-| 17 | Nobody is introduced more than 3 times a week. | `approach_limit` check | `test_approach_limit_is_enforced`, audit R3 |
+| 17 | No listing is introduced more than 3 times a week. | `approach_limit` check (counted per listing) | `test_approach_limit_is_enforced`, audit R3 |
 | 18 | **Receipts carry no content:** exactly `{seq, check, result, timestamp, commitment, hash}`. The commitment is a keyed HMAC of what was checked: auditors holding the key can confirm it, and nobody can read content out of it. | `Warden._receipt` | `test_receipts_have_fixed_fields_and_no_content`, audit A5 |
 | 19 | **Receipts can't be quietly deleted, reordered or edited, even by Belong.** Each receipt's hash covers the previous one, and anyone can re-compute the chain without keys. | `chain_hash`, `verify_chain` in [warden.py](belong/warden.py); re-implemented independently in [leaks.py](belong/leaks.py) and in the trust page's JavaScript | `test_anyone_can_verify_the_receipt_chain`, `test_deleting_or_editing_a_receipt_breaks_the_chain`, audit A6 |
 | 20 | A proposal naming someone who hasn't signed up (or pairing a person with themselves) is refused cleanly. | `proposal_known_people` check | Attack suite: "Propose a person who hasn't signed up" |
+| 20a | **Never matched with yourself.** A person can have several listings (say, a tutor and a date), each matched on its own. Two listings by the same person are never paired, and a listing can only be added by its owner. | Matcher skips same-owner pairs; Warden's `proposal_distinct_people` check at exit and owner check at entry | `test_never_introduced_to_your_own_other_listing`, `test_both_listings_are_matched_on_their_own`, attack suite: "Introduce someone to their own other listing", audit R4 |
 | 21 | **The published source of both agents is the code that was measured** (one measurement per agent). | [attest.py](belong/attest.py) `measurements()` | `test_published_source_hashes_to_the_measurement`; the trust page re-hashes every file in the browser |
 | 22 | The trust API serves the published files of both agents, and nothing else. | `open_source_text` | `test_only_published_files_are_served` |
 | 23 | **A phone only receives what its person may know.** Nobody is told who said no; a person who opted into a reveal isn't told whether the other side shares the detail or simply declined. | `DemoSession.phone_state` in [demo.py](belong/demo.py) | [test_demo.py](tests/test_demo.py): `test_phones_never_receive_the_other_persons_hidden_details`, `test_a_no_is_never_attributed` |
@@ -131,7 +132,7 @@ test a sandbox that runs the same Warden and Matchmaker:
   was sent out. Canaries never consent to a reveal, so any hit is a leak. Agents can
   bring their own listings and secrets.
   `test_canary_test_catches_a_sabotaged_warden` proves the test detects a real leak.
-- **Attack suite** (`POST /api/probe/attacks`): 21 attempts to get bad data in or
+- **Attack suite** (`POST /api/probe/attacks`): 22 attempts to get bad data in or
   private data out. Each result names the rule that stopped it. Agents can add their
   own intents.
 
@@ -157,7 +158,7 @@ Adding `import logging` to a matching file failed the isolation test. Both guard
 
 | Component | Sees | Can output |
 |---|---|---|
-| Person | Their own listing; introductions addressed to them; reveals they agreed to | Listing, yes/no, reveal opt-ins |
+| Person | Their own listings; introductions addressed to them; reveals they agreed to | Listing, yes/no, reveal opt-ins |
 | Personal agent | Its own person's conversation and data only. In the demo it is powered by a hosted model (OpenAI or Claude), so that person's chat is sent to that provider's API (synthetic or test data only). Each person has a separate conversation (`test_each_phone_has_its_own_private_conversation`). | A drafted listing, checked before it's saved (`build_draft` in [agent_llm.py](belong/agent_llm.py)); the person reviews it, and the Warden checks it again at entry |
 | KYC provider | ID documents | `verified`, `age_band` only |
 | Warden | Listings at entry; proposals and the board at exit (it must know the hidden values to string-check for them) | Accept/reject, sealed outputs, receipts. It never ranks or picks pairs. |

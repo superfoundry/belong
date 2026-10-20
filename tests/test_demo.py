@@ -45,7 +45,7 @@ class Journey(unittest.TestCase):
     def _intro_between_a_and_b(self):
         for st in self.s.state()["phones"]["A"]["intros"]:
             intro = self.s.intros[st["intro_id"]]
-            if {intro.person_a, intro.person_b} == {"demoA", "demoB"}:
+            if {intro.person_a, intro.person_b} == {"demoA-1", "demoB-1"}:
                 return st["intro_id"]
         return None
 
@@ -63,6 +63,7 @@ class Journey(unittest.TestCase):
             # list every possible value, e.g. all health options).
             state = dict(self.s.phone_state(slot))
             state.pop("draft")
+            state["listings"] = [{k: v for k, v in l.items() if k != "draft"} for l in state["listings"]]
             return json.dumps(state, ensure_ascii=False)
 
         self.assertNotIn("ADHD", from_others("A"))  # B's hidden health detail (no one else shows it)
@@ -144,3 +145,42 @@ class Entry(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class SeveralListings(unittest.TestCase):
+    """One person can look for a tutor and for love at the same time."""
+
+    def setUp(self):
+        self.s = DemoSession(seed=7, agent=None)
+        climbers(self.s)
+
+    def test_each_listing_has_its_own_chat_and_draft(self):
+        first = self.s.slots["A"].current
+        second = self.s.new_listing("A")
+        self.assertNotEqual(first, second)
+        self.assertEqual(self.s.slots["A"].current, second)
+        self.s.agent_message("A", "Looking for a roommate in Osaka, moving in November.", second)
+        a = {l["id"]: l for l in self.s.phone_state("A")["listings"]}
+        self.assertEqual(a[second]["kind"], "roommate")
+        self.assertEqual(a[first]["kind"], "climbing")
+        self.assertNotIn("roommate", " ".join(m["text"] for m in a[first]["chat"]))
+
+    def test_both_listings_are_matched_on_their_own(self):
+        second = self.s.new_listing("A")
+        self.s.agent_message("A", "Looking for a roommate in Osaka, moving in November.", second)
+        self.s.submit("A", fill(self.s.slots["A"].listing(second).draft), second)
+        self.s.run_matchmaker()
+        listings = {l["id"]: l for l in self.s.phone_state("A")["listings"]}
+        self.assertTrue(listings["demoA-1"]["intros"])
+        self.assertTrue(listings[second]["intros"])
+
+    def test_never_introduced_to_your_own_other_listing(self):
+        """Two of A's listings that would suit each other are never paired."""
+        second = self.s.new_listing("A")
+        self.s.agent_message("A", "Need someone to belay with at Osaka gyms, weekends. Intermediate level.", second)
+        self.s.submit("A", fill(self.s.slots["A"].listing(second).draft), second)
+        self.s.run_matchmaker()
+        for intro in self.s.intros.values():
+            owners = {self.s.board.listing(intro.person_a).owner, self.s.board.listing(intro.person_b).owner}
+            self.assertEqual(len(owners), 2, intro.intro_id)
+        self.assertTrue(self.s.room_state()["leak_report"]["ok"])
