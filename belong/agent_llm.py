@@ -151,7 +151,11 @@ guitarist / drummer etc. Examples: "teach me to fish" -> seeking "a fishing teac
 fishing student"; someone happy to teach fishing -> seeking "a fishing student", offering "a \
 fishing teacher"; a band leader -> seeking "a ska guitarist", offering "a ska band"; a guitarist \
 looking for a band -> seeking "a ska band", offering "a ska guitarist"; "someone to play chess with" \
--> seeking and offering "a chess partner". Keep "offering" to a short role (a few words, like "an AC \
+-> seeking and offering "a chess partner". Also set "topics": two to five broader skills or areas the \
+listing is about, so related requests can be found even when the words differ (someone wanting a bass teacher: \
+"bass guitar", "music theory"; a guitarist who teaches: "guitar", "bass guitar"; a leaking tap: \
+"plumbing", "home repair"). Specific enough to mean something: never just \
+"sports", "lessons", "help" or "people", and never anything personal. Keep "offering" to a short role (a few words, like "an AC \
 repair customer"): times, places, pay and format go in their own fields, never in "offering". Two people are introduced only when each one's "seeking" \
 fits the other's "offering". If the person is open to more than one kind of \
 person ("either one", "both", "maybe a tutor"), don't make them choose: list every option in \
@@ -325,6 +329,9 @@ def build_draft(args: dict, first_name: str, age_band: str) -> tuple:
                 missing.append(f"a '{k}' phrase (a short noun phrase, e.g. 'a fishing teacher')")
             else:
                 visibility[k] = SHOWN  # matching needs both phrases to find the other person
+        if "topics" in values:
+            visibility["topics"] = SHOWN  # used to spot related requests, so it must be shown
+            values["topics"] = values["topics"][:5]
     known = next((c for c in vocab.CITIES if city and city.lower() == c.lower()), None)
     if "country" not in values and known:
         values["country"] = vocab.COUNTRY_NAMES[vocab.CITIES[known][0]]  # a city we know: fill in its country
@@ -347,7 +354,7 @@ def build_draft(args: dict, first_name: str, age_band: str) -> tuple:
     options = field_options(kind, city)
     # The kind's usual fields, the two phrases for every non-dating listing, and anything else
     # the agent set (e.g. native_language on an open-ended listing). Nothing set is dropped.
-    keys = list(dict.fromkeys(_COMMON + _BY_KIND.get(kind, []) + ([] if kind == "dating" else ["seeking", "offering"])
+    keys = list(dict.fromkeys(_COMMON + _BY_KIND.get(kind, []) + ([] if kind == "dating" else ["seeking", "offering", "topics"])
                               + [k for k in values if k in FIELD_REGISTRY]))
     fields = []
     for key in keys:

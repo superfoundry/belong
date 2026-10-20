@@ -602,7 +602,7 @@ const CLIENT_WORDS = new Set(["customer", "customers", "client", "clients", "stu
   "beginner", "beginners", "pupil", "pupils", "patient", "patients", "buyer", "buyers", "tenant", "tenants", "renter",
   "apprentice", "mentee", "mentees", "novice", "homeowner", "homeowners", "household", "households", "people", "anyone"]);
 const FILLER = new Set(["a", "an", "the", "or", "and", "of", "for", "to", "in", "on", "who", "with", "need", "needs", "needing",
-  "looking", "someone", "person", "this", "weekend", "weekends", "fix"]);
+  "looking", "someone", "person", "this"]);
 const words = t => String(t || "").toLowerCase().split(/[^\p{L}\p{N}]+/u).filter(Boolean);
 function sides(shown) {
   const seek = words(shown.seeking), off = words(shown.offering);
