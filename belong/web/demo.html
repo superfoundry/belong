@@ -239,7 +239,13 @@
   .composer-bar .textarea { min-height: 44px; max-height: 120px; }
 
   /* The phone's first screen: the name in the middle, on a very slight off-white. */
-  .screen:has(> .start) { background: var(--sf-paper-100); }
+  .screen:has(> .start), .screen:has(> .signin) { background: var(--sf-paper-100); }
+  .signin { display: flex; flex-direction: column; min-height: 100%; }
+  .signin .back-bar { margin-bottom: var(--space-6); }
+  .signin-body { flex: 1; }
+  .signin-body .heading-l { margin: 0 0 var(--space-2); }
+  .signin-body > .body-s { margin: 0 0 var(--space-6); }
+  .signin-foot { padding-top: var(--space-6); }
   .start { position: relative; height: 100%; display: flex; align-items: center; justify-content: center; }
   .start .wordmark { font-size: 56px; }
   .start .btn { position: absolute; left: 0; right: 0; bottom: var(--space-2); width: 100%; }
@@ -337,6 +343,7 @@
 
   #toast { position: fixed; bottom: var(--space-6); left: 50%; transform: translateX(-50%); display: none; z-index: 30; }
 
+  body.at-start .site-nav { display: none; }
   body.only-A .stage, body.only-B .stage { grid-template-columns: minmax(0, 420px); justify-content: center; }
   body.only-A .panel, body.only-B .panel, body.only-A .phone-wrap:last-child, body.only-B .phone-wrap:first-child { display: none; }
 </style>
@@ -492,7 +499,7 @@ function renderPhone(slot) {
   $("phone-" + slot).innerHTML = screen === "privacy"
     ? `<div class="screen" id="screen-${slot}">${SCREENS.privacy(slot, p, L)}</div>`
     : screen === "thread" ? SCREENS.thread(slot, p, L)
-    : screen === "verify" && !L.signin ? `<div class="screen" id="screen-${slot}">${SCREENS.verify(slot, p, L)}</div>`
+    : screen === "verify" ? `<div class="screen" id="screen-${slot}">${SCREENS.verify(slot, p, L)}</div>`
     : `<div class="top"><span class="wordmark">Belong.</span>${status}${menu}</div>
     <div class="screen${split ? " split" : ""}" id="screen-${slot}">${SCREENS[screen](slot, p, L)}</div>${tabs}`;
   if (screen === "thread") renderThreadScroll(slot);
@@ -575,16 +582,18 @@ const SCREENS = {
       return `<div class="start"><span class="wordmark">Belong.</span>
         <button class="btn block lg" onclick="local['${slot}'].signin=true; renderPhone('${slot}')">Sign in / Register</button></div>`;
     }
-    return `<div class="back-bar"><button class="btn ghost sm" onclick="local['${slot}'].signin=false; renderPhone('${slot}')"><span class="back-chev" aria-hidden="true"></span>Back</button></div>
-      <div class="card md">
-        <p class="eyebrow">Sign in or register</p>
-        <h3 class="heading-m" style="margin: var(--space-2) 0">Verify your identity</h3>
-        <p class="body-s secondary" style="margin: 0 0 var(--space-5)">An independent ID provider checks your document. We receive only two facts: that you're verified, and your age band.</p>
+    return `<div class="signin">
+      <div class="back-bar"><button class="btn ghost sm" onclick="local['${slot}'].signin=false; renderPhone('${slot}')"><span class="back-chev" aria-hidden="true"></span>Back</button></div>
+      <div class="signin-body">
+        <h2 class="heading-l">Sign in or register</h2>
+        <p class="body-s secondary">An independent ID provider checks your document. We receive only two facts: that you're verified, and your age band.</p>
         <div class="form-row"><label class="field-label" for="name-${slot}">First name</label><input class="input" id="name-${slot}" value="${esc(L.form.name ?? sc.name ?? "")}" oninput="local['${slot}'].form.name=this.value"></div>
         <div class="form-row"><label class="field-label" for="age-${slot}">Age</label><input class="input" id="age-${slot}" type="number" min="18" max="99" value="${esc(L.form.age ?? sc.age ?? "")}" oninput="local['${slot}'].form.age=this.value"></div>
-        <div style="margin-top: var(--space-6)"><button class="btn block" onclick="verify('${slot}')">Verify with the ID provider</button></div>
+      </div>
+      <div class="signin-foot">
+        <button class="btn block lg" onclick="verify('${slot}')">Verify with the ID provider</button>
         <p class="caption" style="margin: var(--space-3) 0 0; text-align: center"><span class="connect-agent" aria-disabled="true" title="Coming soon">Connect your own agent</span></p>
-      </div>`;
+      </div></div>`;
   },
 
   // Before every new listing: what's shared, and two notification choices (both off by default).
@@ -1240,6 +1249,8 @@ function render(force = []) {
     const snap = JSON.stringify(S.phones[slot]);
     if (force.includes(slot) || snap !== last[slot]) { last[slot] = snap; renderPhone(slot); }
   }
+  const shown = ONLY ? [ONLY] : ["A", "B"];
+  document.body.classList.toggle("at-start", shown.every(s => !S.phones[s].verified));
   const roomSnap = JSON.stringify(S.room) + scenario + ffBusy;
   if (roomSnap !== last.room) { last.room = roomSnap; renderRoom(); }
 }
