@@ -53,6 +53,15 @@
   .tabbar .dot { position: absolute; top: 2px; right: -11px; width: 8px; height: 8px; border-radius: 50%; background: var(--notify); }
   .setting-row { display: flex; align-items: center; gap: var(--space-2); padding: var(--space-3) 0; border-bottom: 1px solid var(--border-subtle); }
   .setting-row:first-child { padding-top: 0; } .setting-row:last-child { border-bottom: 0; padding-bottom: 0; }
+  .toggle-row { cursor: pointer; gap: var(--space-4); }
+  /* A switch, from the system's Switch: clay when on. */
+  .switch { appearance: none; flex-shrink: 0; width: 40px; height: 24px; border-radius: var(--radius-pill); background: var(--border-strong);
+            position: relative; cursor: pointer; transition: background var(--duration-base) var(--ease-standard); margin: 0; }
+  .switch::after { content: ""; position: absolute; top: 3px; left: 3px; width: 18px; height: 18px; border-radius: 50%; background: var(--surface-card);
+                   box-shadow: var(--shadow-sm); transition: transform var(--duration-base) var(--ease-standard); }
+  .switch:checked { background: var(--accent-default); }
+  .switch:checked::after { transform: translateX(16px); }
+  .switch:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
   .phone .tabs { background: var(--surface-card); padding: 0 var(--space-4); border-top: 1px solid var(--border-subtle); border-bottom: 0; justify-content: space-between; }
   .phone .tabs button { margin: 0; padding: var(--space-3) 2px var(--space-4); position: relative; font: var(--text-label); font-weight: 600; }
   .phone .tabs .dot { position: absolute; top: 9px; right: -8px; width: 6px; height: 6px; border-radius: 50%; background: var(--accent-default); }
@@ -96,6 +105,12 @@
   .empty { text-align: center; margin-top: var(--space-10); }
   .empty .heading-l { margin: 0 0 var(--space-2); }
   .empty .btn { margin-top: var(--space-5); }
+  .listing-card { position: relative; }
+  .listing-card .listing-open > .row:first-child { padding-right: 34px; }
+  .gear { all: unset; position: absolute; top: var(--space-3); right: var(--space-3); width: 32px; height: 32px; border-radius: 50%;
+          display: inline-flex; align-items: center; justify-content: center; color: var(--text-tertiary); cursor: pointer; z-index: 1; }
+  .gear:hover { background: var(--surface-raised); color: var(--text-primary); }
+  .gear:focus-visible { outline: 2px solid var(--focus-ring); }
   .listing-open { all: unset; box-sizing: border-box; display: block; width: 100%; cursor: pointer; }
   .listing-open > .row { display: flex; }
   .listing-open:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 4px; }
@@ -450,6 +465,7 @@ function renderPhone(slot) {
 // Like a chat app: messages in a row from the same person form a group; only the latest in a
 // group shows the avatar and the time. Each message can get one of a few reactions.
 const REACTIONS = ["👍", "❤️", "😂", "😮", "🙏"];
+const GEAR = `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>`;  // Lucide "settings"
 const SMILE_PLUS = `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 11v1a10 10 0 1 1-9-10"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><line x1="9" x2="9.01" y1="9" y2="9"/><line x1="15" x2="15.01" y1="9" y2="9"/><path d="M16 5h6"/><path d="M19 2v6"/></svg>`;  // Lucide "smile-plus"
 function msgTime(at) {
   if (!at) return "";
@@ -569,10 +585,7 @@ const SCREENS = {
     // Top layer: your agent's chat for this listing, which minimises when you tap its header.
     const l = curListing(slot), c = cur(slot);
     if (!l) return "";
-    const pr = l.prefs || {};
-    const prefs = `<div class="prefs-row"><span class="caption secondary grow">Close matches ${pr.notify_close ? "on" : "off"} · Questions ${pr.notify_questions ? "on" : "off"}</span>
-      <button class="btn ghost sm" onclick="editPrivacy('${slot}','${l.id}')">Change</button></div>`;
-    return `<div class="profile-pane${c.chatMin ? " chat-min" : ""}">${backBar(slot, "belong", "Belong.")}${profileCard(slot, p, l, c)}${c.editing && c.draft ? editorHtml(slot, c) : ""}${prefs}</div>
+    return `<div class="profile-pane${c.chatMin ? " chat-min" : ""}">${backBar(slot, "belong", "Belong.")}${profileCard(slot, p, l, c)}${c.editing && c.draft ? editorHtml(slot, c) : ""}</div>
       ${chatHtml(slot, l, c)}`;
   },
 
@@ -648,13 +661,20 @@ const SCREENS = {
   },
 
   settings(slot, p, L) {
-    const ls = p.listings.filter(l => !untouched(l));
+    const d = p.defaults || {};
+    const toggle = (key, label, note) => `<label class="setting-row toggle-row"><div class="grow"><div class="body-s">${label}</div>
+        <div class="caption secondary">${note}</div></div>
+      <input type="checkbox" class="switch" ${d[key] ? "checked" : ""} onchange="setDefault('${slot}','${key}',this.checked)"></label>`;
     return `${backBar(slot, L.tab || "belong", L.tab === "found" ? "Found." : "Belong.", "Settings")}
-      <p class="eyebrow group-title" style="margin-top:0">Notifications, per listing</p>
-      ${ls.length ? `<div class="card md">${ls.map(l => `<div class="setting-row"><div class="grow"><div class="body-s">${esc(cap(l.title))}</div>
-          <div class="caption secondary">Close matches ${l.prefs?.notify_close ? "on" : "off"} · Questions ${l.prefs?.notify_questions ? "on" : "off"}</div></div>
-          <button class="btn ghost sm" onclick="editPrivacy('${slot}','${l.id}')">Change</button></div>`).join("")}</div>`
-        : `<p class="body-s secondary">You'll choose these when you create a listing.</p>`}
+      <p class="eyebrow group-title" style="margin-top:0">New listings start with</p>
+      <div class="card md">
+        ${toggle("notify_close", "Close matches", "Hear about people who are almost what you asked for. One-way: they aren't told.")}
+        ${toggle("notify_questions", "Questions", "Short questions that could find you more matches. We never say who asked.")}
+      </div>
+      <div class="card md" style="margin-top: var(--space-4)">
+        ${toggle("ask_each_time", "Ask me each time", "Show the privacy questions whenever I create a listing.")}
+      </div>
+      <p class="caption tertiary" style="margin: var(--space-3) 0 0">To change one listing, use the gear on it.</p>
       <p class="eyebrow group-title">Your agent</p>
       <div class="card md"><p class="body-s" style="margin:0">In this demo your agent runs on a hosted AI model.</p>
         <p class="caption" style="margin: var(--space-2) 0 0"><span class="connect-agent" aria-disabled="true" title="Coming soon">Connect your own agent</span></p></div>`;
@@ -689,7 +709,9 @@ function listingCard(slot, p, l) {
           <summary>${waiting ? "Matches and questions" : "Matches"} (${total})</summary>
           <div class="stack" style="margin-top: var(--space-3)">${l.followups.map(q => followupCard(slot, l, q)).join("")}${l.intros.map(i => introCard(slot, l, i)).join("")}</div></details>`
       : "";
-  return `<div class="card md listing-card"><button class="listing-open" onclick="openListing('${slot}','${l.id}')" aria-label="Open ${esc(l.title)}">
+  return `<div class="card md listing-card">
+    <button class="gear" onclick="editPrivacy('${slot}','${l.id}')" aria-label="Notification settings for ${esc(l.title)}" title="Notification settings">${GEAR}</button>
+    <button class="listing-open" onclick="openListing('${slot}','${l.id}')" aria-label="Open ${esc(l.title)}">
       <span class="row"><span class="heading-m grow">${esc(cap(l.title))}</span>${status}</span>
       <span class="row" style="margin-top: var(--space-1)"><span class="caption secondary grow">${esc(summary)}</span><span class="caption text-accent">Edit</span></span></button>${body}</div>`;
 }
@@ -1024,10 +1046,16 @@ async function submit(slot) {
   }
 }
 // A new listing starts with the privacy questions; the listing is made when they're answered.
-function newListing(slot) {
-  local[slot].q = { step: 0, ack: false, close: false, questions: false, editing: null };
+async function newListing(slot) {
+  const d = S.phones[slot].defaults || {};
+  if (!d.ask_each_time && d.acknowledged) {  // not asked: the defaults from Settings apply
+    if (await api("new_listing", { slot })) { local[slot].current = S.phones[slot].current; openView(slot, "profile"); }
+    return;
+  }
+  local[slot].q = { step: 0, ack: !!d.acknowledged, close: !!d.notify_close, questions: !!d.notify_questions, editing: null };
   openView(slot, "privacy");
 }
+const setDefault = (slot, key, value) => api("set_defaults", { slot, defaults: { [key]: value } });
 function editPrivacy(slot, listing_id) {
   const pr = S.phones[slot].listings.find(l => l.id === listing_id).prefs || {};
   local[slot].q = { step: 1, ack: true, close: !!pr.notify_close, questions: !!pr.notify_questions, editing: listing_id };
