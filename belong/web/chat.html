@@ -72,6 +72,8 @@
   .card .meta dt { color: var(--sys-text-3); } .card .meta dd { margin: 0; }
   .card .quote { margin: 12px 0 0; padding: 0 0 0 12px; border-left: 2px solid var(--sys-line-2); color: var(--sys-text-2); font-size: 14px; }
   .card .actions { display: flex; gap: 8px; margin-top: 16px; }
+  .card .status { border-top: 1px solid var(--sys-line); margin-top: 14px; padding-top: 14px; }
+  .card .status .actions { margin-top: 12px; }
   .badge { display: inline-block; font-size: 12px; font-weight: 600; padding: 2px 8px; border-radius: 999px; margin-left: 8px; vertical-align: 2px;
            background: var(--brand); color: var(--brand-ink); }
   .badge.plain { background: var(--sys-raise); color: var(--sys-text-2); }
@@ -176,7 +178,7 @@ function listingCard() {
   return `<div class="card"><p class="title">${esc(cap(s.headline || l.title))}${live ? '<span class="badge">Live</span>' : '<span class="badge plain">Draft</span>'}</p>
     <p class="sub">Shown to people you're introduced to. Hidden details are never shown.</p>
     ${meta.length ? `<dl class="meta">${meta.map(([k, v]) => `<dt>${k}</dt><dd>${esc(val(v))}</dd>`).join("")}</dl>` : ""}
-    ${live ? "" : ready ? `<div class="actions"><button class="btn primary" onclick="ask('start_matching')">${l.listed ? "Save changes" : "Start matching"}</button></div>`
+    ${live ? matchingStatus(l) : ready ? `<div class="actions"><button class="btn primary" onclick="ask('start_matching')">${l.listed ? "Save changes" : "Start matching"}</button></div>`
       : `<p class="sub" style="margin-top: 12px">Tell me who you're looking for and where, and you can start matching.</p>`}</div>`;
 }
 function introCard(id) {
@@ -197,25 +199,21 @@ function questionCard(qid, lid) {
     <div class="actions"><button class="btn primary" onclick="ask('answer_yes','${lid}:${qid}')">Yes</button>
       <button class="btn secondary" onclick="ask('answer_no','${lid}:${qid}')">No</button></div></div>`;
 }
-// A live card: while the chat is open it keeps checking with Belong. (a widget can call the app's
-// tools itself), and when someone new turns up it offers to show them. Only the latest one is live.
-function statusCard(latest) {
-  const l = listing();
-  if (!l || !l.listed) return "";
+// Once live, the listing card is also the live matching card: while the chat is open it keeps
+// checking with Belong. (a widget can call the app's tools itself) and offers to show what's new.
+function matchingStatus(l) {
   const fresh = l.intros.filter(i => i.status === "pending" && !L.seen[i.intro_id]);
   const exact = fresh.filter(i => !i.close).length, close = fresh.length - exact;
   const questions = l.followups.filter(q => !L.seen[`q:${l.id}:${q.question_id}`]).length;
   const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
   const parts = [exact && plural(exact, "new introduction", "new introductions"), close && plural(close, "close match", "close matches"),
                  questions && plural(questions, "follow-up question", "follow-up questions")].filter(Boolean);
-  if (latest && parts.length) {
-    return `<div class="card"><p class="title">${parts.join(" · ")}<span class="badge">New</span></p>
-      <p class="sub">${esc(cap(l.title))}</p>
+  if (parts.length) {
+    return `<div class="status"><p class="title" style="margin:0">${parts.join(" · ")}<span class="badge">New</span></p>
       <div class="actions"><button class="btn primary" onclick="showNew()">Show them</button></div></div>`;
   }
-  return `<div class="card"><p class="title">Matching${latest ? "" : '<span class="badge plain">Earlier</span>'}</p>
-    <p class="sub">${latest ? "Belong. is looking for people who are also looking for you." : esc(cap(l.title))}</p>
-    ${latest ? `<p class="sub" style="margin-top: 10px; font-size: 12px">Mockup: updates while this chat is open. Real ChatGPT may only allow this while the chat is on screen.</p>` : ""}</div>`;
+  return `<div class="status"><p class="sub" style="margin:0">Matching: Belong. is looking for people who are also looking for you.</p>
+    <p class="sub" style="margin-top: 8px; font-size: 12px">Mockup: updates while this chat is open. Real ChatGPT may only allow this while the chat is on screen.</p></div>`;
 }
 function emptyCard() { return `<div class="card"><p class="title">No introductions yet</p><p class="sub">Belong. matches in private. Nobody, including ChatGPT, sees the other listings.</p></div>`; }
 
@@ -227,7 +225,7 @@ function render() {
     if (t.me) out.push(`<div class="me">${esc(t.me)}</div>`);
     if (t.app) {
       out.push(label());
-      for (const c of t.cards || []) out.push(c.kind === "listing" ? (c.latest ? listingCard() : "") : c.kind === "status" ? statusCard(c.latest) :
+      for (const c of t.cards || []) out.push(c.kind === "listing" ? (c.latest ? listingCard() : "") : c.kind === "status" ? (c.latest ? listingCard() : "") :
         c.kind === "intro" ? introCard(c.id) : c.kind === "question" ? questionCard(c.id, c.lid) : emptyCard());
     }
     if (t.bot) out.push(`<div class="bot">${esc(t.bot)}</div>`);
@@ -301,7 +299,7 @@ async function showNew() {
 }
 // While the chat is open, the live card checks with Belong. now and then (in the demo, that runs matching).
 setInterval(async () => {
-  const live = L.log.some(t => (t.cards || []).some(c => c.kind === "status" && c.latest));
+  const live = L.log.some(t => (t.cards || []).some(c => c.kind === "listing" && c.latest));
   if (!ME || !live || L.sending || L.confirm || L.popup) return;
   const l = listing(); if (!l || !l.listed) return;
   const sig = x => JSON.stringify([x.intros.map(i => i.intro_id), x.followups.map(q => q.question_id)]);
@@ -333,8 +331,8 @@ async function run(kind, arg) {
       fields: d.fields.filter(f => f.enabled && f.value !== null && f.value !== "" && !(Array.isArray(f.value) && !f.value.length))
         .map(f => ({ key: f.key, value: f.value, visibility: f.visibility, confirmed: !!f.confirmed })) };
     if (await api("submit", { listing_id: l.id, listing: body })) {
-      for (const t of L.log) for (const c of t.cards || []) if (c.kind === "status") c.latest = false;
-      L.log.push({ app: true, cards: [{ kind: "status", latest: true }], bot: "Your listing is live. I'll update the card above when Belong. finds someone, or ask me any time." });
+      for (const t of L.log) for (const c of t.cards || []) if (c.kind === "listing" || c.kind === "status") c.latest = false;
+      L.log.push({ app: true, cards: [{ kind: "listing", latest: true }], bot: "Your listing is live. I'll update the card above when Belong. finds someone, or ask me any time." });
     }
   } else if (kind === "say_yes" || kind === "not_now") {
     await api("decide", { intro_id: arg, yes: kind === "say_yes" });
