@@ -22,28 +22,25 @@
           font-size: clamp(72px, 16vw, 184px); line-height: 1; margin: 0; color: var(--text-primary);
           text-shadow: var(--shadow-text-ember); }
   .line { font: var(--text-body-l); color: var(--text-secondary); margin: var(--space-6) 0 var(--space-10); max-width: 40ch; }
+  .top { position: absolute; top: 0; right: 0; padding: var(--space-5) var(--space-6); z-index: 2; }
   .actions { display: flex; gap: var(--space-3); flex-wrap: wrap; justify-content: center; }
   footer { display: flex; justify-content: center; gap: var(--space-6); padding: var(--space-6); font: var(--text-caption); }
   footer a { color: var(--text-tertiary); text-decoration: none; }
   footer a:hover { color: var(--text-primary); }
   @media (prefers-reduced-motion: no-preference) {
-    .name, .line, .actions { animation: rise var(--duration-slow) var(--ease-standard) both; }
+    .name { animation: rise var(--duration-slow) var(--ease-standard) both; }
     .line { animation-delay: 80ms; } .actions { animation-delay: 160ms; }
     @keyframes rise { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
   }
 </style>
 </head>
 <body>
+<header class="top"><a class="btn secondary" href="/demo">Sign in / Register</a></header>
 <main>
   <span class="glow coral" aria-hidden="true"></span>
   <span class="glow mint" aria-hidden="true"></span>
   <span class="glow cream" aria-hidden="true"></span>
   <h1 class="name">Belong.</h1>
-  <p class="line">Meet people who are looking for you too.</p>
-  <div class="actions">
-    <a class="btn lg" href="/demo">Try the demo</a>
-    <a class="btn lg secondary" href="/trust">How we keep it private</a>
-  </div>
 </main>
 <footer>
   <a href="/trust">Trust and security</a>

@@ -46,6 +46,8 @@
   .tabbar button + button { border-left: 1px solid var(--border-subtle); }
   .tabbar button::before { content: ""; position: absolute; top: -1px; left: 28%; right: 28%; height: 2px; background: transparent; border-radius: 0 0 2px 2px; }
   .tabbar button.on { color: var(--text-accent); background: linear-gradient(var(--accent-muted), transparent 70%); }
+  .tabbar button.found.on { color: var(--text-olive); background: linear-gradient(var(--accent-olive-muted), transparent 70%); }
+  .tabbar button.found.on::before { background: var(--border-olive); }
   .tabbar button.on::before { background: var(--border-accent); }
   .tabbar button:hover { color: var(--text-primary); }
   .tabbar button:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: -2px; }
@@ -81,8 +83,10 @@
   .sheet-head { all: unset; box-sizing: border-box; display: flex; align-items: center; gap: var(--space-2); width: 100%;
                 padding: var(--space-3) var(--space-4); cursor: pointer; flex-shrink: 0; border-bottom: 1px solid var(--border-subtle); }
   .sheet-head:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: -2px; }
-  .sheet-head .eyebrow { flex: 1; }
-  .sheet-head .handle { width: 32px; height: 4px; border-radius: var(--radius-pill); background: var(--border-strong);
+  .sheet-head .eyebrow { flex: 1; color: var(--text-ai); }
+  .chat-sheet { border-top-color: var(--border-ai) !important; }
+  .chat-sheet .sheet-head { background: var(--accent-ai-muted); }
+  .sheet-head .handle { width: 32px; height: 4px; border-radius: var(--radius-pill); background: var(--accent-ai);
                         position: absolute; top: 6px; left: 50%; transform: translateX(-50%); }
   .chevron { width: 8px; height: 8px; border-right: 2px solid var(--text-tertiary); border-bottom: 2px solid var(--text-tertiary);
              transform: rotate(45deg); margin: -4px 4px 0; transition: transform var(--duration-base) var(--ease-standard); }
@@ -199,9 +203,16 @@
   .privacy-foot { padding-top: var(--space-6); }
   .facts { margin: 0 0 var(--space-4); padding-left: var(--space-5); font: var(--text-body-s); }
   .facts li + li { margin-top: var(--space-3); }
+  .facts { list-style: none; padding-left: 0; }
+  .facts li { padding: var(--space-3) var(--space-4); border-radius: var(--radius-md); }
+  .facts li + li { margin-top: var(--space-2); }
+  .facts .f-shown { background: var(--surface-raised); }
+  .facts .f-hidden { background: var(--accent-ai-muted); } .facts .f-hidden b { color: var(--text-ai); }
+  .facts .f-agent { background: var(--accent-ai-muted); } .facts .f-agent b { color: var(--text-ai); }
+  .facts .f-yes { background: var(--accent-muted); } .facts .f-yes b { color: var(--text-accent); }
   .facts b { font-weight: 600; }
   .check-row.ack { margin-top: var(--space-4); padding: var(--space-3); border: 1px solid var(--border-default); border-radius: var(--radius-md); background: var(--surface-card); }
-  .one-way { background: var(--surface-raised); border-radius: var(--radius-md); padding: var(--space-3) var(--space-4); margin: var(--space-4) 0; }
+  .one-way { background: var(--accent-ai-muted); border-radius: var(--radius-md); padding: var(--space-3) var(--space-4); margin: var(--space-4) 0; }
   .one-way .label { margin: 0 0 var(--space-1); color: var(--text-secondary); }
   .one-way .body-s { margin: 0; } .one-way .body-s + .body-s { margin-top: var(--space-2); }
   .choices { display: grid; gap: var(--space-2); }
@@ -212,19 +223,25 @@
   .listing-nav { margin-bottom: var(--space-2); }
   .listing-card .heading-m { margin: 0; }
   details.matches { margin-top: var(--space-4); border-top: 1px solid var(--border-subtle); padding-top: var(--space-3); }
-  details.matches > summary { cursor: pointer; font: var(--text-label); font-weight: 600; color: var(--text-accent); }
+  details.matches > summary { cursor: pointer; font: var(--text-label); font-weight: 600; color: var(--text-ai); }
+  .card.intro.question { background: var(--accent-ai-muted) !important; }
   .card.intro { box-shadow: none; background: var(--surface-raised); border-color: transparent; }
   .profile-card .posted { margin-top: var(--space-4); padding-top: var(--space-4); border-top: 1px solid var(--border-subtle); }
   .profile-card .posted .monogram { width: 32px; height: 32px; font-size: 15px; }
   .profile-card .posted .heading-m { font: var(--text-body-s); font-weight: 600; }
-  .suggest .tag { cursor: pointer; }
-  .suggest .tag:hover { border-color: var(--border-accent); color: var(--text-primary); }
+  /* Your agent's suggestions: periwinkle chips. */
+  .suggest .tag { cursor: pointer; background: var(--accent-ai-muted); color: var(--text-ai); border-color: transparent; }
+  .suggest .tag:hover { border-color: var(--border-ai); }
   .editor { margin-top: var(--space-5); }
   .chat-pane { flex: 1; overflow-y: auto; padding: var(--space-3) var(--space-4); }
   .composer-bar { display: flex; gap: var(--space-2); align-items: flex-end; padding: var(--space-3) var(--space-4);
                   border-top: 1px solid var(--border-subtle); background: var(--surface-card); flex-shrink: 0; }
   .composer-bar .textarea { min-height: 44px; max-height: 120px; }
 
+  .start { display: flex; flex-direction: column; align-items: center; justify-content: space-between; height: 100%;
+           padding: 38% var(--space-2) var(--space-6); }
+  .start .wordmark { font-size: 56px; text-shadow: var(--shadow-text-ember); }
+  .start .btn { width: 100%; }
   .welcome { text-align: center; padding: var(--space-10) var(--space-2) var(--space-8); }
   .welcome .wordmark { font-size: 44px; display: block; margin-bottom: var(--space-4); }
   .welcome p { color: var(--text-secondary); margin: 0; font: var(--text-body-s); }
@@ -457,7 +474,7 @@ function renderPhone(slot) {
   const onTab = screen === "belong" || screen === "found";
   const tabs = onTab ? `<nav class="tabbar" aria-label="Main">
       ${[["belong", "Belong.", pending], ["found", "Found.", newMessages]].map(([id, label, dot]) =>
-        `<button class="${screen === id ? "on" : ""}" aria-current="${screen === id ? "page" : "false"}" onclick="go('${slot}','${id}')">
+        `<button class="${id}${screen === id ? " on" : ""}" aria-current="${screen === id ? "page" : "false"}" onclick="go('${slot}','${id}')">
           <span class="tab-label">${label}${dot ? '<span class="dot" aria-label="needs you"></span>' : ""}</span></button>`).join("")}
     </nav>` : "";
   const menu = p.verified && !L.signedOut ? `<button class="menu-btn" aria-expanded="${!!L.menu}" aria-label="Menu" onclick="toggleMenu('${slot}')"><span></span><span></span><span></span></button>
@@ -465,7 +482,8 @@ function renderPhone(slot) {
       `<button role="menuitem" onclick="menuGo('${slot}','${v}')">${label}</button>`).join("")}
       <button role="menuitem" class="sep" onclick="signOut('${slot}')">Log out</button></div>` : ""}` : "";
   // Mint marks live status, at most once per screen: "Matching" once any listing is live, else "Verified".
-  const status = L.signedOut ? "" : p.listings.some(l => l.listed) ? badge("olive", "Matching") : p.verified ? badge("olive", "Verified") : "";
+  // Live status sits on each listing (mint); the top bar only says you're verified before you have one.
+  const status = L.signedOut || p.listings.some(l => l.listed) ? "" : p.verified ? badge("olive", "Verified") : "";
   // Keep the profile pane's scroll position across redraws (editing, agent updates).
   const oldPane = document.querySelector(`#phone-${slot} .profile-pane`);
   const paneScroll = oldPane ? oldPane.scrollTop : 0;
@@ -551,9 +569,13 @@ const backBar = (slot, to, label, title = "") => `<div class="back-bar"><button 
 const SCREENS = {
   verify(slot, p, L) {
     const sc = SCENARIOS[scenario]?.[slot] || {};
-    return `<div class="welcome"><span class="wordmark">Belong.</span><p>Meet people who are looking for you too. Your hidden details can improve a match without ever being shown.</p></div>
+    if (!L.signin) {
+      return `<div class="start"><span class="wordmark">Belong.</span>
+        <button class="btn block lg" onclick="local['${slot}'].signin=true; renderPhone('${slot}')">Sign in / Register</button></div>`;
+    }
+    return `<div class="back-bar"><button class="btn ghost sm" onclick="local['${slot}'].signin=false; renderPhone('${slot}')"><span class="back-chev" aria-hidden="true"></span>Back</button></div>
       <div class="card md">
-        <p class="eyebrow">Step 1</p>
+        <p class="eyebrow">Sign in or register</p>
         <h3 class="heading-m" style="margin: var(--space-2) 0">Verify your identity</h3>
         <p class="body-s secondary" style="margin: 0 0 var(--space-5)">An independent ID provider checks your document. We receive only two facts: that you're verified, and your age band.</p>
         <div class="form-row"><label class="field-label" for="name-${slot}">First name</label><input class="input" id="name-${slot}" value="${esc(L.form.name ?? sc.name ?? "")}" oninput="local['${slot}'].form.name=this.value"></div>
@@ -572,10 +594,10 @@ const SCREENS = {
     const body = [
       `<h2 class="heading-l">What's shared</h2>
        <ul class="facts">
-         <li><b>Shown details</b> are seen only by people you're introduced to.</li>
-         <li><b>Hidden details</b> help find your matches, but are never shown.</li>
-         <li><b>Your chat with your agent</b> is never shown to anyone.</li>
-         <li><b>You only meet if you both say yes.</b></li>
+         <li class="f-shown"><b>Shown details</b> are seen only by people you're introduced to.</li>
+         <li class="f-hidden"><b>Hidden details</b> help find your matches, but are never shown.</li>
+         <li class="f-agent"><b>Your chat with your agent</b> is never shown to anyone.</li>
+         <li class="f-yes"><b>You only meet if you both say yes.</b></li>
        </ul>
        <label class="check-row ack"><input type="checkbox" ${q.ack ? "checked" : ""} onchange="local['${slot}'].q.ack=this.checked; renderPhone('${slot}')"> Got it</label>`,
       `<h2 class="heading-l">Close matches</h2>
@@ -635,7 +657,7 @@ const SCREENS = {
           <span class="grow"><span class="heading-s">${esc(i.view.fields.first_name || "Someone")}</span>
             <span class="caption secondary">${esc(cap(i.listing.title))}</span>
             <span class="body-s ${lastMsg ? "" : "tertiary"} msg-preview">${lastMsg ? (lastMsg.mine ? "You: " : "") + esc(lastMsg.text) : "Say hello"}</span></span>
-          ${unread(slot, i) ? '<span class="unread-dot" aria-label="New message"></span>' : !(i.thread || []).length ? badge("", "New") : ""}</button>`;
+          ${unread(slot, i) ? '<span class="unread-dot" aria-label="New message"></span>' : !(i.thread || []).length ? badge("olive", "New") : ""}</button>`;
       }).join("")}</div>`;
   },
 
@@ -682,7 +704,7 @@ const SCREENS = {
   },
 
   settings(slot, p, L) {
-    const d = p.defaults || {};
+    const d = { ask_each_time: true, ...(p.defaults || {}) };
     const toggle = (key, label, note) => `<label class="setting-row toggle-row"><div class="grow"><div class="body-s">${label}</div>
         <div class="caption secondary">${note}</div></div>
       <input type="checkbox" class="switch" ${d[key] ? "checked" : ""} onchange="setDefault('${slot}','${key}',this.checked)"></label>`;
@@ -721,7 +743,7 @@ function listingCard(slot, p, l) {
   const c = local[slot].ls[l.id] ||= { draft: null, draftFrom: null, chatText: "", editing: false, chatMin: false, seenChat: 0, sending: null };
   const waiting = needsAnswer(l), total = l.intros.length + l.followups.length;
   if (c.open === undefined) c.open = waiting > 0;
-  const status = l.unsaved ? badge("warning", "Unsaved changes") : l.listed ? badge("", "Matching") : badge("", "Draft");
+  const status = l.unsaved ? badge("warning", "Unsaved changes") : l.listed ? badge("olive", "Matching") : badge("", "Draft");
   const summary = !l.listed ? "Not matching yet" : total ? `${total} match${total === 1 ? "" : "es"}${waiting ? `, ${waiting} waiting on you` : ""}` : "No matches yet";
   const body = !l.listed
     ? ""
@@ -1008,7 +1030,7 @@ function followupCard(slot, l, q) {
   else if (q.question_id === "also_offer") controls = `<div class="row"><button class="btn" onclick="answer('${slot}','${l.id}','also_offer',{yes:true})">Yes, I can</button><button class="btn secondary" onclick="answer('${slot}','${l.id}','also_offer',{yes:false})">No</button></div>
     <p class="caption tertiary" style="margin: var(--space-2) 0 0">If you say yes, it's added to what you offer. Nobody is told you were asked.</p>`;
   else controls = `<div class="row"><button class="btn" onclick="answer('${slot}','${l.id}','wider_net',{yes:true})">Widen the net</button><button class="btn secondary" onclick="answer('${slot}','${l.id}','wider_net',{yes:false})">Keep it as is</button></div>`;
-  return `<div class="card sm intro">${badge("ai", "Question from Belong.")}<h3 class="heading-m" style="margin: var(--space-3) 0">${esc(q.question_text)}</h3>${controls}</div>`;
+  return `<div class="card sm intro question">${badge("ai", "Question from Belong.")}<h3 class="heading-m" style="margin: var(--space-3) 0">${esc(q.question_text)}</h3>${controls}</div>`;
 }
 
 function introCard(slot, l, i) {
@@ -1071,7 +1093,7 @@ async function submit(slot) {
 }
 // A new listing starts with the privacy questions; the listing is made when they're answered.
 async function newListing(slot) {
-  const d = S.phones[slot].defaults || {};
+  const d = { ask_each_time: true, ...(S.phones[slot].defaults || {}) };
   if (!d.ask_each_time && d.acknowledged) {  // not asked: the defaults from Settings apply
     if (await api("new_listing", { slot })) { local[slot].current = S.phones[slot].current; openView(slot, "profile"); }
     return;
