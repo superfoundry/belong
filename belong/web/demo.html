@@ -491,6 +491,7 @@ function renderPhone(slot) {
   $("phone-" + slot).innerHTML = screen === "privacy"
     ? `<div class="screen" id="screen-${slot}">${SCREENS.privacy(slot, p, L)}</div>`
     : screen === "thread" ? SCREENS.thread(slot, p, L)
+    : screen === "verify" && !L.signin ? `<div class="screen" id="screen-${slot}">${SCREENS.verify(slot, p, L)}</div>`
     : `<div class="top"><span class="wordmark">Belong.</span>${status}${menu}</div>
     <div class="screen${split ? " split" : ""}" id="screen-${slot}">${SCREENS[screen](slot, p, L)}</div>${tabs}`;
   if (screen === "thread") renderThreadScroll(slot);
