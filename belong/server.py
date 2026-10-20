@@ -2,6 +2,8 @@
 
   /                         landing page (belong/web/landing.html)
   /demo                     two-person demo (belong/web/demo.html); /?phone=A still opens it
+  /chat                     mockup: one person using Belong. inside a ChatGPT-style chat, through a connector
+                            (belong/web/chat.html), on its own demo session
   /trust                    trust page (belong/web/trust.html)
   /inspector                batch-run inspector (belong/web/index.html + out/run.json)
   /api/...                  demo actions; each POST returns the full demo state
@@ -30,6 +32,7 @@ WEB = ROOT / "belong" / "web"
 FILES = {
     "/": (WEB / "landing.html", "text/html; charset=utf-8"),
     "/demo": (WEB / "demo.html", "text/html; charset=utf-8"),
+    "/chat": (WEB / "chat.html", "text/html; charset=utf-8"),
     "/trust": (WEB / "trust.html", "text/html; charset=utf-8"),
     "/trust/TRUST.md": (ROOT / "TRUST.md", "text/plain; charset=utf-8"),
     "/inspector": (WEB / "index.html", "text/html; charset=utf-8"),
@@ -39,6 +42,22 @@ FILES = {
 MAX_BODY = 64 * 1024
 
 SESSION = DemoSession()
+# The chat mockup's own session: one person, matched against the synthetic people, so it never
+# touches the two phones. Made on first use.
+_CHAT = None
+CHAT_ACTIONS = {"reset", "verify", "new_listing", "open_listing", "prefill", "agent", "submit", "match", "answer",
+                "decide", "set_prefs", "set_defaults", "message", "react", "update_profile"}
+
+
+def chat_session() -> DemoSession:
+    global _CHAT
+    if _CHAT is None:
+        _CHAT = DemoSession()
+    return _CHAT
+
+
+def chat_state(session: DemoSession) -> dict:
+    return {"me": session.phone_state("A"), "agent_status": session.agent_status}
 
 # action -> function(session, body)
 ACTIONS = {
@@ -81,6 +100,10 @@ class _Handler(BaseHTTPRequestHandler):
         if path == "/api/state":
             with SESSION.lock:
                 return self._json(200, SESSION.state())
+        if path == "/api/chat/state":
+            session = chat_session()
+            with session.lock:
+                return self._json(200, chat_state(session))
         if path.startswith("/ds/"):
             return self._design_file(path.removeprefix("/ds/"))
         if path.startswith("/api/trust/"):
@@ -152,6 +175,12 @@ class _Handler(BaseHTTPRequestHandler):
                 return self._json(200, fn(body))
             except (ValueError, TypeError) as e:
                 return self._json(400, {"error": f"Bad request: {e}"})
+        session, shape = SESSION, lambda s: s.state()
+        if path.startswith("/api/chat/"):
+            name = path.removeprefix("/api/chat/")
+            if name not in CHAT_ACTIONS:
+                return self.send_error(404)
+            session, shape, path = chat_session(), chat_state, "/api/" + name
         action = ACTIONS.get(path.removeprefix("/api/"))
         if not path.startswith("/api/") or action is None:
             return self.send_error(404)
@@ -164,17 +193,19 @@ class _Handler(BaseHTTPRequestHandler):
                 raise ValueError
         except ValueError:
             return self._json(400, {"error": "Bad request."})
+        if session is not SESSION:
+            body["slot"] = "A"  # the chat mockup is one person
         try:
             if action in UNLOCKED:
-                action(SESSION, body)  # takes the session lock itself, around the slow agent call
+                action(session, body)  # takes the session lock itself, around the slow agent call
             else:
-                with SESSION.lock:
-                    action(SESSION, body)
+                with session.lock:
+                    action(session, body)
         except DemoError as e:
-            with SESSION.lock:
-                return self._json(400, {"error": str(e), **SESSION.state()})
-        with SESSION.lock:
-            return self._json(200, SESSION.state())
+            with session.lock:
+                return self._json(400, {"error": str(e), **shape(session)})
+        with session.lock:
+            return self._json(200, shape(session))
 
     def log_message(self, *args):
         pass

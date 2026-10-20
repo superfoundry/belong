@@ -23,6 +23,10 @@ synthetic people and plain Python; secure hardware comes in Step 3.
   isn't told unless you say yes) and questions ("Someone is looking for an air conditioner
   repair technician. Could you help with that too?", never saying who). People you've both
   said yes to appear under **Found.**, where you can message each other.
+- **Belong. in chat (mockup).** `/chat` shows one person using Belong. inside a ChatGPT-style chat
+  app through a connector, in dark mode: connecting, the privacy choices, drafting, going live and
+  matches, all in the conversation. Saying yes and going live always need the person's own tap.
+  It runs on its own demo session, separate from the phones, and isn't affiliated with OpenAI.
 - **[TRUST.md](TRUST.md)** lists every privacy promise with the code that enforces it,
   the test that proves it, and what isn't guaranteed yet. Start there.
 - **[SPEC.md](SPEC.md)** is the product spec.
