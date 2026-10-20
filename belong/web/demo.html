@@ -1045,10 +1045,11 @@ async function submit(slot) {
   const c = cur(slot), listing_id = curId(slot), d = c.draft;
   const listing = { intent_text: d.intent_text, exactness: d.exactness,
     fields: d.fields.filter(f => f.enabled && hasValue(f.value)).map(f => ({ key: f.key, value: f.value, visibility: f.visibility, confirmed: !!f.confirmed })) };
-  const wasListed = curListing(slot).listed;
+  // Start matching and Save changes both save, go live and take you back to your listings.
   if (await api("submit", { slot, listing_id, listing }) && curListing(slot).listed) {
-    c.editing = false;
-    if (wasListed) { c.open = true; go(slot, "belong"); } else render([slot]);
+    Object.assign(c, { editing: false, open: true, chatMin: false });
+    go(slot, "belong");
+    toast("Your listing is live.");
   }
 }
 // A new listing starts with the privacy questions; the listing is made when they're answered.
