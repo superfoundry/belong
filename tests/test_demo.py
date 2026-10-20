@@ -144,6 +144,34 @@ class Entry(unittest.TestCase):
 
 
 
+class UnsavedChanges(unittest.TestCase):
+    """What matching reads is what's live; a draft that isn't saved yet is flagged, not shown as live."""
+
+    def test_an_unsaved_draft_is_flagged_and_the_title_stays_live(self):
+        s = DemoSession(seed=7, agent=None)
+        climbers(s)
+        live_title = s.phone_state("A")["listings"][0]["title"]
+        self.assertFalse(s.phone_state("A")["listings"][0]["unsaved"])
+        s.agent_message("A", "Actually I'm also into jazz and I'm a beginner.")
+        state = s.phone_state("A")["listings"][0]
+        self.assertTrue(state["unsaved"])
+        self.assertEqual(state["title"], live_title)
+
+    def test_saving_says_what_changed(self):
+        s = DemoSession(seed=7, agent=None)
+        climbers(s)
+        d = s.slots["A"].draft
+        body = fill(d, values={"city": "Kyoto"}, hidden={"religion": "Buddhist", "smoking": "doesn't smoke"})
+        s.submit("A", body)
+        last = s.slots["A"].chat[-1]["text"]
+        self.assertIn("What changed: your city", last)
+        body["intent_text"] = body["intent_text"] + " Also bouldering."
+        s.submit("A", body)
+        self.assertIn("your description", s.slots["A"].chat[-1]["text"])
+        self.assertNotIn(" is now e", s.slots["A"].chat[-1]["text"])
+        self.assertFalse(s.phone_state("A")["listings"][0]["unsaved"])
+
+
 class Messages(unittest.TestCase):
     """After both say yes, the two people can talk; nobody else sees what they write."""
 

@@ -241,6 +241,8 @@
   .notice { border-radius: var(--radius-md); padding: var(--space-3) var(--space-4); font: var(--text-body-s); margin-bottom: var(--space-4); }
   .notice.error { background: var(--accent-error-muted); color: var(--text-error); }
   .notice.live { background: var(--accent-olive-muted); color: var(--text-olive); }
+  .notice.warn { display: flex; gap: var(--space-3); align-items: center; background: var(--accent-warning-muted); color: var(--text-primary); }
+  .notice.warn .btn { flex-shrink: 0; }
   .group-title { margin: var(--space-6) 0 var(--space-2); }
   .group-note { font: var(--text-caption); color: var(--text-secondary); margin: 0 0 var(--space-3); }
   .field { padding: var(--space-4) 0; border-bottom: 1px solid var(--border-subtle); }
@@ -585,7 +587,9 @@ const SCREENS = {
     // Top layer: your agent's chat for this listing, which minimises when you tap its header.
     const l = curListing(slot), c = cur(slot);
     if (!l) return "";
-    return `<div class="profile-pane${c.chatMin ? " chat-min" : ""}">${backBar(slot, "belong", "Belong.")}${profileCard(slot, p, l, c)}${c.editing && c.draft ? editorHtml(slot, c) : ""}</div>
+    const unsaved = l.unsaved ? `<div class="notice warn"><div class="grow"><b>Your changes aren't live yet.</b> Matching still sees your last saved listing.</div>
+        <button class="btn sm" onclick="submit('${slot}')">Save changes</button></div>` : "";
+    return `<div class="profile-pane${c.chatMin ? " chat-min" : ""}">${backBar(slot, "belong", "Belong.")}${unsaved}${profileCard(slot, p, l, c)}${c.editing && c.draft ? editorHtml(slot, c) : ""}</div>
       ${chatHtml(slot, l, c)}`;
   },
 
@@ -700,7 +704,7 @@ function listingCard(slot, p, l) {
   const c = local[slot].ls[l.id] ||= { draft: null, draftFrom: null, chatText: "", editing: false, chatMin: false, seenChat: 0, sending: null };
   const waiting = needsAnswer(l), total = l.intros.length + l.followups.length;
   if (c.open === undefined) c.open = waiting > 0;
-  const status = l.listed ? badge("", "Matching") : badge("", "Draft");
+  const status = l.unsaved ? badge("warning", "Unsaved changes") : l.listed ? badge("", "Matching") : badge("", "Draft");
   const summary = !l.listed ? "Not matching yet" : total ? `${total} match${total === 1 ? "" : "es"}${waiting ? `, ${waiting} waiting on you` : ""}` : "No matches yet";
   const body = !l.listed
     ? ""
@@ -896,13 +900,15 @@ function chatHtml(slot, l, c) {
   const unread = c.chatMin && l.chat.length && l.chat[l.chat.length - 1].from === "agent" && l.chat.length !== c.seenChat;
   // "Save changes" only applies to updates made after the listing last went live.
   const liveAt = l.chat.map(m => !!m.live).lastIndexOf(true);
+  const lastUpdate = l.chat.map(m => !!m.draft_updated).lastIndexOf(true);
   return `<div class="chat-sheet${c.chatMin ? " min" : ""}">
     <button class="sheet-head" aria-expanded="${!c.chatMin}" onclick="toggleChat('${slot}')"><span class="handle" aria-hidden="true"></span>
       <span class="eyebrow">Your agent</span>${unread ? '<span class="unread" aria-label="New message"></span>' : ""}
       <span class="caption tertiary">${c.chatMin ? "Open" : "Minimize"}</span><span class="chevron" aria-hidden="true"></span></button>
     <div class="chat-pane">
       ${l.chat.map((m, n) => `<div class="bubble ${m.from}">${esc(m.text)}</div>` +
-        (m.draft_updated ? `<div class="bubble-note">${badge("ai", "Profile updated")}${l.listed && n > liveAt ? ` <span class="caption secondary">Save changes to make it live</span>` : ""}</div>` : "")).join("")}${pending}
+        (m.draft_updated && l.unsaved && n === lastUpdate ? `<div class="bubble-note">${badge("ai", "Profile updated")} <button class="btn sm" onclick="submit('${slot}')">Save changes</button></div>` :
+         m.draft_updated ? `<div class="bubble-note">${badge("ai", "Profile updated")}${l.listed && n > liveAt ? ` <span class="caption secondary">Save changes to make it live</span>` : ""}</div>` : "")).join("")}${pending}
       ${busy ? `<div class="bubble agent typing" aria-label="Your agent is replying"><span></span><span></span><span></span></div>` : ""}</div>
     <div class="composer-bar"><textarea class="textarea" id="chat-${slot}" aria-label="Message to your agent" placeholder="${l.chat.length > 1 ? "Reply to your agent" : "What are you looking for?"}" oninput="cur('${slot}').chatText=this.value"
         onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();send('${slot}')}">${esc(text)}</textarea>
