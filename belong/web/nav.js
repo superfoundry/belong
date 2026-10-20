@@ -21,7 +21,7 @@
     .site-nav a.link { font: var(--text-body-s); font-weight: 500; color: var(--text-secondary); text-decoration: none;
       padding: 6px 0; border-bottom: 2px solid transparent; transition: color var(--duration-fast) var(--ease-standard); }
     .site-nav a.link:hover { color: var(--text-primary); }
-    .site-nav a.link.on { color: var(--text-primary); border-bottom-color: var(--accent-default); }
+    .site-nav a.link.on { color: var(--text-primary); border-bottom-color: var(--border-accent); }
     .site-nav .menu { display: none; background: transparent; border: 1px solid var(--border-strong); color: var(--text-primary);
       border-radius: var(--radius-md); padding: 6px 12px; font: var(--text-label); font-weight: 600; cursor: pointer; }
     @media (max-width: 720px) {

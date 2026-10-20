@@ -1,9 +1,9 @@
 /* Belong components for the prototype pages.
    Plain-CSS versions of the Belong design system's components (Button, Badge, Card, Tag,
    Input, Select, Switch, Tabs, NavLink, Toast), styled only from tokens.css. Rules from the
-   system's README: linen ground, clay = a person acting, dusk = the agents and private
-   matching (and every hidden field), tide = live status; square corners, sentence case,
-   no emoji. */
+   system's README: white ground with cream as an accent surface, coral = a person acting,
+   periwinkle = the agents and private matching (and every hidden field), mint = live status;
+   square corners, sentence case, no emoji. */
 
 *, *::before, *::after { box-sizing: border-box; }
 html { -webkit-text-size-adjust: 100%; }
@@ -46,9 +46,9 @@ button { font: inherit; color: inherit; }
 .text-error { color: var(--text-error); }
 .text-success { color: var(--text-success); }
 /* Accent-word drop: one word per headline, display-s or larger. */
-.drop-clay { text-shadow: var(--shadow-text-ember); }
-.drop-dusk { text-shadow: var(--shadow-text-azure); }
-.drop-tide { text-shadow: var(--shadow-text-olive); }
+.drop-coral { text-shadow: var(--shadow-text-ember); }
+.drop-periwinkle { text-shadow: var(--shadow-text-azure); }
+.drop-mint { text-shadow: var(--shadow-text-olive); }
 
 /* ---------- Button ---------- */
 .btn {
@@ -106,7 +106,7 @@ button.tag.on { color: var(--text-primary); border-color: var(--border-accent); 
 /* ---------- Input, Select, Textarea ---------- */
 .field-label { display: block; font: var(--text-label); color: var(--text-secondary); margin: 0 0 6px; }
 .input, .select, .textarea {
-  width: 100%; font: var(--text-body-s); color: var(--text-primary); background: var(--surface-raised);
+  width: 100%; font: var(--text-body-s); color: var(--text-primary); background: var(--surface-card);
   border: 1px solid var(--border-default); border-radius: var(--radius-md); padding: 10px 12px; outline: none;
   transition: border-color var(--duration-base) var(--ease-standard), box-shadow var(--duration-base) var(--ease-standard);
 }
@@ -140,7 +140,7 @@ button.tag.on { color: var(--text-primary); border-color: var(--border-accent); 
 .tabs button, .tabs a { all: unset; cursor: pointer; padding: 10px 4px; margin-right: 20px; font: var(--text-body-s);
   font-weight: 600; color: var(--text-tertiary); border-bottom: 2px solid transparent;
   transition: color var(--duration-base) var(--ease-standard), border-color var(--duration-base) var(--ease-standard); }
-.tabs .on { color: var(--text-primary); border-bottom-color: var(--accent-default); }
+.tabs .on { color: var(--text-primary); border-bottom-color: var(--border-accent); }
 .tabs button:focus-visible { outline: 2px solid var(--focus-ring); }
 
 /* ---------- Toast ---------- */
