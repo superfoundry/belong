@@ -144,6 +144,16 @@ class Entry(unittest.TestCase):
 
 
 
+class InstantProfile(unittest.TestCase):
+    def test_an_instant_profile_can_start_matching_before_the_agent_replies(self):
+        s = DemoSession(seed=7, agent=None)
+        s.verify("A", "Mia", 30)
+        lid = s.new_listing("A", {"acknowledged": True})
+        s.prefill("A", "I teach guitar in Osaka, Japan", lid)
+        s.submit("A", fill(s.slots["A"].listing(lid).draft), lid)
+        self.assertTrue(s.slots["A"].listing(lid).entry["accepted"], s.slots["A"].listing(lid).entry)
+
+
 class UnsavedChanges(unittest.TestCase):
     """What matching reads is what's live; a draft that isn't saved yet is flagged, not shown as live."""
 

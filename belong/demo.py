@@ -467,6 +467,9 @@ class DemoSession:
         else:
             listing.draft = copy.deepcopy(listing.draft)
         agent.fill_gaps(listing.draft, facts)
+        if not listing.draft.get("intent_text"):
+            # Until the agent writes one, their own words describe what they want (never shown).
+            listing.draft["intent_text"] = " ".join((text or "").split())[:500]
 
     def agent_message(self, slot: str, text: str, listing_id=None) -> None:
         """The person writes to their agent about one listing. Called WITHOUT the session lock:
