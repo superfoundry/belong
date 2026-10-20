@@ -2,7 +2,7 @@
 // Styled from the Belong. design system (NavLink, the wordmark, surface-nav-blur).
 (function () {
   const LINKS = [
-    { href: "/", label: "Demo" },
+    { href: "/demo", label: "Demo" },
     { href: "/trust", label: "Trust and security" },
     { href: "/inspector", label: "Inspector" },
     { href: "/trust/TRUST.md", label: "Technical details" },
