@@ -489,7 +489,6 @@ function renderPhone(slot) {
     ${L.menu ? `<div class="menu" role="menu">${[["me", "Profile"], ["settings", "Settings"], ["receipts", "Receipts"]].map(([v, label]) =>
       `<button role="menuitem" onclick="menuGo('${slot}','${v}')">${label}</button>`).join("")}
       <button role="menuitem" class="sep" onclick="signOut('${slot}')">Log out</button></div>` : ""}` : "";
-  // Mint marks live status, at most once per screen: "Matching" once any listing is live, else "Verified".
   // Live status sits on each listing (mint); the top bar carries no status pill.
   const status = "";
   // Keep the profile pane's scroll position across redraws (editing, agent updates).
