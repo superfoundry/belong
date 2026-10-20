@@ -409,6 +409,23 @@ class DemoSession:
         st.current = listing.id
         return listing.id
 
+    def set_active(self, slot: str, listing_id: str, active) -> None:
+        """Pause or resume a live listing. Paused, it isn't matched: no new introductions or
+        questions (the Matchmaker skips it and the Warden refuses them). Existing matches stay."""
+        st = self._verified(slot)
+        mine = st.listing(listing_id)
+        if mine.id not in self.board:
+            raise DemoError("Only a live listing can be paused.")
+        current = self.board.listing(mine.id)
+        updated = replace(current, active=active is True, updated_at=self.clock.now(), version=current.version + 1)
+        start = len(self.warden.receipts)
+        result = self.warden.admit(st.person, updated, self.board)
+        if result.accepted and not updated.active:
+            mine.followups = []
+        self._event("in" if result.accepted else "blocked", f"{st.name} {'resumed' if updated.active else 'paused'} a listing",
+                    "Paused listings aren't matched." if not updated.active else "Matching again.",
+                    receipts=self._receipts_since(start, slot), slots=[slot])
+
     def set_defaults(self, slot: str, defaults) -> None:
         """Settings: the notification choices new listings start with, and whether the privacy
         step asks each time. Turning off the asking only takes effect once it has been seen."""
@@ -583,7 +600,8 @@ class DemoSession:
         return Listing(person_id=mine.id, intent_text=str(body.get("intent_text", "")),
                        exactness=exactness, fields=tuple(fields), updated_at=self.clock.now(),
                        version=version, confirmed_shown=tuple(confirmed), owner_id=st.person_id,
-                       notify_close=mine.prefs["notify_close"], notify_questions=mine.prefs["notify_questions"])
+                       notify_close=mine.prefs["notify_close"], notify_questions=mine.prefs["notify_questions"],
+                       active=self.board.listing(mine.id).active if mine.id in self.board else True)
 
     # -- 4. the Matchmaker runs ---------------------------------------------------
 
@@ -924,6 +942,7 @@ class DemoSession:
         return {"id": mine.id, "n": mine.n,
                 "title": self._live_title(self.board.listing(mine.id)) if listed else self._title(mine.draft),
                 "unsaved": self._unsaved(mine),
+                "active": self.board.listing(mine.id).active if listed else True,
                 "kind": (mine.draft or {}).get("kind"), "listed": listed, "draft": mine.draft, "chat": mine.chat,
                 "agent_busy": mine.agent_busy, "entry": mine.entry,
                 "intros": intros, "hidden_keys": hidden_keys, "prefs": mine.prefs,

@@ -354,7 +354,7 @@ class OfflineMatcher:
     # -- main ------------------------------------------------------------------
 
     def match(self, board: Marketboard) -> MatchResult:
-        listings = {l.person_id: l for l in board.listings()}
+        listings = {l.person_id: l for l in board.listings() if l.active}  # paused listings aren't matched
         views = {pid: ShownView(l) for pid, l in listings.items()}
         parsed = {pid: effective_kind(parse_intent(l.intent_text), views[pid]) for pid, l in listings.items()}
 

@@ -305,6 +305,17 @@ class Notifications(unittest.TestCase):
         prefs = {l["id"]: l["prefs"] for l in s.phone_state("A")["listings"]}[second]
         self.assertEqual((prefs["notify_questions"], prefs["notify_close"]), (True, False))
 
+    def test_a_paused_listing_gets_no_new_matches(self):
+        s = DemoSession(seed=7, agent=None)
+        climbers(s)
+        s.set_active("A", "demoA-1", False)
+        self.assertFalse(s.phone_state("A")["listings"][0]["active"])
+        s.run_matchmaker()
+        self.assertEqual(s.phone_state("A")["listings"][0]["intros"], [])
+        s.set_active("A", "demoA-1", True)
+        s.run_matchmaker()
+        self.assertTrue(s.phone_state("A")["listings"][0]["intros"])
+
     def test_choices_are_on_the_listing_and_off_by_default(self):
         s = DemoSession(seed=7, agent=None)
         s.verify("A", "Mia", 30)

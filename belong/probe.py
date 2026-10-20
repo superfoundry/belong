@@ -269,6 +269,11 @@ def attack_suite(body: dict) -> dict:
             close_seen_early)
     attempt("compromised matchmaker", "Quote someone's request in a question when they didn't opt in",
             lambda: warden.exit_followup(FollowUp(keen, "also_offer", about=quiet), board))
+    paused = on_board("paused", active=False, notify_questions=True)
+    attempt("compromised matchmaker", "Introduce someone to a paused listing",
+            lambda: warden.exit_introduction(P(person_a=paused, person_b=b, reason_fields=_shared_reasons(board, paused, b)), board))
+    attempt("compromised matchmaker", "Ask a paused listing a question",
+            lambda: warden.exit_followup(FollowUp(paused, "wider_net"), board))
     attempt("compromised matchmaker", "Attach another person's listing to an ordinary question",
             lambda: warden.exit_followup(FollowUp(keen, "wider_net", about=b), board))
 

@@ -131,6 +131,8 @@ class Listing:
     # and questions from Belong. (fixed-menu follow-ups). The Warden enforces both.
     notify_close: bool = False
     notify_questions: bool = False
+    # A paused listing stays on the board but isn't matched: no new introductions or questions.
+    active: bool = True
 
     @property
     def owner(self) -> str:
