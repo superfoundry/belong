@@ -39,7 +39,7 @@
   .menu button.sep { border-top: 1px solid var(--border-subtle); margin-top: var(--space-1); color: var(--text-secondary); }
   .tabbar { display: grid; grid-template-columns: 1fr 1fr; background: var(--surface-card); border-top: 1px solid var(--border-subtle); flex-shrink: 0; }
   .tabbar button { all: unset; box-sizing: border-box; position: relative; display: flex; flex-direction: column; align-items: center; gap: 2px;
-                   padding: var(--space-3) 0 var(--space-4); cursor: pointer; color: var(--text-tertiary);
+                   padding: var(--space-4) 0 var(--space-5); cursor: pointer; color: var(--text-tertiary);
                    transition: color var(--duration-fast) var(--ease-standard); }
   .tabbar button + button { border-left: 1px solid var(--border-subtle); }
   .tabbar button::before { content: ""; position: absolute; top: -1px; left: 28%; right: 28%; height: 2px; background: transparent; border-radius: 0 0 2px 2px; }
@@ -48,8 +48,9 @@
   .tabbar button:hover { color: var(--text-primary); }
   .tabbar button:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: -2px; }
   .tab-label { font-family: var(--font-display); font-weight: 700; font-size: 17px; letter-spacing: -0.01em; position: relative; }
-  .tab-sub { font: var(--text-caption); font-size: 11px; }
-  .tabbar .dot { position: absolute; top: 2px; right: -10px; width: 7px; height: 7px; border-radius: 50%; background: var(--accent-default); }
+  /* Notification dots are pure red by the user's choice, outside the token palette. */
+  .phone { --notify: #ff0000; }
+  .tabbar .dot { position: absolute; top: 2px; right: -11px; width: 8px; height: 8px; border-radius: 50%; background: var(--notify); }
   .setting-row { display: flex; align-items: center; gap: var(--space-2); padding: var(--space-3) 0; border-bottom: 1px solid var(--border-subtle); }
   .setting-row:first-child { padding-top: 0; } .setting-row:last-child { border-bottom: 0; padding-bottom: 0; }
   .phone .tabs { background: var(--surface-card); padding: 0 var(--space-4); border-top: 1px solid var(--border-subtle); border-bottom: 0; justify-content: space-between; }
@@ -77,7 +78,7 @@
   .chat-sheet.min .chevron { transform: rotate(-135deg); margin-top: 4px; }
   .chat-sheet.min .chat-pane, .chat-sheet.min .composer-bar { display: none; }
   .chat-sheet.min .sheet-head { border-bottom: 0; }
-  .sheet-head .unread { width: 7px; height: 7px; border-radius: 50%; background: var(--accent-ai); }
+  .sheet-head .unread { width: 8px; height: 8px; border-radius: 50%; background: var(--notify); }
   .profile-card { background: var(--surface-card); border: 1px solid var(--border-default); border-radius: var(--radius-md);
                   padding: var(--space-4); box-shadow: var(--shadow-sm); }
   .monogram { width: 40px; height: 40px; flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center;
@@ -106,7 +107,7 @@
   .found-card:focus-visible { outline: 2px solid var(--focus-ring); }
   .found-card .grow > span { display: block; }
   .found-card .msg-preview { margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 220px; }
-  .unread-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--accent-default); flex-shrink: 0; }
+  .unread-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--notify); flex-shrink: 0; }
   .about-match summary { cursor: pointer; font: var(--text-label); font-weight: 600; color: var(--text-accent); }
   .chat-sheet.match-chat { height: 64%; }
   .sheet-head.static { cursor: default; flex-direction: column; align-items: flex-start; gap: 2px; }
@@ -364,9 +365,9 @@ function renderPhone(slot) {
   const newMessages = connected(p).some(i => unread(slot, i));
   const onTab = screen === "belong" || screen === "found";
   const tabs = onTab ? `<nav class="tabbar" aria-label="Main">
-      ${[["belong", "Belong.", "Your listings", pending], ["found", "Found.", "Your matches", newMessages]].map(([id, label, sub, dot]) =>
+      ${[["belong", "Belong.", pending], ["found", "Found.", newMessages]].map(([id, label, dot]) =>
         `<button class="${screen === id ? "on" : ""}" aria-current="${screen === id ? "page" : "false"}" onclick="go('${slot}','${id}')">
-          <span class="tab-label">${label}${dot ? '<span class="dot" aria-label="needs you"></span>' : ""}</span><span class="tab-sub">${sub}</span></button>`).join("")}
+          <span class="tab-label">${label}${dot ? '<span class="dot" aria-label="needs you"></span>' : ""}</span></button>`).join("")}
     </nav>` : "";
   const menu = p.verified && !L.signedOut ? `<button class="menu-btn" aria-expanded="${!!L.menu}" aria-label="Menu" onclick="toggleMenu('${slot}')"><span></span><span></span><span></span></button>
     ${L.menu ? `<div class="menu" role="menu">${[["me", "Profile"], ["settings", "Settings"], ["receipts", "Receipts"]].map(([v, label]) =>
@@ -390,6 +391,9 @@ function renderPhone(slot) {
 function go(slot, tab) { Object.assign(local[slot], { tab, view: null, menu: false }); renderPhone(slot); }
 function toggleMenu(slot) { local[slot].menu = !local[slot].menu; renderPhone(slot); }
 function menuGo(slot, view) { Object.assign(local[slot], { view, menu: false }); renderPhone(slot); }
+async function saveProfile(slot) {
+  if (await api("update_profile", { slot, name: local[slot].pname })) { local[slot].pname = undefined; renderPhone(slot); toast("Profile saved"); }
+}
 // The demo has no accounts: logging out just leaves this phone; nothing is deleted.
 function signOut(slot) { Object.assign(local[slot], { signedOut: true, menu: false, view: null }); renderPhone(slot); }
 function openView(slot, view, extra = {}) { Object.assign(local[slot], { view, menu: false }, extra); renderPhone(slot); }
@@ -417,24 +421,24 @@ const SCREENS = {
         ${[[true, yes], [false, no]].map(([v, label]) => `<label class="choice${q[key] === v ? " on" : ""}">
           <input type="radio" name="${key}-${slot}" ${q[key] === v ? "checked" : ""} onchange="local['${slot}'].q.${key}=${v}; renderPhone('${slot}')"> ${label}</label>`).join("")}</div>`;
     const body = [
-      `<h2 class="heading-l">What's shared, and what isn't</h2>
+      `<h2 class="heading-l">What's shared</h2>
        <ul class="facts">
-         <li><b>Shown details</b> are seen only by people you're introduced to. You choose which details are shown.</li>
-         <li><b>Hidden details</b> are used for matching, never shown: not to a match, and never as the reason for one.</li>
-         <li><b>What you tell your agent</b> is never shown to anyone. Matching reads your description, but no one sees it.</li>
-         <li><b>Introductions need two yeses.</b> You're only introduced if you both say yes, and you can only message each other after that.</li>
+         <li><b>Shown details</b> are seen only by people you're introduced to.</li>
+         <li><b>Hidden details</b> help find your matches, but are never shown.</li>
+         <li><b>Your chat with your agent</b> is never shown to anyone.</li>
+         <li><b>You only meet if you both say yes.</b></li>
        </ul>
-       <p class="caption tertiary">In this demo your agent runs on a hosted AI model, so use made-up details.</p>
-       <label class="check-row ack"><input type="checkbox" ${q.ack ? "checked" : ""} onchange="local['${slot}'].q.ack=this.checked; renderPhone('${slot}')"> I understand what's shared</label>`,
+       <label class="check-row ack"><input type="checkbox" ${q.ack ? "checked" : ""} onchange="local['${slot}'].q.ack=this.checked; renderPhone('${slot}')"> Got it</label>`,
       `<h2 class="heading-l">Close matches</h2>
-       <p class="body-s">Sometimes someone is nearly what you asked for: a little further away, or a related skill. Do you want to hear about them?</p>
-       <div class="one-way"><p class="label">One-way</p><p class="body-s">They aren't told about you. If you say yes to one, they get an introduction like any other, and you're only introduced if they say yes too.</p>
-         <p class="body-s">We may also ask someone who's nearly right whether they could help, for example asking a repairman if they also fix air conditioners. They're never told who's asking.</p></div>
-       ${choice("close", "Yes, tell me about close matches", "No, exact matches only")}`,
-      `<h2 class="heading-l">Questions from Belong.</h2>
-       <p class="body-s">Now and then we may ask you a short question that could find you more matches. For example, if someone nearby needs home audio repaired, we might ask a handyman whether they do that too.</p>
-       <div class="one-way"><p class="body-s">Questions come from a fixed list, are worded by the Warden agent, and never say who prompted them. Answering is always up to you.</p></div>
-       ${choice("questions", "Yes, I'm happy to be asked", "No questions, thanks")}`,
+       <p class="body-s">Want to hear about people who are almost what you asked for?</p>
+       <div class="one-way"><p class="body-s"><b>It's one-way.</b> They won't know about you unless you say yes.</p>
+         <p class="body-s">We might also ask someone close to help, like asking a guitar teacher if they teach bass too. They're never told who asked.</p></div>
+       ${choice("close", "Yes, show me close matches", "No, only exact matches")}`,
+      `<h2 class="heading-l">Questions</h2>
+       <p class="body-s">Can we ask you the odd question to find you more matches?</p>
+       <div class="one-way"><p class="body-s">For example: "Someone is looking for a bass teacher. Could you help with that too?"</p>
+         <p class="body-s">We never say who asked, and you can always say no.</p></div>
+       ${choice("questions", "Yes, ask me", "No questions")}`,
     ][q.step];
     const next = last ? `<button class="btn block" onclick="finishPrivacy('${slot}')">${q.editing ? "Save" : "Start your listing"}</button>`
       : `<button class="btn block" ${q.step === 0 && !q.ack ? "disabled" : ""} onclick="local['${slot}'].q.step++; renderPhone('${slot}')">Continue</button>`;
@@ -466,8 +470,7 @@ const SCREENS = {
         <button class="btn block" onclick="newListing('${slot}')">Create a listing</button></div>`;
     }
     return `<div class="list-head"><h2 class="heading-m grow">Your listings</h2><button class="btn secondary sm" onclick="newListing('${slot}')">New listing</button></div>
-      <div class="stack">${shown.map(l => listingCard(slot, p, l)).join("")}</div>
-      <p class="caption tertiary" style="text-align: center; margin-top: var(--space-6)">You're never matched with yourself. <button class="linkish" onclick="openView('${slot}','receipts')">See your receipts</button></p>`;
+      <div class="stack">${shown.map(l => listingCard(slot, p, l)).join("")}</div>`;
   },
 
   found(slot, p, L) {
@@ -514,7 +517,11 @@ const SCREENS = {
     return `${backBar(slot, L.tab || "belong", L.tab === "found" ? "Found." : "Belong.", "Profile")}
       <div class="card md"><div class="row"><span class="monogram" aria-hidden="true">${esc((p.name || "?").slice(0, 1).toUpperCase())}</span>
         <div class="grow"><div class="heading-m">${esc(p.name)}</div><div class="caption secondary">${esc(p.age_band)}</div></div>${badge("olive", "Verified")}</div>
-        <p class="body-s secondary" style="margin: var(--space-4) 0 0">Your first name and age band came from your ID check. Nothing else about your ID was shared with us.</p></div>
+        <div class="form-row" style="margin-top: var(--space-5)"><label class="field-label" for="pname-${slot}">First name</label>
+          <input class="input" id="pname-${slot}" value="${esc(L.pname ?? p.name)}" maxlength="30" oninput="local['${slot}'].pname=this.value"></div>
+        <p class="caption secondary" style="margin: var(--space-2) 0 0">Shown on all your listings. Your age band comes from your ID check and can't be changed.</p>
+        <div class="row" style="margin-top: var(--space-4)"><span class="grow"></span>
+          <button class="btn sm" ${(L.pname ?? p.name) === p.name ? "disabled" : ""} onclick="saveProfile('${slot}')">Save</button></div></div>
       <div class="card md" style="margin-top: var(--space-4)">
         <div class="profile-line"><span class="label tertiary">Listings</span><span class="body-s">${live} matching${p.listings.length > live ? `, ${p.listings.filter(l => !l.listed && !untouched(l)).length} draft` : ""}</span></div>
         <div class="profile-line"><span class="label tertiary">Found</span><span class="body-s">${found} ${found === 1 ? "person" : "people"}</span></div></div>`;
@@ -668,6 +675,12 @@ function profileCard(slot, p, l, c) {
         <div class="caption secondary">${esc([p.age_band, place].filter(Boolean).join(" · ") || "Add where you are")}</div></div>
       ${l.listed ? "" : badge("", "Draft")}</div>`;
 
+  // Before anything is known, the profile is just who you are: name and age.
+  const something = d && (d.intent_text || Object.keys(shown).some(k => !["first_name", "age_band"].includes(k)));
+  if (!something) {
+    return `<div class="profile-card minimal"><div class="row"><span class="monogram" aria-hidden="true">${esc((p.name || "?").slice(0, 1).toUpperCase())}</span>
+      <div class="grow"><div class="heading-m">${esc(p.name || "")}</div><div class="caption secondary">${esc(p.age_band || "")}</div></div></div></div>`;
+  }
   let body;
   if (layout === "offer") {
     const sd = sides(shown), offering = shown.role === "tutor" || sd.side === "offers";

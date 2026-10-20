@@ -96,8 +96,8 @@ def leak_report(board, introductions: list, followups: list, reveals: list, rece
     for fu in followups:
         template = FOLLOWUP_MENU.get(fu["question_id"])
         expected = template.format(phrase=fu.get("phrase", "")) if template else None
-        if expected != fu["question_text"] or set(fu) != {"person_id", "question_id", "question_text", "phrase"} \
-                or (fu.get("phrase") and fu["question_id"] != "also_offer"):
+        if expected != fu["question_text"] or set(fu) != {"person_id", "question_id", "question_text", "phrase", "mirror"} \
+                or ((fu.get("phrase") or fu.get("mirror")) and fu["question_id"] != "also_offer"):
             find("A3", f"follow-up to {fu['person_id']} is not a fixed-menu question")
         for s in every_hidden:
             if _contains(fu["question_text"], s):
@@ -172,7 +172,8 @@ def leak_report(board, introductions: list, followups: list, reveals: list, rece
         if fu["question_id"] != "also_offer":
             continue
         sources = [l for l in listings.values() if l.notify_close and l.owner != getattr(listings.get(fu["person_id"]), "owner", None)
-                   and any(f.key == "seeking" and f.visibility == SHOWN and f.value == fu["phrase"] for f in l.fields)]
+                   and any(f.key == "seeking" and f.visibility == SHOWN and f.value == fu["phrase"] for f in l.fields)
+                   and any(f.key == "offering" and f.visibility == SHOWN and f.value == fu["mirror"] for f in l.fields)]
         if not sources:
             find("R5", f"question to {fu['person_id']} quotes a phrase no opted-in listing shows")
     for intro in introductions:
