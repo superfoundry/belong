@@ -14,10 +14,11 @@
   .phone-wrap > .eyebrow { margin: 0 0 var(--space-3) var(--space-2); color: var(--text-tertiary); }
 
   /* ---------- phone ---------- */
-  .phone { background: var(--surface-app); border: 10px solid var(--surface-inverse); border-radius: 44px; height: 800px;
+  /* Every phone screen is the same slight off-white (the palest paper); cards stay white on it. */
+  .phone { --phone-bg: var(--sf-paper-100); background: var(--phone-bg); border: 10px solid var(--surface-inverse); border-radius: 44px; height: 800px;
            display: flex; flex-direction: column; overflow: hidden; box-shadow: var(--shadow-lg); }
   .phone .top { padding: var(--space-4) var(--space-5) var(--space-3); border-bottom: 1px solid var(--border-subtle);
-                display: flex; align-items: center; gap: var(--space-2); background: var(--surface-card); }
+                display: flex; align-items: center; gap: var(--space-2); background: var(--phone-bg); }
   .phone .top .wordmark { font-size: 19px; }
   .phone .top .who { font: var(--text-body-s); color: var(--text-secondary); }
   .phone .top .badge { margin-left: auto; }
@@ -37,7 +38,7 @@
   .menu button { all: unset; box-sizing: border-box; display: block; width: 100%; padding: var(--space-3) var(--space-4); cursor: pointer; font: var(--text-body-s); }
   .menu button:hover, .menu button:focus-visible { background: var(--surface-raised); }
   .menu button.sep { border-top: 1px solid var(--border-subtle); margin-top: var(--space-1); color: var(--text-secondary); }
-  .tabbar { display: grid; grid-template-columns: 1fr 1fr; background: var(--surface-card); border-top: 1px solid var(--border-subtle); flex-shrink: 0; }
+  .tabbar { display: grid; grid-template-columns: 1fr 1fr; background: var(--phone-bg); border-top: 1px solid var(--border-subtle); flex-shrink: 0; }
   .tabbar button { all: unset; box-sizing: border-box; position: relative; display: flex; flex-direction: column; align-items: center; gap: 2px;
                    padding: var(--space-4) 0 var(--space-5); cursor: pointer; color: var(--text-tertiary);
                    transition: color var(--duration-fast) var(--ease-standard); }
@@ -129,7 +130,7 @@
   .found-card .grow > span { display: block; }
   .found-card .msg-preview { margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 220px; }
   .unread-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--notify); flex-shrink: 0; }
-  .thread { display: flex; flex-direction: column; height: 100%; background: var(--surface-app); }
+  .thread { display: flex; flex-direction: column; height: 100%; background: var(--phone-bg); }
   .thread-head { display: flex; align-items: center; gap: var(--space-3); padding: var(--space-5) var(--space-4) var(--space-3);
                  background: var(--surface-card); border-bottom: 1px solid var(--border-subtle); }
   .thread-head .back { padding: var(--space-2); }
@@ -214,7 +215,6 @@
   details.matches > summary { cursor: pointer; font: var(--text-label); font-weight: 600; color: var(--text-accent); }
   /* The listings page in shades of paper: off-white screen, white listing cards, cream matches,
      deeper cream questions, with coral for status and the matches heading. */
-  .screen:has(> .list-head) { background: var(--sf-paper-100); }
   .card.intro.question { background: var(--sf-paper-400) !important; }
   .card.intro { box-shadow: none; background: var(--surface-raised); border-color: transparent; }
   .profile-card .posted { margin-top: var(--space-4); padding-top: var(--space-4); border-top: 1px solid var(--border-subtle); }
@@ -229,7 +229,6 @@
   .composer-bar .textarea { min-height: 44px; max-height: 120px; }
 
   /* The phone's first screen: the name in the middle, on a very slight off-white. */
-  .screen:has(> .start), .screen:has(> .signin) { background: var(--sf-paper-100); }
   .signin { display: flex; flex-direction: column; min-height: 100%; }
   .signin .back-bar { margin-bottom: var(--space-6); }
   .signin-body { flex: 1; }
@@ -911,7 +910,6 @@ function profileCard(slot, p, l, c) {
         ${d ? `<button class="btn secondary sm" onclick="toggleEdit('${slot}')">${c.editing ? "Done editing" : "Edit details"}</button>` : ""}
         <span class="grow"></span>
         ${d ? `<button class="btn sm" ${ready ? "" : "disabled"} onclick="submit('${slot}')">${l.listed ? "Save changes" : "Start matching"}</button>` : ""}</div>
-      ${d && !ready ? `<p class="caption tertiary" style="margin: var(--space-2) 0 0; text-align: right">Add who you're looking for and where first</p>` : ""}
     </div>`;
 }
 
