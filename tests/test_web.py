@@ -20,5 +20,19 @@ class Screens(unittest.TestCase):
         self.assertEqual(opened - defined, set(), "screens the page opens but doesn't define")
 
 
+class Script(unittest.TestCase):
+    def test_the_page_script_parses(self):
+        import shutil, subprocess, tempfile
+        node = shutil.which("node")
+        if not node:
+            self.skipTest("node isn't installed")
+        js = PAGE[PAGE.index("<script>\n// ----") + len("<script>"):]
+        js = js[:js.index("</script>")]
+        with tempfile.NamedTemporaryFile("w", suffix=".js", delete=False) as f:
+            f.write(js)
+        result = subprocess.run([node, "--check", f.name], capture_output=True, text=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
+
+
 if __name__ == "__main__":
     unittest.main()

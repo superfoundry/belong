@@ -37,7 +37,7 @@ from .leaks import leak_report
 from .matching.marketboard import Marketboard
 from .matching.contract import FollowUp, Proposal
 from .matching.matcher import OfflineMatcher
-from .schema import AGE_BANDS, FIELD_REGISTRY, FOLLOWUP_MENU, HIDDEN, SHOWN, Field, Listing, Person, age_band_index
+from .schema import AGE_BANDS, FIELD_REGISTRY, FOLLOWUP_MENU, HIDDEN, SHOWN, Field, Listing, Person, age_band_index, value_to_json
 from .synth import generate
 from .warden import Clock, Warden
 
@@ -55,6 +55,11 @@ _CLIENT_WORDS = {"student", "students", "customer", "customers", "client", "clie
 # Listings without a "who you're looking for" phrase are named by their kind.
 KIND_TITLES = {"dating": "Dating", "climbing": "Climbing partner", "running": "Running buddy",
                "language": "Language exchange", "roommate": "Roommate", "cofounder": "Cofounder", "tutoring": "Tutoring"}
+
+
+def _join(items: list) -> str:
+    items = [str(i) for i in items]
+    return items[0] if len(items) == 1 else ", ".join(items[:-1]) + " and " + items[-1]
 
 
 class DemoError(ValueError):
@@ -225,6 +230,74 @@ class DemoSession:
             if f:
                 return f.value
         return listing_id
+
+    @classmethod
+    def _live_title(cls, listing) -> str:
+        """The title of what is actually live (what matching reads), not of a draft."""
+        draft = {"kind": None, "intent_text": listing.intent_text,
+                 "fields": [{"key": f.key, "value": value_to_json(f.value)} for f in listing.fields]}
+        return cls._title(draft, listing)
+
+    @staticmethod
+    def _live_values(listing) -> dict:
+        return {"intent_text": [listing.intent_text, None], **{f.key: [value_to_json(f.value), f.visibility] for f in listing.fields}}
+
+    @staticmethod
+    def _draft_values(draft) -> dict:
+        out = {"intent_text": [(draft or {}).get("intent_text", ""), None]}
+        for f in (draft or {}).get("fields", []):
+            v = f.get("value")
+            if f.get("enabled", True) and v not in (None, "", []):
+                out[f["key"]] = [list(v) if isinstance(v, (list, tuple)) else v, f.get("visibility")]
+        return out
+
+    @staticmethod
+    def _sync_draft(mine, listing) -> None:
+        """After a save, the draft is exactly what went live (including edits made by hand)."""
+        if not mine.draft:
+            return
+        live = {f.key: f for f in listing.fields}
+        fields = []
+        for f in mine.draft["fields"]:
+            g = live.get(f["key"])
+            if g is not None:
+                f = {**f, "value": value_to_json(g.value), "visibility": g.visibility, "enabled": True}
+            elif f.get("value") not in (None, "", []):
+                f = {**f, "value": None}
+            fields.append(f)
+        known = {f["key"] for f in fields}
+        for key, g in live.items():
+            if key not in known:
+                fields.append({"key": key, "label": agent.LABELS.get(key, key), "value": value_to_json(g.value),
+                               "visibility": g.visibility, "sensitive": g.sensitive, "multi": FIELD_REGISTRY[key].multi,
+                               "enabled": True, "locked": key == "age_band", "options": []})
+        mine.draft = {**mine.draft, "intent_text": listing.intent_text, "exactness": listing.exactness, "fields": fields}
+
+    def _unsaved(self, mine) -> bool:
+        """A live listing whose draft has changes that aren't live yet."""
+        if mine.id not in self.board or not mine.draft:
+            return False
+        return self._draft_values(mine.draft) != self._live_values(self.board.listing(mine.id))
+
+    @staticmethod
+    def _what_changed(old, new) -> list:
+        """Plain words for what an update changed, for the agent to tell the person."""
+        words = {"seeking": "who you're looking for", "offering": "what you offer", "headline": "your headline",
+                 "topics": "related topics", "intent_text": "your description", "city": "your city",
+                 "country": "your country", "first_name": "your name"}
+        before, after = (DemoSession._live_values(x) for x in (old, new))
+        out = []
+        for key in dict.fromkeys(list(after) + list(before)):
+            if before.get(key) == after.get(key):
+                continue
+            label = words.get(key) or agent.LABELS.get(key, key).lower()
+            if key in before and key in after and before[key][0] == after[key][0]:
+                out.append(f"{label} is now {after[key][1]}")
+            elif key not in after:
+                out.append(f"removed {label}")
+            else:
+                out.append(label)
+        return out
 
     @staticmethod
     def _title(draft, board_listing=None) -> str:
@@ -459,6 +532,7 @@ class DemoSession:
         st = self._verified(slot)
         mine = st.listing(listing_id)
         listing = self._listing_from_json(st, mine, body)
+        before = self.board.listing(mine.id) if mine.id in self.board else None
         start = len(self.warden.receipts)
         result = self.warden.admit(st.person, listing, self.board)
         receipts = self._receipts_since(start, slot)
@@ -468,11 +542,18 @@ class DemoSession:
         if result.accepted:
             mine.followups = []
             self._refresh_intros(mine.id)
+            self._sync_draft(mine, listing)
             self._event("in", f"{st.name}'s listing accepted: {title}",
                         f"{len(listing.fields)} details ({n_hidden} hidden) passed the Warden's entry check.",
                         receipts=receipts, slots=[slot])
-            mine.chat.append({"from": "agent", "text": "You're all set. I'll tell you when Belong. finds someone "
-                                                       "who is also looking for you.", "live": True})
+            if before is None:
+                text = (f"Your listing is live: \u201c{self._live_title(listing)}\u201d. I'll tell you when Belong. finds "
+                        "someone who is also looking for you.")
+            else:
+                changed = self._what_changed(before, listing)
+                text = ("Saved, and live now. What changed: " + _join(changed) + "."
+                        if changed else "Nothing changed, so your listing stays as it was.")
+            mine.chat.append({"from": "agent", "text": text, "live": True})
         else:
             self._event("blocked", f"{st.name}'s listing was refused",
                         "; ".join(result.problems), receipts=receipts, slots=[slot])
@@ -837,7 +918,9 @@ class DemoSession:
         if listed:
             l = self.board.listing(mine.id)
             hidden_keys = [{"key": f.key, "label": agent.LABELS[f.key]} for f in l.fields if f.visibility == HIDDEN]
-        return {"id": mine.id, "n": mine.n, "title": self._title(mine.draft, self.board.listing(mine.id) if listed else None),
+        return {"id": mine.id, "n": mine.n,
+                "title": self._live_title(self.board.listing(mine.id)) if listed else self._title(mine.draft),
+                "unsaved": self._unsaved(mine),
                 "kind": (mine.draft or {}).get("kind"), "listed": listed, "draft": mine.draft, "chat": mine.chat,
                 "agent_busy": mine.agent_busy, "entry": mine.entry,
                 "intros": intros, "hidden_keys": hidden_keys, "prefs": mine.prefs,
@@ -879,7 +962,7 @@ class DemoSession:
                         row["crowd"] = best
                         row["usable"] = best >= K_CROWD
                     rows.append(row)
-                inside.append({"slot": st.slot, "name": st.name, "title": self._title(mine.draft, l),
+                inside.append({"slot": st.slot, "name": st.name, "title": self._live_title(l),
                                "intent_text": l.intent_text, "fields": rows})
         intro_dicts = [i.to_dict() for i in self.intros.values()]
         report = leak_report(self.board, intro_dicts, self.outputs["followups"], self.outputs["reveals"],
