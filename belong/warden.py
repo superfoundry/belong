@@ -425,6 +425,8 @@ class Warden:
         if close and not self._receipt("close_match_opted_in", board.listing(close).notify_close, subject):
             return None
         a, b = board.listing(a_id), board.listing(b_id)
+        if not self._receipt("listings_active", a.active and b.active, subject):
+            return None  # a paused listing gets no new introductions
         # A person can have several listings; they are never introduced to themselves.
         if not self._receipt("proposal_distinct_people", a.owner != b.owner, subject):
             return None
@@ -497,6 +499,8 @@ class Warden:
         ok = followup.question_id in FOLLOWUP_MENU and followup.person_id in board
         if not self._receipt("followup_menu", ok, {"p": followup.person_id, "q": followup.question_id}):
             return None
+        if not self._receipt("listing_active", board.listing(followup.person_id).active, {"p": followup.person_id}):
+            return None  # a paused listing gets no questions
         # Questions from Belong. only reach people who opted in to them.
         if not self._receipt("followup_opted_in", board.listing(followup.person_id).notify_questions,
                              {"p": followup.person_id}):

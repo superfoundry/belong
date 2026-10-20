@@ -110,6 +110,12 @@
   .gear { all: unset; position: absolute; top: var(--space-3); right: var(--space-3); width: 32px; height: 32px; border-radius: 50%;
           display: inline-flex; align-items: center; justify-content: center; color: var(--text-tertiary); cursor: pointer; z-index: 1; }
   .gear:hover { background: var(--surface-raised); color: var(--text-primary); }
+  .gear-pop { position: absolute; top: 48px; right: var(--space-3); z-index: 4; width: 250px; background: var(--surface-card);
+              border: 1px solid var(--border-default); border-radius: var(--radius-md); box-shadow: var(--shadow-md); padding: var(--space-3) var(--space-4); }
+  .gear-pop .setting-row { padding: var(--space-3) 0; }
+  .toggle-row.disabled { opacity: .5; cursor: default; }
+  /* A paused listing is greyed out; its settings stay usable. */
+  .listing-card.paused > :not(.gear):not(.gear-pop) { opacity: .45; filter: grayscale(1); }
   .gear:focus-visible { outline: 2px solid var(--focus-ring); }
   .listing-open { all: unset; box-sizing: border-box; display: block; width: 100%; cursor: pointer; }
   .listing-open > .row { display: flex; }
@@ -518,6 +524,9 @@ function messageRow(slot, i, m, n, t, theirName, myName) {
 document.addEventListener("click", e => {
   if (!document.contains(e.target)) return;  // the tap redrew the screen (e.g. it opened the picker)
   for (const slot of ["A", "B"]) {
+    if (local[slot].gear && !e.target.closest(`#phone-${slot} .gear-pop, #phone-${slot} .gear`)) {
+      local[slot].gear = null; renderPhone(slot);
+    }
     if (local[slot].reactOpen && !e.target.closest(`#phone-${slot} .react-picker, #phone-${slot} .react-btn`)) {
       local[slot].reactOpen = null; renderPhone(slot);
     }
@@ -722,7 +731,8 @@ function listingCard(slot, p, l) {
   const c = local[slot].ls[l.id] ||= { draft: null, draftFrom: null, chatText: "", editing: false, chatMin: false, seenChat: 0, sending: null };
   const waiting = needsAnswer(l), total = l.intros.length + l.followups.length;
   if (c.open === undefined) c.open = waiting > 0;
-  const status = l.unsaved ? badge("warning", "Unsaved changes") : l.listed ? badge("", "Matching") : badge("", "Draft");
+  const paused = l.listed && l.active === false;
+  const status = l.unsaved ? badge("warning", "Unsaved changes") : paused ? badge("", "Paused") : l.listed ? badge("", "Matching") : badge("", "Draft");
   const summary = !l.listed ? "Not matching yet" : total ? `${total} match${total === 1 ? "" : "es"}${waiting ? `, ${waiting} waiting on you` : ""}` : "No matches yet";
   const body = !l.listed
     ? ""
@@ -731,8 +741,17 @@ function listingCard(slot, p, l) {
           <summary>${waiting ? "Matches and questions" : "Matches"} (${total})</summary>
           <div class="stack" style="margin-top: var(--space-3)">${l.followups.map(q => followupCard(slot, l, q)).join("")}${l.intros.map(i => introCard(slot, l, i)).join("")}</div></details>`
       : "";
-  return `<div class="card md listing-card">
-    <button class="gear" onclick="editPrivacy('${slot}','${l.id}')" aria-label="Notification settings for ${esc(l.title)}" title="Notification settings">${GEAR}</button>
+  const pr = l.prefs || {}, open = local[slot].gear === l.id;
+  const sw = (label, note, on, change, disabled) => `<label class="setting-row toggle-row${disabled ? " disabled" : ""}"><div class="grow">
+      <div class="body-s">${label}</div><div class="caption secondary">${note}</div></div>
+      <input type="checkbox" class="switch" ${on ? "checked" : ""} ${disabled ? "disabled" : ""} onchange="${change}"></label>`;
+  const pop = open ? `<div class="gear-pop" role="dialog" aria-label="Settings for ${esc(l.title)}">
+      ${sw("Active", l.listed ? "Paused listings aren't matched." : "Start matching first.", l.listed && l.active !== false, `setActive('${slot}','${l.id}',this.checked)`, !l.listed)}
+      ${sw("Close matches", "One-way: they aren't told.", pr.notify_close, `setPref('${slot}','${l.id}','notify_close',this.checked)`)}
+      ${sw("Questions", "We never say who asked.", pr.notify_questions, `setPref('${slot}','${l.id}','notify_questions',this.checked)`)}
+    </div>` : "";
+  return `<div class="card md listing-card${paused ? " paused" : ""}">
+    <button class="gear" onclick="toggleGear('${slot}','${l.id}')" aria-expanded="${open}" aria-label="Settings for ${esc(l.title)}" title="Settings">${GEAR}</button>${pop}
     <button class="listing-open" onclick="openListing('${slot}','${l.id}')" aria-label="Open ${esc(l.title)}">
       <span class="row"><span class="heading-m grow">${esc(cap(l.title))}</span>${status}</span>
       <span class="row" style="margin-top: var(--space-1)"><span class="caption secondary grow">${esc(summary)}</span><span class="caption text-accent">Edit</span></span></button>${body}</div>`;
@@ -1071,6 +1090,12 @@ async function submit(slot) {
   }
 }
 // A new listing starts with the privacy questions; the listing is made when they're answered.
+async function toggleGear(slot, id) { local[slot].gear = local[slot].gear === id ? null : id; renderPhone(slot); }
+async function setActive(slot, listing_id, active) { await api("set_active", { slot, listing_id, active }); renderPhone(slot); }
+async function setPref(slot, listing_id, key, value) {
+  const pr = S.phones[slot].listings.find(l => l.id === listing_id).prefs || {};
+  await api("set_prefs", { slot, listing_id, prefs: { ...pr, [key]: value } }); renderPhone(slot);
+}
 async function newListing(slot) {
   const d = { ask_each_time: true, ...(S.phones[slot].defaults || {}) };
   if (!d.ask_each_time && d.acknowledged) {  // not asked: the defaults from Settings apply
