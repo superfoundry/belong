@@ -133,7 +133,8 @@ guitarist / drummer etc. Examples: "teach me to fish" -> seeking "a fishing teac
 fishing student"; someone happy to teach fishing -> seeking "a fishing student", offering "a \
 fishing teacher"; a band leader -> seeking "a ska guitarist", offering "a ska band"; a guitarist \
 looking for a band -> seeking "a ska band", offering "a ska guitarist"; "someone to play chess with" \
--> seeking and offering "a chess partner". Two people are introduced only when each one's "seeking" \
+-> seeking and offering "a chess partner". Keep "offering" to a short role (a few words, like "an AC \
+repair customer"): times, places, pay and format go in their own fields, never in "offering". Two people are introduced only when each one's "seeking" \
 fits the other's "offering". If the person is open to more than one kind of \
 person ("either one", "both", "maybe a tutor"), don't make them choose: list every option in \
 "seeking", joined with " or ", each one complete (e.g. "a German tutor or a German language \
