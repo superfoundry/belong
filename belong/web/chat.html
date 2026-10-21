@@ -83,9 +83,15 @@
   .card .meta dt { color: var(--sys-text-3); } .card .meta dd { margin: 0; }
   .card .quote { margin: 12px 0 0; padding: 0 0 0 12px; border-left: 2px solid var(--sys-line-2); color: var(--sys-text-2); font-size: 14px; }
   .card .actions { display: flex; gap: 8px; margin-top: 16px; }
+  .thread-body { flex: 1; overflow-y: auto; width: min(720px, 100%); margin: 0 auto; padding: 20px; display: flex; flex-direction: column; gap: 8px; }
+  .thread-body .notice { font-size: 12px; color: var(--sys-text-3); text-align: center; margin: 0 0 8px; }
+  .msg { align-self: flex-start; max-width: 75%; background: var(--sys-raise); padding: 8px 14px; border-radius: 18px; white-space: pre-wrap; }
+  .msg.mine { align-self: flex-end; background: var(--sys-text); color: var(--sys-bg); }
+  .thread-compose { padding: 0 20px 16px; }
   .card .for { font-size: 12px; color: var(--sys-text-3); margin: 0 0 6px; }
   .card .status { border-top: 1px solid var(--sys-line); margin-top: 14px; padding-top: 14px; }
   /* Fullscreen display mode, for the listing's settings */
+  .app.with-phone ~ #layer .full { right: 440px; }  /* full screen covers the chat app, not the test phone */
   .full { position: fixed; inset: 61px 0 0 0; z-index: 9; background: var(--sys-bg); display: flex; flex-direction: column; }
   .full-head { display: flex; align-items: center; gap: 12px; padding: 14px 20px; border-bottom: 1px solid var(--sys-line); }
   .full-body { width: min(560px, 100%); margin: 24px auto; padding: 0 20px; }
@@ -174,7 +180,7 @@
 // (an introduction you've already answered updates in place). Anything that changes data asks
 // for confirmation first; saying yes only ever comes from your own tap on the card.
 let ME = null;
-const L = { log: [], sending: false, confirm: null, popup: null, form: {}, remember: {}, seen: {} };
+const L = { log: [], sending: false, confirm: null, popup: null, form: {}, remember: {}, seen: {}, read: {} };
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const cap = t => t ? t.charAt(0).toUpperCase() + t.slice(1) : t;
@@ -202,6 +208,18 @@ function openActions() {
     for (const i of l.intros) if (i.status === "pending" && L.seen[i.intro_id]) out.push({ kind: "intro", id: i.intro_id });
   }
   return out;
+}
+// People you're introduced to (you both said yes), across your listings.
+function connectedMatches() {
+  return liveListings().flatMap(l => l.intros.filter(i => i.status === "connected").map(i => ({ ...i, listing: l })));
+}
+function matchCard(i) {
+  const name = i.view.fields.first_name || "Someone", t = i.thread || [];
+  const unread = t.length - (L.read[i.intro_id] || 0), last = t[t.length - 1];
+  return `<div class="card"><p class="for">For “${esc(cap(i.listing.title))}”</p>
+    <p class="title">${esc(name)}<span class="badge plain">Introduced</span>${unread > 0 && !last.mine ? `<span class="badge">${unread} new</span>` : ""}</p>
+    <p class="sub">${last ? `${last.mine ? "You: " : ""}${esc(last.text.slice(0, 90))}` : "You both said yes. Say hello."}</p>
+    <div class="actions"><button class="btn primary" onclick="openThread('${i.intro_id}')">Open chat</button></div></div>`;
 }
 const isOpen = c => openActions().some(o => o.kind === c.kind && o.id === c.id);
 const liveListings = () => ME.verified ? ME.listings.filter(l => l.listed) : [];
@@ -283,6 +301,7 @@ function render() {
       }
       if (here) {
         for (const l of live) out.push(listingCard(l));
+        for (const c of connectedMatches()) out.push(matchCard(c));
         // Anything waiting on you stays here, under the live cards, until you answer it.
         for (const c of openActions()) out.push(c.kind === "intro" ? introCard(c.id) : questionCard(c.id, c.lid));
       }
@@ -342,7 +361,7 @@ async function draftWith(text) {
   L.log.push({ app: updated, cards: updated ? [{ kind: "listing", latest: true }] : [], bot: followUp || "Done." });
 }
 async function checkMatches(onlyId) {
-  await api("match");
+  const d = await (await fetch("/api/chat/state")).json(); ME = d.me;  // read what Belong. has found
   const ls = liveListings().filter(l => !onlyId || l.id === onlyId);
   const cards = [], pending = [];
   for (const l of ls) {
@@ -365,18 +384,13 @@ async function showNew(id) {
   L.log.push({ me: "Show me what's new from Belong." }); L.sending = true; L.jump = true; render();
   try { await checkMatches(id); } finally { L.sending = false; L.jump = true; render(); }
 }
-// While the chat is open, the live card checks with Belong. now and then (in the demo, that runs matching).
-setInterval(async () => {
-  if (!ME || !liveListings().length || L.sending || L.confirm || L.popup || L.settings) return;
-  const sig = () => JSON.stringify(liveListings().map(x => [x.intros.map(i => i.intro_id), x.followups.map(q => q.question_id)]));
-  const before = sig();
-  await api("match");
-  if (sig() !== before) render();
-}, 6000);
+// Belong.'s Matchmaker runs on its own (every few seconds in the demo); the page's state check
+// (every 3 seconds, below) is how the live cards notice something new.
 
 // ---- changing anything goes through ChatGPT's confirmation ----
 const ACTIONS = {
   start_matching: { tool: "start_matching", ask: () => `Make your listing live for matching?`, args: id => ({ listing: byId(id).title }) },
+  send_message: { tool: "send_message", ask: a => `Send this to ${nameOf(a.id)}?`, args: a => ({ to: nameOf(a.id), message: a.text }) },
   delete_listing: { tool: "delete_listing", ask: id => `Delete “${cap(byId(id).title)}”?`, args: id => ({ listing: byId(id).title }) },
   say_yes: { tool: "say_yes", ask: id => `Say yes to ${nameOf(id)}?`, args: id => ({ introduction: nameOf(id) }) },
   not_now: { tool: "not_now", ask: id => `Pass on ${nameOf(id)} for now?`, args: id => ({ introduction: nameOf(id) }) },
@@ -392,7 +406,13 @@ function ask(kind, arg) {
   L.confirm = { kind, arg }; renderLayer();
 }
 async function run(kind, arg) {
-  L.confirm = null; renderLayer();
+  L.confirm = null;
+  if (kind === "send_message") {
+    if (await api("message", { intro_id: arg.id, text: arg.text })) L.msg = "";
+    renderLayer(); render();
+    return;
+  }
+  renderLayer();
   const l = kind === "start_matching" || kind === "delete_listing" ? byId(arg) : listing();
   if (kind === "delete_listing") {
     const title = cap(l.title);
@@ -425,6 +445,26 @@ async function run(kind, arg) {
 // ---- overlays: the confirmation sheet, and the sign-in popup on Belong.'s site ----
 function renderLayer() {
   const c = L.confirm, layer = $("layer");
+  if (!c && L.thread) {
+    const i = connectedMatches().find(x => x.intro_id === L.thread);
+    if (!i) { L.thread = null; layer.innerHTML = ""; return; }
+    const name = i.view.fields.first_name || "Someone", t = i.thread || [];
+    L.read[i.intro_id] = t.length;
+    const draft = L.msg || "";
+    layer.innerHTML = `<div class="full" role="dialog" aria-modal="true" aria-label="Chat with ${esc(name)}">
+      <div class="full-head"><button class="btn secondary" onclick="closeThread()">Close</button>
+        <span class="app-label" style="margin:0"><span class="app-icon" aria-hidden="true">B.</span>Belong. · ${esc(name)}</span></div>
+      <div class="thread-body" id="thread-body">
+        <p class="notice">You and ${esc(name)} both said yes. This chat is shown in your AI assistant, so it passes through your assistant's provider; ${esc(name)} has been told.</p>
+        ${t.map(m => `<div class="msg ${m.mine ? "mine" : ""}">${esc(m.text)}</div>`).join("") || `<p class="sub" style="text-align:center">Say hello to ${esc(name)}.</p>`}
+        ${i.simulated ? `<p class="sub" style="text-align:center">${esc(name)} is simulated in this demo and won't reply. Use “Test with a phone” to reply as someone yourself.</p>` : ""}
+      </div>
+      <div class="thread-compose"><div class="box"><textarea id="msg" rows="1" placeholder="Message ${esc(name)}" oninput="L.msg=this.value"
+          onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendToMatch('${i.intro_id}')}">${esc(draft)}</textarea>
+        <button class="send" aria-label="Send" onclick="sendToMatch('${i.intro_id}')"><span aria-hidden="true"></span></button></div></div></div>`;
+    const body = $("thread-body"); body.scrollTop = body.scrollHeight;
+    return;
+  }
   if (!c && L.settings) {
     const l = byId(L.settings), pr = l.prefs || {};
     const row = (label, on, change) => `<label class="srow"><span>${label}</span><input type="checkbox" class="sw" ${on ? "checked" : ""} onchange="${change}"></label>`;
@@ -464,6 +504,13 @@ function renderLayer() {
         <button class="go" onclick="popupDone()">Allow and connect</button>`}
       <p class="fine">Mockup of the sign-in a real connector would open (OAuth) on Belong.'s own site.</p></div></div></div>`;
   } else layer.innerHTML = "";
+}
+function openThread(id) { L.thread = id; L.msg = ""; renderLayer(); setTimeout(() => $("msg") && $("msg").focus(), 0); }
+function closeThread() { L.thread = null; renderLayer(); render(); }
+function sendToMatch(id) {
+  const text = ($("msg").value || "").trim();
+  if (!text) return;
+  ask("send_message", { id, text });
 }
 function openSettings(id) { L.settings = id; renderLayer(); }
 async function setActive(id, active) { await api("set_active", { listing_id: id, active }); renderLayer(); render(); }
@@ -520,7 +567,7 @@ fetch("/api/chat/state").then(r => r.json()).then(d => {
   if (l && l.draft) L.log.push({ app: true, cards: [{ kind: "listing", latest: true }] });
   render();
 });
-setInterval(async () => { if (L.sending || L.confirm || L.popup) return; try { const d = await (await fetch("/api/chat/state")).json(); if (JSON.stringify(d.me) !== JSON.stringify(ME)) { ME = d.me; render(); } } catch (_) {} }, 3000);
+setInterval(async () => { if (L.sending || L.confirm || L.popup) return; try { const d = await (await fetch("/api/chat/state")).json(); if (JSON.stringify(d.me) !== JSON.stringify(ME)) { ME = d.me; render(); if (L.thread) { const keep = $("msg") ? $("msg").value : ""; renderLayer(); if ($("msg")) $("msg").value = keep; } } } catch (_) {} }, 3000);
 </script>
 </body>
 </html>
