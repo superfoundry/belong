@@ -82,7 +82,7 @@ Module docstrings say which SPEC section they implement.
 ```bash
 python3 -m unittest -v      # all tests
 python3 -m belong run       # 300-person simulation + leak report (exit 1 on leak)
-python3 -m belong serve     # demo / (and /demo), chat mockup /chat, landing /welcome, trust /trust, inspector /inspector
+python3 -m belong serve     # demo / (and /demo), connector mockup /connector, landing /welcome, trust /trust, inspector /inspector
 ```
 
 Pure standard library: don't add dependencies without asking. The one exception is the

@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Belong. in chat</title>
-<meta name="description" content="Mockup: Belong. as an app inside a ChatGPT-style chat, following the Apps SDK UI guidelines.">
+<title>Belong. connector</title>
+<meta name="description" content="Mockup of the Belong. connector: Belong. inside your AI assistant, following the Apps SDK UI guidelines.">
 <link rel="stylesheet" href="/ds/tokens.css">
 <style>
   /* A mockup of Belong. as an app inside ChatGPT, built to OpenAI's Apps SDK UI guidelines
@@ -492,13 +492,13 @@ async function popupDone() {
   if (L.pendingText) { const t = L.pendingText; L.pendingText = null; L.sending = true; render(); try { await draftWith(t); } finally { L.sending = false; L.jump = true; render(); } }
 }
 
-// Demo control: start the in-chat demo over (its own session; the phones aren't touched).
+// Demo control: start the connector demo over (its own session; the phones aren't touched).
 async function resetDemo() {
   if (L.sending) return;
   await api("reset");
   Object.assign(L, { log: [], confirm: null, popup: null, form: {}, remember: {}, pendingText: null });
   if (!$("tester").hidden) $("tester-frame").src = "/demo?session=chat&phone=B";  // the test phone starts over too
-  render(); toast("The in-chat demo has been reset.");
+  render(); toast("The connector demo has been reset.");
 }
 function togglePhone(force) {
   const open = force ?? $("tester").hidden;
