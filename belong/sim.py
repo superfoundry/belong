@@ -45,7 +45,8 @@ def run(n: int = 300, seed: int = 7, matcher=None, k_crowd: int = 20, approach_l
     # Day 1: follow-ups
     clock.advance(days=1)
     round1 = matcher.match(board)
-    followups_out = [fo for fo in (warden.exit_followup(f, board) for f in round1.followups) if fo]
+    # Follow-ups that wait for someone else's "no" aren't asked in this one-pass simulation.
+    followups_out = [fo for fo in (warden.exit_followup(f, board) for f in round1.followups if not f.after) if fo]
     for fo in followups_out:
         p = personas[fo.person_id]
         updated = agent.answer_followup(p, board.listing(fo.person_id), fo.question_id, clock.now(), rng, fo.phrase)

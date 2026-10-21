@@ -10,7 +10,7 @@ import hashlib
 import random
 from dataclasses import replace
 
-from .schema import AGE_BAND_BOUNDS, AGE_BANDS, FIELD_REGISTRY, FREE_TEXT_MAX, HIDDEN, Field, Listing
+from .schema import AGE_BAND_BOUNDS, AGE_BANDS, FIELD_REGISTRY, FREE_TEXT_MAX, HIDDEN, SHOWN, Field, Listing
 from .synth import Persona
 
 
@@ -59,17 +59,22 @@ def answer_followup(p: Persona, listing: Listing, question_id: str, now: str, rn
     return replace(listing, intent_text=text, exactness=exactness, updated_at=now, version=listing.version + 1)
 
 
-def also_offer(listing: Listing, phrase: str, now: str, mirror: str = "") -> Listing:
-    """Yes to "Could you help with that too?": the phrase becomes one more thing they offer, and
-    the asker's kind of person (mirror) one more kind they're looking for."""
+def also_offer(listing: Listing, phrase: str, now: str, mirror: str = "", pay: str = "") -> Listing:
+    """Yes to "Would that work for you?": what they want joins what this person offers, who they
+    are joins who this person is looking for, and their terms (pay) replace this person's, so the
+    match sees one clear price ("Free", not "$1 each")."""
     add = {"offering": phrase, "seeking": mirror}
-    fields = []
+    fields, has_pay = [], False
     for f in listing.fields:
         extra = add.get(f.key)
         both = f"{f.value} or {extra}"
         if extra and extra.lower() not in str(f.value).lower() and len(both) <= FREE_TEXT_MAX:
             f = replace(f, value=both)
+        if f.key == "pay" and pay:
+            f, has_pay = replace(f, value=pay, visibility=SHOWN), True
         fields.append(f)
+    if pay and not has_pay:
+        fields.append(Field("pay", pay, SHOWN, False))
     return replace(listing, fields=tuple(fields), updated_at=now, version=listing.version + 1)
 
 

@@ -1039,8 +1039,8 @@ function followupCard(slot, l, q) {
     <button class="btn" style="margin-top: var(--space-3)" onclick="answer('${slot}','${l.id}','age_range',{min:+$('fu-min-${k}').value,max:+$('fu-max-${k}').value})">Answer</button>`;
   else if (q.question_id === "schedule") controls = `<select class="select" id="fu-s-${k}">${["weekends","weekday evenings","weekday mornings","flexible"].map(o => `<option>${o}</option>`).join("")}</select>
     <button class="btn" style="margin-top: var(--space-3)" onclick="answer('${slot}','${l.id}','schedule',{schedule:$('fu-s-${k}').value})">Answer</button>`;
-  else if (q.question_id === "also_offer") controls = `<div class="row"><button class="btn" onclick="answer('${slot}','${l.id}','also_offer',{yes:true})">Yes, I can</button><button class="btn secondary" onclick="answer('${slot}','${l.id}','also_offer',{yes:false})">No</button></div>
-    <p class="caption tertiary" style="margin: var(--space-2) 0 0">If you say yes, it's added to what you offer. Nobody is told you were asked.</p>`;
+  else if (q.question_id === "also_offer") controls = `<div class="row"><button class="btn" onclick="answer('${slot}','${l.id}','also_offer',{yes:true})">Yes</button><button class="btn secondary" onclick="answer('${slot}','${l.id}','also_offer',{yes:false})">No</button></div>
+    <p class="caption tertiary" style="margin: var(--space-2) 0 0">If you say yes, your listing is updated to match. Nobody is told you were asked.</p>`;
   else controls = `<div class="row"><button class="btn" onclick="answer('${slot}','${l.id}','wider_net',{yes:true})">Widen the net</button><button class="btn secondary" onclick="answer('${slot}','${l.id}','wider_net',{yes:false})">Keep it as is</button></div>`;
   return `<div class="card sm intro question">${badge("accent", "Question from Belong.")}<h3 class="heading-m" style="margin: var(--space-3) 0">${esc(q.question_text)}</h3>${controls}</div>`;
 }

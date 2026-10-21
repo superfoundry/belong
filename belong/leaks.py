@@ -110,8 +110,9 @@ def leak_report(board, introductions: list, followups: list, reveals: list, rece
         template = FOLLOWUP_MENU.get(fu["question_id"])
         expected = template.format(phrase=fu.get("phrase", "")) if template else None
         if expected != fu["question_text"] or set(fu) != {"person_id", "question_id", "question_text", "phrase",
-                                                          "offer_add", "seek_add"} \
-                or ((fu.get("phrase") or fu.get("offer_add") or fu.get("seek_add")) and fu["question_id"] != "also_offer"):
+                                                          "offer_add", "seek_add", "pay"} \
+                or ((fu.get("phrase") or fu.get("offer_add") or fu.get("seek_add") or fu.get("pay"))
+                    and fu["question_id"] != "also_offer"):
             find("A3", f"follow-up to {fu['person_id']} is not a fixed-menu question")
         for s in every_hidden:
             if _contains(fu["question_text"], s):
@@ -187,6 +188,7 @@ def leak_report(board, introductions: list, followups: list, reveals: list, rece
             continue
         sources = [l for l in listings.values() if l.notify_close and l.owner != getattr(listings.get(fu["person_id"]), "owner", None)
                    and _shown(l, "seeking") == fu["offer_add"] and _shown(l, "offering") == fu["seek_add"]
+                   and (_shown(l, "pay") or "") == fu["pay"]
                    and fu["phrase"] in (_as_quoted(_shown(l, "headline")), f"looking for {_shown(l, 'seeking')}")]
         if not sources:
             find("R5", f"question to {fu['person_id']} quotes a phrase no opted-in listing shows")

@@ -70,9 +70,12 @@ class Introduction(_Sealed):
 
 class FollowUpOut(_Sealed):
     def __init__(self, seal, person_id: str, question_id: str, phrase: str = "", offer_add: str = "",
-                 seek_add: str = ""):
+                 seek_add: str = "", pay: str = ""):
         super().__init__(seal)
         self.person_id, self.question_id, self.phrase = person_id, question_id, phrase
+        # Their shown terms (pay): saying yes means taking them on, so a match isn't confused by
+        # the old price ("$1 each" becomes "Free").
+        self.pay = pay
         # For "also_offer": if the person says yes, the asker's shown phrases join theirs (what the
         # asker wants joins what they offer; who the asker is joins who they look for), so a match
         # can follow. Never shown in the question.
@@ -81,7 +84,7 @@ class FollowUpOut(_Sealed):
 
     def to_dict(self) -> dict:
         return {"person_id": self.person_id, "question_id": self.question_id, "question_text": self.question_text,
-                "phrase": self.phrase, "offer_add": self.offer_add, "seek_add": self.seek_add}
+                "phrase": self.phrase, "offer_add": self.offer_add, "seek_add": self.seek_add, "pay": self.pay}
 
 
 class Reveal(_Sealed):
@@ -531,11 +534,12 @@ class Warden:
         if not self._receipt("also_offer_phrase_shown", ok, subject):
             return None
         phrase = quoted_phrase(shown_them)
+        pay = shown_them.get("pay") if isinstance(shown_them.get("pay"), str) else ""
         forbidden = _strings_of(me, HIDDEN) | _strings_of(them, HIDDEN)
-        clean = not find_forbidden(f"{phrase} {seeking} {offering}", forbidden, _strings_of(them, SHOWN))
+        clean = not find_forbidden(f"{phrase} {seeking} {offering} {pay}", forbidden, _strings_of(them, SHOWN))
         if not self._receipt("no_hidden_values", clean, subject):
             return None
-        return FollowUpOut(_SEAL, followup.person_id, "also_offer", phrase, seeking, offering)
+        return FollowUpOut(_SEAL, followup.person_id, "also_offer", phrase, seeking, offering, pay)
 
     # -- Decisions and mutual reveal -------------------------------------------
 

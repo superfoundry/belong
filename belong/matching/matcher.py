@@ -200,6 +200,19 @@ def nearly(wanted, offered, wanted_topics=(), offered_topics=()) -> bool:
     return False
 
 
+def looking_for(view) -> bool:
+    """Is this person looking for something (a service, a thing) rather than offering it? Read from
+    the headline their agent wrote ("Looking for...", "Need..."), else from casting themselves as the
+    one being served (a student, a customer, a buyer)."""
+    headline = str(view.get("headline") or "").lower()
+    if headline.startswith(("looking for", "need", "searching for", "seeking", "wanting", "hoping")):
+        return True
+    if headline:
+        return False
+    offering = set(phrase_tokens(str(view.get("offering") or "")))
+    return bool(offering & {"student", "customer", "client", "buyer", "recipient", "patient", "tenant"})
+
+
 def phrase_overlap(wanted: str, offered: str) -> float:
     """Best share of wanted words found in the offered phrase, over the options (0..1)."""
     best = 0.0
@@ -399,17 +412,28 @@ class OfflineMatcher:
                                        views[near].get("topics"), views[far].get("topics")))):
                         close = near
                 if not close:
-                    # Nearly: one person offers something close to what the other wants, and
-                    # would welcome them. Ask if they could help with that too, without saying who.
-                    for wants, could in ((a, b), (b, a)):
-                        wants_met, could_met = (a_met, b_met) if wants == a else (b_met, a_met)
-                        wv, cv = views[wants], views[could]
-                        if (not wants_met and listings[wants].notify_close and listings[could].notify_questions
-                                and has_phrases(wv) and has_phrases(cv) and same_place(wv, cv)
-                                and nearly(wv.get("seeking"), cv.get("offering"), wv.get("topics"), cv.get("topics"))
-                                and (could_met or nearly(cv.get("seeking"), wv.get("offering"),
-                                                         cv.get("topics"), wv.get("topics")))):
-                            also_offer.setdefault(could, wants)
+                    # Nearly: what one offers is close to what the other wants. One person is asked at a
+                    # time, whoever is looking for something first ("Someone is teaching figure skating.
+                    # Would that work for you?"); the other only if they say no. A yes makes the match.
+                    av_, bv_ = views[a], views[b]
+                    la, lb = listings[a], listings[b]
+                    # Cheap checks first: someone must be open to a question about the other.
+                    possible = (la.notify_questions and lb.notify_close) or (lb.notify_questions and la.notify_close)
+                    near = possible and has_phrases(av_) and has_phrases(bv_) and same_place(av_, bv_) and (
+                        nearly(av_.get("seeking"), bv_.get("offering"), av_.get("topics"), bv_.get("topics"))
+                        or nearly(bv_.get("seeking"), av_.get("offering"), bv_.get("topics"), av_.get("topics")))
+                    if near:
+                        order = sorted((a, b), key=lambda pid: not looking_for(views[pid]))
+                        # Each question needs the asked person's opt-in to questions and the other's to
+                        # close matches (their headline is quoted, never who they are).
+                        allowed = [p for p in order if listings[p].notify_questions
+                                   and listings[order[1] if p == order[0] else order[0]].notify_close]
+                        if allowed:
+                            first = allowed[0]
+                            other = b if first == a else a
+                            also_offer.setdefault(first, FollowUp(first, "also_offer", about=other))  # one per person
+                            if len(allowed) > 1:
+                                also_offer.setdefault(other, FollowUp(other, "also_offer", about=first, after=first))
                     continue  # both must be looking
             reasons = reason_fields(parsed[a].kind, av, bv)
             if not reasons:
@@ -425,14 +449,11 @@ class OfflineMatcher:
             candidates.append(Proposal(a, b, a_met, b_met, round(s + bonus, 4), round(s, 4),
                                        round(threshold, 4), reasons, used, close))
 
-        for could, wants in sorted(also_offer.items()):
-            if could not in has_match and could not in {f.person_id for f in followups}:
-                followups.append(FollowUp(could, "also_offer", about=wants))
-        asked = {f.person_id for f in followups}
-        for pid, v in views.items():
-            if (pid not in has_match and pid not in asked and parsed[pid].kind and v.exactness >= 0.5
-                    and listings[pid].notify_questions):
-                followups.append(FollowUp(pid, "wider_net"))
+        for pid, fu in sorted(also_offer.items()):
+            if pid not in has_match and fu.about not in has_match:
+                followups.append(fu)
+        # No "cast a wider net?" question: close matches already look a little wider, for those who
+        # opted in, without asking.
 
         # Exact matches first; a close match only fills a spare slot, at most one per listing.
         # Close matches are ranked on shown details alone, so a hidden detail never decides which
