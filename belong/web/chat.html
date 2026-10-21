@@ -32,6 +32,17 @@
   body { background: var(--sys-bg); color: var(--sys-text); font: 16px/1.5 var(--sys-font); }
   button { font: inherit; color: inherit; }
   .app { display: grid; grid-template-columns: 260px 1fr; height: calc(100vh - 61px); }
+  .app.with-phone { grid-template-columns: 260px 1fr 440px; }
+  /* Demo control, outside the mocked app: a phone for person B, to match yourself across chat and phone. */
+  .phone-toggle { all: unset; cursor: pointer; margin-left: auto; font-size: 13px; color: var(--sys-text-2); padding: 6px 12px;
+                  border: 1px solid var(--sys-line-2); border-radius: 999px; }
+  .phone-toggle:hover, .phone-toggle[aria-expanded="true"] { color: var(--sys-text); border-color: var(--sys-text-3); }
+  .tester { display: flex; flex-direction: column; background: var(--sf-paper-300); border-left: 1px solid var(--sys-line); min-width: 0; }
+  .tester[hidden] { display: none; }
+  .tester-head { display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; font-size: 13px; color: #555;
+                 font-family: var(--sys-font); }
+  .tester-head button { all: unset; cursor: pointer; color: #333; font-weight: 600; }
+  .tester iframe { flex: 1; border: 0; width: 100%; }
   @media (max-width: 760px) { .app { grid-template-columns: 1fr; } .side { display: none; } }
 
   .side { background: var(--sys-side); padding: 10px; display: flex; flex-direction: column; gap: 2px; overflow-y: auto; font-size: 14px; }
@@ -72,6 +83,7 @@
   .card .meta dt { color: var(--sys-text-3); } .card .meta dd { margin: 0; }
   .card .quote { margin: 12px 0 0; padding: 0 0 0 12px; border-left: 2px solid var(--sys-line-2); color: var(--sys-text-2); font-size: 14px; }
   .card .actions { display: flex; gap: 8px; margin-top: 16px; }
+  .card .for { font-size: 12px; color: var(--sys-text-3); margin: 0 0 6px; }
   .card .status { border-top: 1px solid var(--sys-line); margin-top: 14px; padding-top: 14px; }
   /* Fullscreen display mode, for the listing's settings */
   .full { position: fixed; inset: 61px 0 0 0; z-index: 9; background: var(--sys-bg); display: flex; flex-direction: column; }
@@ -140,7 +152,8 @@
 <div class="app">
   <aside class="side" id="side"></aside>
   <main class="main">
-    <div class="top"><span class="model">ChatGPT</span></div>
+    <div class="top"><span class="model">ChatGPT</span>
+      <button class="phone-toggle" id="phone-toggle" onclick="togglePhone()" aria-expanded="false">Test with a phone</button></div>
     <div class="pane" id="pane"><div class="col" id="col"></div></div>
     <div class="compose">
       <div class="box"><textarea id="box" rows="1" placeholder="Ask anything"></textarea>
@@ -148,6 +161,10 @@
       <p class="foot">Mockup of Belong. as a ChatGPT app. Not the real ChatGPT, not affiliated with OpenAI; replies come from the Belong. demo agent.</p>
     </div>
   </main>
+  <aside class="tester" id="tester" hidden>
+    <div class="tester-head"><span>Person B on a phone, in this same demo</span><button onclick="togglePhone()">Close</button></div>
+    <iframe id="tester-frame" title="Test phone: person B" src="about:blank"></iframe>
+  </aside>
 </div>
 <div id="layer"></div>
 <div id="toast" role="status"></div>
@@ -204,12 +221,13 @@ function listingCard(l = listing()) {
       : `<p class="sub" style="margin-top: 12px">Tell me who you're looking for and where, and you can start matching.</p>`}</div>`;
 }
 function introCard(id) {
-  const i = ME.listings.flatMap(l => l.intros).find(x => x.intro_id === id);
+  const owner = ME.listings.find(l => l.intros.some(x => x.intro_id === id));
+  const i = owner && owner.intros.find(x => x.intro_id === id);
   if (!i) return "";
   const name = i.view.fields.first_name || "Someone";
   const facts = Object.entries(i.view.fields).filter(([k]) => !["first_name", "seeking", "offering", "headline", "topics"].includes(k)).map(([, v]) => val(v));
   const status = { pending: "", waiting: '<span class="badge plain">You said yes</span>', connected: '<span class="badge">Introduced</span>', closed: '<span class="badge plain">Not this time</span>' }[i.status] || "";
-  return `<div class="card"><p class="title">${esc(name)}${status}</p><p class="sub">${esc(facts.slice(0, 5).join(" · "))}</p>
+  return `<div class="card"><p class="for">For “${esc(cap(owner.title))}”</p><p class="title">${esc(name)}${status}</p><p class="sub">${esc(facts.slice(0, 5).join(" · "))}</p>
     <p class="quote">${esc(i.view.reason)}</p>
     ${i.status === "pending" ? `<div class="actions"><button class="btn primary" onclick="ask('say_yes','${id}')">Say yes</button>
       <button class="btn secondary" onclick="ask('not_now','${id}')">Not now</button></div>` : ""}</div>`;
@@ -217,7 +235,7 @@ function introCard(id) {
 function questionCard(qid, lid) {
   const l = ME.listings.find(x => x.id === lid), q = l && l.followups.find(x => x.question_id === qid);
   if (!q) return `<div class="card"><p class="title">Question from Belong.<span class="badge plain">Answered</span></p></div>`;
-  return `<div class="card"><p class="title">Question from Belong.</p><p class="sub">${esc(q.question_text)}</p>
+  return `<div class="card"><p class="for">For “${esc(cap(l.title))}”</p><p class="title">Question from Belong.</p><p class="sub">${esc(q.question_text)}</p>
     <div class="actions"><button class="btn primary" onclick="ask('answer_yes','${lid}:${qid}')">Yes</button>
       <button class="btn secondary" onclick="ask('answer_no','${lid}:${qid}')">No</button></div></div>`;
 }
@@ -309,9 +327,12 @@ async function sendMsg() {
 async function draftWith(text) {
   if (!listing()) await api("new_listing", {});  // uses the choices made when connecting
   const l = listing(), before = l.chat.length;
-  await api("prefill", { listing_id: l.id, text });
+  // Instant fill only while drafting: once a listing is live, a message may be a new search, and the
+  // agent decides whether it updates this listing or starts a separate one.
+  if (!l.listed) await api("prefill", { listing_id: l.id, text });
   await api("agent", { listing_id: l.id, text });
-  const now = listing(), fresh = now.chat.slice(before).filter(m => m.from === "agent");
+  const now = listing();  // a new listing if the agent started one
+  const fresh = now.id === l.id ? now.chat.slice(before).filter(m => m.from === "agent") : now.chat.filter(m => m.from === "agent");
   const updated = fresh.some(m => m.draft_updated);
   if (updated) for (const t of L.log) for (const c of t.cards || []) if (c.kind === "listing") c.latest = false;  // only the latest preview stays
   // ChatGPT writes its own short follow-up from what the app returns, and it doesn't repeat the card:
@@ -447,13 +468,12 @@ function renderLayer() {
 function openSettings(id) { L.settings = id; renderLayer(); }
 async function setActive(id, active) { await api("set_active", { listing_id: id, active }); renderLayer(); render(); }
 async function setPref(id, key, value) { await api("set_prefs", { listing_id: id, prefs: { ...(byId(id).prefs || {}), [key]: value } }); renderLayer(); render(); }
-// "New chat" starts another listing, in a new conversation; live cards for all listings still show.
-async function newChat() {
+// "New chat" is just a new conversation: your listings and their live cards carry on. To add a listing,
+// ask in any chat ("I'm also looking for...") and the agent starts a separate one.
+function newChat() {
   if (!ME.verified || L.sending) return;
-  if (await api("new_listing", {})) {
-    L.log = [{ bot: "New chat. Tell me what else you're looking for, and I'll make it a separate Belong. listing." }];
-    L.jump = true; render();
-  }
+  L.log = [{ bot: "New chat. Your Belong. listings carry on; ask me anything about them, or tell me what else you're looking for." }];
+  L.jump = true; render();
 }
 function confirmIt() {
   const c = L.confirm, r = $("cf-r");
@@ -477,8 +497,18 @@ async function resetDemo() {
   if (L.sending) return;
   await api("reset");
   Object.assign(L, { log: [], confirm: null, popup: null, form: {}, remember: {}, pendingText: null });
+  if (!$("tester").hidden) $("tester-frame").src = "/demo?session=chat&phone=B";  // the test phone starts over too
   render(); toast("The in-chat demo has been reset.");
 }
+function togglePhone(force) {
+  const open = force ?? $("tester").hidden;
+  $("tester").hidden = !open;
+  $("phone-toggle").setAttribute("aria-expanded", String(open));
+  document.querySelector(".app").classList.toggle("with-phone", open);
+  if (open && $("tester-frame").src === "about:blank") $("tester-frame").src = "/demo?session=chat&phone=B";
+  try { localStorage.setItem("belong-chat-phone", open ? "1" : ""); } catch (_) {}
+}
+try { if (localStorage.getItem("belong-chat-phone")) togglePhone(true); } catch (_) {}
 $("send").onclick = sendMsg;
 $("box").addEventListener("keydown", e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMsg(); } });
 $("box").addEventListener("input", e => { e.target.style.height = "auto"; e.target.style.height = Math.min(160, e.target.scrollHeight) + "px"; });

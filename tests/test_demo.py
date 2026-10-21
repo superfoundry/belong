@@ -182,6 +182,36 @@ class UnsavedChanges(unittest.TestCase):
         self.assertFalse(s.phone_state("A")["listings"][0]["unsaved"])
 
 
+class SeparateListingFromChat(unittest.TestCase):
+    """Asking the same agent for a different search starts a new listing; the first stays as it is."""
+
+    def test_the_agent_can_start_a_second_listing(self):
+        from belong.agent_llm import build_draft
+        s = DemoSession(seed=7, agent=None)
+        climbers(s)
+        first = s.board.listing("demoA-1")
+
+        class Agent:  # stands in for the model: it decides this is a separate search
+            def respond(self, conversation, text, name, band, current):
+                conversation.append({"role": "user", "content": text})
+                draft, _, _ = build_draft({"kind": "other", "intent_text": "I want guitar lessons in Osaka.",
+                                           "exactness": 0.6, "suggestions": [], "separate_listing": True,
+                                           "fields": [{"key": "city", "values": ["Osaka"], "visibility": "shown"},
+                                                      {"key": "headline", "values": ["Looking for a guitar teacher"], "visibility": "shown"},
+                                                      {"key": "seeking", "values": ["a guitar teacher"], "visibility": "shown"},
+                                                      {"key": "offering", "values": ["a guitar student"], "visibility": "shown"}]}, name, band)
+                return "I've set that up as its own listing.", draft
+
+        s.llm = Agent()
+        s.agent_message("A", "I'm also looking for a guitar teacher in Osaka", "demoA-1")
+        listings = s.phone_state("A")["listings"]
+        self.assertEqual(len(listings), 2)
+        self.assertEqual(s.board.listing("demoA-1"), first)  # the climbing listing is untouched
+        second = listings[1]
+        self.assertEqual(s.phone_state("A")["current"], second["id"])
+        self.assertIn("guitar", second["title"].lower())
+
+
 class Messages(unittest.TestCase):
     """After both say yes, the two people can talk; nobody else sees what they write."""
 

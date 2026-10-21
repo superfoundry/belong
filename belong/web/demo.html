@@ -326,6 +326,10 @@
 
   #toast { position: fixed; bottom: var(--space-6); left: 50%; transform: translateX(-50%); display: none; z-index: 30; }
 
+  /* Embedded beside the chat: just the phone. */
+  .embedded .site-nav, .embedded .phone-wrap .eyebrow, .embedded .wrap-head { display: none !important; }
+  .embedded body { background: transparent; }
+  .embedded .stage { padding: var(--space-3) 0 0; }
   body.only-A .stage, body.only-B .stage { grid-template-columns: minmax(0, 420px); justify-content: center; }
   body.only-A .panel, body.only-B .panel, body.only-A .phone-wrap:last-child, body.only-B .phone-wrap:first-child { display: none; }
 </style>
@@ -397,11 +401,17 @@ function cur(slot) {
                                   seenChat: 0, sending: null, applyScenario: false };
 }
 
+// Opened as the chat's test phone (/demo?session=chat&phone=B), this page is person B in the chat
+// mockup's session, so you can match yourself across the chat and a phone.
+const IN_CHAT = new URLSearchParams(location.search).get("session") === "chat";
+const apiUrl = action => IN_CHAT ? `/api/chat/${action}?full=1` : `/api/${action}`;
+const STATE_URL = IN_CHAT ? "/api/chat/state?full=1" : "/api/state";
+if (IN_CHAT || window.top !== window) document.documentElement.classList.add("embedded");
 let inflight = 0;
 async function api(action, body = {}) {
   inflight++;
   try {
-    const r = await fetch("/api/" + action, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+    const r = await fetch(apiUrl(action), { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
     const data = await r.json();
     if (data.error) toast(data.error);
     if (data.phones) { S = data; render(body.slot ? [body.slot] : []); }
@@ -1249,11 +1259,11 @@ function render(force = []) {
 }
 const ONLY = new URLSearchParams(location.search).get("phone");
 if (ONLY === "A" || ONLY === "B") document.body.classList.add("only-" + ONLY);
-fetch("/api/state").then(r => r.json()).then(d => { S = d; render(["A", "B"]); });
+fetch(STATE_URL).then(r => r.json()).then(d => { S = d; render(["A", "B"]); });
 // Keep in sync with actions from other windows or devices (e.g. each person on their own phone).
 setInterval(async () => {
   if (inflight || !S) return;
-  try { const d = await (await fetch("/api/state")).json(); if (!inflight) { S = d; render(); } } catch (_) {}
+  try { const d = await (await fetch(STATE_URL)).json(); if (!inflight) { S = d; render(); } } catch (_) {}
 }, 2500);
 </script>
 </body>

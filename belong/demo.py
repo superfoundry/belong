@@ -533,6 +533,20 @@ class DemoSession:
             if reply is None:
                 self._rules_reply(st, listing, text)
                 return
+            if draft and draft.get("separate") and (listing.id in self.board or listing.draft):
+                # The agent started a separate search: a new listing with the person's defaults. The
+                # current one stays as it was, and the conversation carries on in the new one.
+                try:
+                    new = st.listing(self.new_listing(slot, {**st.defaults, "acknowledged": True}))
+                except DemoError as e:
+                    listing.chat.append({"from": "agent", "text": f"I couldn't start another listing: {e}"})
+                    return
+                new.agent_conversation = list(conversation)
+                new.chat = [{"from": "me", "text": text}, {"from": "agent", "text": reply, "draft_updated": True}]
+                new.draft = draft
+                listing.chat.append({"from": "agent", "text": "I've started a separate listing for that, so this one "
+                                                              "stays as it is.", "moved_to": new.id})
+                return
             if draft:
                 # Keep anything already on the profile that the agent's draft left empty.
                 if listing.draft:

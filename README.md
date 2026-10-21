@@ -27,6 +27,9 @@ synthetic people and plain Python; secure hardware comes in Step 3.
   app through a connector, in dark mode: connecting, the privacy choices, drafting, going live and
   matches, all in the conversation. Saying yes and going live always need the person's own tap.
   It runs on its own demo session, separate from the phones, and isn't affiliated with OpenAI.
+  "Test with a phone" opens person B on a phone beside the chat, in the same session, so you
+  can match yourself across the chat and a phone. Ask the same agent for something different
+  ("I'm also looking for...") and it starts a separate listing; every live listing has its card.
 - **[TRUST.md](TRUST.md)** lists every privacy promise with the code that enforces it,
   the test that proves it, and what isn't guaranteed yet. Start there.
 - **[SPEC.md](SPEC.md)** is the product spec.
