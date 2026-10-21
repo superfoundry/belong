@@ -55,6 +55,7 @@ def chat_session() -> DemoSession:
     global _CHAT
     if _CHAT is None:
         _CHAT = DemoSession()
+        _CHAT.assistant_slots = {"A"}  # the connector user
     return _CHAT
 
 
@@ -221,9 +222,27 @@ class _IPv6Server(ThreadingHTTPServer):
     address_family = socket.AF_INET6
 
 
+MATCH_EVERY = 6  # seconds between background Matchmaker runs in the demo
+
+
+def _keep_matching() -> None:
+    """The demo's Matchmaker runs on its own every few seconds, like the real service would, so
+    nobody has to press Run Matchmaker. Quiet runs only show in the log when they send something."""
+    import time
+    while True:
+        time.sleep(MATCH_EVERY)
+        for session in [SESSION] + ([_CHAT] if _CHAT is not None else []):
+            with session.lock:
+                try:
+                    session.run_matchmaker(quiet=True)
+                except DemoError:
+                    pass  # no demo listings yet
+
+
 def serve(port: int = 8000) -> None:
     """Listen on loopback only (IPv4 and IPv6), never on a network interface."""
     httpd = ThreadingHTTPServer(("127.0.0.1", port), _Handler)
+    threading.Thread(target=_keep_matching, daemon=True).start()
     try:
         httpd6 = _IPv6Server(("::1", port), _Handler)
         threading.Thread(target=httpd6.serve_forever, daemon=True).start()

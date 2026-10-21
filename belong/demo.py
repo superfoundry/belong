@@ -132,6 +132,9 @@ class DemoSession:
         self.lock = threading.Lock()
         self._agent_choice = agent
         self.generation = 0
+        # People who use Belong. through their own AI assistant (the connector). Their matches are
+        # told, because what they write to that person passes through the assistant's provider.
+        self.assistant_slots: set = set()
         self.reset(seed)
 
     def _make_agent(self):
@@ -634,11 +637,14 @@ class DemoSession:
     def _demo_listing_ids(self) -> set:
         return {l.id for st in self.slots.values() for l in st.listings if l.id in self.board}
 
-    def run_matchmaker(self) -> None:
+    def run_matchmaker(self, quiet: bool = False) -> None:
+        """quiet: the background run every few seconds. It only leaves a trace in the presenter's
+        log when it actually sends something (a new introduction or question)."""
         demo_ids = self._demo_listing_ids()
         if not demo_ids:
             raise DemoError("Neither phone has a listing yet.")
-        self.clock.advance(hours=1)
+        events_before, sent_before = len(self.events), (len(self.intros), len(self.outputs["followups"]))
+        self.clock.advance(minutes=10) if quiet else self.clock.advance(hours=1)
         result = self.matcher.match(self.board)
         mine = [p for p in result.proposals if {p.person_a, p.person_b} & demo_ids]
         self.last_proposals = mine
@@ -693,6 +699,9 @@ class DemoSession:
                         payload=[{"to": self._name(intro.person_a), "view": intro.a_view},
                                  {"to": self._name(intro.person_b), "view": intro.b_view}],
                         receipts=receipts, slots=slots)
+        if quiet and (len(self.intros), len(self.outputs["followups"])) == sent_before:
+            del self.events[events_before:]  # nothing new: no trace in the log
+            return
         if not mine and not any(l.followups for st in self.slots.values() for l in st.listings):
             self._event("inside", "No match yet for the demo phones",
                         "Nobody on the board meets their intent and is also looking for them.")
@@ -960,6 +969,7 @@ class DemoSession:
                                    "reactions": [{"emoji": e, "mine": who == mine.id} for who, e in m["reactions"].items()]}
                                   for m in self.threads.get(intro_id, [])]
                 item["simulated"] = self._slot_of(other) is None  # a synthetic person can't reply
+                item["their_assistant"] = self._slot_of(other) in self.assistant_slots
             intros.append(item)
         hidden_keys = []
         if listed:

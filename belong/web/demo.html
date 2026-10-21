@@ -678,7 +678,9 @@ const SCREENS = {
           <button class="why" aria-expanded="${!!L.why}" onclick="local['${slot}'].why=!local['${slot}'].why; renderPhone('${slot}')">Why you matched<span class="chevron" aria-hidden="true"></span></button></div></div>
       ${L.why ? `<div class="why-panel"><p class="reason" style="margin-top:0">${esc(i.view.reason)}</p><div>${tags(facts)}</div>${connectedBlock(slot, i.listing, i)}</div>` : ""}
       <div class="chat-pane thread-pane">
-        <p class="caption tertiary thread-note">You both said yes. Only the two of you can see this conversation.</p>
+        <p class="caption tertiary thread-note">${i.their_assistant
+          ? `You both said yes. ${esc(name)} uses Belong. through their own AI assistant, so what you write to them passes through that assistant's provider.`
+          : "You both said yes. Only the two of you can see this conversation."}</p>
         ${t.map((m, n) => messageRow(slot, i, m, n, t, name, p.name)).join("")}
         ${i.simulated ? `<p class="caption tertiary thread-note">${esc(name)} is simulated in this demo and won't reply.</p>` : ""}</div>
       <div class="composer-bar"><textarea class="textarea" id="msg-${slot}" aria-label="Message to ${esc(name)}" placeholder="Message ${esc(name)}"
@@ -1168,7 +1170,7 @@ function renderRoom() {
     <div class="controls">
       <select class="select" id="scenario" aria-label="Scenario" onchange="scenario=this.value; resetLocal(false); render(['A','B'])">${Object.entries(SCENARIOS).map(([k, s]) => `<option value="${k}" ${k === scenario ? "selected" : ""}>${esc(s.label)}</option>`).join("")}</select>
       <button class="btn secondary sm" ${ffBusy ? "disabled" : ""} ${scenario === "blank" ? 'title="Pick a scenario first"' : ""} onclick="fastForward()">${ffBusy ? "Fast-forwarding…" : "Fast-forward both phones"}</button>
-      <button class="btn sm" onclick="api('match')">Run Matchmaker</button>
+      <button class="btn sm" onclick="api('match')" title="It also runs on its own every few seconds">Run Matchmaker now</button>
       <button class="btn secondary sm" onclick="api('attack')">Simulate a compromised Matchmaker</button>
       <button class="btn ghost sm" onclick="reset()">Reset</button>
     </div>
