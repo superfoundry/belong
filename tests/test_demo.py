@@ -282,6 +282,60 @@ def repair_people(s: DemoSession, close=True, questions=True):
     return a, b
 
 
+def box_people(s: DemoSession):
+    """A seller of boxes and someone looking for free boxes, both opted in to everything."""
+    def person(slot, name, age, fields, intent):
+        s.verify(slot, name, age)
+        lid = s.new_listing(slot, {"acknowledged": True, "notify_close": True, "notify_questions": True})
+        s.submit(slot, {"intent_text": intent, "exactness": 0.6,
+                        "fields": [{"key": k, "value": v, "visibility": SHOWN} for k, v in fields.items()]}, lid)
+        return lid
+    seller = person("A", "Kai", 31, {"first_name": "Kai", "country": "Japan", "city": "Tokyo", "headline": "Selling 100 cardboard boxes",
+                                     "seeking": "a cardboard box buyer", "offering": "a cardboard box seller", "pay": "$1 each",
+                                     "topics": ["cardboard boxes", "moving supplies"]}, "Selling 100 cardboard boxes in Tokyo.")
+    seeker = person("B", "Ren", 52, {"first_name": "Ren", "country": "Japan", "city": "Tokyo", "headline": "Looking for free cardboard boxes",
+                                     "seeking": "a free cardboard box giver", "offering": "a cardboard box recipient", "pay": "Free",
+                                     "topics": ["cardboard boxes", "moving"]}, "Looking for free cardboard boxes in Tokyo.")
+    return seller, seeker
+
+
+class OnePersonAtATime(unittest.TestCase):
+    """Whoever is looking for something is asked first; the other only if they say no."""
+
+    def questions(self, s, slot):
+        return [q["question_text"] for q in s.phone_state(slot)["listings"][0]["followups"]]
+
+    def test_the_seeker_is_asked_first_and_a_yes_makes_the_match(self):
+        s = DemoSession(seed=7, agent=None)
+        seller, seeker = box_people(s)
+        s.run_matchmaker()
+        self.assertEqual(self.questions(s, "B"), ["Someone is selling 100 cardboard boxes. Would that work for you?"])
+        self.assertEqual(self.questions(s, "A"), [])  # the seller isn't asked yet
+        s.answer_followup("B", "also_offer", {"yes": True}, seeker)
+        s.run_matchmaker()
+        self.assertTrue(s.phone_state("A")["listings"][0]["intros"])
+        self.assertEqual(self.questions(s, "A"), [])
+
+    def test_saying_yes_takes_on_their_price(self):
+        s = DemoSession(seed=7, agent=None)
+        seller, seeker = box_people(s)
+        s.run_matchmaker()
+        s.answer_followup("B", "also_offer", {"yes": False}, seeker)  # the seeker won't pay
+        s.run_matchmaker()
+        s.answer_followup("A", "also_offer", {"yes": True}, seller)    # the seller will give them away
+        self.assertEqual(s.board.listing(seller).get("pay").value, "Free")
+        self.assertIn("Free", s.slots["A"].listing(seller).chat[-1]["text"])
+
+    def test_a_no_passes_the_question_to_the_other_person_and_it_isnt_asked_again(self):
+        s = DemoSession(seed=7, agent=None)
+        seller, seeker = box_people(s)
+        s.run_matchmaker()
+        s.answer_followup("B", "also_offer", {"yes": False}, seeker)
+        s.run_matchmaker()
+        self.assertEqual(self.questions(s, "A"), ["Someone is looking for free cardboard boxes. Would that work for you?"])
+        self.assertEqual(self.questions(s, "B"), [])  # not asked again
+
+
 class Notifications(unittest.TestCase):
     def test_the_repairman_is_asked_and_saying_yes_makes_a_match(self):
         s = DemoSession(seed=7, agent=None)

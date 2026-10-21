@@ -83,6 +83,7 @@ class _Listing:
         self.reveal_results = {}  # intro_id -> [{"key", "values"}]
         # Chosen on the privacy screen before the listing starts; both notifications off unless chosen.
         self.prefs = {"acknowledged": False, "notify_close": False, "notify_questions": False}
+        self.asked = set()  # (question_id, about) already answered: never asked again
 
 
 def _current(attr):
@@ -183,6 +184,7 @@ class DemoSession:
         self.slots = {s: _Slot(s) for s in SLOTS}
         self.events = []
         self.intros = {}  # intro_id -> Introduction
+        self.declined = set()  # (listing_id, about): said no to "Would that work for you?" about that listing
         self.intro_reasons = {}  # intro_id -> the reason fields it was made with
         self.threads = {}  # intro_id -> [{"from": listing_id, "text"}]: messages between two connected people
         self.introduced_pairs = set()
@@ -658,6 +660,12 @@ class DemoSession:
             slot, listing = self._owner_of(fu.person_id)
             if slot is None or any(q["question_id"] == fu.question_id for q in listing.followups):
                 continue
+            if (fu.question_id, fu.about) in listing.asked:
+                continue  # answered before: not asked again
+            # One person at a time: the second is asked only after the first said no. (A synthetic
+            # person who'd be asked first declines, as they do in the simulation.)
+            if fu.after and self._slot_of(fu.after) is not None and (fu.after, fu.person_id) not in self.declined:
+                continue
             self._exit_followup(fu, slot, listing)
 
         for p in mine:
@@ -719,7 +727,7 @@ class DemoSession:
         d = out.to_dict()
         self.outputs["followups"].append(d)
         listing.followups.append({"question_id": d["question_id"], "question_text": d["question_text"],
-                                  "offer_add": d["offer_add"], "seek_add": d["seek_add"]})
+                                  "offer_add": d["offer_add"], "seek_add": d["seek_add"], "pay": d["pay"], "about": fu.about})
         self._event("out", f"Question to {name}", "A fixed-menu question, worded by the Warden:",
                     payload={"question": d["question_text"]}, receipts=receipts, slots=[slot])
 
@@ -748,24 +756,25 @@ class DemoSession:
             exactness = 0.3
         question = next(q for q in mine.followups if q["question_id"] == question_id)
         mine.followups = [q for q in mine.followups if q["question_id"] != question_id]
+        mine.asked.add((question_id, question.get("about", "")))
         if question_id == "also_offer" and not answer.get("yes"):
-            return  # nothing changes, and nobody is told
+            self.declined.add((mine.id, question.get("about", "")))  # now the other person may be asked
+            return  # nothing changes for this listing, and nobody is told who said no
         updated = replace(listing, intent_text=text, exactness=exactness, fields=tuple(fields),
                           updated_at=self.clock.now(), version=listing.version + 1)
         if question_id == "also_offer":
-            updated = agent.also_offer(updated, question["offer_add"], self.clock.now(), question["seek_add"])
-            mine.chat.append({"from": "agent", "text": "You said yes, so I've added that to your listing. Check that "
-                                                       "your other details, like price and timing, still fit."})
-        if mine.draft:
-            new = {k: updated.get(k).value for k in ("offering", "seeking") if updated.get(k)}
-            mine.draft = {**mine.draft, "intent_text": text, "exactness": exactness,
-                          "fields": [{**f, "value": new[f["key"]]} if f["key"] in new else f
-                                     for f in mine.draft["fields"]]}
+            old_pay = updated.get("pay").value if updated.get("pay") else None
+            updated = agent.also_offer(updated, question["offer_add"], self.clock.now(), question["seek_add"],
+                                       question.get("pay", ""))
+            new_pay = updated.get("pay").value if updated.get("pay") else None
+            mine.chat.append({"from": "agent", "text": "You said yes, so I've updated your listing to match"
+                              + (f": the price is now {new_pay}." if new_pay and new_pay != old_pay else ".")})
         start = len(self.warden.receipts)
         result = self.warden.admit(st.person, updated, self.board)
         receipts = self._receipts_since(start, slot)
         if result.accepted:
             self._refresh_intros(mine.id)
+            self._sync_draft(mine, updated)  # the profile shows what's now live (a new price included)
         self._event("in" if result.accepted else "blocked", f"{st.name}'s answer updated their listing",
                     "Re-checked by the Warden like any update." if result.accepted else "; ".join(result.problems),
                     receipts=receipts, slots=[slot])

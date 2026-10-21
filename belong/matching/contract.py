@@ -39,6 +39,9 @@ class FollowUp:
     # For "also_offer": the listing the question is about. The Matchmaker names it; the Warden
     # writes the question from that listing's shown phrase, and the recipient is never told who.
     about: str = ""
+    # Ask this only after the listing named here said no to the mirror question (one person is
+    # asked at a time: whoever is looking for something first). "" = ask now.
+    after: str = ""
 
 
 @dataclass

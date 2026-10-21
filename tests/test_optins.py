@@ -162,10 +162,10 @@ class CloseMatches(unittest.TestCase):
 class AuditR5(unittest.TestCase):
     def test_the_audit_catches_questions_and_close_matches_nobody_opted_in_to(self):
         w, board = repair_board(customer_close=False, fixer_questions=False)
-        followups = [{"person_id": "pf", "question_id": "wider_net", "phrase": "", "offer_add": "", "seek_add": "",
+        followups = [{"person_id": "pf", "question_id": "wider_net", "phrase": "", "offer_add": "", "seek_add": "", "pay": "",
                       "question_text": "We haven't found a match yet. Should we cast a wider net?"},
                      {"person_id": "pf", "question_id": "also_offer", "phrase": "looking for an air conditioner repair technician",
-                      "offer_add": "an air conditioner repair technician", "seek_add": "an air conditioner repair customer",
+                      "offer_add": "an air conditioner repair technician", "seek_add": "an air conditioner repair customer", "pay": "",
                       "question_text": "Someone is looking for an air conditioner repair technician. Would that work for you?"}]
         intros = [{"intro_id": "i1", "person_a": "pc", "person_b": "pf", "one_way_to": "pc",
                    "a_view": {"fields": {}, "reason": ""}, "b_view": {"fields": {}, "reason": ""}}]

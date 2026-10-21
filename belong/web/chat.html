@@ -37,7 +37,10 @@
   .phone-toggle { all: unset; cursor: pointer; margin-left: auto; font-size: 13px; color: var(--sys-text-2); padding: 6px 12px;
                   border: 1px solid var(--sys-line-2); border-radius: 999px; }
   .phone-toggle:hover, .phone-toggle[aria-expanded="true"] { color: var(--sys-text); border-color: var(--sys-text-3); }
-  .tester { display: flex; flex-direction: column; background: var(--sf-paper-300); border-left: 1px solid var(--sys-line); min-width: 0; }
+  /* The test phone stays in place while the chat scrolls. */
+  .tester { display: flex; flex-direction: column; background: var(--sf-paper-300); border-left: 1px solid var(--sys-line); min-width: 0;
+            position: fixed; top: 61px; right: 0; bottom: 0; width: 440px; z-index: 5; }
+  html:has(.app.with-phone), html:has(.app.with-phone) body { overflow: hidden; }
   .tester[hidden] { display: none; }
   .tester-head { display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; font-size: 13px; color: #555;
                  font-family: var(--sys-font); }
