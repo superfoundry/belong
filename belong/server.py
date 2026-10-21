@@ -106,7 +106,9 @@ class _Handler(BaseHTTPRequestHandler):
         if path == "/api/chat/state":
             session = chat_session()
             with session.lock:
-                return self._json(200, chat_state(session))
+                # ?full=1: the test phone beside the chat (person B in the same session) needs the
+                # phone-demo state; the chat itself only ever gets person A's.
+                return self._json(200, session.state() if "full=1" in self.path else chat_state(session))
         if path.startswith("/ds/"):
             return self._design_file(path.removeprefix("/ds/"))
         if path.startswith("/api/trust/"):
@@ -181,7 +183,8 @@ class _Handler(BaseHTTPRequestHandler):
             name = path.removeprefix("/api/chat/")
             if name not in CHAT_ACTIONS:
                 return self.send_error(404)
-            session, shape, path = chat_session(), chat_state, "/api/" + name
+            session, path = chat_session(), "/api/" + name
+            shape = (lambda x: x.state()) if "full=1" in self.path else chat_state
         action = ACTIONS.get(path.removeprefix("/api/"))
         if not path.startswith("/api/") or action is None:
             return self.send_error(404)
@@ -195,7 +198,8 @@ class _Handler(BaseHTTPRequestHandler):
         except ValueError:
             return self._json(400, {"error": "Bad request."})
         if session is not SESSION:
-            body["slot"] = "A"  # the chat mockup is one person
+            # The chat is person A; the optional test phone beside it is person B.
+            body["slot"] = body.get("slot") if body.get("slot") in ("A", "B") else "A"
         try:
             if action in UNLOCKED:
                 action(session, body)  # takes the session lock itself, around the slow agent call

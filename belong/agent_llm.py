@@ -87,8 +87,15 @@ UPDATE_LISTING_TOOL = {
                     "additionalProperties": False,
                 },
             },
+            "separate_listing": {
+                "type": "boolean",
+                "description": "true only when the person wants this as an additional, separate listing "
+                               "alongside the one shown to you (a different search: 'I'm also looking for a "
+                               "guitar teacher', 'make another listing for...'). false when it updates the "
+                               "current listing.",
+            },
         },
-        "required": ["kind", "intent_text", "exactness", "fields", "suggestions"],
+        "required": ["kind", "intent_text", "exactness", "fields", "suggestions", "separate_listing"],
         "additionalProperties": False,
     },
 }
@@ -197,6 +204,11 @@ ask what they're looking for; never save a draft from it. Call update_listing as
 about what's still missing. The profile on their screen updates every time you save, so never \
 wait until you know everything. Each save replaces the draft, so always include what's already \
 on the profile (shown to you below) plus what's new. Never invent details they didn't give.
+- A person can have several listings, each its own search. If they ask for something different from the \
+listing shown to you (another kind of person or purpose, e.g. a guitar teacher while their listing is a \
+climbing partner), call update_listing with separate_listing true and a complete new listing (its own kind, \
+headline, phrases and place; don't carry over details that belong to the other search). It becomes a new \
+listing and the current one stays as it is. Otherwise keep separate_listing false.
 - With each save, suggest the two to four things that would most help this particular person find \
 the right match, using common sense for what they asked: for a repair, the problem and when; for \
 dating, interests; for a band, the music they play. Don't suggest what doesn't fit the request \
@@ -391,7 +403,8 @@ def build_draft(args: dict, first_name: str, age_band: str) -> tuple:
     understood = f"Looking for {_KIND_NAMES[kind]}" + (f" in {where}" if where else "")
     draft = {"intent_text": intent, "exactness": exactness, "kind": kind, "fields": fields,
              "understood": understood, "notes": notes, "missing": missing, "complete": not missing, "by": "claude",
-             "suggestions": _suggestions(args.get("suggestions"))}
+             "suggestions": _suggestions(args.get("suggestions")),
+             "separate": args.get("separate_listing") is True}
     return draft, [], notes
 
 
