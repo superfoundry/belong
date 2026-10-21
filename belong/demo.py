@@ -136,6 +136,7 @@ class DemoSession:
         # People who use Belong. through their own AI assistant (the connector). Their matches are
         # told, because what they write to that person passes through the assistant's provider.
         self.assistant_slots: set = set()
+        self.run_inline = False  # tests: run agent work directly instead of on a thread
         self.reset(seed)
 
     def _make_agent(self):
@@ -259,8 +260,9 @@ class DemoSession:
     @staticmethod
     def _sync_draft(mine, listing) -> None:
         """After a save, the draft is exactly what went live (including edits made by hand)."""
-        if not mine.draft:
-            return
+        if not mine.draft:  # a listing made without the agent: start its draft from what's live
+            mine.draft = {"intent_text": "", "exactness": listing.exactness, "kind": None, "fields": [], "understood": "",
+                          "notes": [], "missing": [], "complete": False, "by": "sync"}
         live = {f.key: f for f in listing.fields}
         fields = []
         for f in mine.draft["fields"]:
@@ -767,17 +769,67 @@ class DemoSession:
             updated = agent.also_offer(updated, question["offer_add"], self.clock.now(), question["seek_add"],
                                        question.get("pay", ""))
             new_pay = updated.get("pay").value if updated.get("pay") else None
-            mine.chat.append({"from": "agent", "text": "You said yes, so I've updated your listing to match"
-                              + (f": the price is now {new_pay}." if new_pay and new_pay != old_pay else ".")})
+            note = "You said yes, so I've updated your listing to match" + (
+                f": the price is now {new_pay}." if new_pay and new_pay != old_pay else ".")
+            if self.llm is not None:
+                # The wording has to match too ("Selling..." isn't right once it's free). The agent
+                # rewords it first, and the whole update goes live in one step, before matching sees it.
+                mine.agent_busy = True
+                self._spawn(lambda: self._reword_and_save(slot, mine.id, updated, question["question_text"], note))
+                return
+            mine.chat.append({"from": "agent", "text": note})
+        self._save_answer(st, mine, updated)
+
+    def _spawn(self, fn) -> None:
+        """Run slow agent work off the session lock (tests set run_inline to run it directly)."""
+        if self.run_inline:
+            fn()
+        else:
+            threading.Thread(target=fn, daemon=True).start()
+
+    def _reword_and_save(self, slot: str, listing_id: str, updated, question_text: str, note: str) -> None:
+        """After a yes that changes the terms, the person's agent rewords the headline and description to
+        match what they agreed to; then the whole update is checked by the Warden and goes live."""
+        with self.lock:
+            st, generation, llm = self._slot(slot), self.generation, self.llm
+            mine = st.listing(listing_id)
+            name, band, conversation = st.name, st.person.age_band, mine.agent_conversation
+            self._sync_draft(mine, updated)  # the agent sees the listing as it will be
+            current = copy.deepcopy(mine.draft)
+        ask = (f'Belong. asked me: "{question_text}" and I said yes. Update my listing so its headline and '
+               "description describe what I agreed to now. Keep everything else as it is, and keep "
+               "separate_listing false.")
+        draft = None
+        try:
+            _, draft = llm.respond(conversation, ask, name, band, current)
+        except AgentUnavailable:
+            pass
+        with self.lock:
+            if generation != self.generation or listing_id not in {l.id for l in st.listings}:
+                return
+            mine.agent_busy = False
+            if draft and not draft.get("separate"):
+                words = {f["key"]: f["value"] for f in draft["fields"] if f.get("value")}
+                fields = tuple(replace(f, value=words["headline"]) if f.key == "headline" and words.get("headline") else f
+                               for f in updated.fields)
+                if words.get("headline") and not updated.get("headline"):
+                    fields += (Field("headline", words["headline"], SHOWN, False),)
+                updated = replace(updated, fields=fields, intent_text=draft.get("intent_text") or updated.intent_text)
+                if updated.get("headline"):
+                    note += f" It now reads “{updated.get('headline').value}”."
+            mine.chat.append({"from": "agent", "text": note})
+            self._save_answer(st, mine, updated)
+
+    def _save_answer(self, st, mine, updated) -> None:
         start = len(self.warden.receipts)
         result = self.warden.admit(st.person, updated, self.board)
-        receipts = self._receipts_since(start, slot)
+        receipts = self._receipts_since(start, st.slot)
         if result.accepted:
             self._refresh_intros(mine.id)
             self._sync_draft(mine, updated)  # the profile shows what's now live (a new price included)
         self._event("in" if result.accepted else "blocked", f"{st.name}'s answer updated their listing",
                     "Re-checked by the Warden like any update." if result.accepted else "; ".join(result.problems),
-                    receipts=receipts, slots=[slot])
+                    receipts=receipts, slots=[st.slot])
 
     # -- 5. decisions --------------------------------------------------------------
 
