@@ -177,6 +177,16 @@ const shownOf = l => Object.fromEntries(((l && l.draft) ? l.draft.fields : []).f
 const label = () => `<div class="app-label"><span class="app-icon" aria-hidden="true">B.</span>Belong.</div>`;
 
 // ---- cards (live: they read the current state) ----
+// Introductions and questions you've been shown but haven't answered yet.
+function openActions() {
+  const out = [];
+  for (const l of liveListings()) {
+    for (const q of l.followups) if (L.seen[`q:${l.id}:${q.question_id}`]) out.push({ kind: "question", id: q.question_id, lid: l.id });
+    for (const i of l.intros) if (i.status === "pending" && L.seen[i.intro_id]) out.push({ kind: "intro", id: i.intro_id });
+  }
+  return out;
+}
+const isOpen = c => openActions().some(o => o.kind === c.kind && o.id === c.id);
 const liveListings = () => ME.verified ? ME.listings.filter(l => l.listed) : [];
 function listingCard(l = listing()) {
   if (!l || !l.draft || !(l.draft.intent_text || Object.keys(shownOf(l)).some(k => !["first_name", "age_band"].includes(k)))) return "";
@@ -249,9 +259,15 @@ function render() {
         if (c.kind === "listing" || c.kind === "status") {  // a draft's preview (live ones are shown below)
           const l = listing();
           if (c.latest && l && !l.listed) out.push(listingCard(l));
-        } else out.push(c.kind === "intro" ? introCard(c.id) : c.kind === "question" ? questionCard(c.id, c.lid) : emptyCard());
+        } else if (c.kind === "intro") { if (!isOpen(c)) out.push(introCard(c.id)); }       // still open: shown below the live card
+        else if (c.kind === "question") { if (!isOpen(c)) out.push(questionCard(c.id, c.lid)); }
+        else out.push(emptyCard());
       }
-      if (here) for (const l of live) out.push(listingCard(l));
+      if (here) {
+        for (const l of live) out.push(listingCard(l));
+        // Anything waiting on you stays here, under the live cards, until you answer it.
+        for (const c of openActions()) out.push(c.kind === "intro" ? introCard(c.id) : questionCard(c.id, c.lid));
+      }
     }
     if (t.bot) out.push(`<div class="bot">${esc(t.bot)}</div>`);
     if (t.connect && !ME.verified) out.push(`<div><button class="btn system" onclick="openPopup()">Connect Belong.</button></div>`);
