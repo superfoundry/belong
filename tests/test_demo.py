@@ -325,6 +325,10 @@ class OnePersonAtATime(unittest.TestCase):
         s.answer_followup("A", "also_offer", {"yes": True}, seller)    # the seller will give them away
         self.assertEqual(s.board.listing(seller).get("pay").value, "Free")
         self.assertIn("Free", s.slots["A"].listing(seller).chat[-1]["text"])
+        s.run_matchmaker()
+        # The seeker's earlier question quoted the seller's old listing ($1 each); the audit checks it
+        # against the version live when it was asked, so it still passes.
+        self.assertTrue(s.room_state()["leak_report"]["ok"], s.room_state()["leak_report"]["findings"])
 
     def test_a_no_passes_the_question_to_the_other_person_and_it_isnt_asked_again(self):
         s = DemoSession(seed=7, agent=None)
@@ -334,6 +338,43 @@ class OnePersonAtATime(unittest.TestCase):
         s.run_matchmaker()
         self.assertEqual(self.questions(s, "A"), ["Someone is looking for free cardboard boxes. Would that work for you?"])
         self.assertEqual(self.questions(s, "B"), [])  # not asked again
+
+
+class RewordAfterYes(unittest.TestCase):
+    """A yes that changes the terms: the person's agent rewords the listing, and the whole update goes
+    live before matching sees it, so the other person never sees the old terms."""
+
+    def test_the_new_wording_is_what_the_match_sees(self):
+        from belong.agent_llm import build_draft
+        s = DemoSession(seed=7, agent=None)
+        s.run_inline = True
+        seller, seeker = box_people(s)
+
+        class Agent:  # stands in for the model: it rewords the headline to match the yes
+            def respond(self, conversation, text, name, band, current):
+                conversation.append({"role": "user", "content": text})
+                fields = [{"key": f["key"], "values": f["value"] if isinstance(f["value"], list) else [f["value"]],
+                           "visibility": f["visibility"]} for f in current["fields"]
+                          if f.get("value") and f["key"] not in ("first_name", "age_band", "headline")]
+                fields.append({"key": "headline", "values": ["Giving away 300 cardboard boxes"], "visibility": "shown"})
+                draft, problems, _ = build_draft({"kind": "other", "intent_text": "Giving away cardboard boxes in Tokyo.",
+                                                  "exactness": 0.6, "suggestions": [], "separate_listing": False,
+                                                  "fields": fields}, name, band)
+                assert not problems, problems
+                return "Updated.", draft
+
+        s.llm = Agent()
+        s.run_matchmaker()
+        s.answer_followup("B", "also_offer", {"yes": False}, seeker)
+        s.run_matchmaker()
+        s.answer_followup("A", "also_offer", {"yes": True}, seller)
+        live = s.board.listing(seller)
+        self.assertEqual(live.get("headline").value, "Giving away 300 cardboard boxes")
+        self.assertEqual(live.get("pay").value, "Free")
+        s.run_matchmaker()
+        reasons = [i["view"]["reason"] for i in s.phone_state("B")["listings"][0]["intros"]]
+        self.assertTrue(any("giving away 300 cardboard boxes" in r for r in reasons), reasons)
+        self.assertTrue(s.room_state()["leak_report"]["ok"])
 
 
 class Notifications(unittest.TestCase):

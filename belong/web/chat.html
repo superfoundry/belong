@@ -31,7 +31,7 @@
   html, body { height: 100%; margin: 0; }
   body { background: var(--sys-bg); color: var(--sys-text); font: 16px/1.5 var(--sys-font); }
   button { font: inherit; color: inherit; }
-  .app { display: grid; grid-template-columns: 260px 1fr; height: calc(100vh - 61px); }
+  .app { display: grid; grid-template-columns: 260px 1fr; grid-template-rows: 100%; height: calc(100vh - 61px); overflow: hidden; }
   .app.with-phone { grid-template-columns: 260px 1fr 440px; }
   /* Demo control, outside the mocked app: a phone for person B, to match yourself across chat and phone. */
   .phone-toggle { all: unset; cursor: pointer; margin-left: auto; font-size: 13px; color: var(--sys-text-2); padding: 6px 12px;
@@ -61,10 +61,10 @@
            font-size: 13px; color: var(--sys-text-2); text-align: center; }
   .reset:hover { color: var(--sys-text); border-color: var(--sys-text-3); }
 
-  .main { display: flex; flex-direction: column; min-width: 0; height: 100%; }
+  .main { display: flex; flex-direction: column; min-width: 0; min-height: 0; height: 100%; overflow: hidden; }
   .top { display: flex; align-items: center; gap: 8px; padding: 12px 20px; }
   .model { font-size: 18px; font-weight: 600; }
-  .pane { flex: 1; overflow-y: auto; padding: 24px 20px 12px; }
+  .pane { flex: 1; min-height: 0; overflow-y: auto; padding: 24px 20px 12px; }  /* the chat scrolls inside the window */
   .col { max-width: 720px; margin: 0 auto; display: flex; flex-direction: column; gap: 14px; }
   .me { align-self: flex-end; max-width: 75%; background: var(--sys-raise); padding: 10px 16px; border-radius: 22px; white-space: pre-wrap; }
   .bot { white-space: pre-wrap; }

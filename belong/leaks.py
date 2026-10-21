@@ -186,7 +186,8 @@ def leak_report(board, introductions: list, followups: list, reveals: list, rece
     for fu in followups:
         if fu["question_id"] != "also_offer":
             continue
-        sources = [l for l in listings.values() if l.notify_close and l.owner != getattr(listings.get(fu["person_id"]), "owner", None)
+        # Checked against every version a listing has had: the question quotes the one live when it was sent.
+        sources = [l for l in board.history() if l.notify_close and l.owner != getattr(listings.get(fu["person_id"]), "owner", None)
                    and _shown(l, "seeking") == fu["offer_add"] and _shown(l, "offering") == fu["seek_add"]
                    and (_shown(l, "pay") or "") == fu["pay"]
                    and fu["phrase"] in (_as_quoted(_shown(l, "headline")), f"looking for {_shown(l, 'seeking')}")]

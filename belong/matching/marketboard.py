@@ -16,14 +16,22 @@ class Marketboard:
         # Deleted listings: off the board and never matched, kept aside only so the independent
         # audit can still check what was already sent (see TRUST.md, honest limits).
         self._withdrawn: dict[str, Listing] = {}
+        # Every version each listing has had, so the audit can check an output against the listing
+        # as it was when the output was sent (a question quotes the version live at the time).
+        self._versions: dict[str, list] = {}
 
     def put(self, person: Person, listing: Listing) -> None:
         """Store a listing under its own id (a person may own several)."""
         self._persons[listing.person_id] = person
         self._listings[listing.person_id] = listing
+        self._versions.setdefault(listing.person_id, []).append(listing)
 
     def listing(self, listing_id: str) -> Listing:
         return self._listings[listing_id] if listing_id in self._listings else self._withdrawn[listing_id]
+
+    def history(self) -> list[Listing]:
+        """Every version of every listing ever accepted, deleted ones included (for the audit)."""
+        return [v for k in sorted(self._versions) for v in self._versions[k]]
 
     def withdraw(self, listing_id: str) -> None:
         """Take a listing off the board (only the Warden calls this, when its owner deletes it)."""
