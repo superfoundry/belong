@@ -51,10 +51,11 @@ def answer_followup(p: Persona, listing: Listing, question_id: str, now: str, rn
         p.truth.omit_age = False
     elif question_id == "schedule":
         pass  # schedule is already a field; the person keeps their choice
-    elif question_id == "wider_net":
-        if rng.random() < 0.7:
-            exactness = 0.3
-            p.truth.exactness = 0.3
+    elif question_id == "broaden":
+        if rng.random() < 0.6:  # most say yes: close matches, and with them follow-up questions
+            return replace(listing, notify_close=True, notify_questions=True, updated_at=now,
+                           version=listing.version + 1)
+        return listing
     p.intent_text = text
     return replace(listing, intent_text=text, exactness=exactness, updated_at=now, version=listing.version + 1)
 

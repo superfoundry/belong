@@ -452,8 +452,11 @@ class OfflineMatcher:
         for pid, fu in sorted(also_offer.items()):
             if pid not in has_match and fu.about not in has_match:
                 followups.append(fu)
-        # No "cast a wider net?" question: close matches already look a little wider, for those who
-        # opted in, without asking.
+        # No match yet and close matches off: ask whether to include them (the Warden asks only once).
+        # A yes is also the opt-in to questions. Close matches already look a little wider.
+        for pid in sorted(listings):
+            if not listings[pid].notify_close and pid not in has_match and pid not in also_offer:
+                followups.append(FollowUp(pid, "broaden"))
 
         # Exact matches first; a close match only fills a spare slot, at most one per listing.
         # Close matches are ranked on shown details alone, so a hidden detail never decides which

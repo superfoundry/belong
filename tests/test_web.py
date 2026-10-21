@@ -15,7 +15,7 @@ class Screens(unittest.TestCase):
         opened = set(re.findall(r"""(?:openView|menuGo)\(\s*'\$\{slot\}'\s*,\s*'(\w+)'""", PAGE))
         opened |= set(re.findall(r"""go\(\s*'\$\{slot\}'\s*,\s*'(\w+)'""", PAGE))
         opened |= set(re.findall(r'\[\s*"(\w+)",\s*"(?:Profile|Settings|Receipts)"\s*\]', PAGE))
-        opened |= {"verify", "signedout", "privacy", "belong", "found", "thread", "profile"}
+        opened |= {"verify", "signedout", "belong", "found", "thread", "profile"}
         self.assertTrue(opened)
         self.assertEqual(opened - defined, set(), "screens the page opens but doesn't define")
 

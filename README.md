@@ -18,13 +18,14 @@ synthetic people and plain Python; secure hardware comes in Step 3.
   and a date in another. Each listing has its own profile, agent chat and matches, and
   a person is never matched with their own other listing. (SPEC.md assumes one listing
   per person; this is a deliberate change.)
-- **Your choices first.** Before every listing a full-screen step explains what's shown and
-  hidden, and asks about two opt-in notifications: close matches (one-way: the other person
-  isn't told unless you say yes) and questions ("Someone is looking for an air conditioner
-  repair technician. Could you help with that too?", never saying who). People you've both
-  said yes to appear under **Found.**, where you can message each other.
+- **Asked when it matters.** A new listing starts with exact matches only. If it has no match
+  yet, Belong. asks once: "No matches yet. Want to include close matches?" A yes turns on close
+  matches (one-way: the other person isn't told unless you say yes) and, with them, follow-up
+  questions ("Someone is looking for an air conditioner repair technician. Would that work for
+  you?", never saying who). People you've both said yes to appear under **Found.**, where you
+  can message each other.
 - **Connector (mockup).** `/connector` shows one person using Belong. inside a ChatGPT-style chat
-  app through a connector, in dark mode: connecting, the privacy choices, drafting, going live and
+  app through a connector, in dark mode: connecting, drafting, going live and
   matches, all in the conversation. Saying yes and going live always need the person's own tap.
   It runs on its own demo session, separate from the phones, and isn't affiliated with OpenAI.
   "Test with a phone" opens person B on a phone beside the chat, in the same session, so you

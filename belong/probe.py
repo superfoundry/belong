@@ -251,7 +251,7 @@ def attack_suite(body: dict) -> dict:
     quiet = on_board("optedout", notify_questions=False, notify_close=False)
     keen = on_board("optedin", notify_questions=True, notify_close=True)
     attempt("compromised matchmaker", "Ask a question of someone who opted out of questions",
-            lambda: warden.exit_followup(FollowUp(quiet, "wider_net"), board))
+            lambda: warden.exit_followup(FollowUp(quiet, "age_range"), board))
     attempt("compromised matchmaker", "Send a close match to someone who didn't opt in",
             lambda: warden.exit_introduction(P(person_a=quiet, person_b=b, a_intent_met=False, close=quiet,
                                                reason_fields=_shared_reasons(board, quiet, b)), board))
@@ -273,13 +273,34 @@ def attack_suite(body: dict) -> dict:
     attempt("compromised matchmaker", "Introduce someone to a paused listing",
             lambda: warden.exit_introduction(P(person_a=paused, person_b=b, reason_fields=_shared_reasons(board, paused, b)), board))
     attempt("compromised matchmaker", "Ask a paused listing a question",
-            lambda: warden.exit_followup(FollowUp(paused, "wider_net"), board))
+            lambda: warden.exit_followup(FollowUp(paused, "age_range"), board))
     gone = on_board("deleted", notify_questions=True)
     warden.withdraw(replace(me, id="deleted"), gone, board)
     attempt("compromised matchmaker", "Introduce someone to a deleted listing",
             lambda: warden.exit_introduction(P(person_a=gone, person_b=b, reason_fields=("city",)), board))
     attempt("compromised matchmaker", "Attach another person's listing to an ordinary question",
-            lambda: warden.exit_followup(FollowUp(keen, "wider_net", about=b), board))
+            lambda: warden.exit_followup(FollowUp(keen, "age_range", about=b), board))
+
+    # "Want to include close matches?" needs no opt-in (it is the opt-in), so it has its own limits.
+    def broaden_twice():
+        pid = on_board("unasked", notify_questions=False, notify_close=False)
+        if warden.exit_followup(FollowUp(pid, "broaden"), board) is None:
+            return None  # the first ask must go through
+        return warden.exit_followup(FollowUp(pid, "broaden"), board)
+    attempt("compromised matchmaker", "Ask \"Want to include close matches?\" twice", broaden_twice)
+    attempt("compromised matchmaker", "Ask \"Want to include close matches?\" of someone who already said yes",
+            lambda: warden.exit_followup(FollowUp(keen, "broaden"), board))
+    def broaden_after_match():
+        x = on_board("matched1", notify_questions=False, notify_close=False)
+        y = on_board("matched2", notify_questions=False, notify_close=False)
+        if warden.exit_introduction(P(person_a=x, person_b=y, reason_fields=_shared_reasons(board, x, y)), board) is None:
+            return None  # the introduction must go through
+        return warden.exit_followup(FollowUp(x, "broaden"), board)
+    attempt("compromised matchmaker", "Ask \"Want to include close matches?\" of someone who already has a match",
+            broaden_after_match)
+    attempt("compromised matchmaker", "Attach another person's listing to \"Want to include close matches?\"",
+            lambda: warden.exit_followup(FollowUp(on_board("unasked2", notify_questions=False, notify_close=False),
+                                                  "broaden", about=b), board))
 
     def approach_flood():
         # Limit is 3 a week: the first three get through, the fourth must not.

@@ -314,6 +314,7 @@ class Warden:
         self._decisions: dict[str, dict[str, bool]] = {}
         self._intros: dict[str, Introduction] = {}
         self._next_intro = 0
+        self._broadened: set[str] = set()  # listings already asked whether to include close matches
 
     # -- receipts --------------------------------------------------------------
 
@@ -511,6 +512,8 @@ class Warden:
             return None
         if not self._receipt("listing_active", board.listing(followup.person_id).active, {"p": followup.person_id}):
             return None  # a paused listing gets no questions
+        if followup.question_id == "broaden":
+            return self._exit_broaden(followup, board)
         # Questions from Belong. only reach people who opted in to them.
         if not self._receipt("followup_opted_in", board.listing(followup.person_id).notify_questions,
                              {"p": followup.person_id}):
@@ -540,6 +543,24 @@ class Warden:
         if not self._receipt("no_hidden_values", clean, subject):
             return None
         return FollowUpOut(_SEAL, followup.person_id, "also_offer", phrase, seeking, offering, pay)
+
+    def _exit_broaden(self, followup: FollowUp, board: Marketboard):
+        """"Want to include close matches?" is how a person opts in, so it is the one question that
+        doesn't need the opt-in to questions. Instead: about nobody, only while close matches are
+        off, only to a listing with no match yet, and only ever once per listing."""
+        pid = followup.person_id
+        subject = {"p": pid}
+        if not self._receipt("followup_no_subject", not followup.about, subject):
+            return None
+        if not self._receipt("broaden_still_off", not board.listing(pid).notify_close, subject):
+            return None
+        matched = any(pid in (i.person_a, i.person_b) for i in self._intros.values())
+        if not self._receipt("broaden_no_match_yet", not matched, subject):
+            return None
+        if not self._receipt("broaden_once", pid not in self._broadened, subject):
+            return None
+        self._broadened.add(pid)
+        return FollowUpOut(_SEAL, pid, "broaden")
 
     # -- Decisions and mutual reveal -------------------------------------------
 

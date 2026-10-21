@@ -84,7 +84,9 @@ FIELD_REGISTRY: dict[str, FieldSpec] = {
 FOLLOWUP_MENU: dict[str, str] = {
     "age_range": "What age range are you open to?",
     "schedule": "When are you usually free?",
-    "wider_net": "We haven't found a match yet. Should we cast a wider net?",
+    # The one question that needs no opt-in, because it is the opt-in: asked once, to a listing with
+    # close matches off and no match yet. A yes turns on close matches and follow-up questions.
+    "broaden": "No matches yet. Want to include close matches?",
     # {phrase} is filled in by the Warden, never the Matchmaker: the shown headline of a listing
     # whose person opted in to close matches ("selling 100 cardboard boxes"), or "looking for"
     # plus its shown phrase if it has no headline. It never says who.

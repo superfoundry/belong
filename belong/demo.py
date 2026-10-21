@@ -81,8 +81,8 @@ class _Listing:
         self.intro_ids = []
         self.my_consents = {}  # intro_id -> set(keys)
         self.reveal_results = {}  # intro_id -> [{"key", "values"}]
-        # Chosen on the privacy screen before the listing starts; both notifications off unless chosen.
-        self.prefs = {"acknowledged": False, "notify_close": False, "notify_questions": False}
+        # Both off until the person says yes to "Want to include close matches?" (or uses the gear).
+        self.prefs = {"notify_close": False, "notify_questions": False}
         self.asked = set()  # (question_id, about) already answered: never asked again
 
 
@@ -103,9 +103,6 @@ class _Slot:
         self.listings: list[_Listing] = []
         self.current = None  # id of the listing being edited
         self.receipts = []
-        # Defaults for new listings (Settings). Both notifications off unless chosen; the privacy
-        # step is asked every time unless the person turns that off (after seeing it once).
-        self.defaults = {"notify_close": False, "notify_questions": False, "ask_each_time": True, "acknowledged": False}
 
     def listing(self, listing_id=None) -> _Listing:
         listing_id = listing_id or self.current
@@ -387,23 +384,17 @@ class DemoSession:
     @staticmethod
     def _clean_prefs(prefs) -> dict:
         prefs = prefs if isinstance(prefs, dict) else {}
-        return {k: prefs.get(k) is True for k in ("acknowledged", "notify_close", "notify_questions")}
+        return {k: prefs.get(k) is True for k in ("notify_close", "notify_questions")}
 
-    def new_listing(self, slot: str, prefs=None) -> str:
+    def new_listing(self, slot: str) -> str:
         """Start another listing (e.g. a tutor search alongside dating). It gets its own chat.
-        `prefs` are the person's choices on the privacy screen that comes before every listing."""
+        Close matches and questions start off; Belong. offers them once if no match turns up."""
         st = self._verified(slot)
-        if prefs is None and not st.defaults["ask_each_time"] and st.defaults["acknowledged"]:
-            prefs = {**st.defaults, "acknowledged": True}  # not asked again: the person's defaults
-        prefs = self._clean_prefs(prefs)
-        if prefs["acknowledged"]:
-            st.defaults["acknowledged"] = True
         if len(st.listings) >= MAX_LISTINGS and not any(self._untouched(l) for l in st.listings):
             raise DemoError(f"You can have up to {MAX_LISTINGS} listings.")
         # An untouched draft is reused rather than piling up empty listings.
         empty = next((l for l in st.listings if self._untouched(l)), None)
         if empty is not None:
-            empty.prefs = prefs
             st.current = empty.id
             return empty.id
         listing = _Listing(slot, max((l.n for l in st.listings), default=0) + 1)
@@ -411,7 +402,6 @@ class DemoSession:
                                                   "shared without your OK. Tell me what you're looking for, in your own words."
                          if not st.listings else "What else are you looking for? I'll keep this listing separate "
                                                  "from your others, with its own details."}]
-        listing.prefs = prefs
         st.listings.append(listing)
         st.current = listing.id
         return listing.id
@@ -445,20 +435,11 @@ class DemoSession:
         self._event("in", f"{st.name} deleted a listing", "It's off the board and won't be matched again.",
                     receipts=self._receipts_since(start, slot), slots=[slot])
 
-    def set_defaults(self, slot: str, defaults) -> None:
-        """Settings: the notification choices new listings start with, and whether the privacy
-        step asks each time. Turning off the asking only takes effect once it has been seen."""
-        st = self._verified(slot)
-        defaults = defaults if isinstance(defaults, dict) else {}
-        for k in ("notify_close", "notify_questions", "ask_each_time"):
-            if k in defaults:
-                st.defaults[k] = defaults[k] is True
-
     def set_prefs(self, slot: str, listing_id: str, prefs) -> None:
         """Change a listing's notification choices. A live listing is re-checked with them."""
         st = self._verified(slot)
         mine = st.listing(listing_id)
-        mine.prefs = {**self._clean_prefs(prefs), "acknowledged": True}
+        mine.prefs = self._clean_prefs(prefs)
         if mine.id in self.board:
             current = self.board.listing(mine.id)
             updated = replace(current, notify_close=mine.prefs["notify_close"],
@@ -472,8 +453,15 @@ class DemoSession:
                         f"Close matches {'on' if mine.prefs['notify_close'] else 'off'}, questions "
                         f"{'on' if mine.prefs['notify_questions'] else 'off'}.",
                         receipts=self._receipts_since(start, slot), slots=[slot])
-            if not mine.prefs["notify_questions"]:
-                mine.followups = []
+        self._drop_moot_questions(mine)
+
+    @staticmethod
+    def _drop_moot_questions(mine: _Listing) -> None:
+        """Questions that no longer apply: any, once questions are off; "include close matches?" once
+        they're on. That one question stays while both are off: it's how a person turns them on."""
+        def still_applies(q):
+            return not mine.prefs["notify_close"] if q["question_id"] == "broaden" else mine.prefs["notify_questions"]
+        mine.followups = [q for q in mine.followups if still_applies(q)]
 
     def _untouched(self, listing: _Listing) -> bool:
         return listing.draft is None and listing.id not in self.board and not any(m["from"] == "me" for m in listing.chat)
@@ -541,10 +529,10 @@ class DemoSession:
                 self._rules_reply(st, listing, text)
                 return
             if draft and draft.get("separate") and (listing.id in self.board or listing.draft):
-                # The agent started a separate search: a new listing with the person's defaults. The
-                # current one stays as it was, and the conversation carries on in the new one.
+                # The agent started a separate search: a new listing. The current one stays as it
+                # was, and the conversation carries on in the new one.
                 try:
-                    new = st.listing(self.new_listing(slot, {**st.defaults, "acknowledged": True}))
+                    new = st.listing(self.new_listing(slot))
                 except DemoError as e:
                     listing.chat.append({"from": "agent", "text": f"I couldn't start another listing: {e}"})
                     return
@@ -691,8 +679,8 @@ class DemoSession:
             self.intro_reasons[intro.intro_id] = list(p.reason_fields)
             for _, listing in owners:
                 listing.intro_ids.append(intro.intro_id)
-                # "We haven't found a match yet" no longer applies.
-                listing.followups = [q for q in listing.followups if q["question_id"] != "wider_net"]
+                # "No matches yet" no longer applies.
+                listing.followups = [q for q in listing.followups if q["question_id"] != "broaden"]
             if intro.one_way_to:
                 to_a = intro.one_way_to == intro.person_a
                 self._event("out", f"Close match for {self._name(intro.one_way_to)}",
@@ -754,11 +742,17 @@ class DemoSession:
             sched = answer.get("schedule")
             fields = [f for f in fields if f.key != "schedule"]
             fields.append(Field("schedule", str(sched), SHOWN, False))
-        elif question_id == "wider_net" and answer.get("yes"):
-            exactness = 0.3
         question = next(q for q in mine.followups if q["question_id"] == question_id)
         mine.followups = [q for q in mine.followups if q["question_id"] != question_id]
         mine.asked.add((question_id, question.get("about", "")))
+        if question_id == "broaden":
+            # A yes is the opt-in to both: close matches, and follow-up questions that could find one.
+            if answer.get("yes"):
+                self.set_prefs(slot, mine.id, {"notify_close": True, "notify_questions": True})
+                mine.chat.append({"from": "agent", "text": "You said yes, so you'll hear about close matches too. "
+                                                           "They're one-way: the other person isn't told. Belong. may "
+                                                           "also ask you a short question that could find you a match."})
+            return
         if question_id == "also_offer" and not answer.get("yes"):
             self.declined.add((mine.id, question.get("about", "")))  # now the other person may be asked
             return  # nothing changes for this listing, and nobody is told who said no
@@ -1056,7 +1050,6 @@ class DemoSession:
         return {"slot": slot, "verified": st.person is not None, "name": st.name,
                 "age_band": st.person.age_band if st.person else None,
                 "listings": listings, "current": st.current, "receipts": st.receipts[-60:],
-                "defaults": dict(st.defaults),
                 # The current listing, for clients that show one at a time.
                 "chat": current["chat"], "draft": current["draft"], "entry": current["entry"],
                 "listed": current["listed"], "followups": current["followups"], "agent_busy": current["agent_busy"],

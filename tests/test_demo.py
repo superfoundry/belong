@@ -148,7 +148,7 @@ class InstantProfile(unittest.TestCase):
     def test_an_instant_profile_can_start_matching_before_the_agent_replies(self):
         s = DemoSession(seed=7, agent=None)
         s.verify("A", "Mia", 30)
-        lid = s.new_listing("A", {"acknowledged": True})
+        lid = s.new_listing("A")
         s.prefill("A", "I teach guitar in Osaka, Japan", lid)
         s.submit("A", fill(s.slots["A"].listing(lid).draft), lid)
         self.assertTrue(s.slots["A"].listing(lid).entry["accepted"], s.slots["A"].listing(lid).entry)
@@ -267,26 +267,39 @@ def repair_people(s: DemoSession, close=True, questions=True):
     """A wants an AC technician; B is a repairman who wants repair customers."""
     def person(slot, name, age, prefs, intent, fields):
         s.verify(slot, name, age)
-        lid = s.new_listing(slot, prefs)
+        lid = s.new_listing(slot)
+        s.set_prefs(slot, lid, prefs)
         s.submit(slot, {"intent_text": intent, "exactness": 0.6,
                         "fields": [{"key": k, "value": v, "visibility": SHOWN} for k, v in fields.items()]}, lid)
         return lid
-    a = person("A", "Mia", 30, {"acknowledged": True, "notify_close": close, "notify_questions": True},
+    a = person("A", "Mia", 30, {"notify_close": close, "notify_questions": True},
                "Need my air conditioner fixed in Tokyo this weekend.",
                {"first_name": "Mia", "country": "Japan", "city": "Tokyo", "schedule": "weekends",
                 "seeking": "an air conditioner repair technician", "offering": "an air conditioner repair customer"})
-    b = person("B", "Ken", 42, {"acknowledged": True, "notify_close": False, "notify_questions": questions},
+    b = person("B", "Ken", 42, {"notify_close": False, "notify_questions": questions},
                "I'm a repairman in Tokyo looking for repair jobs.",
                {"first_name": "Ken", "country": "Japan", "city": "Tokyo", "schedule": "flexible",
                 "seeking": "a repair customer", "offering": "a repairman"})
     return a, b
 
 
+def lonely(s: DemoSession) -> str:
+    """Someone nobody on the board is looking for: no match, so they're asked about close matches."""
+    s.verify("A", "Mia", 30)
+    lid = s.new_listing("A")
+    s.submit("A", {"intent_text": "Looking for a theremin teacher in Reykjavik.", "exactness": 0.6,
+                   "fields": [{"key": k, "value": v, "visibility": SHOWN} for k, v in
+                              {"first_name": "Mia", "country": "Iceland", "city": "Reykjavik",
+                               "seeking": "a theremin teacher", "offering": "a theremin student"}.items()]}, lid)
+    return lid
+
+
 def box_people(s: DemoSession):
     """A seller of boxes and someone looking for free boxes, both opted in to everything."""
     def person(slot, name, age, fields, intent):
         s.verify(slot, name, age)
-        lid = s.new_listing(slot, {"acknowledged": True, "notify_close": True, "notify_questions": True})
+        lid = s.new_listing(slot)
+        s.set_prefs(slot, lid, {"notify_close": True, "notify_questions": True})
         s.submit(slot, {"intent_text": intent, "exactness": 0.6,
                         "fields": [{"key": k, "value": v, "visibility": SHOWN} for k, v in fields.items()]}, lid)
         return lid
@@ -418,17 +431,30 @@ class Notifications(unittest.TestCase):
         self.assertEqual(seen_by_b["status"], "connected")  # same introduction, decisions kept
         self.assertTrue(s.room_state()["leak_report"]["ok"])
 
-    def test_defaults_apply_to_new_listings_once_asking_is_off(self):
+    def test_no_match_yet_asks_once_to_include_close_matches(self):
         s = DemoSession(seed=7, agent=None)
-        s.verify("A", "Mia", 30)
-        s.set_defaults("A", {"notify_questions": True, "ask_each_time": False})
-        first = s.new_listing("A")  # never seen the privacy step: nothing assumed
-        self.assertEqual(s.phone_state("A")["listings"][0]["prefs"]["notify_questions"], False)
-        s.new_listing("A", {"acknowledged": True, "notify_questions": False})  # seen it once
-        s.agent_message("A", "Looking for a roommate in Osaka.", first)
-        second = s.new_listing("A")
-        prefs = {l["id"]: l["prefs"] for l in s.phone_state("A")["listings"]}[second]
-        self.assertEqual((prefs["notify_questions"], prefs["notify_close"]), (True, False))
+        lid = lonely(s)
+        s.run_matchmaker()
+        q = s.phone_state("A")["listings"][0]["followups"]
+        self.assertEqual([x["question_text"] for x in q], ["No matches yet. Want to include close matches?"])
+        s.answer_followup("A", "broaden", {"yes": True}, lid)
+        # A yes is the opt-in to both: close matches, and follow-up questions that could find one.
+        self.assertEqual(s.phone_state("A")["listings"][0]["prefs"], {"notify_close": True, "notify_questions": True})
+        self.assertTrue(s.board.listing(lid).notify_close and s.board.listing(lid).notify_questions)
+        s.set_prefs("A", lid, {"notify_close": False, "notify_questions": False})  # turned off again later
+        s.run_matchmaker()
+        self.assertEqual(s.phone_state("A")["listings"][0]["followups"], [])  # never asked twice
+        self.assertTrue(s.room_state()["leak_report"]["ok"])
+
+    def test_a_no_keeps_exact_matches_only_and_isnt_asked_again(self):
+        s = DemoSession(seed=7, agent=None)
+        lid = lonely(s)
+        s.run_matchmaker()
+        s.answer_followup("A", "broaden", {"yes": False}, lid)
+        self.assertEqual(s.phone_state("A")["listings"][0]["prefs"], {"notify_close": False, "notify_questions": False})
+        s.run_matchmaker()
+        self.assertEqual(s.phone_state("A")["listings"][0]["followups"], [])
+        self.assertTrue(s.room_state()["leak_report"]["ok"])
 
     def test_a_paused_listing_gets_no_new_matches(self):
         s = DemoSession(seed=7, agent=None)
@@ -457,8 +483,7 @@ class Notifications(unittest.TestCase):
         s = DemoSession(seed=7, agent=None)
         s.verify("A", "Mia", 30)
         lid = s.new_listing("A")
-        self.assertEqual(s.phone_state("A")["listings"][0]["prefs"],
-                         {"acknowledged": False, "notify_close": False, "notify_questions": False})
+        self.assertEqual(s.phone_state("A")["listings"][0]["prefs"], {"notify_close": False, "notify_questions": False})
         s.set_prefs("A", lid, {"notify_close": True})
         self.assertTrue(s.phone_state("A")["listings"][0]["prefs"]["notify_close"])
 

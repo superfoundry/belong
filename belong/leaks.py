@@ -23,7 +23,9 @@ Audits:
   R2  only counts in a crowd  every hidden field used had a shared value >= k people
   R3  approach limit          no listing introduced more than the weekly limit
   R4  distinct people         no one is introduced to their own other listing
-  R5  opt-ins                 follow-ups only to listings that opted in to questions;
+  R5  opt-ins                 follow-ups only to listings that opted in to questions,
+                              except "include close matches?" (the opt-in itself): at most
+                              once per listing, and only to one that had close matches off;
                               close matches only to listings that opted in to them, and
                               each one names one of its two people as its one recipient
 """
@@ -178,9 +180,16 @@ def leak_report(board, introductions: list, followups: list, reveals: list, rece
             find("R4", f"{intro['intro_id']}: two listings of the same person were introduced")
 
     # R5: notification opt-ins
+    broadened = {}
     for fu in followups:
         l = listings.get(fu["person_id"])
-        if l is not None and not l.notify_questions:
+        if fu["question_id"] == "broaden":
+            # The opt-in question itself: once, and only while close matches were off.
+            broadened[fu["person_id"]] = broadened.get(fu["person_id"], 0) + 1
+            was_off = any(v.person_id == fu["person_id"] and not v.notify_close for v in board.history())
+            if broadened[fu["person_id"]] > 1 or not was_off:
+                find("R5", f"'include close matches?' sent to {fu['person_id']} again, or with close matches on")
+        elif l is not None and not l.notify_questions:
             find("R5", f"follow-up sent to {fu['person_id']}, who didn't opt in to questions")
     # An "also offer" question quotes the shown phrase of someone who opted in to close matches.
     for fu in followups:
