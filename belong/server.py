@@ -48,7 +48,7 @@ SESSION = DemoSession()
 # touches the two phones. Made on first use.
 _CHAT = None
 CHAT_ACTIONS = {"reset", "verify", "new_listing", "open_listing", "prefill", "agent", "submit", "match", "answer", "set_active", "delete_listing",
-                "decide", "set_prefs", "set_defaults", "message", "react", "update_profile"}
+                "decide", "set_prefs", "message", "react", "update_profile"}
 
 
 def chat_session() -> DemoSession:
@@ -66,9 +66,8 @@ def chat_state(session: DemoSession) -> dict:
 ACTIONS = {
     "reset": lambda s, b: s.reset(),
     "verify": lambda s, b: s.verify(b.get("slot"), b.get("name"), b.get("age")),
-    "new_listing": lambda s, b: s.new_listing(b.get("slot"), b.get("prefs")),
+    "new_listing": lambda s, b: s.new_listing(b.get("slot")),
     "update_profile": lambda s, b: s.update_profile(b.get("slot"), b.get("name")),
-    "set_defaults": lambda s, b: s.set_defaults(b.get("slot"), b.get("defaults")),
     "delete_listing": lambda s, b: s.delete_listing(b.get("slot"), b.get("listing_id")),
     "set_active": lambda s, b: s.set_active(b.get("slot"), b.get("listing_id"), b.get("active")),
     "set_prefs": lambda s, b: s.set_prefs(b.get("slot"), b.get("listing_id"), b.get("prefs")),

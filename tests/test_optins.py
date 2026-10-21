@@ -1,6 +1,7 @@
 """Notification choices (SPEC §5 follow-ups; Belong.'s close matches): questions only for people
 who opted in, close matches only one-way to people who opted in, and an "also offer" question
-quotes only a shown phrase of someone who opted in, without saying who."""
+quotes only a shown phrase of someone who opted in, without saying who. The one question asked
+without an opt-in is the opt-in itself ("Want to include close matches?"): once, with no match yet."""
 from __future__ import annotations
 
 import unittest
@@ -159,11 +160,67 @@ class CloseMatches(unittest.TestCase):
         self.assertIsNone(w.exit_introduction(self.proposal(), board))
 
 
+def lonely_board(**prefs):
+    """One listing nobody on the board is looking for."""
+    w, board = warden(), Marketboard()
+    l = replace(listing("pl", "Looking for a theremin teacher in Reykjavik.", [
+        fld("first_name", "Mia"), fld("country", "Iceland"), fld("city", "Reykjavik"),
+        fld("seeking", "a theremin teacher"), fld("offering", "a theremin student")]), **prefs)
+    assert w.admit(person("pl"), l, board).accepted
+    return w, board
+
+
+class IncludeCloseMatches(unittest.TestCase):
+    def test_no_match_yet_gets_asked_once(self):
+        w, board = lonely_board()
+        q = [f for f in OfflineMatcher().match(board).followups if f.question_id == "broaden"]
+        self.assertEqual([f.person_id for f in q], ["pl"])
+        out = w.exit_followup(q[0], board)
+        self.assertEqual(out.question_text, "No matches yet. Want to include close matches?")
+        self.assertIsNone(w.exit_followup(q[0], board))  # only ever once
+        self.assertEqual(w.receipts[-1].check, "broaden_once")
+
+    def test_not_asked_once_close_matches_are_on(self):
+        w, board = lonely_board(notify_close=True, notify_questions=True)
+        self.assertFalse([f for f in OfflineMatcher().match(board).followups if f.question_id == "broaden"])
+        self.assertIsNone(w.exit_followup(FollowUp("pl", "broaden"), board))
+
+    def test_not_asked_with_a_match(self):
+        w, board = repair_board(customer_close=False, fixer_questions=False)
+        intro = w.exit_introduction(Proposal("pc", "pf", True, True, 1.0, 1.0, 0.1, ("city",), ()), board)
+        self.assertIsNotNone(intro)
+        self.assertIsNone(w.exit_followup(FollowUp("pf", "broaden"), board))
+        self.assertEqual(w.receipts[-1].check, "broaden_no_match_yet")
+
+    def test_it_never_carries_another_listing(self):
+        w, board = repair_board(customer_close=False, fixer_questions=False)
+        self.assertIsNone(w.exit_followup(FollowUp("pf", "broaden", about="pc"), board))
+
+    def test_other_questions_still_need_the_opt_in(self):
+        w, board = lonely_board()
+        self.assertIsNone(w.exit_followup(FollowUp("pl", "age_range"), board))
+        self.assertEqual(w.receipts[-1].check, "followup_opted_in")
+
+
 class AuditR5(unittest.TestCase):
+    BROADEN = {"person_id": "pf", "question_id": "broaden", "phrase": "", "offer_add": "", "seek_add": "", "pay": "",
+               "question_text": "No matches yet. Want to include close matches?"}
+
+    def test_the_audit_allows_one_include_close_matches_question(self):
+        w, board = repair_board(customer_close=False, fixer_questions=False)
+        report = leak_report(board, [], [self.BROADEN], [], [], [], set(), {}, 20, 3)
+        self.assertTrue(report["ok"], report["findings"])
+
+    def test_the_audit_catches_it_asked_twice_or_with_close_matches_on(self):
+        w, board = repair_board(customer_close=True, fixer_questions=False)
+        followups = [self.BROADEN, self.BROADEN, {**self.BROADEN, "person_id": "pc"}]
+        r5 = [f for f in leak_report(board, [], followups, [], [], [], set(), {}, 20, 3)["findings"] if f["audit"] == "R5"]
+        self.assertEqual(len(r5), 2, r5)  # the second to pf; the one to pc, whose close matches were on
+
     def test_the_audit_catches_questions_and_close_matches_nobody_opted_in_to(self):
         w, board = repair_board(customer_close=False, fixer_questions=False)
-        followups = [{"person_id": "pf", "question_id": "wider_net", "phrase": "", "offer_add": "", "seek_add": "", "pay": "",
-                      "question_text": "We haven't found a match yet. Should we cast a wider net?"},
+        followups = [{"person_id": "pf", "question_id": "age_range", "phrase": "", "offer_add": "", "seek_add": "", "pay": "",
+                      "question_text": "What age range are you open to?"},
                      {"person_id": "pf", "question_id": "also_offer", "phrase": "looking for an air conditioner repair technician",
                       "offer_add": "an air conditioner repair technician", "seek_add": "an air conditioner repair customer", "pay": "",
                       "question_text": "Someone is looking for an air conditioner repair technician. Would that work for you?"}]

@@ -49,7 +49,9 @@ and tested) before changing code.
   punctuation: rephrase ("the people who run Belong.", "us").
 - The phone has two tabs, **Belong.** (your listings, each with its matches) and **Found.**
   (people you've both said yes to, and your chat with each). Profile, settings, receipts and
-  log out live in the top menu. Every new listing starts with the full-screen privacy step.
+  log out live in the top menu. By the user's choice there is no privacy step before a new listing:
+  when a listing has no match yet, Belong. asks once whether to include close matches, and a yes
+  also turns on follow-up questions.
 
 - "The locked room" is an internal metaphor only. Never show it to users: no "room" in
   page copy, agent messages, API responses, published (open-source) files or TRUST.md.
