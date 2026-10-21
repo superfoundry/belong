@@ -316,6 +316,18 @@ class Notifications(unittest.TestCase):
         s.run_matchmaker()
         self.assertTrue(s.phone_state("A")["listings"][0]["intros"])
 
+    def test_a_deleted_listing_is_never_matched_again(self):
+        s = DemoSession(seed=7, agent=None)
+        climbers(s)
+        s.run_matchmaker()
+        s.delete_listing("A", "demoA-1")
+        self.assertEqual(s.phone_state("A")["listings"], [])
+        self.assertNotIn("demoA-1", s.board)
+        before = len(s.intros)
+        s.run_matchmaker()
+        self.assertFalse([i for i in list(s.intros.values())[before:] if "demoA-1" in (i.person_a, i.person_b)])
+        self.assertTrue(s.room_state()["leak_report"]["ok"])  # what was already sent is still audited
+
     def test_choices_are_on_the_listing_and_off_by_default(self):
         s = DemoSession(seed=7, agent=None)
         s.verify("A", "Mia", 30)

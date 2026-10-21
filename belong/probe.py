@@ -274,6 +274,10 @@ def attack_suite(body: dict) -> dict:
             lambda: warden.exit_introduction(P(person_a=paused, person_b=b, reason_fields=_shared_reasons(board, paused, b)), board))
     attempt("compromised matchmaker", "Ask a paused listing a question",
             lambda: warden.exit_followup(FollowUp(paused, "wider_net"), board))
+    gone = on_board("deleted", notify_questions=True)
+    warden.withdraw(replace(me, id="deleted"), gone, board)
+    attempt("compromised matchmaker", "Introduce someone to a deleted listing",
+            lambda: warden.exit_introduction(P(person_a=gone, person_b=b, reason_fields=("city",)), board))
     attempt("compromised matchmaker", "Attach another person's listing to an ordinary question",
             lambda: warden.exit_followup(FollowUp(keen, "wider_net", about=b), board))
 

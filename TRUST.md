@@ -127,6 +127,7 @@ that nothing published relies on unpublished code.
 | 27 | **Close matches are one-way.** A person who opted in may hear about someone who fully meets that person's own criteria but is only nearly what they asked for. The other person isn't told: the Warden refuses their answer until the recipient has said yes, and their phone shows nothing until then. Close matches are ranked on shown details only, and never take a slot from an exact match. | Warden's `proposal_mutual` (other side must be met), `close_match_opted_in`, and `record_decision` (one-way order); `Introduction.one_way_to`; `OfflineMatcher.match` ranking; `_listing_state` in [demo.py](belong/demo.py) | `test_a_close_match_goes_one_way`, `test_only_for_someone_who_opted_in`, `test_close_matches_go_one_way_to_people_who_opted_in`, attack suite: "Send a close match to someone who didn't opt in", "Show a close match to the other person before the recipient says yes"; audit R5 |
 | 28 | **Messages only between two people who both said yes**, delivered only to them, never read by matching, and never logged: the presenter panel shows that a message was sent, not what it says. Reactions are one of a fixed few, on that same conversation only. | `DemoSession.send_message` (requires the Warden's `is_connected`); threads are kept outside the Marketboard | `test_no_messages_until_both_say_yes`, `test_messages_reach_only_the_two_people_and_never_matching`, `test_only_a_few_reactions_and_only_between_connected_people` |
 | 29 | **A paused listing isn't matched.** The person can switch a listing off (the gear on it): it gets no new introductions or questions until they switch it back on. Existing matches and chats stay. | `Listing.active`; `OfflineMatcher.match` skips paused listings; Warden's `listings_active` and `listing_active` checks | `test_a_paused_listing_gets_no_new_matches`; attack suite: "Introduce someone to a paused listing", "Ask a paused listing a question" |
+| 30 | **A deleted listing is never matched again.** Deleting takes it off the Marketboard through the Warden, which checks the person owns it and writes a receipt. | `Warden.withdraw` (`listing_withdrawn`), `Marketboard.withdraw`; `DemoSession.delete_listing` | `test_a_deleted_listing_is_never_matched_again`; attack suite: "Introduce someone to a deleted listing" |
 
 ### Testing Belong. with your own agent
 
@@ -138,7 +139,7 @@ test a sandbox that runs the same Warden and Matchmaker:
   was sent out. Canaries never consent to a reveal, so any hit is a leak. Agents can
   bring their own listings and secrets.
   `test_canary_test_catches_a_sabotaged_warden` proves the test detects a real leak.
-- **Attack suite** (`POST /api/probe/attacks`): 30 attempts to get bad data in or
+- **Attack suite** (`POST /api/probe/attacks`): 31 attempts to get bad data in or
   private data out. Each result names the rule that stopped it. Agents can add their
   own intents.
 
@@ -230,6 +231,9 @@ here so nobody mistakes the prototype for the finished service.
 13. **Messages are held by the demo server in memory.** Matching never reads them, but the
     service could. Before real people use it, messages need end-to-end encryption between the
     two phones, so only the two of them can read them.
+15. **A deleted listing is kept aside in this prototype.** It's off the board and never matched,
+    but a copy stays so the independent audit can still check what was already sent. A real
+    service needs a deletion policy: what is erased, when, and what an auditor may keep.
 14. **A close match or an "also offer" question tells someone a little.** A close match shows the
     recipient the other person's shown details before that person has chosen them, which is why
     it needs the other person's criteria to be fully met and is one-way. An "also offer" question

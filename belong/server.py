@@ -46,7 +46,7 @@ SESSION = DemoSession()
 # The chat mockup's own session: one person, matched against the synthetic people, so it never
 # touches the two phones. Made on first use.
 _CHAT = None
-CHAT_ACTIONS = {"reset", "verify", "new_listing", "open_listing", "prefill", "agent", "submit", "match", "answer", "set_active",
+CHAT_ACTIONS = {"reset", "verify", "new_listing", "open_listing", "prefill", "agent", "submit", "match", "answer", "set_active", "delete_listing",
                 "decide", "set_prefs", "set_defaults", "message", "react", "update_profile"}
 
 
@@ -67,6 +67,7 @@ ACTIONS = {
     "new_listing": lambda s, b: s.new_listing(b.get("slot"), b.get("prefs")),
     "update_profile": lambda s, b: s.update_profile(b.get("slot"), b.get("name")),
     "set_defaults": lambda s, b: s.set_defaults(b.get("slot"), b.get("defaults")),
+    "delete_listing": lambda s, b: s.delete_listing(b.get("slot"), b.get("listing_id")),
     "set_active": lambda s, b: s.set_active(b.get("slot"), b.get("listing_id"), b.get("active")),
     "set_prefs": lambda s, b: s.set_prefs(b.get("slot"), b.get("listing_id"), b.get("prefs")),
     "message": lambda s, b: s.send_message(b.get("slot"), b.get("intro_id"), b.get("text")),

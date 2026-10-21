@@ -13,6 +13,9 @@ class Marketboard:
     def __init__(self):
         self._persons: dict[str, Person] = {}
         self._listings: dict[str, Listing] = {}
+        # Deleted listings: off the board and never matched, kept aside only so the independent
+        # audit can still check what was already sent (see TRUST.md, honest limits).
+        self._withdrawn: dict[str, Listing] = {}
 
     def put(self, person: Person, listing: Listing) -> None:
         """Store a listing under its own id (a person may own several)."""
@@ -20,14 +23,19 @@ class Marketboard:
         self._listings[listing.person_id] = listing
 
     def listing(self, listing_id: str) -> Listing:
-        return self._listings[listing_id]
+        return self._listings[listing_id] if listing_id in self._listings else self._withdrawn[listing_id]
+
+    def withdraw(self, listing_id: str) -> None:
+        """Take a listing off the board (only the Warden calls this, when its owner deletes it)."""
+        self._withdrawn[listing_id] = self._listings.pop(listing_id)
 
     def person(self, listing_id: str) -> Person:
         """The verified person who owns the listing."""
         return self._persons[listing_id]
 
-    def listings(self) -> list[Listing]:
-        return [self._listings[k] for k in sorted(self._listings)]
+    def listings(self, include_withdrawn: bool = False) -> list[Listing]:
+        everything = {**self._withdrawn, **self._listings} if include_withdrawn else self._listings
+        return [everything[k] for k in sorted(everything)]
 
     def __contains__(self, listing_id: str) -> bool:
         return listing_id in self._listings
