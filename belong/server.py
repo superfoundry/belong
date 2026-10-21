@@ -2,7 +2,7 @@
 
   /, /demo                  two-person demo (belong/web/demo.html)
   /welcome                  landing page (belong/web/landing.html)
-  /chat                     mockup: one person using Belong. inside a ChatGPT-style chat, through a connector
+  /connector (and /chat)    mockup: one person using Belong. inside a ChatGPT-style chat, through a connector
                             (belong/web/chat.html), on its own demo session
   /trust                    trust page (belong/web/trust.html)
   /inspector                batch-run inspector (belong/web/index.html + out/run.json)
@@ -33,6 +33,7 @@ FILES = {
     "/": (WEB / "demo.html", "text/html; charset=utf-8"),
     "/demo": (WEB / "demo.html", "text/html; charset=utf-8"),
     "/welcome": (WEB / "landing.html", "text/html; charset=utf-8"),
+    "/connector": (WEB / "chat.html", "text/html; charset=utf-8"),
     "/chat": (WEB / "chat.html", "text/html; charset=utf-8"),
     "/trust": (WEB / "trust.html", "text/html; charset=utf-8"),
     "/trust/TRUST.md": (ROOT / "TRUST.md", "text/plain; charset=utf-8"),
