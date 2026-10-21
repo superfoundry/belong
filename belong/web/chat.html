@@ -73,6 +73,16 @@
   .card .quote { margin: 12px 0 0; padding: 0 0 0 12px; border-left: 2px solid var(--sys-line-2); color: var(--sys-text-2); font-size: 14px; }
   .card .actions { display: flex; gap: 8px; margin-top: 16px; }
   .card .status { border-top: 1px solid var(--sys-line); margin-top: 14px; padding-top: 14px; }
+  /* Fullscreen display mode, for the listing's settings */
+  .full { position: fixed; inset: 61px 0 0 0; z-index: 9; background: var(--sys-bg); display: flex; flex-direction: column; }
+  .full-head { display: flex; align-items: center; gap: 12px; padding: 14px 20px; border-bottom: 1px solid var(--sys-line); }
+  .full-body { width: min(560px, 100%); margin: 24px auto; padding: 0 20px; }
+  .srow { display: flex; align-items: center; justify-content: space-between; padding: 14px 0; border-bottom: 1px solid var(--sys-line); cursor: pointer; }
+  .sw { appearance: none; width: 42px; height: 24px; border-radius: 999px; background: var(--sys-line-2); position: relative; cursor: pointer; margin: 0;
+        transition: background .15s; }
+  .sw::after { content: ""; position: absolute; top: 3px; left: 3px; width: 18px; height: 18px; border-radius: 50%; background: var(--sys-text); transition: transform .15s; }
+  .sw:checked { background: var(--sys-text); } .sw:checked::after { transform: translateX(18px); background: var(--sys-bg); }
+  .btn.danger { margin-top: 24px; color: #ff8a80; border-color: rgba(255, 138, 128, .4); }
   .card .status .actions { margin-top: 12px; }
   .badge { display: inline-block; font-size: 12px; font-weight: 600; padding: 2px 8px; border-radius: 999px; margin-left: 8px; vertical-align: 2px;
            background: var(--brand); color: var(--brand-ink); }
@@ -167,18 +177,20 @@ const shownOf = l => Object.fromEntries(((l && l.draft) ? l.draft.fields : []).f
 const label = () => `<div class="app-label"><span class="app-icon" aria-hidden="true">B.</span>Belong.</div>`;
 
 // ---- cards (live: they read the current state) ----
-function listingCard() {
-  const l = listing();
+const liveListings = () => ME.verified ? ME.listings.filter(l => l.listed) : [];
+function listingCard(l = listing()) {
   if (!l || !l.draft || !(l.draft.intent_text || Object.keys(shownOf(l)).some(k => !["first_name", "age_band"].includes(k)))) return "";
-  const s = shownOf(l), live = l.listed && !l.unsaved;
+  const s = shownOf(l), live = l.listed && !l.unsaved, paused = l.listed && l.active === false;
   // The same rule as the phone: who you're looking for, and where, before it can go live.
   const ready = !!(s.seeking || (l.draft.kind === "dating" && l.draft.intent_text)) && !!(s.city || s.country);
   const meta = [["Where", [s.city, s.country].filter(Boolean).join(", ")], ["When", s.schedule], ["Pay", s.pay], ["Format", s.format], ["Level", s.level]]
     .filter(([, v]) => v);
-  return `<div class="card"><p class="title">${esc(cap(s.headline || l.title))}${live ? '<span class="badge">Live</span>' : '<span class="badge plain">Draft</span>'}</p>
+  const badge = paused ? '<span class="badge plain">Paused</span>' : live ? '<span class="badge">Live</span>' : '<span class="badge plain">Draft</span>';
+  return `<div class="card"><p class="title">${esc(cap(s.headline || l.title))}${badge}</p>
     <p class="sub">Shown to people you're introduced to. Hidden details are never shown.</p>
     ${meta.length ? `<dl class="meta">${meta.map(([k, v]) => `<dt>${k}</dt><dd>${esc(val(v))}</dd>`).join("")}</dl>` : ""}
-    ${live ? matchingStatus(l) : ready ? `<div class="actions"><button class="btn primary" onclick="ask('start_matching')">${l.listed ? "Save changes" : "Start matching"}</button></div>`
+    ${live ? matchingStatus(l) : ready ? `<div class="actions"><button class="btn primary" onclick="ask('start_matching','${l.id}')">${l.listed ? "Save changes" : "Start matching"}</button>
+        ${l.listed ? `<button class="btn secondary" onclick="openSettings('${l.id}')">Settings</button>` : ""}</div>`
       : `<p class="sub" style="margin-top: 12px">Tell me who you're looking for and where, and you can start matching.</p>`}</div>`;
 }
 function introCard(id) {
@@ -208,38 +220,53 @@ function matchingStatus(l) {
   const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
   const parts = [exact && plural(exact, "new introduction", "new introductions"), close && plural(close, "close match", "close matches"),
                  questions && plural(questions, "follow-up question", "follow-up questions")].filter(Boolean);
+  const settings = `<button class="btn secondary" onclick="openSettings('${l.id}')">Settings</button>`;
+  if (l.active === false) {
+    return `<div class="status"><p class="sub" style="margin:0">Paused: not matching until you switch it back on.</p><div class="actions">${settings}</div></div>`;
+  }
   if (parts.length) {
     return `<div class="status"><p class="title" style="margin:0">${parts.join(" · ")}<span class="badge">New</span></p>
-      <div class="actions"><button class="btn primary" onclick="showNew()">Show them</button></div></div>`;
+      <div class="actions"><button class="btn primary" onclick="showNew('${l.id}')">Show them</button>${settings}</div></div>`;
   }
   return `<div class="status"><p class="sub" style="margin:0">Matching: Belong. is looking for people who are also looking for you.</p>
-    <p class="sub" style="margin-top: 8px; font-size: 12px">Mockup: updates while this chat is open. Real ChatGPT may only allow this while the chat is on screen.</p></div>`;
+    <p class="sub" style="margin-top: 8px; font-size: 12px">Mockup: updates while this chat is open. Real ChatGPT may only allow this while the chat is on screen.</p>
+    <div class="actions">${settings}</div></div>`;
 }
 function emptyCard() { return `<div class="card"><p class="title">No introductions yet</p><p class="sub">Belong. matches in private. Nobody, including ChatGPT, sees the other listings.</p></div>`; }
 
 // ---- rendering ----
 function render() {
   if (!ME) return;
-  const out = [];
-  for (const t of L.log) {
+  const out = [], live = liveListings();
+  // Live listing cards always sit in the latest reply (one per live listing), above its text.
+  let lastReply = -1; L.log.forEach((t, n) => { if (t.bot || t.app) lastReply = n; });
+  L.log.forEach((t, n) => {
     if (t.me) out.push(`<div class="me">${esc(t.me)}</div>`);
-    if (t.app) {
+    const here = n === lastReply && live.length;
+    if (t.app || here) {
       out.push(label());
-      for (const c of t.cards || []) out.push(c.kind === "listing" ? (c.latest ? listingCard() : "") : c.kind === "status" ? (c.latest ? listingCard() : "") :
-        c.kind === "intro" ? introCard(c.id) : c.kind === "question" ? questionCard(c.id, c.lid) : emptyCard());
+      for (const c of t.cards || []) {
+        if (c.kind === "listing" || c.kind === "status") {  // a draft's preview (live ones are shown below)
+          const l = listing();
+          if (c.latest && l && !l.listed) out.push(listingCard(l));
+        } else out.push(c.kind === "intro" ? introCard(c.id) : c.kind === "question" ? questionCard(c.id, c.lid) : emptyCard());
+      }
+      if (here) for (const l of live) out.push(listingCard(l));
     }
     if (t.bot) out.push(`<div class="bot">${esc(t.bot)}</div>`);
     if (t.connect && !ME.verified) out.push(`<div><button class="btn system" onclick="openPopup()">Connect Belong.</button></div>`);
-  }
+  });
   if (!L.log.length) out.push(`<div class="bot">What can I help with?</div>`);
   if (L.sending) out.push(`<div class="typing" aria-label="Thinking"><span></span><span></span><span></span></div>`);
   const pane = $("pane"), atEnd = pane.scrollHeight - pane.scrollTop - pane.clientHeight < 120;
   $("col").innerHTML = out.join("");
   if (atEnd || L.jump) { pane.scrollTop = pane.scrollHeight; L.jump = false; }
   $("send").disabled = L.sending;
-  $("side").innerHTML = `<button class="item">New chat</button>
+  const mine = ME.verified ? ME.listings.filter(l => l.listed || l.chat.some(m => m.from === "me")) : [];
+  $("side").innerHTML = `<button class="item" onclick="newChat()">New chat</button>
     <p class="side-label">Apps</p><div class="item">${ME.verified ? "Belong. · connected" : '<span class="muted">Belong. · not connected</span>'}</div>
-    <p class="side-label">Chats</p><div class="item on">Belong. listing</div><div class="item muted">Weekend trip ideas</div><div class="item muted">Fix my CV</div>
+    <p class="side-label">Chats</p>${mine.map(l => `<div class="item${l.id === (listing() || {}).id ? " on" : ""}">${esc(cap(l.title))}</div>`).join("")}
+    <div class="item muted">Weekend trip ideas</div><div class="item muted">Fix my CV</div>
     <p class="side-note">A mockup of Belong. as an app in ChatGPT, following OpenAI's Apps SDK UI guidelines. <a href="/demo">Phone demo</a> · <a href="/trust">Trust</a></p>
     <button class="reset" onclick="resetDemo()">Reset this demo</button>`;
   renderLayer();
@@ -259,7 +286,7 @@ async function sendMsg() {
       return;
     }
     const l = listing();
-    if (l && l.listed && CHECK.test(text)) return await checkMatches();
+    if (liveListings().length && (!l || l.listed) && CHECK.test(text)) return await checkMatches();
     await draftWith(text);
   } finally { L.sending = false; L.jump = true; render(); }
 }
@@ -277,14 +304,18 @@ async function draftWith(text) {
   const followUp = updated ? (reply.split(/\n\s*\n/).filter(Boolean).pop() || "") : reply;
   L.log.push({ app: updated, cards: updated ? [{ kind: "listing", latest: true }] : [], bot: followUp || "Done." });
 }
-async function checkMatches() {
+async function checkMatches(onlyId) {
   await api("match");
-  const l = listing();
-  const cards = [...l.followups.map(q => ({ kind: "question", id: q.question_id, lid: l.id })),
-                 ...l.intros.filter(i => i.status === "pending").slice(0, 3).map(i => ({ kind: "intro", id: i.intro_id }))];
-  const n = l.intros.filter(i => i.status === "pending").length;
-  for (const i of l.intros) L.seen[i.intro_id] = true;
-  for (const q of l.followups) L.seen[`q:${l.id}:${q.question_id}`] = true;
+  const ls = liveListings().filter(l => !onlyId || l.id === onlyId);
+  const cards = [], pending = [];
+  for (const l of ls) {
+    cards.push(...l.followups.map(q => ({ kind: "question", id: q.question_id, lid: l.id })));
+    pending.push(...l.intros.filter(i => i.status === "pending"));
+    for (const i of l.intros) L.seen[i.intro_id] = true;
+    for (const q of l.followups) L.seen[`q:${l.id}:${q.question_id}`] = true;
+  }
+  cards.push(...pending.slice(0, 3).map(i => ({ kind: "intro", id: i.intro_id })));
+  const n = pending.length;
   L.log.push({ app: true, cards: cards.length ? cards : [{ kind: "empty" }],
     bot: n ? `${n === 1 ? "One person" : `${n} people`} ${n === 1 ? "is" : "are"} also looking for you. Only you can say yes, and you're introduced only if they say yes too.`
            : cards.length ? "Answering could find you more matches." : "Nothing yet. Ask me again later." });
@@ -292,47 +323,53 @@ async function checkMatches() {
 
 // "Show them" on the live card posts a message from the card (sendFollowUpMessage), then the
 // introductions appear as a normal turn.
-async function showNew() {
+async function showNew(id) {
   if (L.sending) return;
   L.log.push({ me: "Show me what's new from Belong." }); L.sending = true; L.jump = true; render();
-  try { await checkMatches(); } finally { L.sending = false; L.jump = true; render(); }
+  try { await checkMatches(id); } finally { L.sending = false; L.jump = true; render(); }
 }
 // While the chat is open, the live card checks with Belong. now and then (in the demo, that runs matching).
 setInterval(async () => {
-  const live = L.log.some(t => (t.cards || []).some(c => c.kind === "listing" && c.latest));
-  if (!ME || !live || L.sending || L.confirm || L.popup) return;
-  const l = listing(); if (!l || !l.listed) return;
-  const sig = x => JSON.stringify([x.intros.map(i => i.intro_id), x.followups.map(q => q.question_id)]);
-  const before = sig(l);
+  if (!ME || !liveListings().length || L.sending || L.confirm || L.popup || L.settings) return;
+  const sig = () => JSON.stringify(liveListings().map(x => [x.intros.map(i => i.intro_id), x.followups.map(q => q.question_id)]));
+  const before = sig();
   await api("match");
-  if (sig(listing()) !== before) render();
+  if (sig() !== before) render();
 }, 6000);
 
 // ---- changing anything goes through ChatGPT's confirmation ----
 const ACTIONS = {
-  start_matching: { tool: "start_matching", ask: () => `Make your listing live for matching?`, args: () => ({ listing: listing().title }) },
+  start_matching: { tool: "start_matching", ask: () => `Make your listing live for matching?`, args: id => ({ listing: byId(id).title }) },
+  delete_listing: { tool: "delete_listing", ask: id => `Delete “${cap(byId(id).title)}”?`, args: id => ({ listing: byId(id).title }) },
   say_yes: { tool: "say_yes", ask: id => `Say yes to ${nameOf(id)}?`, args: id => ({ introduction: nameOf(id) }) },
   not_now: { tool: "not_now", ask: id => `Pass on ${nameOf(id)} for now?`, args: id => ({ introduction: nameOf(id) }) },
   answer_yes: { tool: "answer_question", ask: () => `Answer “Yes” to the question from Belong.?`, args: () => ({ answer: "yes" }) },
   answer_no: { tool: "answer_question", ask: () => `Answer “No” to the question from Belong.?`, args: () => ({ answer: "no" }) },
 };
+const byId = id => ME.listings.find(l => l.id === id) || listing();
 const nameOf = id => (ME.listings.flatMap(l => l.intros).find(x => x.intro_id === id) || { view: { fields: {} } }).view.fields.first_name || "this person";
 function ask(kind, arg) {
   const a = ACTIONS[kind];
-  // "Say yes" is never remembered: it always needs this tap and this confirmation.
-  if (L.remember[a.tool] && kind !== "say_yes") return run(kind, arg);
+  // "Say yes" and deleting are never remembered: they always need this tap and this confirmation.
+  if (L.remember[a.tool] && !["say_yes", "delete_listing"].includes(kind)) return run(kind, arg);
   L.confirm = { kind, arg }; renderLayer();
 }
 async function run(kind, arg) {
   L.confirm = null; renderLayer();
-  const l = listing();
-  if (kind === "start_matching") {
+  const l = kind === "start_matching" || kind === "delete_listing" ? byId(arg) : listing();
+  if (kind === "delete_listing") {
+    const title = cap(l.title);
+    if (await api("delete_listing", { listing_id: l.id })) {
+      L.settings = null;
+      L.log.push({ app: true, cards: [], bot: `Deleted “${title}”. It's off Belong. and won't be matched again.` });
+    }
+  } else if (kind === "start_matching") {
     const d = l.draft, body = { intent_text: d.intent_text, exactness: d.exactness,
       fields: d.fields.filter(f => f.enabled && f.value !== null && f.value !== "" && !(Array.isArray(f.value) && !f.value.length))
         .map(f => ({ key: f.key, value: f.value, visibility: f.visibility, confirmed: !!f.confirmed })) };
     if (await api("submit", { listing_id: l.id, listing: body })) {
       for (const t of L.log) for (const c of t.cards || []) if (c.kind === "listing" || c.kind === "status") c.latest = false;
-      L.log.push({ app: true, cards: [{ kind: "listing", latest: true }], bot: "Your listing is live. I'll update the card above when Belong. finds someone, or ask me any time." });
+      L.log.push({ app: true, cards: [], bot: "Your listing is live. I'll update its card when Belong. finds someone, or ask me any time." });
     }
   } else if (kind === "say_yes" || kind === "not_now") {
     await api("decide", { intro_id: arg, yes: kind === "say_yes" });
@@ -351,12 +388,25 @@ async function run(kind, arg) {
 // ---- overlays: the confirmation sheet, and the sign-in popup on Belong.'s site ----
 function renderLayer() {
   const c = L.confirm, layer = $("layer");
+  if (!c && L.settings) {
+    const l = byId(L.settings), pr = l.prefs || {};
+    const row = (label, on, change) => `<label class="srow"><span>${label}</span><input type="checkbox" class="sw" ${on ? "checked" : ""} onchange="${change}"></label>`;
+    layer.innerHTML = `<div class="full" role="dialog" aria-modal="true" aria-label="Listing settings">
+      <div class="full-head"><button class="btn secondary" onclick="L.settings=null; renderLayer(); render()">Close</button>
+        <span class="app-label" style="margin:0"><span class="app-icon" aria-hidden="true">B.</span>Belong.</span></div>
+      <div class="full-body"><p class="title" style="font-weight:600; margin:0 0 4px">${esc(cap(l.title))}</p><p class="sub" style="margin:0 0 16px">Listing settings</p>
+        ${row("Active", l.active !== false, `setActive('${l.id}', this.checked)`)}
+        ${row("Close matches", pr.notify_close, `setPref('${l.id}','notify_close', this.checked)`)}
+        ${row("Follow-up questions", pr.notify_questions, `setPref('${l.id}','notify_questions', this.checked)`)}
+        <button class="btn secondary danger" onclick="ask('delete_listing','${l.id}')">Delete listing</button></div></div>`;
+    return;
+  }
   if (c) {
     const a = ACTIONS[c.kind];
     layer.innerHTML = `<div class="scrim"><div class="sheet" role="dialog" aria-modal="true" aria-labelledby="cf-t">
       <h2 id="cf-t">${esc(a.ask(c.arg))}</h2><p>Belong. wants to use the <b>${a.tool}</b> action.</p>
       <pre>${esc(JSON.stringify(a.args(c.arg), null, 2))}</pre>
-      ${c.kind === "say_yes" ? "" : `<label><input type="checkbox" id="cf-r"> Remember for this conversation</label>`}
+      ${["say_yes", "delete_listing"].includes(c.kind) ? "" : `<label><input type="checkbox" id="cf-r"> Remember for this conversation</label>`}
       <div class="actions"><button class="btn secondary" onclick="L.confirm=null; renderLayer()">Cancel</button>
         <button class="btn system" onclick="confirmIt()">Confirm</button></div></div></div>`;
   } else if (L.popup) {
@@ -377,6 +427,17 @@ function renderLayer() {
         <button class="go" onclick="popupDone()">Allow and connect</button>`}
       <p class="fine">Mockup of the sign-in a real connector would open (OAuth) on Belong.'s own site.</p></div></div></div>`;
   } else layer.innerHTML = "";
+}
+function openSettings(id) { L.settings = id; renderLayer(); }
+async function setActive(id, active) { await api("set_active", { listing_id: id, active }); renderLayer(); render(); }
+async function setPref(id, key, value) { await api("set_prefs", { listing_id: id, prefs: { ...(byId(id).prefs || {}), [key]: value } }); renderLayer(); render(); }
+// "New chat" starts another listing, in a new conversation; live cards for all listings still show.
+async function newChat() {
+  if (!ME.verified || L.sending) return;
+  if (await api("new_listing", {})) {
+    L.log = [{ bot: "New chat. Tell me what else you're looking for, and I'll make it a separate Belong. listing." }];
+    L.jump = true; render();
+  }
 }
 function confirmIt() {
   const c = L.confirm, r = $("cf-r");

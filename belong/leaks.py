@@ -70,7 +70,7 @@ def leak_report(board, introductions: list, followups: list, reveals: list, rece
     connections: set of frozenset({a, b}) pairs that both said yes.
     consents: {(intro_id, person_id): set of keys} reveal opt-ins.
     """
-    listings = {l.person_id: l for l in board.listings()}
+    listings = {l.person_id: l for l in board.listings(include_withdrawn=True)}  # what was sent, even if since deleted
 
     def strings(pid, visibility=None):
         return {s for f in listings[pid].fields

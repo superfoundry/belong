@@ -489,6 +489,13 @@ class Warden:
         self._intros[intro_id] = intro
         return intro
 
+    def withdraw(self, person, listing_id: str, board: Marketboard) -> bool:
+        """The owner deletes a listing: it leaves the board and is never matched again."""
+        ok = listing_id in board and board.listing(listing_id).owner == person.id
+        if self._receipt("listing_withdrawn", ok, {"listing": listing_id}):
+            board.withdraw(listing_id)
+        return ok
+
     def _approaches_this_week(self, person_id: str) -> int:
         now = _parse(self.clock.now())
         return sum(1 for t in self._approaches.get(person_id, []) if now - _parse(t) < timedelta(days=7))

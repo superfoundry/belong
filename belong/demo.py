@@ -426,6 +426,18 @@ class DemoSession:
                     "Paused listings aren't matched." if not updated.active else "Matching again.",
                     receipts=self._receipts_since(start, slot), slots=[slot])
 
+    def delete_listing(self, slot: str, listing_id: str) -> None:
+        """Delete a listing: off the board (the Warden withdraws it) and gone from the person's list."""
+        st = self._verified(slot)
+        mine = st.listing(listing_id)
+        start = len(self.warden.receipts)
+        if mine.id in self.board and not self.warden.withdraw(st.person, mine.id, self.board):
+            raise DemoError("That listing couldn't be deleted.")
+        st.listings.remove(mine)
+        st.current = st.listings[-1].id if st.listings else None
+        self._event("in", f"{st.name} deleted a listing", "It's off the board and won't be matched again.",
+                    receipts=self._receipts_since(start, slot), slots=[slot])
+
     def set_defaults(self, slot: str, defaults) -> None:
         """Settings: the notification choices new listings start with, and whether the privacy
         step asks each time. Turning off the asking only takes effect once it has been seen."""
