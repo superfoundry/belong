@@ -413,7 +413,8 @@ function cur(slot) {
 // mockup's session, so you can match yourself across the chat and a phone.
 const IN_CHAT = new URLSearchParams(location.search).get("session") === "chat";
 const apiUrl = action => IN_CHAT ? `/api/chat/${action}?full=1` : `/api/${action}`;
-const STATE_URL = IN_CHAT ? "/api/chat/state?full=1" : "/api/state";
+// A single-phone page asks for its own phone only (not the presenter's view and its leak audit).
+const STATE_URL = IN_CHAT ? "/api/chat/state?full=1" : SINGLE ? `/api/state?phone=${encodeURIComponent(VIEW[0])}` : "/api/state";
 if (IN_CHAT || window.top !== window) document.documentElement.classList.add("embedded");
 let inflight = 0;
 async function api(action, body = {}) {
@@ -833,7 +834,9 @@ function profileCard(slot, p, l, c) {
   const required = items.filter(i => !i.optional);
   let done = required.filter(i => i.done).length, total = required.length;
   if (d && Array.isArray(d.suggestions)) { total = filled + required.filter(i => !i.done).length; done = filled; }
-  const ready = d && items[0].done && items[1].done;  // essentials: who and where
+  // Essentials: who and where. A listing that's already live has them (synthetic people's listings,
+  // taken over, are matched by headline and topics as well as phrases).
+  const ready = d && ((items[0].done && items[1].done) || l.listed);
   const place = [shown.city, shown.country].filter(Boolean).join(", ");
   const missing = items.map((it, n) => ({ ...it, n })).filter(i => !i.done).slice(0, 4);
   const entry = l.entry;
@@ -1079,6 +1082,8 @@ async function submit(slot) {
     fields: d.fields.filter(f => f.enabled && hasValue(f.value)).map(f => ({ key: f.key, value: f.value, visibility: f.visibility, confirmed: !!f.confirmed })) };
   // Start matching and Save changes both save, go live and take you back to your listings.
   if (await api("submit", { slot, listing_id, listing }) && curListing(slot).listed) {
+    const entry = curListing(slot).entry;
+    if (entry && !entry.accepted) { toast((entry.problems || []).join(" ") || "That change wasn't accepted."); return; }
     Object.assign(c, { editing: false, open: true, chatMin: false });
     go(slot, "belong");
     toast("Your listing is live.");

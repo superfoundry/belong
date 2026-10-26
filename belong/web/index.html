@@ -114,8 +114,10 @@ function filterable(sectionId, rowsHtml, headHtml, placeholder) {
   };
 }
 
+let RUN = null;
 function render(d) {
-  const m = d.metrics, lr = d.leak_report;
+  RUN = d;
+  const m = d.metrics, lr = d.leak_report, canTake = sameAsDemo(d);
   $("meta").textContent = `${d.meta.n} synthetic people · seed ${d.meta.seed} · ${d.meta.matcher} · k = ${d.meta.k_crowd} · approach limit ${d.meta.approach_limit}/day`;
   const people = Object.fromEntries(d.people.map(p => [p.id, p]));
   const name = id => { const f = (people[id]?.fields || []).find(f => f.key === "first_name"); return `${f ? esc(f.value) + " " : ""}<span class="muted mono">${id}</span>`; };
@@ -146,10 +148,11 @@ function render(d) {
 
   // People
   $("people").innerHTML = `<p class="note">Everything each person put in their listing. Details marked Hidden are used for matching, never shown.</p>
-    <p class="note">These are synthetic people. Take over opens a person's phone in the live demo, so you can answer as them.</p>
+    <p class="note">${canTake ? "These are synthetic people. Take over opens a person's phone in the live demo, so you can answer as them."
+      : DEMO ? `Take over is off: this run (seed ${d.meta.seed}, ${d.meta.n} people) doesn't show the live demo's people (seed ${DEMO.seed}, ${DEMO.people}).` : "These are synthetic people."}</p>
     <p class="note" id="take-msg" role="status"></p>`;
   filterable("people", d.people.map(p => `<tr>
-      <td>${name(p.id)}${p.admitted ? `<div><button class="take" data-take="${esc(p.id)}" aria-label="Take over ${esc((p.fields.find(f => f.key === "first_name") || {}).value || p.id)} in the live demo">Take over</button></div>` : ""}</td><td>${p.kind}</td>
+      <td>${name(p.id)}${p.admitted && canTake ? `<div><button class="take" data-take="${esc(p.id)}" aria-label="Take over ${esc((p.fields.find(f => f.key === "first_name") || {}).value || p.id)} in the live demo">Take over</button></div>` : ""}</td><td>${p.kind}</td>
       <td>${p.admitted ? '<span class="pill ok">admitted</span>' : `<span class="pill bad">rejected</span><div class="note">${p.entry_problems.map(esc).join("<br>")}</div>`}</td>
       <td>${esc(p.intent_text)}<div class="note">exactness ${p.exactness}</div></td>
       <td>${fieldPills(p.fields)}</td></tr>`).join(""),
@@ -189,6 +192,10 @@ function render(d) {
 
 // Take over: the batch run's people are the live demo's first synthetic people (same ids), so the
 // demo gives that person a phone, which opens in a small window of its own.
+// Take over only works when this run shows the live demo's own people (same seed, and within its size).
+let DEMO = null;
+fetch("/api/demo").then(r => r.json()).then(d => { DEMO = d; if (RUN) render(RUN); }).catch(() => {});
+const sameAsDemo = d => DEMO && d.meta.seed === DEMO.seed && d.meta.n <= DEMO.people;
 async function takeOver(id) {
   const msg = $("take-msg");
   // Open the window straight away (one opened after waiting for the server can be blocked).

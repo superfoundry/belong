@@ -330,3 +330,52 @@ class Server(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ReviewFixes(unittest.TestCase):
+    """Problems the review found, each pinned by a test."""
+
+    def setUp(self):
+        self.s = DemoSession(seed=7, agent=None)
+
+    def test_someone_who_shows_a_sensitive_detail_can_save_their_profile(self):
+        who = next(pid for pid in self.s.personas if pid in self.s.board
+                   and self.s.board.listing(pid).confirmed_shown and self.s.personas[pid].person.verified)
+        slot = self.s.take_over(who)
+        mine = self.s.slots[slot].listing(who)
+        d = mine.draft
+        body = {"intent_text": d["intent_text"], "exactness": d["exactness"],
+                "fields": [{"key": f["key"], "value": f["value"], "visibility": f["visibility"], "confirmed": bool(f.get("confirmed"))}
+                           for f in d["fields"] if f.get("enabled") and f.get("value") not in (None, "", [])]}
+        self.s.submit(slot, body, who)
+        self.assertTrue(mine.entry["accepted"], mine.entry)
+
+    def test_a_reply_being_written_is_dropped_once_theyre_taken_over(self):
+        climber_a(self.s)
+        self.s.run_matchmaker(quiet=True)
+        intro_id, other = synthetic_match_of_a(self.s)
+        before = len(self.s.threads.get(intro_id, []))
+        self.s.persona_typing.add(intro_id)
+        self.s.take_over(other)
+        self.s._persona_reply(intro_id, other, self.s.generation)  # the reply that was in flight lands now
+        self.assertEqual(len(self.s.threads.get(intro_id, [])), before)
+        self.assertNotIn(intro_id, self.s.persona_typing)
+
+    def test_a_question_already_put_to_the_other_phone_isnt_asked_of_them_too(self):
+        climber_a(self.s)
+        a = self.s.slots["A"].listing()
+        who = next(pid for pid in self.s.personas if pid in self.s.board and self.s.personas[pid].person.verified)
+        a.followups.append({"question_id": "also_offer", "question_text": "Someone is …", "about": who})
+        slot = self.s.take_over(who)
+        self.assertIn(("also_offer", a.id), self.s.slots[slot].listing(who).asked)
+
+    def test_handing_back_settles_what_was_waiting_on_them(self):
+        climber_a(self.s)
+        self.s.run_matchmaker(quiet=True)
+        intro_id, other = synthetic_match_of_a(self.s)
+        self.s.take_over(other)
+        self.s.decide("A", intro_id, True)  # A said yes; they're on a phone now, so nobody answers for them
+        self.assertNotIn((intro_id, other), self.s.decisions)
+        self.s.hand_back(other)
+        self.assertIn((intro_id, other), self.s.decisions)  # simulated again, so they answer
+        self.assertTrue(self.s.room_state()["leak_report"]["ok"])
