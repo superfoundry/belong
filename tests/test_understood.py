@@ -687,7 +687,7 @@ class HiddenChoicesAreRemembered(unittest.TestCase):
         node = shutil.which("node")
         if not node:
             self.skipTest("node isn't installed")
-        self.assertIn('const ok = await api("visibility", { slot, listing_id, ...vis });', PAGE)
+        self.assertIn('ok = await api("visibility", { slot, listing_id, ...vis });', PAGE)  # send() waits for it
         self.assertLess(PAGE.index('api("visibility"'), PAGE.index('await api("agent"'))  # before the agent redrafts
         server_copy = {"fields": [{"key": "gender", "visibility": SHOWN}, {"key": "city", "visibility": SHOWN},
                                   {"key": "religion", "visibility": HIDDEN}, {"key": "age_band", "visibility": SHOWN}]}
@@ -1121,3 +1121,66 @@ class FinalReviewFixes(unittest.TestCase):
         page = (Path(__file__).resolve().parent.parent / "belong" / "web" / "demo.html").read_text()
         for fn in ("function setVis", "function enable"):
             self.assertIn("pushVisibility(slot)", page[page.index(fn):page.index(fn) + 600], fn)
+
+
+class WhereAndWhileReplying(unittest.TestCase):
+    """Where someone is, read only when said about them; and choices made while the model agent replies."""
+
+    def test_a_place_said_about_someone_else_or_the_past_isnt_where_they_are(self):
+        nowhere = ["My parents live in Nigeria. Looking for a chess partner.", "My family lives in Mexico",
+                   "My sister lives in Canada", "I used to live in Israel, now looking for a tennis partner",
+                   "My parents came from Nigeria. Looking for a partner."]
+        for text in nowhere:
+            facts = agent.quick_facts(text)
+            self.assertFalse(facts.get("city") or facts.get("country"), text)
+        here = {"Born in Kyoto, based in Berlin": ("Berlin", "Germany"),
+                "Originally from London, now living in Tokyo": ("Tokyo", "Japan"),
+                "I grew up in Munich but live in Osaka now": ("Osaka", "Japan"),
+                "I'm from Brazil but now I'm in Portugal": (None, "Portugal"),
+                "I moved to Spain last year and want a tennis partner": (None, "Spain"),
+                "i live in malaga, spain, looking to meet people": (None, "Spain"),
+                "Actually I need a roommate in Tokyo from November.": ("Tokyo", "Japan"),
+                "Visiting Osaka and looking to meet a woman around my age": ("Osaka", "Japan")}
+        for text, (city, country) in here.items():
+            facts = agent.quick_facts(text)
+            self.assertEqual((facts.get("city"), facts.get("country")), (city, country), text)
+
+    def test_a_guessed_place_is_dropped_unless_the_model_agent_says_it(self):
+        save = {"kind": "other", "exactness": 0.6, "suggestions": [], "separate_listing": False,
+                "intent_text": "Looking for a chess partner.",
+                "fields": [{"key": "seeking", "values": ["a chess partner"], "visibility": SHOWN},
+                           {"key": "offering", "values": ["a chess partner"], "visibility": SHOWN}]}
+        client = ScriptedClient(reply(tool(save, "t1")), reply(text("Saved.")))
+        s = DemoSession(seed=7, agent=ClaudeAgent(client=client))
+        s.verify("A", "Ada", 30)
+        listing = s.slots["A"].listing(s.new_listing("A"))
+        listing.draft = agent.empty_draft("Ada", "30-34")
+        listing.draft["fields"].append({"key": "country", "label": "Country", "value": "Nigeria", "visibility": SHOWN,
+                                        "sensitive": False, "multi": False, "enabled": True, "locked": False, "options": []})
+        listing.provisional = {"country"}  # as if the instant first draft had guessed it
+        s.agent_message("A", "My parents live in Nigeria. Looking for a chess partner.", listing.id)
+        self.assertNotIn("Nigeria", client.requests[0]["system"])  # never handed to the model
+        values = {f["key"]: f["value"] for f in listing.draft["fields"] if f["value"] not in (None, "", [])}
+        self.assertNotIn("country", values)  # and dropped, since its draft didn't say it
+
+    def test_a_choice_made_while_the_model_agent_replies_wins(self):
+        save = {"kind": "other", "exactness": 0.6, "suggestions": [], "separate_listing": False,
+                "intent_text": "Looking for a tennis partner in Kyoto.",
+                "fields": [{"key": "city", "values": ["Kyoto"], "visibility": SHOWN},
+                           {"key": "headline", "values": ["Looking for a tennis partner"], "visibility": SHOWN},
+                           {"key": "seeking", "values": ["a tennis partner"], "visibility": SHOWN},
+                           {"key": "offering", "values": ["a tennis partner"], "visibility": SHOWN}]}
+        s = None
+
+        class Midway(ScriptedClient):
+            def _create(self, **request):
+                if len(self.requests) == 0:  # the person hides two details while the model is thinking
+                    s.set_visibility("A", None, {"city": HIDDEN, "headline": HIDDEN})
+                return super()._create(**request)
+        client = Midway(reply(tool(save, "t1")), reply(text("Saved.")))
+        s = DemoSession(seed=7, agent=ClaudeAgent(client=client))
+        s.verify("A", "Ada", 30)
+        s.agent_message("A", "Looking for a tennis partner in Kyoto.")
+        vis = {f["key"]: f["visibility"] for f in s.slots["A"].listing().draft["fields"]}
+        self.assertEqual((vis["city"], vis["headline"]), (HIDDEN, HIDDEN))
+        self.assertEqual(vis["seeking"], SHOWN)
