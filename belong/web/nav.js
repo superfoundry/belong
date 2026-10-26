@@ -33,7 +33,7 @@
       .site-nav .links a.link.on { border-bottom-color: var(--border-subtle); color: var(--text-accent); }
       .site-nav.open .links { display: flex; }
     }
-    body.only-A .site-nav, body.only-B .site-nav { display: none; }
+    body.single .site-nav { display: none; }  /* one phone on its own (demo.html ?phone=...) */
   `;
   document.head.appendChild(style);
 

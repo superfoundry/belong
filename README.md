@@ -32,6 +32,11 @@ their region, and plain Python; secure hardware comes in Step 3.
   "Test with a phone" opens person B on a phone beside the chat, in the same session, so you
   can match yourself across the chat and a phone. Ask the same agent for something different
   ("I'm also looking for...") and it starts a separate listing; every live listing has its card.
+- **Inspector.** `/inspector` shows the batch run (`python3 -m belong run`): every synthetic person,
+  proposal, introduction and receipt. Its people are the live demo's first 300 (same ids, same seed).
+  **Take over** on a person opens their phone in a small window, so you can answer as them in the live
+  demo: their listing is matched like a phone's, what the Warden sends them arrives there, and nothing
+  is decided for them until you **Hand back** (above their phone). The presenter panel lists who's taken over.
 - **[TRUST.md](TRUST.md)** lists every privacy promise with the code that enforces it,
   the test that proves it, and what isn't guaranteed yet. Start there.
 - **[SPEC.md](SPEC.md)** is the product spec.
@@ -127,7 +132,8 @@ belong/                                    [open] = published as open source
   synth.py         synthetic people (regional names) + ground truth §8.1
   evaluate.py      match quality vs ground truth
   sim.py           one simulated week, end to end                      §8.5
-  demo.py          two-person demo session + boundary log
+  demo.py          two-person demo session + boundary log, and phones for
+                   synthetic people taken over from the inspector
   probe.py         canary test + attack suite for outside agents
   server.py        web server (loopback only unless hosted; optional password)
   web/             demo.html, trust.html, index.html (inspector), nav.js (menu)
