@@ -22,7 +22,7 @@ import urllib.error
 import urllib.request
 
 from .agent_llm import (MAX_TOOL_ROUNDS, SYSTEM_PROMPT, UPDATE_LISTING_TOOL, AgentUnavailable, _summary,
-                        build_draft, honest, profile_so_far, turn_drafts)
+                        build_draft, builds_on, honest, profile_so_far, turn_drafts)
 
 API_URL = "https://api.openai.com/v1/chat/completions"
 DEFAULT_MODEL = "gpt-5"
@@ -100,7 +100,8 @@ class OpenAIAgent:
                     if not isinstance(args, dict):
                         result = "ERROR: the arguments weren't valid JSON. Call update_listing again."
                     else:
-                        new_draft, problems, _ = build_draft(args, first_name, age_band)
+                        new_draft, problems, _ = build_draft(args, first_name, age_band,
+                                                             builds_on(args, saved, current))
                         if problems:
                             result = ("ERROR: Not saved. Fix these and call update_listing again:\n- "
                                       + "\n- ".join(problems))

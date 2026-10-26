@@ -30,8 +30,8 @@ from __future__ import annotations
 import re
 
 from . import synth as vocab
-from .agent import (_BY_KIND, _COMMON, _KIND_NAMES, _SENSITIVE_VOCAB, ALL_MONTHS, DATING_ONLY, LABELS, field_options,
-                    mentions_sensitive, wants_text)
+from .agent import (_BY_KIND, _COMMON, _KIND_NAMES, _SENSITIVE_VOCAB, ALL_MONTHS, DATING_ONLY, LABELS, carry_over,
+                    field_options, fill_gaps, mentions_sensitive, wants_text)
 from .matching.intent import ages_text, default_age_range, parse_intent
 from .schema import (AGE_MAX, AGE_MIN, GENDERS, HEADLINE_MAX, FIELD_REGISTRY, FREE_TEXT_MAX, HIDDEN, SHOWN,
                      age_span_choice, meeting_format, travel_choice)
@@ -359,8 +359,15 @@ def _suggestions(raw) -> list:
     return out[:4]
 
 
-def build_draft(args: dict, first_name: str, age_band: str) -> tuple:
-    """Check one update_listing call. Returns (draft or None, problems, notes)."""
+def build_draft(args: dict, first_name: str, age_band: str, current=None) -> tuple:
+    """Check one update_listing call. Returns (draft or None, problems, notes).
+
+    current: the profile this save replaces (None for a new listing), with "choices": the person's own
+    choices of shown or hidden for this listing. What the call leaves out is kept from it with the shown or
+    hidden it had, and every detail the call gives no value and visibility of its own keeps the person's
+    choice (agent.carry_over), BEFORE anything below is checked or summarised: what's missing, whether a
+    hidden kind still reads as dating, and what the agent is told a match will see are all about the draft
+    the person will actually see."""
     kind = args.get("kind")
     intent = " ".join(str(args.get("intent_text", "")).split())[:500]
     try:
@@ -382,12 +389,10 @@ def build_draft(args: dict, first_name: str, age_band: str) -> tuple:
     city = " ".join(str(city_values[0]).split()) if city_values else None
 
     values, visibility = {"first_name": first_name, "age_band": age_band}, {}
-    # The details the agent chose shown or hidden for on purpose. Every other visibility below is a default,
-    # and a default never overrides the person's own choice when this draft replaces theirs (carry_over).
-    listed = sorted(k for k, f in fields_in.items() if f.get("visibility") in (SHOWN, HIDDEN))
+    chose = {k for k, f in fields_in.items() if f.get("visibility") in (SHOWN, HIDDEN)}  # a visibility of its own
     for key, f in fields_in.items():
         if key == "kind":  # its value is the kind chosen above; listed only to keep the person's choice of hidden
-            if f.get("visibility") in (SHOWN, HIDDEN):
+            if key in chose:
                 visibility["kind"] = f["visibility"]
             continue
         value, err = _clean_value(key, f.get("values") or [], city)
@@ -404,79 +409,24 @@ def build_draft(args: dict, first_name: str, age_band: str) -> tuple:
     # The kind the agent chose is what it understood: it goes on the listing as the "kind" detail (shown
     # unless the person chose hidden), and matching uses it before anything in the description.
     values["kind"] = kind
-    visibility["kind"] = visibility.get("kind", FIELD_REGISTRY["kind"].default)
     if kind != "dating":
         for key in DATING_ONLY:
             if values.pop(key, None) is not None:
                 visibility.pop(key, None)
                 notes.append(f"{key} was left out: it's only used for dating.")
-    # What matching reads from the description: only what the shown details don't say (with the headline,
-    # if it's shown; it always is on a non-dating listing, below).
-    headline_shown = kind != "dating" or visibility.get("headline", SHOWN) == SHOWN
-    parsed = parse_intent(intent, values.get("headline", "") if headline_shown else "")
-    shown = lambda key: key in values and visibility.get(key) == SHOWN
-    open_ended = [k for k in ("seeking", "offering") if k in values]
-    if not intent:
-        missing.append("what they're looking for (intent_text)")
-    elif kind == "dating":
-        if open_ended:
-            problems.append("seeking/offering aren't used for dating; remove them.")
-        if not shown("kind") and parsed.kind != "dating":
-            # Only a hidden kind leaves it to the description, and this one doesn't read as dating.
-            missing.append("the kind is hidden, so matching reads the description, and it doesn't clearly say "
-                           "this is dating: keep 'kind' shown, or say so in intent_text")
-        if "wants_gender" not in values:
-            missing.append("who they want to meet: set wants_gender (woman, man and/or nonbinary; all three for "
-                           "anyone)")
-        if "wants_age" not in values:
-            missing.append(f"the ages they'd like, in years: set wants_age (e.g. 30-39); work out wording like "
-                           f"'around my age' or 'early 30s' from their age band {age_band}, and ask only if they "
-                           f"said nothing. Until then they're open to {ages_text(default_age_range(age_band))}, one age "
-                           f"band either side of their own")
-        for key in DATING_ONLY:
-            if key in values and not shown(key):
-                # Their choice stands. A hidden detail never decides a match, so the description is read instead.
-                notes.append(f"{key} is hidden: a hidden detail never decides a match, so matching reads this from "
-                             f"the description instead. Make sure they know, and that the description says it.")
-        if "gender" not in values:
-            missing.append("their gender (needed so people looking for a woman or a man can find them; they may "
-                           "keep it hidden, but then only people open to anyone can match them)")
-        elif visibility.get("gender") == HIDDEN:
-            # Their choice stands: nobody is made to show their gender. A hidden detail never decides a
-            # match, so the person should know what it costs.
-            notes.append("gender is hidden: a hidden detail never decides a match, so people looking for a woman "
-                         "or a man won't be matched with them, only people open to anyone. Make sure they know "
-                         "they may get fewer matches and can switch it to shown.")
-    else:
-        if parsed.kind == "dating":
-            problems.append("intent_text (with the headline) reads like dating. Rephrase it without words like "
-                            "'date', 'relationship', 'love' or 'partner'.")
-        for k in ("seeking", "offering"):
-            if k not in values:
-                missing.append(f"a '{k}' phrase (a short noun phrase, e.g. 'a fishing teacher')")
-            else:
-                visibility[k] = SHOWN  # matching needs both phrases to find the other person
-        if "topics" in values:
-            visibility["topics"] = SHOWN  # used to spot related requests, so it must be shown
-            values["topics"] = values["topics"][:5]
-        if "headline" in values:
-            visibility["headline"] = SHOWN  # it's the listing's title
-            if len(values["headline"]) > HEADLINE_MAX or not _ING.match(values["headline"]):
-                problems.append(f"headline must be under {HEADLINE_MAX} characters and start with an -ing word, "
-                                "e.g. 'Selling 100 cardboard boxes', 'Looking for free cardboard boxes'.")
-        else:
-            missing.append("a headline (e.g. 'Selling 100 cardboard boxes')")
-    known = next((c for c in vocab.CITIES if city and city.lower() == c.lower()), None)
-    if "country" not in values and known:
-        values["country"] = vocab.COUNTRY_NAMES[vocab.CITIES[known][0]]  # a city we know: fill in its country
-        visibility["country"] = SHOWN
-    # A listing that can meet online can be matched without a place; one that only meets in person
-    # can't. Dating is always in person. Without a format, the description decides (as in matching).
-    fmt = meeting_format(values.get("format"))
-    online = kind != "dating" and (fmt in ("Online", "In person or online") or (fmt is None and parsed.remote_ok))
-    if not online and "country" not in values:
-        missing.append("where they are: country, and city if they have one")
+    # The details the agent chose shown or hidden for on purpose: a value it kept, with a visibility of its
+    # own (the tool always sends one, even with no value: that chooses nothing). Every other visibility below
+    # is a default, and a default never overrides the person's own choice (carry_over).
+    listed = sorted(k for k in chose if k == "kind" or k in values)
+    own = [k for k in values if k not in ("first_name", "age_band", "kind")]  # what this call wrote
 
+    # Problems with what this call wrote. Nothing is saved until they're fixed.
+    if kind == "dating" and any(k in values for k in ("seeking", "offering")):
+        problems.append("seeking/offering aren't used for dating; remove them.")
+    if kind != "dating" and "headline" in values and (len(values["headline"]) > HEADLINE_MAX
+                                                      or not _ING.match(values["headline"])):
+        problems.append(f"headline must be under {HEADLINE_MAX} characters and start with an -ing word, "
+                        "e.g. 'Selling 100 cardboard boxes', 'Looking for free cardboard boxes'.")
     for text in [intent] + [values[k] for k in ("seeking", "offering") if k in values]:
         for problem in specific_person_problems(text):
             problems.append(f"Belong. can't search for a specific person; '{text}' contains {problem}.")
@@ -484,19 +434,6 @@ def build_draft(args: dict, first_name: str, age_band: str) -> tuple:
     for key, words in _SENSITIVE_VOCAB.items():
         if any(re.search(r"\b" + re.escape(w.lower()) + r"\b", low) for w in words):
             problems.append(f"Don't put {LABELS[key].lower()} in intent_text; add it as a hidden '{key}' field instead.")
-    # A shown detail in free text never carries a sensitive word (a religion, an orientation, a health
-    # condition): matches would see it. It belongs in the matching sensitive detail, hidden, or nowhere.
-    for key, value in values.items():
-        spec = FIELD_REGISTRY.get(key)
-        if spec is None or spec.sensitive or key in STRICT_KEYS or key in ("first_name", "age_band", "kind"):
-            continue
-        if visibility.get(key, spec.default) == SHOWN and any(
-                mentions_sensitive(v) for v in (value if isinstance(value, tuple) else (value,))):
-            problems.append(f"'{key}' is shown, so it must not say anything sensitive (religion, health, politics, "
-                            f"sexuality or intimacy). Take that out; if it matters, add it as a hidden sensitive field.")
-
-    if problems:
-        return None, problems, notes
 
     options = field_options(kind, city)
     # The kind's usual fields, the two phrases for every non-dating listing, and anything else
@@ -515,14 +452,97 @@ def build_draft(args: dict, first_name: str, age_band: str) -> tuple:
             "enabled": (key in values) if spec.sensitive else True,
             "locked": key == "age_band", "options": options.get(key, []),
         })
-    where = values.get("city") or values.get("country")
+    draft = {"intent_text": intent, "exactness": exactness, "kind": kind, "fields": fields, "listed": listed}
+    # The listing as it will be: what's already on the profile, and the person's choices of shown or hidden.
+    carry_over(draft, current, (current or {}).get("choices"))
+    by = {f["key"]: f for f in draft["fields"]}
+    if kind != "dating":
+        # Matching needs both phrases to find the other person, topics spot related requests and the
+        # headline is the listing's title: on a listing that isn't dating, they're always shown.
+        for key in ("seeking", "offering", "topics", "headline"):
+            if key in by and by[key]["value"] not in (None, "", []):
+                by[key]["visibility"] = SHOWN
+        if "topics" in by and isinstance(by["topics"]["value"], list):
+            by["topics"]["value"] = by["topics"]["value"][:5]
+    known = next((c for c in vocab.CITIES if c.lower() == str(by["city"]["value"] or "").lower()), None) \
+        if "city" in by else None
+    if known and by.get("country", {}).get("value") in (None, "", []):
+        # A city we know: fill in its country, shown unless the person chose to hide it.
+        fill_gaps(draft, {"country": vocab.COUNTRY_NAMES[vocab.CITIES[known][0]]},
+                  {"country": ((current or {}).get("choices") or {}).get("country", SHOWN)})
+        by = {f["key"]: f for f in draft["fields"]}
+    merged = {k: (tuple(f["value"]) if isinstance(f["value"], list) else f["value"]) for k, f in by.items()
+              if f.get("enabled", True) and f["value"] not in (None, "", [])}
+    shown = lambda key: key in merged and by[key]["visibility"] == SHOWN
+
+    # A shown detail in free text never carries a sensitive word (a religion, an orientation, a health
+    # condition): matches would see it. It belongs in the matching sensitive detail, hidden, or nowhere.
+    # Checked on what this call wrote (the person's own edits are theirs), as it will be shown.
+    for key in own:
+        spec = FIELD_REGISTRY.get(key)
+        if spec is None or spec.sensitive or key in STRICT_KEYS or not shown(key):
+            continue
+        value = values[key]
+        if any(mentions_sensitive(v) for v in (value if isinstance(value, tuple) else (value,))):
+            problems.append(f"'{key}' is shown, so it must not say anything sensitive (religion, health, politics, "
+                            f"sexuality or intimacy). Take that out; if it matters, add it as a hidden sensitive field.")
+    # What matching reads from the description: only what the shown details don't say (with the headline,
+    # if it's shown; it always is on a non-dating listing).
+    parsed = parse_intent(intent, merged.get("headline", "") if shown("headline") else "")
+    if kind != "dating" and parsed.kind == "dating":
+        problems.append("intent_text (with the headline) reads like dating. Rephrase it without words like "
+                        "'date', 'relationship', 'love' or 'partner'.")
+    if problems:
+        return None, problems, notes
+
+    if not intent:
+        missing.append("what they're looking for (intent_text)")
+    elif kind == "dating":
+        if not shown("kind") and parsed.kind != "dating":
+            # Only a hidden kind leaves it to the description, and this one doesn't read as dating.
+            missing.append("the kind is hidden, so matching reads the description, and it doesn't clearly say "
+                           "this is dating: keep 'kind' shown, or say so in intent_text")
+        if "wants_gender" not in merged:
+            missing.append("who they want to meet: set wants_gender (woman, man and/or nonbinary; all three for "
+                           "anyone)")
+        if "wants_age" not in merged:
+            missing.append(f"the ages they'd like, in years: set wants_age (e.g. 30-39); work out wording like "
+                           f"'around my age' or 'early 30s' from their age band {age_band}, and ask only if they "
+                           f"said nothing. Until then they're open to {ages_text(default_age_range(age_band))}, one age "
+                           f"band either side of their own")
+        for key in DATING_ONLY:
+            if key in merged and not shown(key):
+                # Their choice stands. A hidden detail never decides a match, so the description is read instead.
+                notes.append(f"{key} is hidden: a hidden detail never decides a match, so matching reads this from "
+                             f"the description instead. Make sure they know, and that the description says it.")
+        if "gender" not in merged:
+            missing.append("their gender (needed so people looking for a woman or a man can find them; they may "
+                           "keep it hidden, but then only people open to anyone can match them)")
+        elif not shown("gender"):
+            # Their choice stands: nobody is made to show their gender. A hidden detail never decides a
+            # match, so the person should know what it costs.
+            notes.append("gender is hidden: a hidden detail never decides a match, so people looking for a woman "
+                         "or a man won't be matched with them, only people open to anyone. Make sure they know "
+                         "they may get fewer matches and can switch it to shown.")
+    else:
+        for k in ("seeking", "offering"):
+            if k not in merged:
+                missing.append(f"a '{k}' phrase (a short noun phrase, e.g. 'a fishing teacher')")
+        if "headline" not in merged:
+            missing.append("a headline (e.g. 'Selling 100 cardboard boxes')")
+    # A listing that can meet online can be matched without a place; one that only meets in person
+    # can't. Dating is always in person. Without a format, the description decides (as in matching).
+    fmt = meeting_format(merged.get("format"))
+    online = kind != "dating" and (fmt in ("Online", "In person or online") or (fmt is None and parsed.remote_ok))
+    if not online and "country" not in merged:
+        missing.append("where they are: country, and city if they have one")
+
+    where = merged.get("city") or merged.get("country")
     understood = f"Looking for {_KIND_NAMES[kind]}" + (f" in {where}" if where else "")
-    if kind == "dating" and (values.get("wants_gender") or values.get("wants_age")):
-        understood += ", with " + wants_text(values.get("wants_gender"), values.get("wants_age"))
-    draft = {"intent_text": intent, "exactness": exactness, "kind": kind, "fields": fields,
-             "understood": understood, "notes": notes, "missing": missing, "complete": not missing, "by": "claude",
-             "suggestions": _suggestions(args.get("suggestions")),
-             "separate": args.get("separate_listing") is True, "listed": listed}
+    if kind == "dating" and (merged.get("wants_gender") or merged.get("wants_age")):
+        understood += ", with " + wants_text(merged.get("wants_gender"), merged.get("wants_age"))
+    draft.update({"understood": understood, "notes": notes, "missing": missing, "complete": not missing, "by": "claude",
+                  "suggestions": _suggestions(args.get("suggestions")), "separate": args.get("separate_listing") is True})
     return draft, [], notes
 
 
@@ -556,10 +576,26 @@ def turn_drafts(saved: list):
     return last
 
 
+def builds_on(args: dict, saved: list, current):
+    """The profile a save replaces: nothing for a separate (new) listing; else this turn's last save for
+    the current listing, or the profile as it was, each with the person's choices of shown or hidden."""
+    if args.get("separate_listing") is True:
+        return None
+    mine = [d for d in saved if not d.get("separate")]
+    if not mine:
+        return current
+    return {**mine[-1], "choices": (current or {}).get("choices") or {}}
+
+
 def profile_so_far(draft) -> str:
-    """What's on the person's profile right now, for the agent to build on."""
-    if not draft:
-        return "The profile is empty so far."
+    """What's on the person's profile right now, for the agent to build on, with the details the person
+    chose to keep hidden (so a save keeps them hidden, even ones not on this draft)."""
+    hidden = sorted(k for k, v in ((draft or {}).get("choices") or {}).items()
+                    if v == HIDDEN and k not in ("first_name", "age_band"))
+    kept = (" The person chose to keep these hidden; keep them hidden unless they ask to show one: "
+            + ", ".join(hidden) + ".") if hidden else ""
+    if not draft or not (draft.get("fields") or draft.get("intent_text")):
+        return "The profile is empty so far." + kept
     kind_field = next((f for f in draft.get("fields", []) if f.get("key") == "kind" and f.get("value")), None)
     hidden_kind = " (hidden: keep it hidden by listing kind as hidden in fields)" if kind_field and \
         kind_field.get("visibility") == HIDDEN else ""
@@ -570,7 +606,7 @@ def profile_so_far(draft) -> str:
         if f.get("enabled") and value not in (None, "", []) and f["key"] not in ("first_name", "age_band", "kind"):
             shown = ", ".join(value) if isinstance(value, list) else value
             parts.append(f"{f['key']} ({f.get('visibility')}): {shown}")
-    return "The profile so far (keep all of it when you save, unless they change something): " + "; ".join(parts) + "."
+    return "The profile so far (keep all of it when you save, unless they change something): " + "; ".join(parts) + "." + kept
 
 
 def _summary(draft: dict) -> str:
@@ -633,7 +669,8 @@ class ClaudeAgent:
                                     "content": f"Unknown tool {block.name}"})
                     continue
                 attempted = True
-                new_draft, problems, _ = build_draft(dict(block.input), first_name, age_band)
+                args = dict(block.input)
+                new_draft, problems, _ = build_draft(args, first_name, age_band, builds_on(args, saved, current))
                 if problems:
                     results.append({"type": "tool_result", "tool_use_id": block.id, "is_error": True,
                                     "content": "Not saved. Fix these and call update_listing again:\n- " +

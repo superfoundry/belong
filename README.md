@@ -58,7 +58,9 @@ age" (one age band either side of yours). When your words could mean two things 
 and climbing; or just "a partner"), it should ask you one short question before saving, and "both"
 makes two listings, each with its own kind. The Claude or OpenAI agent is told to ask (an
 instruction, not something the code can check); the rule-based agent asks when its own readers
-see two readings, and never records a kind or an age range it only guessed. The Warden lets these details in only as fixed
+see two readings, and never records a kind or an age range it only guessed. It also writes only words it
+recognises into anything shown (a known activity, place or fixed choice): the rest of what you type stays in your
+description, and it asks when it doesn't recognise what you want ("What would you like a partner for?"). The Warden lets these details in only as fixed
 choices (no listing can ask for anyone under 18), and matching uses them first. Your description is
 read only for what they don't say, and it's never shown to anyone. A detail you hide never decides a
 match: matching then reads your description as if the detail weren't there.

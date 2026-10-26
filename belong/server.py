@@ -60,7 +60,7 @@ SESSION = DemoSession(people=PEOPLE)
 # The chat mockup's own session: one person, matched against the synthetic people, so it never
 # touches the two phones. Made on first use.
 _CHAT = None
-CHAT_ACTIONS = {"reset", "verify", "new_listing", "open_listing", "prefill", "agent", "submit", "match", "answer", "set_active", "delete_listing",
+CHAT_ACTIONS = {"reset", "verify", "new_listing", "open_listing", "prefill", "visibility", "agent", "submit", "match", "answer", "set_active", "delete_listing",
                 "decide", "set_prefs", "message", "react", "update_profile"}
 
 
@@ -88,6 +88,8 @@ ACTIONS = {
     "react": lambda s, b: s.react(b.get("slot"), b.get("intro_id"), b.get("index"), b.get("emoji")),
     "open_listing": lambda s, b: s.open_listing(b.get("slot"), b.get("listing_id")),
     "prefill": lambda s, b: s.prefill(b.get("slot"), b.get("text"), b.get("listing_id")),
+    "visibility": lambda s, b: s.set_visibility(b.get("slot"), b.get("listing_id"), b.get("visibility"),
+                                                b.get("confirmed")),
     "agent": lambda s, b: s.agent_message(b.get("slot"), b.get("text"), b.get("listing_id")),
     "submit": lambda s, b: s.submit(b.get("slot"), b.get("listing") or {}, b.get("listing_id")),
     "match": lambda s, b: s.run_matchmaker(),
