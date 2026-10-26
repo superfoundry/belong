@@ -576,7 +576,8 @@ fetch("/api/chat/state").then(r => r.json()).then(d => {
   if (l && l.draft) L.log.push({ app: true, cards: [{ kind: "listing", latest: true }] });
   render();
 });
-setInterval(async () => { if (L.sending || L.confirm || L.popup) return; try { const d = await (await fetch("/api/chat/state")).json(); if (JSON.stringify(d.me) !== JSON.stringify(ME)) { ME = d.me; render(); if (L.thread) { const keep = $("msg") ? $("msg").value : ""; renderLayer(); if ($("msg")) $("msg").value = keep; } } } catch (_) {} }, 3000);
+// Check in every few seconds (this also lets the Matchmaker run); hold the redraw while something is open.
+setInterval(async () => { try { const d = await (await fetch("/api/chat/state")).json(); if (L.sending || L.confirm || L.popup) return; if (JSON.stringify(d.me) !== JSON.stringify(ME)) { ME = d.me; render(); if (L.thread) { const keep = $("msg") ? $("msg").value : ""; renderLayer(); if ($("msg")) $("msg").value = keep; } } } catch (_) {} }, 3000);
 </script>
 </body>
 </html>

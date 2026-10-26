@@ -48,9 +48,11 @@ class Introduction(_Sealed):
     """
 
     def __init__(self, seal, intro_id: str, person_a: str, person_b: str, a_view: dict, b_view: dict,
-                 one_way_to: str = ""):
+                 one_way_to: str = "", sent_at: str = ""):
         super().__init__(seal)
         self.intro_id, self.person_a, self.person_b = intro_id, person_a, person_b
+        # When it was first sent: the independent audit counts each listing's introductions per day.
+        self.sent_at = sent_at
         # A close match goes to this listing only; the other person sees nothing unless it says yes.
         self.one_way_to = one_way_to
         self._a, self._b = json.dumps(a_view, ensure_ascii=False), json.dumps(b_view, ensure_ascii=False)
@@ -65,7 +67,8 @@ class Introduction(_Sealed):
 
     def to_dict(self) -> dict:
         return {"intro_id": self.intro_id, "person_a": self.person_a, "person_b": self.person_b,
-                "a_view": self.a_view, "b_view": self.b_view, "one_way_to": self.one_way_to}
+                "a_view": self.a_view, "b_view": self.b_view, "one_way_to": self.one_way_to,
+                "sent_at": self.sent_at}
 
 
 class FollowUpOut(_Sealed):
@@ -301,11 +304,11 @@ class EntryResult:
 
 
 class Warden:
-    def __init__(self, clock: Clock, key: bytes, approach_limit_per_week: int = 3,
+    def __init__(self, clock: Clock, key: bytes, approach_limit_per_day: int = 15,
                  updates_per_day: int = 5, max_intent_chars: int = 500):
         self.clock = clock
         self._key = key
-        self.approach_limit = approach_limit_per_week
+        self.approach_limit = approach_limit_per_day
         self.updates_per_day = updates_per_day
         self.max_intent_chars = max_intent_chars
         self.receipts: list[Receipt] = []
@@ -441,7 +444,7 @@ class Warden:
         if not self._receipt("reason_fields_shown", both_show, subject):
             return None
 
-        under_limit = all(self._approaches_this_week(p) < self.approach_limit for p in (a_id, b_id))
+        under_limit = all(self._approaches_today(p) < self.approach_limit for p in (a_id, b_id))
         if not self._receipt("approach_limit", under_limit, subject):
             return None
 
@@ -450,7 +453,8 @@ class Warden:
             return None
         a_view, b_view = views
 
-        intro = Introduction(_SEAL, f"i{self._next_intro:04d}", a_id, b_id, a_view, b_view, one_way_to=close)
+        intro = Introduction(_SEAL, f"i{self._next_intro:04d}", a_id, b_id, a_view, b_view, one_way_to=close,
+                             sent_at=self.clock.now())
         self._next_intro += 1
         self._intros[intro.intro_id] = intro
         for p in (a_id, b_id):
@@ -489,7 +493,8 @@ class Warden:
         views = self._checked_views(a, b, reasons, subject)
         if views is None:
             return None
-        intro = Introduction(_SEAL, intro_id, old.person_a, old.person_b, views[0], views[1], one_way_to=old.one_way_to)
+        intro = Introduction(_SEAL, intro_id, old.person_a, old.person_b, views[0], views[1], one_way_to=old.one_way_to,
+                             sent_at=old.sent_at)  # a refresh, not a new approach
         self._intros[intro_id] = intro
         return intro
 
@@ -500,9 +505,10 @@ class Warden:
             board.withdraw(listing_id)
         return ok
 
-    def _approaches_this_week(self, person_id: str) -> int:
+    def _approaches_today(self, person_id: str) -> int:
+        """Introductions to this listing in the last 24 hours."""
         now = _parse(self.clock.now())
-        return sum(1 for t in self._approaches.get(person_id, []) if now - _parse(t) < timedelta(days=7))
+        return sum(1 for t in self._approaches.get(person_id, []) if now - _parse(t) < timedelta(days=1))
 
     # -- EXIT: follow-up questions ---------------------------------------------
 

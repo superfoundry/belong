@@ -680,7 +680,9 @@ function listingCard(slot, p, l) {
   const c = local[slot].ls[l.id] ||= { draft: null, draftFrom: null, chatText: "", editing: false, chatMin: false, seenChat: 0, sending: null };
   const waiting = needsAnswer(l), asks = l.followups.filter(q => q.question_id !== "broaden");
   const broaden = l.followups.find(q => q.question_id === "broaden"), total = l.intros.length + asks.length;
-  if (c.open === undefined) c.open = waiting > 0;
+  // Open the matches when something new needs an answer, not only the first time the card is drawn.
+  if (c.open === undefined || waiting > (c.seenWaiting || 0)) c.open = waiting > 0 || !!c.open;
+  c.seenWaiting = waiting;
   const paused = l.listed && l.active === false;
   const status = l.unsaved ? badge("warning", "Unsaved changes") : paused ? badge("", "Paused") : l.listed ? badge("accent", "Matching") : badge("", "Draft");
   const summary = !l.listed ? "Not matching yet" : total ? `${total} match${total === 1 ? "" : "es"}${waiting ? `, ${waiting} waiting on you` : ""}` : "No matches yet";
@@ -1089,10 +1091,10 @@ function renderRoom() {
     <div class="controls">
       <select class="select" id="scenario" aria-label="Scenario" onchange="scenario=this.value; resetLocal(false); render(['A','B'])">${Object.entries(SCENARIOS).map(([k, s]) => `<option value="${k}" ${k === scenario ? "selected" : ""}>${esc(s.label)}</option>`).join("")}</select>
       <button class="btn secondary sm" ${ffBusy ? "disabled" : ""} ${scenario === "blank" ? 'title="Pick a scenario first"' : ""} onclick="fastForward()">${ffBusy ? "Fast-forwarding…" : "Fast-forward both phones"}</button>
-      <button class="btn sm" onclick="api('match')" title="It also runs on its own every few seconds">Run Matchmaker now</button>
       <button class="btn secondary sm" onclick="api('attack')">Simulate a compromised Matchmaker</button>
       <button class="btn ghost sm" onclick="reset()">Reset</button>
     </div>
+    <p class="caption secondary" style="margin: var(--space-2) 0 0">The Matchmaker runs on its own every few seconds while this page is open${r.matchmaker_last_run ? ` (last run at ${esc(r.matchmaker_last_run.slice(11, 16))} demo time)` : ""}. The log shows only runs that send something or are held back.</p>
     <div class="audit">${lr.ok ? badge("success", "Passing") : badge("error", "Failed")}<div>
       <p class="heading-s">${lr.ok ? "Leak audit: no hidden detail has been shown" : `Leak audit failed: ${lr.findings.length} finding${lr.findings.length > 1 ? "s" : ""}`}</p>
       <p class="caption secondary" style="margin:0">${r.listings} listings on the Marketboard. Audited ${lr.checked.views} introduction views, ${lr.checked.followups} questions, ${lr.checked.reveals} compared details and ${lr.checked.receipts} receipts. ${blocked} attempt${blocked === 1 ? "" : "s"} blocked. k = ${r.k}.</p></div></div>
@@ -1182,9 +1184,10 @@ const ONLY = new URLSearchParams(location.search).get("phone");
 if (ONLY === "A" || ONLY === "B") document.body.classList.add("only-" + ONLY);
 fetch(STATE_URL).then(r => r.json()).then(d => { S = d; render(["A", "B"]); });
 // Keep in sync with actions from other windows or devices (e.g. each person on their own phone).
+// Each check-in also lets the Matchmaker run (every few seconds), so matches arrive without a button.
 setInterval(async () => {
-  if (inflight || !S) return;
-  try { const d = await (await fetch(STATE_URL)).json(); if (!inflight) { S = d; render(); } } catch (_) {}
+  if (inflight) return;
+  try { const d = await (await fetch(STATE_URL)).json(); if (!inflight) { const first = !S; S = d; render(first ? ["A", "B"] : []); } } catch (_) {}
 }, 2500);
 </script>
 </body>

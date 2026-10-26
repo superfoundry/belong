@@ -529,3 +529,57 @@ class SeveralListings(unittest.TestCase):
             owners = {self.s.board.listing(intro.person_a).owner, self.s.board.listing(intro.person_b).owner}
             self.assertEqual(len(owners), 2, intro.intro_id)
         self.assertTrue(self.s.room_state()["leak_report"]["ok"])
+
+
+class MatchmakerRunsOnItsOwn(unittest.TestCase):
+    """The demo's Matchmaker runs every few seconds (server._match_if_due); there is no button."""
+
+    def test_the_other_phone_is_introduced_even_if_it_joins_later(self):
+        s = DemoSession(seed=7, agent=None)
+        s.verify("A", "Yuki", 27)
+        s.agent_message("A", "Looking for a climbing partner in Osaka on weekends. I'm an intermediate climber, "
+                             "into bouldering and ramen.")
+        s.submit("A", fill(s.slots["A"].draft))
+        for _ in range(3):
+            s.run_matchmaker(quiet=True)  # A meets synthetic climbers first
+        s.verify("B", "Ren", 29)
+        s.agent_message("B", "Need someone to belay with at Osaka gyms, weekends. Intermediate level, "
+                             "I also like jazz and ramen.")
+        s.submit("B", fill(s.slots["B"].draft))
+        for _ in range(3):
+            s.run_matchmaker(quiet=True)
+        pairs = [{i.person_a, i.person_b} for i in s.intros.values()]
+        self.assertIn({"demoA-1", "demoB-1"}, pairs)  # people already introduced don't crowd them out
+        self.assertTrue(s.room_state()["leak_report"]["ok"])
+
+    def test_a_pair_held_back_isnt_sent_again_until_something_changes(self):
+        s = DemoSession(seed=7, agent=None)
+        s.warden.approach_limit = 0  # every introduction is held back
+        climbers(s)
+        s.run_matchmaker(quiet=True)
+        receipts, events = len(s.warden.receipts), len(s.events)
+        self.assertTrue(any("held back" in e["title"] for e in s.events))  # shown once, even from a quiet run
+        s.run_matchmaker(quiet=True)
+        self.assertEqual((len(s.warden.receipts), len(s.events)), (receipts, events))  # nothing new, nothing logged
+        s.warden.approach_limit = 15
+        s.clock.advance(hours=1)  # the daily limit is tried again after an hour of demo time
+        s.run_matchmaker(quiet=True)
+        self.assertIn({"demoA-1", "demoB-1"}, [{i.person_a, i.person_b} for i in s.intros.values()])
+
+    def test_the_person_is_told_in_their_listing_chat(self):
+        s = DemoSession(seed=7, agent=None)
+        climbers(s)
+        s.run_matchmaker(quiet=True)
+        last = s.phone_state("A")["listings"][0]["chat"][-1]
+        self.assertEqual(last["text"], "Belong. found someone for this listing. Go back to Belong. to see them.")
+        self.assertIsNotNone(s.room_state()["matchmaker_last_run"])
+
+    def test_a_one_way_close_match_isnt_news_to_the_other_person(self):
+        s = DemoSession(seed=7, agent=None)
+        repair_people(s, questions=False)
+        s.run_matchmaker(quiet=True)
+        intro = next(i for i in s.intros.values() if {i.person_a, i.person_b} == {"demoA-1", "demoB-1"})
+        self.assertEqual(intro.one_way_to, "demoA-1")
+        notice = "Belong. found someone for this listing. Go back to Belong. to see them."
+        self.assertIn(notice, [m["text"] for m in s.phone_state("A")["listings"][0]["chat"]])
+        self.assertNotIn(notice, [m["text"] for m in s.phone_state("B")["listings"][0]["chat"]])
