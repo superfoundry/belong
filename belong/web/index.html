@@ -48,6 +48,11 @@
   .view h4 { margin: 0 0 6px; font-size: 13px; color: var(--muted); font-weight: 500; }
   .note { font-size: 13px; color: var(--muted); }
   h2 { font-size: 16px; margin: 0 0 10px; }
+  /* "Take over": a small link-style button under each admitted person's name. */
+  button.take { all: unset; cursor: pointer; font-size: 13px; color: var(--text-accent); text-decoration: underline;
+                text-underline-offset: 2px; margin-top: 2px; }
+  button.take:hover { color: var(--accent-hover); }
+  button.take:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; border-radius: 2px; }
 </style>
 </head>
 <body>
@@ -140,9 +145,11 @@ function render(d) {
     </div>`;
 
   // People
-  $("people").innerHTML = `<p class="note">Everything each person put in their listing. Details marked Hidden are used for matching, never shown.</p>`;
+  $("people").innerHTML = `<p class="note">Everything each person put in their listing. Details marked Hidden are used for matching, never shown.</p>
+    <p class="note">These are synthetic people. Take over opens a person's phone in the live demo, so you can answer as them.</p>
+    <p class="note" id="take-msg" role="status"></p>`;
   filterable("people", d.people.map(p => `<tr>
-      <td>${name(p.id)}</td><td>${p.kind}</td>
+      <td>${name(p.id)}${p.admitted ? `<div><button class="take" data-take="${esc(p.id)}" aria-label="Take over ${esc((p.fields.find(f => f.key === "first_name") || {}).value || p.id)} in the live demo">Take over</button></div>` : ""}</td><td>${p.kind}</td>
       <td>${p.admitted ? '<span class="pill ok">admitted</span>' : `<span class="pill bad">rejected</span><div class="note">${p.entry_problems.map(esc).join("<br>")}</div>`}</td>
       <td>${esc(p.intent_text)}<div class="note">exactness ${p.exactness}</div></td>
       <td>${fieldPills(p.fields)}</td></tr>`).join(""),
@@ -179,6 +186,29 @@ function render(d) {
     <div class="card scroll"><h2>Latest 100</h2><table><thead><tr><th>Check</th><th>Result</th><th>Time</th><th>Hash</th></tr></thead><tbody>
     ${d.receipts.slice(-100).reverse().map(r => `<tr><td class="mono">${r.check}</td><td>${r.result}</td><td class="mono">${r.timestamp}</td><td class="mono">${r.hash.slice(0, 24)}…</td></tr>`).join("")}</tbody></table></div>`;
 }
+
+// Take over: the batch run's people are the live demo's first synthetic people (same ids), so the
+// demo gives that person a phone, which opens in a small window of its own.
+async function takeOver(id) {
+  const msg = $("take-msg");
+  // Open the window straight away (one opened after waiting for the server can be blocked).
+  const w = window.open("", "belong-" + id, "width=420,height=860");
+  try {
+    const r = await fetch("/api/take_over", { method: "POST", headers: { "Content-Type": "application/json" },
+                                               body: JSON.stringify({ persona_id: id }) });
+    const d = await r.json();
+    if (!r.ok || !d.slot) throw new Error(d.error || "The live demo didn't answer.");
+    const url = "/demo?phone=" + encodeURIComponent(d.slot);
+    if (!w) location.href = url;  // no new windows allowed: open it here
+    else if (!w.location.href.endsWith(url)) w.location.href = url;  // already open: keep what's half typed
+    if (w) w.focus();
+    msg.textContent = "";
+  } catch (e) {
+    if (w && w.location.href === "about:blank") w.close();  // only the window just opened for it
+    msg.textContent = `Couldn't take over ${id}: ${e.message}`;
+  }
+}
+$("people").addEventListener("click", e => { const b = e.target.closest("[data-take]"); if (b) takeOver(b.dataset.take); });
 
 tabs();
 // The server builds this run (the same people as the demo) when it starts; until then, wait and retry.
