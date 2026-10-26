@@ -247,9 +247,11 @@ here so nobody mistakes the prototype for the finished service.
     demo session for everyone who has its password: anyone using it at the same time sees the same
     two phones, and what they type stays in the server's memory until it restarts. It runs on Google
     Cloud, so Google, and anyone who can manage that project, could in principle read that memory.
-    The password keeps strangers out (and off the AI key): it's sent over HTTPS, checked by
-    `_authorized` in [server.py](belong/server.py), and the hosted demo refuses to start without one
-    (`tests/test_server.py`). On a VM the demo still listens only on the VM itself, behind Caddy;
+    The password keeps strangers out (and off the AI key): it's asked for on its own sign-in page and
+    sent over HTTPS; the browser then keeps a cookie that proves it without containing it (30 days, or
+    until the password changes), guessing pauses after 20 wrong tries a minute, and the hosted demo
+    refuses to start without a password (`_authorized`, `_login` in [server.py](belong/server.py);
+    `tests/test_server.py`). On a VM the demo still listens only on the VM itself, behind Caddy;
     run locally, only on your own machine. Use made-up details only.
 
 ---

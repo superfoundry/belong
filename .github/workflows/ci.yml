@@ -17,8 +17,8 @@ jobs:
       matrix:
         python: ["3.11", "3.13"]  # the VM's (Debian 12) and the one we develop on
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: ${{ matrix.python }}
       - name: All tests (they fail on any leak)
@@ -32,7 +32,7 @@ jobs:
     runs-on: ubuntu-latest
     concurrency: deploy
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Send main to the VM
         # The deploy key can only run belong-update on the VM (deploy/allow-deploys.sh): it
         # replaces the app's code and restarts it. Keys and the demo password stay on the VM.

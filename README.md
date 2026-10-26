@@ -48,7 +48,7 @@ git-ignored. To use Claude instead, `pip install -r requirements.txt`, set
 
 ## Run it online
 
-Either way the demo password (`BELONG_PASSWORD`) is required on every page (any user name), and the
+Either way the demo password (`BELONG_PASSWORD`) is asked for on a sign-in page before anything else, and the
 hosted demo won't start without one. It stays one shared demo session (TRUST.md §5, limit 17).
 
 ### On a VM (Debian 12 or Ubuntu 24.04, e.g. Google Compute Engine)

@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Belong.</title>
+<meta name="robots" content="noindex">
+<link rel="stylesheet" href="/ds/tokens.css">
+<link rel="stylesheet" href="/ds/belong.css">
+<style>
+  /* The hosted demo's sign-in: one password, nothing else. The server fills in the marked spots. */
+  body { min-height: 100vh; margin: 0; display: flex; align-items: center; justify-content: center;
+         background: var(--sf-paper-100); padding: var(--space-6); box-sizing: border-box; }
+  form { width: min(360px, 100%); }
+  .name { font-family: var(--font-display); font-weight: 700; letter-spacing: var(--tracking-tight);
+          font-size: 56px; line-height: 1; margin: 0 0 var(--space-6); color: var(--text-primary); text-align: center; }
+  .line { font: var(--text-body-s); color: var(--text-secondary); margin: 0 0 var(--space-6); text-align: center; }
+  .error { font: var(--text-body-s); color: var(--text-error); margin: var(--space-2) 0 0; }
+  .btn { margin-top: var(--space-4); }
+</style>
+</head>
+<body>
+<form method="post" action="/login">
+  <h1 class="name">Belong.</h1>
+  <p class="line">This demo is private. Enter its password to continue.</p>
+  <input type="hidden" name="next" value="{{next}}">
+  <label class="field-label" for="password">Password</label>
+  <input class="input{{error_class}}" id="password" name="password" type="password" autocomplete="current-password" required autofocus>
+  {{error}}
+  <button class="btn block lg" type="submit">Continue</button>
+</form>
+</body>
+</html>
