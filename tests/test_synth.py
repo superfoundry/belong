@@ -43,6 +43,27 @@ class Listings(unittest.TestCase):
         self.assertTrue(givers and all(p.values["pay"] == "Free" for p in givers))
         self.assertEqual({p.truth.sub for p in PEOPLE if p.truth.kind == "item"}, set(ITEMS))
 
+    def test_how_far_people_travel_and_who_works_online_only(self):
+        travel = Counter(p.values.get("travel") for p in PEOPLE)
+        self.assertGreater(travel["Same city"], 0.65 * len(PEOPLE))  # most stay in their city
+        self.assertGreater(travel["Up to 30 km"], travel["Up to 100 km"])  # some go 30 km, a few 100
+        self.assertGreater(travel["Up to 100 km"], 0)
+        online_only = [p for p in PEOPLE if p.values.get("format") == "Online"]
+        self.assertTrue(online_only)
+        for p in online_only:  # web designers and CV reviewers, who have no use for a travel distance
+            self.assertEqual((p.truth.kind, p.truth.role, SERVICES[p.truth.sub][3]), ("service", "provider", True))
+            self.assertNotIn("travel", p.values)
+            self.assertFalse(p.truth.in_person)
+
+    def test_the_new_details_leave_everyone_else_as_they_were(self):
+        """Travel and online-only come from their own random stream: the 300 people the tests and the
+        batch run use still have the same names, cities and descriptions."""
+        first = generate(300, 7)
+        self.assertEqual([(p.values["first_name"], p.intent_text) for p in first[:3]], [
+            ("Hana", "Running buddy in Kyoto for weekends runs."),
+            ("Chihiro", "Looking for a technical cofounder for a education startup in Kyoto. I handle sales and fundraising."),
+            ("Ayumi", "Language exchange in Osaka: I speak Japanese natively and want to practice German.")])
+
 
 if __name__ == "__main__":
     unittest.main()

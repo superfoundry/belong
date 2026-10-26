@@ -10,7 +10,8 @@ import hashlib
 import random
 from dataclasses import replace
 
-from .schema import AGE_BAND_BOUNDS, AGE_BANDS, FIELD_REGISTRY, FREE_TEXT_MAX, HIDDEN, SHOWN, Field, Listing
+from .schema import (AGE_BAND_BOUNDS, AGE_BANDS, FIELD_REGISTRY, FORMATS, FREE_TEXT_MAX, HIDDEN, SHOWN, TRAVEL, Field,
+                     Listing, only_said, said)
 from .synth import Persona
 
 
@@ -108,17 +109,19 @@ LABELS = {
     "interests": "Interests", "schedule": "Free time", "level": "Climbing level", "pace": "Running pace",
     "native_language": "Native language", "learning_language": "Learning", "role": "Your role",
     "subject": "Subject", "move_in": "Moving in", "seeking": "Looking for", "offering": "You are (to them)", "topics": "Related topics", "headline": "Headline", "pay": "Pay", "format": "Format",
+    "travel": "How far you'll travel",
     "diet": "Diet", "smoking": "Smoking",
     "children": "Children", "neighborhood": "Neighborhood", "employer": "Employer",
     "income_band": "Income", "religion": "Religion", "politics": "Politics", "health": "Health",
     "kinks": "Intimacy preferences",
 }
 
-_COMMON = ["first_name", "country", "city", "age_band", "interests", "schedule", "diet", "smoking",
+_COMMON = ["first_name", "country", "city", "travel", "age_band", "interests", "schedule", "diet", "smoking",
            "neighborhood", "employer", "income_band", "religion", "politics", "health"]
 _BY_KIND = {
     "dating": ["gender", "children", "kinks"], "climbing": ["level"], "running": ["pace"],
-    "language": ["native_language", "learning_language"], "tutoring": ["role", "subject", "pay", "format"], "roommate": ["move_in", "pay"], "cofounder": ["role"],
+    "language": ["native_language", "learning_language", "format"], "tutoring": ["role", "subject", "pay", "format"],
+    "roommate": ["move_in", "pay"], "cofounder": ["role", "format"],
     "other": ["seeking", "offering", "pay", "format"],
 }
 _KIND_NAMES = {
@@ -144,6 +147,7 @@ def field_options(kind, city=None) -> dict:
         "interests": [], "schedule": _vocab.SCHEDULES, "level": _vocab.LEVELS,
         "pace": _vocab.PACES, "native_language": _vocab.LANGUAGES, "learning_language": _vocab.LANGUAGES,
         "role": roles, "subject": [], "move_in": ALL_MONTHS, "diet": _vocab.DIET,
+        "format": list(FORMATS), "travel": list(TRAVEL),
         "smoking": _vocab.SMOKING, "children": _vocab.CHILDREN,
         "neighborhood": [], "employer": [],
         "income_band": _vocab.INCOME[country] if country else ["lower income", "middle income", "higher income"],
@@ -221,6 +225,12 @@ def draft_from_message(message: str, first_name: str, age_band: str) -> dict:
         v["diet"] = diet
     if _re.search(r"non-smoker|don't smoke|do not smoke", low):
         v["smoking"] = "doesn't smoke"
+    fmt = format_from_text(low)
+    if fmt and kind != "dating":  # dating is always in person
+        v["format"] = fmt
+    travel = travel_from_text(low)
+    if travel:
+        v["travel"] = travel
 
     # Sensitive things typed into the free text: move them to a hidden detail and warn.
     for key, words in _SENSITIVE_VOCAB.items():
@@ -268,8 +278,12 @@ def draft_from_message(message: str, first_name: str, age_band: str) -> dict:
     understood = [f"Looking for {_KIND_NAMES[kind]}" if kind else "Kind of match: not sure yet"]
     if city:
         understood.append(f"in {city}")
-    if parsed.remote_ok:
+    if v.get("format") == "Online":
+        understood.append("(online only)")
+    elif parsed.remote_ok:
         understood.append("(online/remote is fine)")
+    if v.get("travel") and TRAVEL[v["travel"]]:
+        understood.append(f"(will travel {v['travel'].lower()})")
     return {"intent_text": text, "exactness": exactness, "kind": kind, "fields": fields,
             "understood": " ".join(understood), "notes": notes}
 
@@ -368,10 +382,12 @@ def quick_facts(text: str) -> dict:
             amount *= 1000
         unit = {"hr": "hour", "h": "hour"}.get(m.group("unit"), m.group("unit"))
         out["pay"] = f"{symbol}{amount:,.0f}" + (f" per {unit}" if unit else "")
-    in_person = bool(_re.search(r"\bin[- ]person\b|\bface to face\b|\bmeet up\b|\bmeetups?\b", low))
-    online = bool(_re.search(r"\bonline\b|\bremote(?:ly)?\b|\bover (?:zoom|video)\b|\bvideo call", low))
-    if in_person or online:
-        out["format"] = "In person or online" if in_person and online else "In person" if in_person else "Online"
+    fmt = format_from_text(low)
+    if fmt and has_format(_parse_intent(low).kind):  # "climbing in Osaka, online works for me": no format
+        out["format"] = fmt
+    travel = travel_from_text(low)
+    if travel:
+        out["travel"] = travel
 
     # Teaching, stated plainly: "I'm offering piano lessons", "I teach guitar" -> they're the
     # teacher; "looking for a beginner ice hockey coach" -> they're the student.
@@ -405,6 +421,44 @@ def _article(phrase: str) -> str:
     return "an" if phrase[:1] in "aeiou" else "a"
 
 
+_ONLINE_WORDS = r"online|remote(?:ly)?|over (?:zoom|video)|video calls?"
+_IN_PERSON_WORDS = r"in[- ]person|face to face|meet up|meetups?"
+
+
+def has_format(kind) -> bool:
+    """Does a listing of this kind say how people meet (a "format" field)? Climbing, running,
+    roommates and dating don't; a kind not known yet might."""
+    return kind not in _BY_KIND or "format" in _BY_KIND[kind]
+
+
+def format_from_text(low: str):
+    """How they want to meet, when they say so plainly (one of FORMATS), else None. Online only
+    takes the words "only" or "just" ("online only", "only online", "just online"); any other
+    mention of online ("online works for me", "or online") keeps meeting in person open. "Not
+    online", "no remote" or "without video calls" means in person, and so does "only in person"."""
+    online, in_person = said(low, _ONLINE_WORDS), said(low, _IN_PERSON_WORDS) is True
+    if online is None:
+        return "In person" if in_person else None
+    if online is False or only_said(low, _IN_PERSON_WORDS):
+        return "In person"
+    if not in_person and only_said(low, _ONLINE_WORDS):
+        return "Online"
+    return "In person or online"
+
+
+def travel_from_text(low: str):
+    """How far they'll travel to meet, when they say so plainly ("within 30 km", "up to 20 miles"):
+    the furthest fixed choice (TRAVEL) that isn't further than what they said. Else None."""
+    m = _re.search(r"\b(?:within|up to|upto|under|less than|no more than|travel(?:l?ing)?)\s+(\d+)\s*"
+                   r"(km|kilomet(?:er|re)s?|miles?|mi)\b", low)
+    if m:
+        km = int(m.group(1)) * (1.609 if m.group(2).startswith("mi") else 1)
+        return max((c for c, d in TRAVEL.items() if d <= km), key=TRAVEL.get)
+    if _re.search(r"\bsame city\b|\b(?:only|just) in (?:my|the) (?:city|town)\b", low):
+        return "Same city"
+    return None
+
+
 def empty_draft(first_name: str, age_band: str) -> dict:
     """A blank work-in-progress profile, shown before the agent has drafted anything."""
     fields = []
@@ -420,7 +474,8 @@ def empty_draft(first_name: str, age_band: str) -> dict:
 
 def fill_gaps(draft: dict, facts: dict) -> list:
     """Put facts into empty fields of a draft (never overwriting anything set). Returns the
-    keys filled. Fields the draft doesn't have yet are added."""
+    keys filled. Fields the draft doesn't have yet are added, except a format on a kind that has
+    none (has_format): a climbing listing isn't made online only by "online works for me"."""
     filled = []
     by_key = {f["key"]: f for f in draft["fields"]}
     for key, value in facts.items():
@@ -428,6 +483,8 @@ def fill_gaps(draft: dict, facts: dict) -> list:
         if spec is None or spec.sensitive:
             continue
         f = by_key.get(key)
+        if f is None and key == "format" and not has_format(draft.get("kind")):
+            continue
         if f is None:
             f = {"key": key, "label": LABELS[key], "value": None, "visibility": spec.default, "sensitive": False,
                  "multi": spec.multi, "enabled": True, "locked": False,

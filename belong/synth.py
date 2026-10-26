@@ -1,9 +1,11 @@
 """Synthetic people for the prototype (SPEC §8.1).
 
 Names come from each person's region (most people in Japan have Japanese names), and every listing
-is in the format a person's agent writes now: a headline, topics, the format (in person or online),
-a price where there is one, and "looking for" / "offering" phrases for services, things to sell or
-give away, and open-ended requests. The demo serves 5,000 of them; tests and the batch run use 300.
+is in the format a person's agent writes now: a headline, topics, the format (in person, online, or
+both; some web designers and CV reviewers work online only), how far they'll travel to meet in person
+(most stay in their city), a price where there is one, and "looking for" / "offering" phrases for
+services, things to sell or give away, and open-ended requests. The demo serves 5,000 of them; tests
+and the batch run use 300.
 
 Each Persona carries:
   - the Person record (as the KYC provider would report it),
@@ -18,7 +20,7 @@ import random
 from dataclasses import dataclass, field
 from typing import Optional
 
-from .schema import AGE_BAND_BOUNDS, AGE_BANDS, FIELD_REGISTRY, HIDDEN, SHOWN, Person, age_band_index
+from .schema import AGE_BAND_BOUNDS, AGE_BANDS, FIELD_REGISTRY, HIDDEN, SHOWN, TRAVEL, Person, age_band_index
 
 CITIES = {
     "Osaka": ("JP", ["Namba", "Umeda", "Tennoji", "Nakazakicho"]),
@@ -130,7 +132,9 @@ KINDS = [  # (kind, weight)
     ("service", 0.10),  # a plumber and their customers, a web designer who works online
     ("item", 0.08),  # selling or buying something, giving it away or looking for it free
 ]
-REMOTE_KINDS = {"language", "cofounder", "tutoring", "other", "service"}
+# How far people will travel to meet in person: most stay in their city, some go up to 30 km, a few 100.
+TRAVEL_SHARE = [("Same city", 0.75), ("Up to 30 km", 0.17), ("Up to 100 km", 0.08)]
+ONLINE_ONLY_SHARE = 0.4  # of providers of a service done online who are open to online at all
 GENRES = ["ska", "punk", "jazz", "indie"]
 INSTRUMENTS = ["guitarist", "drummer", "bassist", "singer"]
 
@@ -141,7 +145,9 @@ class Truth:
     city: str
     exactness: float
     schedule: str
-    remote_ok: bool = False
+    remote_ok: bool = False  # open to meeting online
+    in_person: bool = True  # open to meeting in person (False: online only)
+    travel: str = "Same city"  # how far they'll go to meet in person (a TRAVEL choice)
     gender: Optional[str] = None
     seeking: tuple = ()
     age_idx: int = 0
@@ -281,6 +287,8 @@ def write_intent(t: Truth, v: dict, rng: random.Random) -> str:
         provider, customer, _, online = SERVICES[t.sub]
         where = f"in {city}" + (" or online" if t.remote_ok else "") if not online else (
             f"online or in {city}" if t.remote_ok else f"in {city}")
+        if not t.in_person:
+            where = "(online only)"
         if t.role == "provider":
             return rng.choice([f"I'm {provider} {where}, looking for new customers.",
                                f"Working as {provider} {where} and taking on new clients."])
@@ -367,8 +375,11 @@ def _art(word: str) -> str:
 def _write_listing(t: Truth, v: dict, country: str, rng) -> None:
     """What a person's agent adds to every listing now: a headline (starts with an -ing word, no
     place or price), broader topics, the format, a price where there is one, and "looking for" /
-    "offering" phrases for listings that are compared by phrase (services, things, open-ended)."""
+    "offering" phrases for listings that are compared by phrase (services, things, open-ended), and
+    how far they'll travel to meet in person."""
     k = t.kind
+    if t.in_person:
+        v["travel"] = t.travel
     if k == "dating":
         v["headline"] = rng.choice(["Looking for a serious relationship", "Hoping to meet someone kind",
                                     "Looking for a long-term partner", "Looking for something casual",
@@ -376,6 +387,8 @@ def _write_listing(t: Truth, v: dict, country: str, rng) -> None:
         v["topics"] = ("dating", "relationships")
         return
     remote_format = "In person or online" if t.remote_ok else "In person"
+    if not t.in_person:
+        remote_format = "Online"
     if k == "climbing":
         lvl = LEVELS[t.level]
         v["headline"] = rng.choice([f"Looking for {_art(lvl)} {lvl} climbing partner", "Seeking a belay partner",
@@ -447,6 +460,9 @@ def _write_listing(t: Truth, v: dict, country: str, rng) -> None:
 
 def generate(n: int = 300, seed: int = 7) -> list[Persona]:
     rng = random.Random(seed)
+    # How far each person travels, and who works online only, come from a stream of their own, so
+    # everything else about each person is the same as before these details existed.
+    meet = random.Random(seed * 1_000_003 + 17)
     personas = []
     for i in range(n):
         pid = f"p{i:03d}"
@@ -457,6 +473,10 @@ def generate(n: int = 300, seed: int = 7) -> list[Persona]:
         kind = _weighted(rng, KINDS)
         t = _make_truth(rng, kind, city, country, age_idx)
         t.bad_intent = rng.random() < 0.02
+        t.travel = _weighted(meet, TRAVEL_SHARE)
+        assert t.travel in TRAVEL
+        if kind == "service" and t.role == "provider" and t.remote_ok and meet.random() < ONLINE_ONLY_SHARE:
+            t.in_person = False  # a web designer or CV reviewer who only works online
 
         name_gender = t.gender or _weighted(rng, [("woman", 0.48), ("man", 0.48), ("nonbinary", 0.04)])
         v = {

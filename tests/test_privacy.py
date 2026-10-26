@@ -223,5 +223,5 @@ class ReasonWording(unittest.TestCase):
         from belong.warden import reason_text
         text = reason_text([("city", "Tokyo", "Tokyo"),
                             ("seeking", "an AC repair technician", "an AC repair customer"),
-                            ("offering", "an AC repair customer", "an AC repair technician")])
+                            ("offering", "an AC repair customer", "an AC repair technician")], ("Japan", "Japan"))
         self.assertEqual(text, "You're both in Tokyo. They're an AC repair technician.")
