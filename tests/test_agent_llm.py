@@ -371,11 +371,16 @@ class InstantProfile(unittest.TestCase):
     """The profile updates the moment a message is sent, before the agent replies."""
 
     def test_plain_facts_are_picked_up(self):
+        """Only in words the agent recognises (TRUST.md #3): a place it knows, the fixed choices, known
+        activities. A place or interest it doesn't know is left for the agent and the person to set."""
         from belong.agent import quick_facts
+        self.assertEqual(quick_facts("I live in Osaka and I'm free on weekends. I'm a beginner."),
+                         {"city": "Osaka", "country": "Japan", "schedule": "weekends", "level": "beginner"})
         self.assertEqual(quick_facts("I live in Galway and I'm free on weekends. I'm a beginner."),
-                         {"city": "Galway", "schedule": "weekends", "level": "beginner"})
-        self.assertEqual(quick_facts("i live in malaga, spain, looking to meet people")["city"], "Malaga")
-        self.assertEqual(quick_facts("yes, i enjoy chess and languages")["interests"], ["chess", "languages"])
+                         {"schedule": "weekends", "level": "beginner"})
+        self.assertEqual(quick_facts("i live in malaga, spain, looking to meet people"), {"country": "Spain"})
+        self.assertEqual(quick_facts("based in Porto, looking to meet people")["city"], "Porto")
+        self.assertEqual(quick_facts("yes, i enjoy chess and languages")["interests"], ["chess"])
 
     def test_how_and_how_far_they_meet_are_picked_up(self):
         from belong.agent import quick_facts

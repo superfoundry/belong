@@ -455,6 +455,7 @@ function syncDraft(slot) {
   const l = curListing(slot), c = cur(slot);
   if (l && l.draft && c.draftFrom !== JSON.stringify(l.draft)) {
     c.draftFrom = JSON.stringify(l.draft);
+    if (c.keepLocal && c.draft) return;  // the server just took this copy's choices of shown or hidden: keep editing it
     c.draft = JSON.parse(c.draftFrom);
     const sc = SCENARIOS[scenario]?.[slot];
     if (sc && c.applyScenario) { applyScenario(c.draft, sc); c.applyScenario = false; }
@@ -1154,9 +1155,32 @@ async function verify(slot) {
   local[slot].form = { name: $("name-" + slot).value, age: $("age-" + slot).value };
   if (await api("verify", { slot, name: local[slot].form.name, age: local[slot].form.age })) go(slot, "belong");
 }
+// Shown or hidden choices made in the editor and not saved yet, as the server's "visibility" action takes
+// them: every detail switched since the server's copy, and a new row only when it was hidden (a new row's
+// default is nobody's choice). null when there are none.
+function visibilityChanges(draft, from) {
+  if (!draft || !from) return null;
+  const before = new Map(JSON.parse(from).fields.map(f => [f.key, f.visibility]));
+  const visibility = {}, confirmed = [];
+  for (const f of draft.fields) {
+    if (f.locked || before.get(f.key) === f.visibility || (!before.has(f.key) && f.visibility !== "hidden")) continue;
+    visibility[f.key] = f.visibility;
+    if (f.confirmed) confirmed.push(f.key);
+  }
+  return Object.keys(visibility).length ? { visibility, confirmed } : null;
+}
 async function send(slot) {
   const c = cur(slot), listing_id = curId(slot), text = $("chat-" + slot).value.trim();
   if (!text || c.sending) return;
+  // The agent redrafts from the server's copy, so editor choices of shown or hidden go there first: a detail
+  // hidden in the editor stays hidden. If that fails, the message isn't sent.
+  const vis = visibilityChanges(c.draft, c.draftFrom);
+  if (vis) {
+    c.keepLocal = true;
+    const ok = await api("visibility", { slot, listing_id, ...vis });
+    c.keepLocal = false;
+    if (!ok) return;
+  }
   c.applyScenario = SCENARIOS[scenario]?.[slot]?.message === text;
   Object.assign(c, { sending: text, chatText: "" });
   renderPhone(slot);

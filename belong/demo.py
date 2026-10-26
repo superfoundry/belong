@@ -98,6 +98,10 @@ class _Listing:
         self.asked = set()  # (question_id, about) already answered: never asked again
         # The rule-based agent asked which kind of match this is: {"text": their message, "options": [...]}
         self.pending_kind = None
+        # The person's own choices of shown or hidden for this listing's details, key -> visibility: what they
+        # saved (_sync_draft) and what they set in the editor (set_visibility). Every agent draft keeps them
+        # unless its agent chose otherwise on purpose (agent.keep_visibility), so hidden stays hidden.
+        self.choices = {}
 
 
 def _current(attr):
@@ -309,6 +313,7 @@ class DemoSession:
                                "enabled": True, "locked": key == "age_band", "options": [],
                                **({"confirmed": True} if key in confirmed else {})})
         mine.draft = {**mine.draft, "intent_text": listing.intent_text, "exactness": listing.exactness, "fields": fields}
+        mine.choices.update({f.key: f.visibility for f in listing.fields})  # what they saved is their choice
         if live.get("kind") is not None:
             mine.draft["kind"] = live["kind"].value  # the kind of match that went live (it may have been edited)
 
@@ -529,7 +534,7 @@ class DemoSession:
             listing.draft = agent.empty_draft(st.name, st.person.age_band)
         else:
             listing.draft = copy.deepcopy(listing.draft)
-        agent.fill_gaps(listing.draft, facts)
+        agent.fill_gaps(listing.draft, facts, listing.choices)  # a detail they hid stays hidden
         if not listing.draft.get("intent_text"):
             # Until the agent writes one, their own words describe what they want (never shown).
             listing.draft["intent_text"] = " ".join((text or "").split())[:500]
@@ -549,7 +554,9 @@ class DemoSession:
             listing.agent_busy = True
             generation, llm = self.generation, self.llm
             name, band, conversation = st.name, st.person.age_band, listing.agent_conversation
-            current = copy.deepcopy(listing.draft)
+            # The profile as it stands, with the person's choices of shown or hidden, for the agent to build on.
+            current = ({**copy.deepcopy(listing.draft or {"fields": []}), "choices": dict(listing.choices)}
+                       if listing.draft or listing.choices else None)
 
         reply = draft = None
         if llm is not None:
@@ -587,8 +594,9 @@ class DemoSession:
                     moved.append(new.id)
                     continue
                 # Keep anything already on the profile that the agent's draft left empty, and the person's
-                # own choice of shown or hidden for every detail the agent didn't set on purpose.
-                agent.carry_over(d, listing.draft)
+                # own choice of shown or hidden for every detail the agent didn't set on purpose (build_draft
+                # does this already; this also covers any agent that hands back a draft of its own).
+                agent.carry_over(d, listing.draft, listing.choices)
                 listing.draft = d
                 updated = True
             if moved and updated:
@@ -627,6 +635,8 @@ class DemoSession:
                 again = f"{which[:1].upper()}{which[1:]}? {agent.ASK_HINT}"
             else:
                 again = pending.get("question") or "What would you like to meet someone for?"
+            if any(o["kind"] is None for o in pending["options"]) and agent.ACTIVITY_HINT not in again:
+                again += " " + agent.ACTIVITY_HINT  # only an activity it knows can go on the listing
             listing.chat.append({"from": "agent", "text": f"Sorry, I didn't catch that. {again}"})
             return
         listing.pending_kind = None
@@ -639,9 +649,9 @@ class DemoSession:
                 target = self._another_listing(st, listing)
                 if target is None:
                     return
-                target.pending_kind = {"text": message, "options": [o for o in pending["options"] if o["kind"] is None]}
-                target.chat.append({"from": "agent", "text": "What would you like a partner for? I'll keep it as its own "
-                                                             "listing."})
+                target.pending_kind = {"text": message, "options": [o for o in pending["options"] if o["kind"] is None],
+                                       "question": agent.WHICH_ACTIVITY}
+                target.chat.append({"from": "agent", "text": f"{agent.WHICH_ACTIVITY} I'll keep it as its own listing."})
                 continue
             target = listing if n == 0 else self._another_listing(st, listing)
             if target is None:
@@ -664,7 +674,7 @@ class DemoSession:
 
     def _rules_draft(self, st: _Slot, listing: _Listing, text: str, kind=None, activity=None) -> None:
         draft = agent.draft_from_message(text, st.name, st.person.age_band, kind=kind, activity=activity)
-        agent.keep_visibility(draft, listing.draft)  # a detail they hid stays hidden
+        agent.keep_visibility(draft, listing.draft, listing.choices)  # a detail they hid stays hidden
         listing.draft = draft
         hidden = sum(1 for f in draft["fields"] if f["value"] and f["enabled"] and f["visibility"] == HIDDEN)
         reply = f"Here's what I understood: {draft['understood']}. I've drafted your listing"
@@ -673,6 +683,31 @@ class DemoSession:
         listing.chat.append({"from": "agent", "text": reply})
         for note in draft["notes"]:
             listing.chat.append({"from": "agent", "text": note})
+
+    def set_visibility(self, slot: str, listing_id, visibility, confirmed=None) -> None:
+        """Shown or hidden, chosen in the editor before the person saves: remembered for this listing and put
+        on its draft now, so the agent's next draft keeps it (the phone sends these before each message to the
+        agent). A sensitive detail is made shown only with the confirmation the editor asks for; a hidden
+        choice always counts."""
+        st = self._verified(slot)
+        mine = st.listing(listing_id)
+        if not isinstance(visibility, dict):
+            raise DemoError("Nothing to change.")
+        confirmed = set(confirmed) if isinstance(confirmed, list) else set()
+        if mine.draft:
+            mine.draft = copy.deepcopy(mine.draft)
+        fields = {f["key"]: f for f in (mine.draft or {}).get("fields", [])}
+        for key, vis in visibility.items():
+            spec = FIELD_REGISTRY.get(key) if isinstance(key, str) else None
+            if spec is None or vis not in (SHOWN, HIDDEN) or key in ("first_name", "age_band"):
+                continue
+            if spec.sensitive and vis == SHOWN and key not in confirmed:
+                continue
+            mine.choices[key] = vis
+            if key in fields:
+                fields[key]["visibility"] = vis
+                if spec.sensitive and vis == SHOWN:
+                    fields[key]["confirmed"] = True
 
     def options(self, slot: str, kind, city) -> dict:
         return agent.field_options(kind, city)

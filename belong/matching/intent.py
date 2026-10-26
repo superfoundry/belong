@@ -10,8 +10,10 @@ still unknown is left as None, which can trigger a fixed-menu follow-up question
 The rules are a fallback, not understanding: the range of what people type is endless. They read
 a hobby the person mentions ("I enjoy climbing") as a hobby, not as the kind of match, whenever
 something else in the text asks for anything, before or after it ("I enjoy climbing and I'm looking
-to meet a woman"). Ages said with "no" or "not" ("no one over 40") mean the opposite of the plain
-wording, and numbers that measure or count something ("30 km", "2 kids") are never ages.
+to meet a woman"), and a hobby ends where they start saying they hope to meet someone or name who
+("I enjoy reading and hope to meet a girlfriend"). Ages said with "no" or "not" ("no one over 40", "no
+one under 30 or over 45") mean the opposite of the plain wording, numbers that measure or count something
+("30 km", "2 kids") are never ages, and a bare number ("a woman, 30") is never read as an age range.
 """
 from __future__ import annotations
 
@@ -32,16 +34,24 @@ _KIND_PATTERNS = [
 ]
 
 # Where someone starts saying what they want ("... and I'm looking to meet a woman", "want a running
-# buddy", "I'd love to meet"). A hobby ends there, and text that still has one of these after the
-# hobbies are taken out is a request, so the kind is never read from the hobbies instead.
+# buddy", "I'd love to meet", "hope to meet", "I'd really like"). A hobby ends there, and text that still
+# has one of these after the hobbies are taken out is a request, so the kind is never read from the
+# hobbies instead.
 _REQUEST_WORDS = (r"\b(?:looking|seeking|searching|hoping|want(?:s|ed|ing)?|wish(?:ing)?|need(?:s|ing)?|"
-                  r"would (?:like|love)|(?:i|we)['’]?d (?:like|love)|in search of|interested in meeting)\b")
+                  r"would (?:really |also )?(?:like|love)|(?:i|we)['’]?d (?:really |also |so )?(?:like|love)|"
+                  r"in search of|interested in meeting|open to meeting|hopes? to|keen to|eager to|trying to (?:meet|find))\b")
 REQUEST = re.compile(_REQUEST_WORDS)
-_UNTIL_REQUEST = rf"(?:(?!{_REQUEST_WORDS})[^.!?;])*"
+# Who someone hopes to meet, named romantically ("a girlfriend", "someone special", "a long-term partner"):
+# a hobby ends there too, so a romantic request is never read as only part of a hobby ("I enjoy hiking and
+# a girlfriend would be lovely").
+_ROMANTIC_WHO = (r"\b(?:(?:boy|girl)friends?|husband|wife|spouse|soul ?mates?|fianc[eé]e?|someone special|"
+                 r"(?:life|long[- ]?term|lifelong|romantic|serious|loving|committed|steady)\s+partners?|relationships?)\b")
+HOBBY_END = rf"(?:{_REQUEST_WORDS}|{_ROMANTIC_WHO})"
+_UNTIL_REQUEST = rf"(?:(?!{HOBBY_END})[^.!?;])*"
 # Something the person says they enjoy ("I enjoy rock climbing and tennis", "who loves hiking", "my
-# hobbies are..."), up to the end of the sentence or where a request starts. A hobby is not what they
-# want to meet someone for, so the kind is read without these first, and from them only if nothing
-# else in the text asks for anything.
+# hobbies are..."), up to the end of the sentence or where a request or a romantic "who" starts. A hobby
+# is not what they want to meet someone for, so the kind is read without these first, and from them only
+# if nothing else in the text asks for anything.
 _HOBBY = re.compile(
     r"\b(?:i|we|who|she|he|they)\s+(?:really\s+|also\s+|both\s+|just\s+|simply\s+)?(?:enjoy|love|like|adore)s?\b"
     + _UNTIL_REQUEST
@@ -153,9 +163,14 @@ _SELF_AGE = re.compile(rf"\b(?:i'?m|i am|im|as)\s+(?:only\s+|just\s+)?(?:an?\s+)
 _RANGE = re.compile(rf"\b{_N}\s*(?:-|–|to|and)\s*{_N}\b")
 # Said with "no", "not" or "at most": the opposite of the plain wording. "No one over 40" is 40 or
 # younger, "not younger than 30" is 30 or older. Read before the plain wording below.
-_NOBODY = r"(?:no(?:body| one|-one)?|not|never)\s+(?:anyone\s+|anybody\s+|someone\s+|people\s+|one\s+)?"
-_AT_MOST = re.compile(rf"\b(?:{_NOBODY}(?:over|older than|above)|at most|max(?:imum)?|no more than)\s+{_N}\b")
-_AT_LEAST = re.compile(rf"\b(?:{_NOBODY}(?:under|younger than|below)|min(?:imum)?|no less than)\s+{_N}\b")
+_NOBODY = r"(?:no(?:body| one|-one)?|not|never|neither)\s+(?:anyone\s+|anybody\s+|someone\s+|people\s+|one\s+)?"
+_UNDER, _OVER = r"(?:under|younger than|below)", r"(?:over|older than|above)"
+# Both bounds under one "no": "no one under 30 or over 45", "nobody over 45 or younger than 30", "neither
+# under 30 nor over 45" are 30 to 45 (read before the single bounds, so the second isn't read plainly).
+_JOINED = r"\s*,?\s*(?:or|and|nor)\s+(?:anyone\s+|anybody\s+|someone\s+|people\s+)?"
+_NOT_OUTSIDE = re.compile(rf"\b{_NOBODY}(?:{_UNDER}\s+{_N}{_JOINED}{_OVER}\s+{_N}|{_OVER}\s+{_N}{_JOINED}{_UNDER}\s+{_N})\b")
+_AT_MOST = re.compile(rf"\b(?:{_NOBODY}{_OVER}|at most|max(?:imum)?|no more than)\s+{_N}\b")
+_AT_LEAST = re.compile(rf"\b(?:{_NOBODY}{_UNDER}|min(?:imum)?|no less than)\s+{_N}\b")
 _OLDER = re.compile(rf"\b{_N}\s*(?:\+|or older|or over|and older|and over|and up)|\b(?:over|older than|at least)\s+{_N}\b")
 _YOUNGER = re.compile(rf"\b(under|younger than|below|up to)\s+{_N}\b|\b{_N}\s*(?:or younger|or under|and under)\b")
 # A decade of someone's life, not of music or film ("80s music", "90s films").
@@ -197,6 +212,9 @@ def _ages_said(text: str, plain_numbers: bool) -> list:
         nonlocal text
         text = rx.sub(lambda m: spans.append((*span(m), how)) or " ", text)
 
+    for m in _NOT_OUTSIDE.finditer(text):  # two bounds at once: a lower and an upper one
+        spans += [(int(m.group(1) or m.group(4)), 99, "min"), (18, int(m.group(2) or m.group(3)), "max")]
+    text = _NOT_OUTSIDE.sub(" ", text)
     take(_RANGE, lambda m: (int(m.group(1)), int(m.group(2))), "range")
     take(_AT_MOST, lambda m: (18, int(m.group(1))), "max")
     take(_AT_LEAST, lambda m: (int(m.group(1)), 99), "min")
@@ -307,7 +325,8 @@ def _wanted_part(desc: str, head: str) -> tuple:
 def dating_wants(text: str, headline: str = "", guess: bool = True) -> tuple:
     """(genders wanted, ages wanted in years or None), read from a dating description and its shown
     headline, whatever kind the words alone would suggest. Without guess, a bare number ("a woman,
-    30") isn't read as around that age: a person's agent asks instead (agent.wanted_ages)."""
+    30") isn't read as around that age: matching never guesses (_reading), and a person's agent asks
+    instead (agent.wanted_ages, which guesses only to notice that there is a number to ask about)."""
     wanted, whole = _wanted_part(_plain(text), _plain(headline))
     seeking = set(GENDERS) if _ANYONE.search(wanted) else {g for g, rx in _SEEKS.items() if rx.search(wanted)}
     return tuple(sorted(seeking)), _years(wanted, whole, guess)
@@ -335,9 +354,10 @@ def _seeks_role(low: str, kind) -> Optional[str]:
 
 
 def _reading(low: str, kind, desc: str, head: str) -> ParsedIntent:
-    """The structure of a listing of this kind, read from its text."""
+    """The structure of a listing of this kind, read from its text. A bare number ("a woman, 30") is
+    never read as an age range here either, so matching, the person's agent and their phone agree."""
     if kind == "dating":
-        seeking, years = dating_wants(desc, head)
+        seeking, years = dating_wants(desc, head, guess=False)
         return ParsedIntent(kind, seeking=seeking, age_range=_bands(*years) if years else None)
     # Any kind of listing may meet online except dating, which is in person only. "Not online" or
     # "no remote" says the opposite (schema.said).
@@ -359,9 +379,15 @@ def parse_intent(text: str, headline: str = "") -> ParsedIntent:
     return found
 
 
+def without_hobbies(low: str) -> str:
+    """The text without what it says the person enjoys, calendar dates and people they already have
+    ("I love hiking with my girlfriend" asks for nothing)."""
+    return _HOBBY.sub(" ", _set_aside(low))
+
+
 def request_kind(low: str) -> Optional[str]:
     """The kind of match the text asks for outside what it says the person enjoys, or None."""
-    return _named_kind(_HOBBY.sub(" ", low))
+    return _named_kind(without_hobbies(low))
 
 
 def _parse(text: str, headline: str) -> ParsedIntent:
@@ -371,7 +397,7 @@ def _parse(text: str, headline: str) -> ParsedIntent:
     # that asks for nothing else is read from its hobbies ("I enjoy climbing and I'm looking for someone
     # kind" asks for something, just not a climbing partner).
     kind = request_kind(low)
-    if kind is None and not REQUEST.search(_HOBBY.sub(" ", low)):
+    if kind is None and not REQUEST.search(without_hobbies(low)):
         kind = _named_kind(low)
     return _reading(low, kind, desc, head)
 
