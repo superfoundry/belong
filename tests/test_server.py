@@ -68,6 +68,13 @@ class Listening(unittest.TestCase):
             serve.assert_called_once_with(8080, "0.0.0.0")
 
 
+    def test_hosted_never_starts_without_a_password(self):
+        with mock.patch.object(server, "serve") as serve, \
+                mock.patch.dict(os.environ, {"BELONG_REQUIRE_PASSWORD": "1", "BELONG_PASSWORD": ""}):
+            self.assertEqual(main(["serve"]), 2)
+            serve.assert_not_called()
+
+
 class MatchingOnCheckIn(unittest.TestCase):
     def test_runs_at_most_every_few_seconds(self):
         s = DemoSession(seed=7, agent=None)

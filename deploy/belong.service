@@ -1,0 +1,22 @@
+# systemd service for the hosted demo on a VM (README, "Run it online"). Installed by deploy/setup.sh.
+# The demo listens on 127.0.0.1:8000 only; Caddy (deploy/Caddyfile) is the only way in, over HTTPS.
+[Unit]
+Description=Belong. demo
+After=network.target
+
+[Service]
+User=belong
+WorkingDirectory=/opt/belong
+ExecStart=/usr/bin/python3 -u -m belong serve --port 8000
+# Refuses to start without BELONG_PASSWORD (in /opt/belong/.env), so it's never open by mistake.
+Environment=BELONG_REQUIRE_PASSWORD=1
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ReadWritePaths=/opt/belong
+
+[Install]
+WantedBy=multi-user.target

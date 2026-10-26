@@ -1,0 +1,6 @@
+# Caddy in front of the demo: HTTPS (a certificate from Let's Encrypt, renewed automatically) and
+# nothing else. No access log is kept. deploy/setup.sh puts your address in place of BELONG_ADDRESS.
+BELONG_ADDRESS {
+	encode gzip
+	reverse_proxy 127.0.0.1:8000
+}

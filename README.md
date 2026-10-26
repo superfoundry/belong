@@ -46,12 +46,33 @@ OpenAI key in it (`OPENAI_API_KEY=...`), and restart `python3 -m belong serve`. 
 git-ignored. To use Claude instead, `pip install -r requirements.txt`, set
 `ANTHROPIC_API_KEY`, and leave `OPENAI_API_KEY` empty (or set `BELONG_AGENT=claude`).
 
-## Run it online (Google Cloud Run)
+## Run it online
+
+Either way the demo password (`BELONG_PASSWORD`) is required on every page (any user name), and the
+hosted demo won't start without one. It stays one shared demo session (TRUST.md §5, limit 17).
+
+### On a VM (Debian 12 or Ubuntu 24.04, e.g. Google Compute Engine)
+
+The demo keeps listening only on the VM itself; [Caddy](deploy/Caddyfile) is the way in, over HTTPS
+with an automatic certificate, and [systemd](deploy/belong.service) keeps it running.
+
+1. Let web traffic reach the VM: on Google Cloud, edit the VM and tick *Allow HTTP traffic* and
+   *Allow HTTPS traffic*. (Reserving its external IP as static keeps the address from changing.)
+2. Copy the code over without `.env` or history: `git archive --format=tar.gz -o belong.tar.gz HEAD`,
+   then upload it (the browser SSH window has *Upload file*) and `mkdir belong && tar -xzf belong.tar.gz -C belong && cd belong`.
+3. `sudo sh deploy/setup.sh ADDRESS`, where ADDRESS is a domain pointing at the VM, or, without one,
+   its external IP with dashes plus `.sslip.io` (e.g. `34-1-2-3.sslip.io`).
+4. `sudo nano /opt/belong/.env`: put in `OPENAI_API_KEY=...` and `BELONG_PASSWORD=...`, then
+   `sudo systemctl restart belong`. Open `https://ADDRESS`.
+
+To update, upload a new archive and run step 3 again (`.env` is kept; the demo starts fresh).
+`sudo journalctl -u belong` shows the server's own output (startup and errors, never requests).
+
+### Or on Google Cloud Run
 
 The [Dockerfile](Dockerfile) runs the same server in a container. Google builds it from this
 folder (`.gcloudignore` keeps `.env` and `.git` out), and the OpenAI key and a demo password come
-from Secret Manager at run time. With `BELONG_PASSWORD` set, every page asks for it (any user
-name). It stays one shared demo session, so use one instance (see TRUST.md §5, limit 17).
+from Secret Manager at run time. Everyone has to share the one demo, so it runs as one instance.
 
 ```bash
 gcloud services enable run.googleapis.com cloudbuild.googleapis.com artifactregistry.googleapis.com secretmanager.googleapis.com

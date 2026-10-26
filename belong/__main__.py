@@ -68,6 +68,10 @@ def main(argv=None) -> int:
         _summary(result)
         return 0 if result["leak_report"]["ok"] else 1
     load_dotenv()
+    if os.environ.get("BELONG_REQUIRE_PASSWORD") and not os.environ.get("BELONG_PASSWORD"):
+        # Hosted (deploy/belong.service, Dockerfile): never start open to everyone by mistake.
+        print("BELONG_PASSWORD isn't set. Add it (e.g. to .env) before starting the hosted demo.", file=sys.stderr)
+        return 2
     if not OUT.exists():
         _summary(_run(300, 7))
     from .server import serve
