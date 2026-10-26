@@ -199,7 +199,8 @@ class DemoSession:
         self.connections = set()
         self.outputs = {"followups": [], "reveals": []}
         self.last_proposals = []
-        self.last_run = None  # demo time the Matchmaker last ran (it runs every few seconds on its own)
+        self.last_run = None  # demo time the Matchmaker last ran (it runs on its own when something changes)
+        self.changes = 0  # goes up with every action anyone takes (the server counts them)
         # Held back by the Warden: not sent again until something changes, so a stuck pair doesn't
         # add receipts every few seconds. pair -> (versions, failed checks, when)
         self.held_back = {}
@@ -643,9 +644,10 @@ class DemoSession:
     def _demo_listing_ids(self) -> set:
         return {l.id for st in self.slots.values() for l in st.listings if l.id in self.board}
 
-    def run_matchmaker(self, quiet: bool = False) -> None:
-        """quiet: the automatic run every few seconds. It only leaves a trace in the presenter's log
-        when something happens: a new introduction or question, or one the Warden held back."""
+    def run_matchmaker(self, quiet: bool = False) -> bool:
+        """quiet: the automatic run. It only leaves a trace in the presenter's log when something
+        happens: a new introduction or question, or one the Warden held back. Returns whether it
+        sent anything (then there may be more waiting for the next run)."""
         demo_ids = self._demo_listing_ids()
         if not demo_ids:
             raise DemoError("Neither phone has a listing yet.")
@@ -732,12 +734,14 @@ class DemoSession:
                         payload=[{"to": self._name(intro.person_a), "view": intro.a_view},
                                  {"to": self._name(intro.person_b), "view": intro.b_view}],
                         receipts=receipts, slots=slots)
+        sent = (len(self.intros), len(self.outputs["followups"])) != sent_before
         if quiet and len(self.events) == noted:
             del self.events[events_before:]  # nothing happened: no trace in the log
-            return
+            return sent
         if not mine and not any(l.followups for st in self.slots.values() for l in st.listings):
             self._event("inside", "No match yet for the demo phones",
                         "Nobody on the board meets their intent and is also looking for them.")
+        return sent
 
     def _versions(self, p: Proposal) -> tuple:
         return tuple(self.board.listing(x).version if x in self.board else -1 for x in (p.person_a, p.person_b))

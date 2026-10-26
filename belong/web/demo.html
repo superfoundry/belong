@@ -1094,7 +1094,7 @@ function renderRoom() {
       <button class="btn secondary sm" onclick="api('attack')">Simulate a compromised Matchmaker</button>
       <button class="btn ghost sm" onclick="reset()">Reset</button>
     </div>
-    <p class="caption secondary" style="margin: var(--space-2) 0 0">The Matchmaker runs on its own every few seconds while this page is open${r.matchmaker_last_run ? ` (last run at ${esc(r.matchmaker_last_run.slice(11, 16))} demo time)` : ""}. The log shows only runs that send something or are held back.</p>
+    <p class="caption secondary" style="margin: var(--space-2) 0 0">The Matchmaker runs on its own while this page is open: whenever something changes, and once a minute${r.matchmaker_last_run ? ` (last run at ${esc(r.matchmaker_last_run.slice(11, 16))} demo time)` : ""}. The log shows only runs that send something or are held back.</p>
     <div class="audit">${lr.ok ? badge("success", "Passing") : badge("error", "Failed")}<div>
       <p class="heading-s">${lr.ok ? "Leak audit: no hidden detail has been shown" : `Leak audit failed: ${lr.findings.length} finding${lr.findings.length > 1 ? "s" : ""}`}</p>
       <p class="caption secondary" style="margin:0">${r.listings} listings on the Marketboard. Audited ${lr.checked.views} introduction views, ${lr.checked.followups} questions, ${lr.checked.reveals} compared details and ${lr.checked.receipts} receipts. ${blocked} attempt${blocked === 1 ? "" : "s"} blocked. k = ${r.k}.</p></div></div>
