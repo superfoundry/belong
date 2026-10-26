@@ -17,10 +17,20 @@ ROOT = Path(__file__).resolve().parent.parent
 OUT = ROOT / "out" / "run.json"
 
 
+def _current(n: int) -> bool:
+    """Is there already a batch run for n people (the demo's own), so the inspector matches the demo?"""
+    try:
+        return json.loads(OUT.read_text())["meta"]["n"] == n
+    except (OSError, ValueError, KeyError):
+        return False
+
+
 def _run(n: int, seed: int) -> dict:
     result = run(n=n, seed=seed)
     OUT.parent.mkdir(exist_ok=True)
-    OUT.write_text(json.dumps(result, ensure_ascii=False, indent=1))
+    tmp = OUT.with_suffix(".tmp")
+    tmp.write_text(json.dumps(result, ensure_ascii=False))
+    tmp.replace(OUT)  # never a half-written file for the inspector
     return result
 
 
@@ -72,9 +82,13 @@ def main(argv=None) -> int:
         # Hosted (deploy/belong.service, Dockerfile): never start open to everyone by mistake.
         print("BELONG_PASSWORD isn't set. Add it (e.g. to .env) before starting the hosted demo.", file=sys.stderr)
         return 2
-    if not OUT.exists():
-        _summary(_run(300, 7))
-    from .server import serve
+    from .server import PEOPLE, serve
+    if not _current(PEOPLE):
+        # The inspector shows the same people as the demo. Built in the background, so the site
+        # starts straight away; the inspector says it's being prepared until then.
+        import threading
+        OUT.unlink(missing_ok=True)
+        threading.Thread(target=lambda: _summary(_run(PEOPLE, 7)), daemon=True).start()
     serve(args.port, args.host)
     return 0
 
