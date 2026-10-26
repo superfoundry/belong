@@ -1,12 +1,13 @@
 """Command line.
 
   python3 -m belong run    [--n 300] [--seed 7]   simulate, write out/run.json, print summary
-  python3 -m belong serve  [--port 8000]          run (if needed) and open the inspector
+  python3 -m belong serve  [--port 8000] [--host 127.0.0.1]   run (if needed) and serve the demo
 """
 from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -41,7 +42,6 @@ def load_dotenv(path: Path = ROOT / ".env") -> None:
     overriding anything already set. Used for OPENAI_API_KEY and friends."""
     if not path.exists():
         return
-    import os
     for line in path.read_text().splitlines():
         line = line.strip()
         if not line or line.startswith("#") or "=" not in line:
@@ -58,7 +58,9 @@ def main(argv=None) -> int:
     r.add_argument("--n", type=int, default=300)
     r.add_argument("--seed", type=int, default=7)
     s = sub.add_parser("serve")
-    s.add_argument("--port", type=int, default=8000)
+    s.add_argument("--port", type=int, default=int(os.environ.get("PORT", 8000)))
+    # Loopback only unless told otherwise (the hosted container sets BELONG_HOST=0.0.0.0).
+    s.add_argument("--host", default=os.environ.get("BELONG_HOST", "127.0.0.1"))
     args = ap.parse_args(argv)
 
     if args.cmd == "run":
@@ -69,7 +71,7 @@ def main(argv=None) -> int:
     if not OUT.exists():
         _summary(_run(300, 7))
     from .server import serve
-    serve(args.port)
+    serve(args.port, args.host)
     return 0
 
 

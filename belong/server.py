@@ -1,4 +1,7 @@
-"""Local web server, loopback only (127.0.0.1 and ::1), never on a network interface.
+"""Web server. By default loopback only (127.0.0.1 and ::1), never on a network interface.
+
+Hosted (see README, "Run it online"): the container listens on all interfaces (BELONG_HOST=0.0.0.0)
+behind the host's HTTPS, and BELONG_PASSWORD, when set, is required on every request.
 
   /, /demo                  two-person demo (belong/web/demo.html)
   /welcome                  landing page (belong/web/landing.html)
@@ -18,9 +21,13 @@ Trust API (for people and their agents; see the trust page for examples):
 """
 from __future__ import annotations
 
+import base64
+import hmac
 import json
+import os
 import socket
 import threading
+import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
@@ -88,7 +95,30 @@ UNLOCKED = {ACTIONS["agent"]}
 PROBES = {"canary": probe.canary_test, "attacks": probe.attack_suite}
 
 
+def _authorized(header: str) -> bool:
+    """With BELONG_PASSWORD set (the hosted demo), every request needs it (HTTP Basic, any user name)."""
+    password = os.environ.get("BELONG_PASSWORD", "")
+    if not password:
+        return True
+    try:
+        scheme, _, encoded = (header or "").partition(" ")
+        given = base64.b64decode(encoded, validate=True).decode().partition(":")[2]
+    except (ValueError, UnicodeDecodeError):
+        return False
+    return scheme.lower() == "basic" and hmac.compare_digest(given.encode(), password.encode())
+
+
 class _Handler(BaseHTTPRequestHandler):
+    def _locked_out(self) -> bool:
+        if _authorized(self.headers.get("Authorization", "")):
+            return False
+        self.send_response(401)
+        self.send_header("WWW-Authenticate", 'Basic realm="Belong. demo", charset="UTF-8"')
+        self.send_header("Content-Type", "text/plain; charset=utf-8")
+        self.end_headers()
+        self.wfile.write(b"This demo needs a password.")
+        return True
+
     def _send(self, code: int, body: bytes, ctype: str) -> None:
         self.send_response(code)
         self.send_header("Content-Type", ctype)
@@ -100,13 +130,17 @@ class _Handler(BaseHTTPRequestHandler):
         self._send(code, json.dumps(obj, ensure_ascii=False).encode(), "application/json")
 
     def do_GET(self):
+        if self._locked_out():
+            return
         path = self.path.split("?")[0]
         if path == "/api/state":
             with SESSION.lock:
+                _match_if_due(SESSION)
                 return self._json(200, SESSION.state())
         if path == "/api/chat/state":
             session = chat_session()
             with session.lock:
+                _match_if_due(session)
                 # ?full=1: the test phone beside the chat (person B in the same session) needs the
                 # phone-demo state; the chat itself only ever gets person A's.
                 return self._json(200, session.state() if "full=1" in self.path else chat_state(session))
@@ -164,6 +198,8 @@ class _Handler(BaseHTTPRequestHandler):
         return self.send_error(404)
 
     def do_POST(self):
+        if self._locked_out():
+            return
         path = self.path.split("?")[0]
         if path.startswith("/api/probe/"):
             fn = PROBES.get(path.removeprefix("/api/probe/"))
@@ -221,34 +257,37 @@ class _IPv6Server(ThreadingHTTPServer):
     address_family = socket.AF_INET6
 
 
-MATCH_EVERY = 6  # seconds between background Matchmaker runs in the demo
+MATCH_EVERY = 6  # seconds between Matchmaker runs in the demo
+_last_match: dict = {}  # id(session) -> when its Matchmaker last ran
 
 
-def _keep_matching() -> None:
+def _match_if_due(session: DemoSession) -> None:
     """The demo's Matchmaker runs on its own every few seconds, like the real service would, so
-    nobody has to press Run Matchmaker. Quiet runs only show in the log when they send something."""
-    import time
-    while True:
-        time.sleep(MATCH_EVERY)
-        for session in [SESSION] + ([_CHAT] if _CHAT is not None else []):
-            with session.lock:
-                try:
-                    session.run_matchmaker(quiet=True)
-                except DemoError:
-                    pass  # no demo listings yet
-
-
-def serve(port: int = 8000) -> None:
-    """Listen on loopback only (IPv4 and IPv6), never on a network interface."""
-    httpd = ThreadingHTTPServer(("127.0.0.1", port), _Handler)
-    threading.Thread(target=_keep_matching, daemon=True).start()
+    nobody has to press Run Matchmaker. It runs when an open page checks in (they poll every few
+    seconds), so nothing runs while nobody is looking, and a host may pause the CPU between requests.
+    Quiet runs only show in the log when they send something. Call with the session's lock held."""
+    now = time.monotonic()
+    if now - _last_match.get(id(session), 0) < MATCH_EVERY:
+        return
+    _last_match[id(session)] = now
     try:
-        httpd6 = _IPv6Server(("::1", port), _Handler)
-        threading.Thread(target=httpd6.serve_forever, daemon=True).start()
-    except OSError:
-        pass  # no IPv6 loopback on this machine
-    print(f"Demo at http://localhost:{port}   inspector at http://localhost:{port}/inspector   (Ctrl+C to stop)",
-          flush=True)
+        session.run_matchmaker(quiet=True)
+    except DemoError:
+        pass  # no demo listings yet
+
+
+def serve(port: int = 8000, host: str = "127.0.0.1") -> None:
+    """Listen on loopback only (IPv4 and IPv6) unless a host is given (the hosted container)."""
+    httpd = ThreadingHTTPServer((host, port), _Handler)
+    if host == "127.0.0.1":
+        try:
+            httpd6 = _IPv6Server(("::1", port), _Handler)
+            threading.Thread(target=httpd6.serve_forever, daemon=True).start()
+        except OSError:
+            pass  # no IPv6 loopback on this machine
+    where = f"http://localhost:{port}" if host == "127.0.0.1" else f"{host}:{port}"
+    lock = "   password required" if os.environ.get("BELONG_PASSWORD") else ""
+    print(f"Demo at {where}   inspector at {where}/inspector{lock}   (Ctrl+C to stop)", flush=True)
     try:
         httpd.serve_forever()
     except KeyboardInterrupt:
