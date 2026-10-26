@@ -1127,23 +1127,41 @@ class WhereAndWhileReplying(unittest.TestCase):
     """Where someone is, read only when said about them; and choices made while the model agent replies."""
 
     def test_a_place_said_about_someone_else_or_the_past_isnt_where_they_are(self):
+        # Only a few explicit forms about the person, now; anything else stays blank and the agent asks.
         nowhere = ["My parents live in Nigeria. Looking for a chess partner.", "My family lives in Mexico",
                    "My sister lives in Canada", "I used to live in Israel, now looking for a tennis partner",
-                   "My parents came from Nigeria. Looking for a partner."]
+                   "My parents came from Nigeria. Looking for a partner.", "My girlfriend lives in Osaka. Looking for a tennis partner.",
+                   "My boyfriend is in Tokyo. Looking for a chess partner.", "My daughter is lovely. She lives in Osaka.",
+                   "I'm in my thirties, Berlin is where my parents live", "I was in Tokyo last month and want a chess partner",
+                   "I escaped from North Korea", "I'm making turkey sandwiches", "I'd love to visit Japan someday",
+                   "I come from a village in Nigeria", "I'm from northern Spain", "Deported to Mexico last year", "Big Chile fan",
+                   "I grew up in Munich but live in Osaka now", "My roommate lives in Berlin, looking for a chess partner"]
         for text in nowhere:
             facts = agent.quick_facts(text)
             self.assertFalse(facts.get("city") or facts.get("country"), text)
         here = {"Born in Kyoto, based in Berlin": ("Berlin", "Germany"),
                 "Originally from London, now living in Tokyo": ("Tokyo", "Japan"),
-                "I grew up in Munich but live in Osaka now": ("Osaka", "Japan"),
                 "I'm from Brazil but now I'm in Portugal": (None, "Portugal"),
                 "I moved to Spain last year and want a tennis partner": (None, "Spain"),
                 "i live in malaga, spain, looking to meet people": (None, "Spain"),
                 "Actually I need a roommate in Tokyo from November.": ("Tokyo", "Japan"),
-                "Visiting Osaka and looking to meet a woman around my age": ("Osaka", "Japan")}
+                "Visiting Osaka and looking to meet a woman around my age": ("Osaka", "Japan"),
+                "Need someone to belay with at Osaka gyms, weekends.": ("Osaka", "Japan"),
+                "Looking for a girlfriend in Osaka": ("Osaka", "Japan"),
+                "Looking for friends in Lisbon": ("Lisbon", "Portugal"),
+                "Looking for a maths tutor in Germany.": (None, "Germany")}
         for text, (city, country) in here.items():
             facts = agent.quick_facts(text)
             self.assertEqual((facts.get("city"), facts.get("country")), (city, country), text)
+
+    def test_with_a_model_agent_the_first_draft_guesses_no_place(self):
+        client = ScriptedClient(reply(text("Which city are you in?")))
+        s = DemoSession(seed=7, agent=ClaudeAgent(client=client))
+        s.verify("A", "Ada", 30)
+        s.prefill("A", "Looking for a climbing partner in Osaka on weekends.")
+        values = {f["key"]: f["value"] for f in s.slots["A"].listing().draft["fields"] if f["value"] not in (None, "", [])}
+        self.assertNotIn("city", values)  # the model reads where they are itself
+        self.assertEqual(values.get("schedule"), "weekends")  # other plain facts still go up at once
 
     def test_a_guessed_place_is_dropped_unless_the_model_agent_says_it(self):
         save = {"kind": "other", "exactness": 0.6, "suggestions": [], "separate_listing": False,

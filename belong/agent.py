@@ -830,28 +830,43 @@ _CITY_NAMES = {plain_place(c): c for c in _vocab.CITIES}  # the demo's own spell
 _KNOWN_CITY = _re.compile(r"\b(" + "|".join(map(_re.escape, sorted(_CITY_COUNTRIES, key=len, reverse=True))) + r")\b")
 
 
-# Where someone is, read carefully (the offline agent and the instant first draft). A place counts only when
-# the sentence is about them, now: "I live in Osaka", "Looking for a tutor in Germany", "Born in Kyoto, based in
-# Berlin" (Berlin). A sentence about someone else ("my parents live in Nigeria"), the past or an origin ("I grew
-# up in Munich", "I used to live in Israel", "originally from London") gives no place unless the person says
-# they are there themselves ("...but now I'm in Portugal"). Two different places left: none, and it asks.
-_OTHERS = _re.compile(r"\b(?:parents?|family|families|mum|mom|mother|dad|father|sisters?|brothers?|siblings?|"
-                      r"relatives?|grand(?:parents?|ma|mother|pa|father)|husband|wife|ex|friends?|cousins?|aunts?|"
-                      r"uncles?|daughters?|sons?|kids?|children|partner'?s|boss|colleagues?)\b")
-_PAST = _re.compile(r"\b(?:born|raised|grew up|grown up|originally|used to|lived|back home|childhood|"
-                    r"as a (?:kid|child)|when i was|came|emigrated|immigrated|ancestors?|heritage|descent|roots|"
-                    r"years ago|last year i was)\b")
-_FROM = _re.compile(r"\b(?:from|left|leaving)\s+(?:the\s+)?$")  # "from London", "left Spain": not where they are
-_SELF_HERE = _re.compile(r"(?:\b(?:i|we)\s+(?:now\s+|currently\s+|still\s+)?(?:live|reside|stay)\s+in"
-                         r"|\b(?:i'?m|i am|we'?re|we are)\s+(?:now\s+|currently\s+)?(?:living\s+|based\s+|staying\s+|"
-                         r"located\s+)?in|\b(?:i|we)\s+(?:just\s+)?(?:moved|relocated)\s+to)"
-                         r"(?:\s+[a-z' -]{1,30},)?\s+(?:the\s+)?$")  # also "I live in Malaga, Spain"
-_NOW_HERE = _re.compile(r"(?:(?:^|[,;]\s*|\b(?:but|and|now)\s+)(?:now\s+|currently\s+)?(?:based|living|live|staying|stay)\s+in"
-                        r"|\b(?:moved|relocated|moving)\s+to|\bnow\s+in)\s+(?:the\s+)?$")
+# Where someone is (the offline agent; the instant first draft only when there's no model agent). People can
+# say where they are in endless ways, so this reads only a few explicit forms, all about the person, now, and
+# leaves the place blank otherwise (the agent then asks "Where are you based?"):
+#   "I live in Osaka", "I'm (now) based/living/staying in Osaka", "I'm in Osaka", "I (just) moved to Spain",
+#   "Born in Kyoto, based in Berlin" (a clause starting "based/living in"), "Visiting Osaka",
+#   and a request with a place, "Looking for a climbing partner in (or at, around, near) Osaka", in a sentence that mentions nobody
+#   else and nothing past ("my parents live in Nigeria", "I grew up in Munich" give nothing).
+# A country merely named ("turkey sandwiches", "I'd love to visit Japan") is never read. Two places: none.
+# Someone else: family (never what people look for here), anyone with "my/our/his/her/their" (a boyfriend,
+# wife, roommate or friend can be what they're looking for: "Looking for a girlfriend in Osaka"), or he/she/they.
+_OTHERS = _re.compile(r"\b(?:parents?|mum|mom|mother|dad|father|sisters?|brothers?|siblings?|relatives?|"
+                      r"grand(?:parents?|ma|mother|pa|father)|cousins?|aunts?|uncles?|nieces?|nephews?|daughters?|"
+                      r"sons?|kids?|children|family|families|he|she|they|him|them|"
+                      r"(?:my|our|his|her|their)\s+(?:[a-z'-]+\s+)?(?:boyfriend|girlfriend|husband|wife|spouse|"
+                      r"partner|fianc[eé]e?|ex|roommate|flatmate|friends?|boss|colleagues?|people))\b")
+_PAST = _re.compile(r"\b(?:born|raised|grew up|grown up|originally|used to|lived|was|were|back home|childhood|"
+                    r"as a (?:kid|child)|when i|came|come|fled|escaped|deported|emigrated|immigrated|ancestors?|"
+                    r"heritage|descent|roots|left|years ago|last (?:year|month|week|summer)|studied|spent|worked|"
+                    r"honeymoon|someday|one day|would love to visit|visited|trip to|holiday in|vacation in)\b")
+_REQUEST = _re.compile(r"\b(?:looking for|look for|looking to|to meet|to find|seeking|searching for|need|want|wanted|"
+                       r"hoping to|hope to|"
+                       r"i'?d like|would like|selling|giving away|offering|teach|tutor)\b")
+# Explicit forms, each ending right before the place.
+_HERE_FORMS = _re.compile(
+    r"(?:\b(?:i|we)\s+(?:now\s+|currently\s+|still\s+)?(?:live|reside)\s+in"
+    r"|\b(?:i'?m|i am|we'?re|we are)\s+(?:now\s+|currently\s+)?(?:living\s+|based\s+|staying\s+|located\s+)?in"
+    r"|\b(?:i|we)\s+(?:just\s+|recently\s+)?(?:moved|relocated)\s+to"
+    r"|(?:^|[,;]\s*|\b(?:but|and)\s+)(?:now\s+|currently\s+)?(?:based|living)\s+in"
+    r"|(?:^|[,;]\s*|\b(?:i'?m|i am)\s+)visiting)"
+    r"\s+(?:the\s+)?$")
+_PLACE_THEN_COUNTRY = _re.compile(r"(?:\b(?:i|we)\s+(?:now\s+)?live\s+in|\b(?:i'?m|i am)\s+(?:based\s+|living\s+)?in)"
+                                  r"\s+(?!(?:my|our|a|an|the)\b)[a-z'-]+(?:\s+(?!(?:my|our|a|an|the)\b)[a-z'-]+)?,\s+$")
+_FROM = _re.compile(r"\bfrom\s+(?:the\s+)?(?:[a-z]+\s+)?$")  # "from Brazil", "from northern Spain": not where they are
 
 
 def _places_in(sentence: str) -> list:
-    """(kind, name) for the known cities and countries a sentence names, with where each starts."""
+    """(kind, name, where it starts) for the known cities and countries a sentence names."""
     found = [("city", m.group(1), m.start()) for m in _KNOWN_CITY.finditer(sentence)]
     for c in COUNTRIES:
         if len(c) > 3:
@@ -859,33 +874,38 @@ def _places_in(sentence: str) -> list:
     return found
 
 
+def _counts(sentence: str, before: str, kind: str) -> bool:
+    """Does this place (whose sentence text before it is `before`) say where the person is?"""
+    if _FROM.search(before):
+        return False
+    if _HERE_FORMS.search(before) or (kind == "country" and _PLACE_THEN_COUNTRY.search(before)):
+        return True
+    # A request with a place: "Looking for a tennis partner in Osaka", nobody else and nothing past in it.
+    return bool(_re.search(r"\b(?:in|at|around|near|nearby|across|within)\s+(?:the\s+)?$", before) and _REQUEST.search(sentence)
+                and not _OTHERS.search(sentence) and not _PAST.search(sentence))
+
+
 def where_they_are(text) -> tuple:
-    """(city or None, country or None) for where the person is, only when the text says so about them."""
+    """(city or None, country or None) for where the person is, only from the explicit forms above."""
     low = plain_place(" ".join(str(text or "").lower().split())) or ""
     cities, countries = [], []
     for sentence in _re.split(r"(?<=[.!?;])\s+|\n", low):
-        others, past = bool(_OTHERS.search(sentence)), bool(_PAST.search(sentence))
         for kind, name, at in _places_in(sentence):
-            before = sentence[:at]
-            if _FROM.search(before):
+            if not _counts(sentence, sentence[:at], kind):
                 continue
-            if others and not _SELF_HERE.search(before):
-                continue  # about someone else, unless they say they're there themselves
-            if past and not (_SELF_HERE.search(before) or _NOW_HERE.search(before)):
-                continue  # where they were or came from, not where they are
             if kind == "city":
                 cities.append(_CITY_NAMES.get(name) or _title(name))
-            elif kind == "country":
+            else:
                 countries.append(_country(name) or _title(name))
     cities, countries = list(dict.fromkeys(cities)), list(dict.fromkeys(countries))
-    if len(cities) > 1:
+    if len(cities) > 1 or len(countries) > 1:
         return None, None  # two places: not sure which, so none (the agent asks)
     city = cities[0] if cities else None
-    city_countries = _CITY_COUNTRIES.get(plain_place(city).lower() if city else "", set()) if city else set()
+    city_countries = _CITY_COUNTRIES.get(plain_place(city).lower(), set()) if city else set()
     country = next(iter(city_countries)) if len(city_countries) == 1 else None
     if countries:
-        if len(countries) > 1 or (country and countries[0] != country):
-            return (None, None) if country is None or countries[0] != country else (city, country)
+        if country and countries[0] != country:
+            return None, None  # a city in one country, another country named: not sure
         country = countries[0]
     return city, country
 
