@@ -11,7 +11,7 @@ import random
 from dataclasses import replace
 
 from .schema import (AGE_BAND_BOUNDS, AGE_BANDS, FIELD_REGISTRY, FORMATS, FREE_TEXT_MAX, HIDDEN, SHOWN, TRAVEL, Field,
-                     Listing)
+                     Listing, only_said, said)
 from .synth import Persona
 
 
@@ -383,7 +383,7 @@ def quick_facts(text: str) -> dict:
         unit = {"hr": "hour", "h": "hour"}.get(m.group("unit"), m.group("unit"))
         out["pay"] = f"{symbol}{amount:,.0f}" + (f" per {unit}" if unit else "")
     fmt = format_from_text(low)
-    if fmt:
+    if fmt and has_format(_parse_intent(low).kind):  # "climbing in Osaka, online works for me": no format
         out["format"] = fmt
     travel = travel_from_text(low)
     if travel:
@@ -421,22 +421,29 @@ def _article(phrase: str) -> str:
     return "an" if phrase[:1] in "aeiou" else "a"
 
 
-_ONLINE_WORDS = r"(?:online|remote(?:ly)?|over (?:zoom|video)|video calls?)"
+_ONLINE_WORDS = r"online|remote(?:ly)?|over (?:zoom|video)|video calls?"
+_IN_PERSON_WORDS = r"in[- ]person|face to face|meet up|meetups?"
+
+
+def has_format(kind) -> bool:
+    """Does a listing of this kind say how people meet (a "format" field)? Climbing, running,
+    roommates and dating don't; a kind not known yet might."""
+    return kind not in _BY_KIND or "format" in _BY_KIND[kind]
 
 
 def format_from_text(low: str):
-    """How they want to meet, when they say so plainly (one of FORMATS), else None. "Online is fine",
-    "or online" and "online works too" keep meeting in person open; "online only" doesn't."""
-    in_person = bool(_re.search(r"\bin[- ]person\b|\bface to face\b|\bmeet up\b|\bmeetups?\b", low))
-    if not _re.search(r"\b" + _ONLINE_WORDS + r"\b", low):
+    """How they want to meet, when they say so plainly (one of FORMATS), else None. Online only
+    takes the words "only" or "just" ("online only", "only online", "just online"); any other
+    mention of online ("online works for me", "or online") keeps meeting in person open. "Not
+    online", "no remote" or "without video calls" means in person, and so does "only in person"."""
+    online, in_person = said(low, _ONLINE_WORDS), said(low, _IN_PERSON_WORDS) is True
+    if online is None:
         return "In person" if in_person else None
-    if not in_person and _re.search(r"\b(?:only|just) " + _ONLINE_WORDS + r"\b|\b" + _ONLINE_WORDS + r" only\b", low):
+    if online is False or only_said(low, _IN_PERSON_WORDS):
+        return "In person"
+    if not in_person and only_said(low, _ONLINE_WORDS):
         return "Online"
-    either = in_person or _re.search(
-        r"\bor " + _ONLINE_WORDS + r"\b|\b" + _ONLINE_WORDS + r" or\b|\b" + _ONLINE_WORDS
-        + r"(?: is| works| would be)? (?:fine|ok|okay|good|great)\b|\b" + _ONLINE_WORDS + r"(?: works)?,? too\b"
-        + r"|\balso " + _ONLINE_WORDS + r"\b", low)
-    return "In person or online" if either else "Online"
+    return "In person or online"
 
 
 def travel_from_text(low: str):
@@ -467,7 +474,8 @@ def empty_draft(first_name: str, age_band: str) -> dict:
 
 def fill_gaps(draft: dict, facts: dict) -> list:
     """Put facts into empty fields of a draft (never overwriting anything set). Returns the
-    keys filled. Fields the draft doesn't have yet are added."""
+    keys filled. Fields the draft doesn't have yet are added, except a format on a kind that has
+    none (has_format): a climbing listing isn't made online only by "online works for me"."""
     filled = []
     by_key = {f["key"]: f for f in draft["fields"]}
     for key, value in facts.items():
@@ -475,6 +483,8 @@ def fill_gaps(draft: dict, facts: dict) -> list:
         if spec is None or spec.sensitive:
             continue
         f = by_key.get(key)
+        if f is None and key == "format" and not has_format(draft.get("kind")):
+            continue
         if f is None:
             f = {"key": key, "label": LABELS[key], "value": None, "visibility": spec.default, "sensitive": False,
                  "multi": spec.multi, "enabled": True, "locked": False,

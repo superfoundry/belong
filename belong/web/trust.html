@@ -177,7 +177,7 @@
         <div class="card check">
           <span class="caption tertiary">Attack suite</span>
           <h3 class="heading-l">Try to break in and get details out</h3>
-          <p class="what">Tries 21 attacks: identifying intents, forged and mislabelled listings, a compromised Matchmaker agent, forged outputs, and comparing details without consent. Each must be blocked, and the result names the rule that stopped it.</p>
+          <p class="what">Tries <span id="attack-count">every attack in the suite</span>: identifying intents, forged and mislabelled listings, a compromised Matchmaker agent, forged outputs, and comparing details without consent. Each must be blocked, and the result names the rule that stopped it.</p>
           <label class="field-label" for="attack-intents">Your own intents to try, one per line (optional)</label>
           <textarea class="textarea" id="attack-intents" rows="2" placeholder="My coworker Jane Smith from accounting"></textarea>
           <div class="actions" style="margin-top: var(--space-4)"><button class="btn secondary" id="btn-attack" onclick="runAttacks()">Run the attack suite</button></div>
@@ -365,6 +365,7 @@ async function runAttacks() {
   try {
     const intents = $("attack-intents").value.split("\n").map(s => s.trim()).filter(Boolean);
     const r = await post("/api/probe/attacks", { intents });
+    $("attack-count").textContent = `${r.attempts} attacks`;
     out.innerHTML = `<p>${r.ok ? badge("success", `${r.blocked} of ${r.attempts} blocked`) : badge("error", `Only ${r.blocked} of ${r.attempts} blocked`)}</p>
       <div class="scroll"><table><tr><th>Attack</th><th>Result</th><th>Stopped by</th></tr>
       ${r.results.map(x => `<tr><td>${esc(x.attack)}<div class="caption tertiary">${esc(x.category)}</div></td>

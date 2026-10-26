@@ -22,7 +22,7 @@ How OfflineMatcher decides, in order:
   5. Hidden fields may only raise the score, and only values at least k people share.
   6. Pick the best pairs, at most `max_per_person` each, fairly: a little lower for a listing
      that already had introductions in the last day, a little higher for one updated in the
-     last day. Ranking only: no pair skips a check above.
+     last day. Ranking only: no pair skips a check above (TRUST.md #32).
 """
 from __future__ import annotations
 
@@ -485,7 +485,8 @@ class OfflineMatcher:
         """focus: only find matches and questions for these listings (against everyone), e.g. the
         demo's two phones, instead of for every listing on the board.
         load: {listing id: introductions it got in the last 24 hours}, for fair ranking (step 6).
-        It only changes the order of pairs that already qualify."""
+        It only changes the order of pairs that already qualify. In a focused run, the focus
+        listings' own load is left out."""
         listings = {l.person_id: l for l in board.listings() if l.active}  # paused listings aren't matched
         views = {pid: ShownView(l) for pid, l in listings.items()}
         parsed = {pid: effective_kind(parse_intent(l.intent_text), views[pid]) for pid, l in listings.items()}
@@ -580,12 +581,18 @@ class OfflineMatcher:
                 followups.append(FollowUp(pid, "broaden"))
 
         # Exact matches first; a close match only fills a spare slot, at most one per listing.
-        # Close matches are ranked on shown details alone, so a hidden detail never decides which
-        # close match someone hears about. Fair ranking (only among pairs that passed every check
-        # above): a little lower for each introduction either listing had in the last day, a little
-        # higher for a listing updated in the last day.
+        # Close matches are ranked on shown details, never a hidden one (fair ranking, TRUST.md #32,
+        # may reorder them), so a hidden detail never decides which close match someone hears about.
+        # Fair ranking (only among pairs that passed every check above): a little lower for each
+        # introduction either listing had in the last day, a little higher for a listing updated in
+        # the last day.
         fresh = recently_updated(board.listings())
         load = load or {}
+        if focus is not None:
+            # A focused run (the demo's phones): a focus listing's own load is the same for every one
+            # of its candidates, so it would change nothing about whom it meets, except to push two
+            # focus listings down for each other. Only the other side's load counts.
+            load = {pid: n for pid, n in load.items() if pid not in focus}
 
         def rank(p: Proposal) -> float:
             base = p.shown_score if p.close else p.score

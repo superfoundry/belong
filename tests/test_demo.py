@@ -154,6 +154,28 @@ class InstantProfile(unittest.TestCase):
         self.assertTrue(s.slots["A"].listing(lid).entry["accepted"], s.slots["A"].listing(lid).entry)
 
 
+class HowTheyMeet(unittest.TestCase):
+    def test_online_works_for_me_still_meets_someone_in_person(self):
+        """Saying online works too keeps meeting in person open: only "only" or "just" makes a listing
+        online only. Typed as on the phone (the instant profile first, then the agent)."""
+        s = DemoSession(seed=7, agent=None)
+        for slot, name, age, said in (
+                ("A", "Yuki", 27, "Language exchange in Osaka: I speak English natively and want to practice "
+                                  "Japanese. Online works for me."),
+                ("B", "Ren", 29, "Language exchange in Osaka, in person: I speak Japanese natively and want to "
+                                 "practice English.")):
+            s.verify(slot, name, age)
+            s.prefill(slot, said)
+            s.agent_message(slot, said)
+            s.submit(slot, fill(s.slots[slot].draft))
+            self.assertTrue(s.slots[slot].entry["accepted"], s.slots[slot].entry)
+        fmt = {slot: s.board.listing(f"demo{slot}-1").get("format").value for slot in "AB"}
+        self.assertEqual(fmt, {"A": "In person or online", "B": "In person"})
+        for _ in range(5):
+            s.run_matchmaker(quiet=True)
+        self.assertIn({"demoA-1", "demoB-1"}, [{i.person_a, i.person_b} for i in s.intros.values()])
+
+
 class UnsavedChanges(unittest.TestCase):
     """What matching reads is what's live; a draft that isn't saved yet is flagged, not shown as live."""
 
@@ -551,6 +573,21 @@ class MatchmakerRunsOnItsOwn(unittest.TestCase):
             s.run_matchmaker(quiet=True)
         pairs = [{i.person_a, i.person_b} for i in s.intros.values()]
         self.assertIn({"demoA-1", "demoB-1"}, pairs)  # people already introduced don't crowd them out
+        self.assertTrue(s.room_state()["leak_report"]["ok"])
+
+    def test_two_busy_phones_still_meet_on_a_big_board(self):
+        """With 5,000 people, each phone has plenty of other climbers to meet first, and every run adds to
+        both phones' introductions today. Fair ranking doesn't hold the two apart: a phone's own load is
+        the same for all its candidates, so it isn't counted against meeting the other phone."""
+        s = DemoSession(people=5000, agent=None)
+        climbers(s)
+        pairs = []
+        for _ in range(5):
+            s.run_matchmaker(quiet=True)
+            pairs = [{i.person_a, i.person_b} for i in s.intros.values()]
+            if {"demoA-1", "demoB-1"} in pairs:
+                break
+        self.assertIn({"demoA-1", "demoB-1"}, pairs)
         self.assertTrue(s.room_state()["leak_report"]["ok"])
 
     def test_a_pair_held_back_isnt_sent_again_until_something_changes(self):
