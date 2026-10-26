@@ -461,7 +461,12 @@ function syncDraft(slot) {
       // own push), keep editing this copy, unsaved edits and all. If the agent changed the draft meanwhile,
       // take its draft and put the person's own choices back on it, so none of them is lost.
       const mine = visibilityChanges(c.draft, before);
-      if (sameValues(JSON.parse(before), l.draft)) return;
+      // Our own push: the same values, and nothing shown or hidden differently from what this copy has.
+      const ours = sameValues(JSON.parse(before), l.draft) && l.draft.fields.every(f => {
+        const local = c.draft.fields.find(g => g.key === f.key);
+        return !local || local.visibility === f.visibility;
+      });
+      if (ours) return;
       c.draft = JSON.parse(c.draftFrom);
       if (mine) for (const f of c.draft.fields) if (f.key in mine.visibility) f.visibility = mine.visibility[f.key];
       return;

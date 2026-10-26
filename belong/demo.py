@@ -534,6 +534,9 @@ class DemoSession:
         st = self._verified(slot)
         listing = self._listing_for(st, listing_id)
         facts = agent.quick_facts((text or "")[:2000])
+        if self.llm is not None:
+            # A model agent reads where they are itself; a keyword guess of a place is never put up first.
+            facts = {k: v for k, v in facts.items() if k not in GUESSED_PLACES}
         if not facts:
             return
         if listing.draft is None:
@@ -584,7 +587,8 @@ class DemoSession:
             listing.agent_busy = False
             if reply is None:
                 self._rules_reply(st, listing, text)
-                listing.provisional = set()  # the offline agent read the same words: nothing left to confirm
+                if listing.pending_kind is None:
+                    listing.provisional = set()  # the offline agent drafted from the same words
                 return
             # Everything the agent saved this turn, in order: usually one draft; two when the person
             # said "both" to "a date, or a partner for that activity?" (one listing for each kind).
