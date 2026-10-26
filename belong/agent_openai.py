@@ -9,8 +9,10 @@ Calls the OpenAI Chat Completions API directly with the standard library, so no 
 package is needed. Configuration (environment variables, or a .env file in the project
 folder, which the server loads):
 
-  OPENAI_API_KEY   required
-  OPENAI_MODEL     optional, defaults to DEFAULT_MODEL
+  OPENAI_API_KEY      required
+  OPENAI_MODEL        optional, defaults to DEFAULT_MODEL
+  OPENAI_CHAT_MODEL   optional: the model that writes simulated people's chat replies, defaults to
+                      CHAT_MODEL (smaller and faster); the main model is used if it isn't available
 """
 from __future__ import annotations
 
@@ -24,6 +26,7 @@ from .agent_llm import (MAX_TOOL_ROUNDS, SYSTEM_PROMPT, UPDATE_LISTING_TOOL, Age
 
 API_URL = "https://api.openai.com/v1/chat/completions"
 DEFAULT_MODEL = "gpt-5"
+CHAT_MODEL = "gpt-5-mini"
 
 OPENAI_TOOL = {
     "type": "function",
@@ -50,6 +53,7 @@ class OpenAIAgent:
         if not self.api_key:
             raise AgentUnavailable("OPENAI_API_KEY isn't set")
         self.model = model or os.environ.get("OPENAI_MODEL") or DEFAULT_MODEL
+        self.chat_model = os.environ.get("OPENAI_CHAT_MODEL") or CHAT_MODEL
         self._post = post
 
     def respond(self, conversation: list, user_text: str, first_name: str, age_band: str, current=None) -> tuple:
@@ -107,6 +111,35 @@ class OpenAIAgent:
         reply = "\n\n".join(replies).strip() or ("I've drafted your listing. Take a look at your profile."
                                                   if draft else "Sorry, could you say that another way?")
         return honest(reply, attempted, draft is not None), draft
+
+    def chat_json(self, system: str, messages: list, schema: dict) -> dict:
+        """One plain reply as JSON matching `schema` (used for simulated people's chat replies)."""
+        for model in dict.fromkeys([self.chat_model, self.model]):
+            try:
+                return self._chat_json(model, system, messages, schema)
+            except AgentUnavailable:
+                if model == self.model:
+                    raise
+        return {}
+
+    def _chat_json(self, model: str, system: str, messages: list, schema: dict) -> dict:
+        payload = {
+            "model": model,
+            "messages": [{"role": "system", "content": system}] + messages,
+            "response_format": {"type": "json_schema", "json_schema": {"name": "reply", "strict": True, "schema": schema}},
+        }
+        if model.startswith(("gpt-5", "o")):
+            payload["reasoning_effort"] = "low"
+        headers = {"Authorization": f"Bearer {self.api_key}", "Content-Type": "application/json"}
+        try:
+            response = self._post(API_URL, payload, headers)
+        except (urllib.error.URLError, TimeoutError) as e:
+            raise AgentUnavailable("couldn't get a reply from OpenAI") from e
+        content = ((response.get("choices") or [{}])[0].get("message") or {}).get("content") or "{}"
+        try:
+            return json.loads(content)
+        except ValueError:
+            return {}
 
     def _call(self, system: str, conversation: list) -> dict:
         payload = {

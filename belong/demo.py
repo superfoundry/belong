@@ -31,7 +31,7 @@ import threading
 from datetime import datetime, timezone
 from dataclasses import replace
 
-from . import agent
+from . import agent, persona_chat
 from .agent_llm import AgentUnavailable, ClaudeAgent
 from .agent_openai import OpenAIAgent
 from .leaks import leak_report
@@ -50,6 +50,7 @@ LOOK_PAST = 1000  # how far down each listing's ranking the Matchmaker looks, pa
 SHORTLIST = 400  # candidates per phone listing; only the two phones are matched each run, so it can be generous
 MAX_LISTINGS = 5
 MESSAGE_MAX = 1000  # characters in one message to a match
+PERSONA_REPLIES = 30  # a simulated person replies at most this many times in one conversation
 REACTIONS = ("👍", "❤️", "😂", "😮", "🙏")  # the only reactions a message can get
 
 
@@ -193,6 +194,8 @@ class DemoSession:
         self.declined = set()  # (listing_id, about): said no to "Would that work for you?" about that listing
         self.intro_reasons = {}  # intro_id -> the reason fields it was made with
         self.threads = {}  # intro_id -> [{"from": listing_id, "text"}]: messages between two connected people
+        self.persona_typing = set()  # intro_ids where a simulated person is writing a reply
+        self.persona_replies = {}  # intro_id -> how many times the simulated person has replied
         self.introduced_pairs = set()
         self.decisions = {}  # (intro_id, listing_id) -> bool
         self.consents = {}  # (intro_id, listing_id) -> set
@@ -913,6 +916,8 @@ class DemoSession:
             slots = [s for s in (self._slot_of(intro.person_a), self._slot_of(intro.person_b)) if s]
             self._event("out", f"{self._name(intro.person_a)} and {self._name(intro.person_b)} connected",
                         "Both said yes, so each can now be put in touch.", slots=slots)
+            if self._slot_of(other) is None and not self.threads.get(intro_id):
+                self._persona_turn(intro_id, other)  # a simulated person you matched with says hello first
 
     def _record(self, intro_id: str, listing_id: str, yes: bool) -> None:
         self.decisions[(intro_id, listing_id)] = yes
@@ -989,6 +994,56 @@ class DemoSession:
         self._event("out", f"{st.name} sent {self._name(other)} a message",
                     "Delivered only to the two of them. Matching never reads messages.",
                     slots=[s for s in (slot, self._slot_of(other)) if s])
+        if self._slot_of(other) is None:
+            self._persona_turn(intro_id, other)  # a simulated person answers, since someone wrote to them
+
+    def _persona_turn(self, intro_id: str, me: str) -> None:
+        """A simulated person writes (and maybe reacts): a hello when a real person matches with
+        them, then only in answer to that person's messages. One reply at a time per conversation,
+        at most PERSONA_REPLIES times. Two simulated people never chat."""
+        if intro_id in self.persona_typing or self.persona_replies.get(intro_id, 0) >= PERSONA_REPLIES:
+            return
+        self.persona_typing.add(intro_id)
+        generation = self.generation
+        self._spawn(lambda: self._persona_reply(intro_id, me, generation))
+
+    def _persona_reply(self, intro_id: str, me: str, generation: int) -> None:
+        import time
+        started = time.monotonic()
+        with self.lock:
+            if generation != self.generation:
+                return
+            intro = self.intros[intro_id]
+            mine = self.board.listing(me)
+            # Only what this person would know: their own shown details and request, and the
+            # introduction they were shown. Never anyone's hidden details.
+            ctx = persona_chat.context(self._name(me), mine.shown(), mine.intent_text,
+                                       intro.a_view if intro.person_a == me else intro.b_view)
+            thread = [dict(m) for m in self.threads.get(intro_id, [])]
+            llm, rng = self.llm, random.Random(f"{intro_id}:{len(thread)}")
+        try:
+            text, react = persona_chat.reply(llm, ctx, thread, me, REACTIONS, rng)
+        except Exception:  # the model is unavailable: answer simply rather than not at all
+            text, react = persona_chat.fallback(thread, me, REACTIONS, rng)
+        if not self.run_inline:
+            time.sleep(max(0.0, 1.5 - (time.monotonic() - started)))  # people take a moment to type
+        with self.lock:
+            if generation != self.generation:
+                return
+            self.persona_typing.discard(intro_id)
+            live = self.threads.setdefault(intro_id, [])
+            theirs = [n for n, m in enumerate(live[:len(thread)]) if m["from"] != me]
+            if react and theirs:
+                live[theirs[-1]]["reactions"][me] = react
+            at = datetime.now(timezone.utc).isoformat(timespec="seconds")
+            live.append({"from": me, "text": text, "at": at, "reactions": {}})
+            self.persona_replies[intro_id] = self.persona_replies.get(intro_id, 0) + 1
+            other = intro.person_b if intro.person_a == me else intro.person_a
+            self._event("out", f"{self._name(me)} replied to {self._name(other)}",
+                        "A simulated person's reply, written by the AI model from what they were shown. "
+                        "Its content isn't logged.", slots=[s for s in [self._slot_of(other)] if s])
+            if any(m["from"] != me for m in live[len(thread):]):
+                self._persona_turn(intro_id, me)  # they wrote again while this reply was being written
 
     def react(self, slot: str, intro_id: str, index, emoji: str) -> None:
         """React to a message in a conversation with a match: one of a fixed few, one per
@@ -1087,7 +1142,8 @@ class DemoSession:
                 item["thread"] = [{"mine": m["from"] == mine.id, "text": m["text"], "at": m["at"],
                                    "reactions": [{"emoji": e, "mine": who == mine.id} for who, e in m["reactions"].items()]}
                                   for m in self.threads.get(intro_id, [])]
-                item["simulated"] = self._slot_of(other) is None  # a synthetic person can't reply
+                item["simulated"] = self._slot_of(other) is None  # their replies are written by the AI model
+                item["typing"] = intro_id in self.persona_typing
                 item["their_assistant"] = self._slot_of(other) in self.assistant_slots
             intros.append(item)
         hidden_keys = []

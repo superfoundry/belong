@@ -625,9 +625,11 @@ const SCREENS = {
       <div class="chat-pane thread-pane">
         <p class="caption tertiary thread-note">${i.their_assistant
           ? `You both said yes. ${esc(name)} uses Belong. through their own AI assistant, so what you write to them passes through that assistant's provider.`
+          : i.simulated ? `You both said yes. ${esc(name)} is a simulated person in this demo: an AI model writes their replies from what they were shown about you, never your hidden details.`
           : "You both said yes. Only the two of you can see this conversation."}</p>
         ${t.map((m, n) => messageRow(slot, i, m, n, t, name, p.name)).join("")}
-        ${i.simulated ? `<p class="caption tertiary thread-note">${esc(name)} is simulated in this demo and won't reply.</p>` : ""}</div>
+        ${i.typing ? `<div class="msg-row them first last"><span class="avatar" aria-hidden="true">${esc((name || "?").slice(0, 1).toUpperCase())}</span>
+          <div class="msg-col"><div class="bubble them typing" aria-label="${esc(name)} is typing"><span></span><span></span><span></span></div></div></div>` : ""}</div>
       <div class="composer-bar"><textarea class="textarea" id="msg-${slot}" aria-label="Message to ${esc(name)}" placeholder="Message ${esc(name)}"
           oninput="local['${slot}'].msg['${i.intro_id}']=this.value"
           onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendMessage('${slot}','${i.intro_id}')}">${esc(text)}</textarea>

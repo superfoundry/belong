@@ -25,6 +25,9 @@ their region, and plain Python; secure hardware comes in Step 3.
   questions ("Someone is looking for an air conditioner repair technician. Would that work for
   you?", never saying who). People you've both said yes to appear under **Found.**, where you
   can message each other.
+- **Chatting with a synthetic person.** If you match with one of the synthetic people, they say hello
+  and reply to your messages, written by the AI model (OpenAI's `OPENAI_CHAT_MODEL`, gpt-5-mini by
+  default) from only what they'd know, sometimes with a reaction. No key: short built-in replies.
 - **Connector (mockup).** `/connector` shows one person using Belong. inside a ChatGPT-style chat
   app through a connector, in dark mode: connecting, drafting, going live and
   matches, all in the conversation. Saying yes and going live always need the person's own tap.

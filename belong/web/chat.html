@@ -469,7 +469,8 @@ function renderLayer() {
       <div class="thread-body" id="thread-body">
         <p class="notice">You and ${esc(name)} both said yes. This chat is shown in your AI assistant, so it passes through your assistant's provider; ${esc(name)} has been told.</p>
         ${t.map(m => `<div class="msg ${m.mine ? "mine" : ""}">${esc(m.text)}</div>`).join("") || `<p class="sub" style="text-align:center">Say hello to ${esc(name)}.</p>`}
-        ${i.simulated ? `<p class="sub" style="text-align:center">${esc(name)} is simulated in this demo and won't reply. Use “Test with a phone” to reply as someone yourself.</p>` : ""}
+        ${i.typing ? `<div class="typing" aria-label="${esc(name)} is typing"><span></span><span></span><span></span></div>` : ""}
+        ${i.simulated ? `<p class="sub" style="text-align:center">${esc(name)} is a simulated person in this demo: an AI model writes their replies from what they were shown about you, never your hidden details.</p>` : ""}
       </div>
       <div class="thread-compose"><div class="box"><textarea id="msg" rows="1" placeholder="Message ${esc(name)}" oninput="L.msg=this.value"
           onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendToMatch('${i.intro_id}')}">${esc(draft)}</textarea>
