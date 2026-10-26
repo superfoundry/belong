@@ -238,6 +238,8 @@ class _Handler(BaseHTTPRequestHandler):
             with SESSION.lock:
                 return self._json(200, SESSION.options("A", (q.get("kind") or [None])[0], (q.get("city") or [None])[0]))
         route = FILES.get(path)
+        if path == "/run.json" and route and not route[0].exists():
+            return self._json(503, {"preparing": True})  # the inspector's run is still being built
         if route is None or not route[0].exists():
             return self.send_error(404)
         self._send(200, route[0].read_bytes(), route[1])
