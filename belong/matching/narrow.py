@@ -6,6 +6,7 @@ shortlisted, so they can't become the reason two people meet.
 from __future__ import annotations
 
 import unicodedata
+from collections import defaultdict
 
 from ..schema import Listing, value_strings
 from .intent import REMOTE_KINDS, ParsedIntent
@@ -35,12 +36,21 @@ class ShownView:
         return " ".join(parts)
 
 
+_PLACES: dict = {}  # place text -> its plain form, so each place is normalised once
+
+
 def _place(value):
     """Compare places ignoring case, spacing and accents ("Málaga" == "malaga")."""
     if not value:
         return None
-    plain = "".join(c for c in unicodedata.normalize("NFKD", str(value)) if not unicodedata.combining(c))
-    return " ".join(plain.lower().split())
+    text = str(value)
+    plain = _PLACES.get(text)
+    if plain is None:
+        if len(_PLACES) > 100_000:
+            _PLACES.clear()
+        decomposed = "".join(c for c in unicodedata.normalize("NFKD", text) if not unicodedata.combining(c))
+        plain = _PLACES[text] = " ".join(decomposed.lower().split())
+    return plain
 
 
 def same_place(av: ShownView, bv: ShownView):
@@ -70,19 +80,60 @@ def _cross_kind_ok(a: ParsedIntent, av: ShownView, b: ParsedIntent, bv: ShownVie
     return phrases and "dating" not in (a.kind, b.kind)
 
 
-def shortlists(parsed: dict, views: dict, size: int) -> tuple[dict, TfIdf]:
-    """For each person: the `size` most similar candidates that pass the hard filters
-    (same kind of match, compatible location)."""
+def _has_phrases(view: ShownView) -> bool:
+    return view.get("seeking") is not None and view.get("offering") is not None
+
+
+PHRASES = "*phrases"  # the group of listings that can be compared with other kinds by their phrases
+
+
+def shortlists(parsed: dict, views: dict, size: int, focus=None) -> tuple[dict, TfIdf]:
+    """For each person (or only those in `focus`): the `size` most similar candidates that pass
+    the hard filters (same kind of match, compatible location).
+
+    Top down: listings are grouped by place and kind once, and each listing is only checked against
+    its own groups (its city, its country if either is open to anywhere in it, and listings open to
+    meeting online), never against everyone. The groups always contain every listing that could pass
+    the filters, which are then applied exactly as before, in the same order, so the result is the same."""
     index = TfIdf({pid: v.profile_text() for pid, v in views.items()})
-    intent_vecs = {pid: index.embed(v.intent_text) for pid, v in views.items()}
+    order = {pid: i for i, pid in enumerate(parsed)}
+    by_city, by_country, by_country_only, online = (defaultdict(list) for _ in range(4))
+    for b, bp in parsed.items():
+        bv = views[b]
+        city, country = _place(bv.get("city")), _place(bv.get("country"))
+        for group in [bp.kind] + ([PHRASES] if _has_phrases(bv) else []):
+            if city:
+                by_city[(city, group)].append(b)
+            if country:
+                by_country[(country, group)].append(b)
+                if not city:
+                    by_country_only[(country, group)].append(b)
+            if bp.remote_ok:
+                online[group].append(b)
     out = {}
     for a, ap in parsed.items():
+        if focus is not None and a not in focus:
+            continue
         if ap.kind is None:
             out[a] = []
             continue
-        cands = [b for b, bp in parsed.items()
-                 if b != a and (bp.kind == ap.kind or _cross_kind_ok(ap, views[a], bp, views[b]))
-                 and location_ok(ap, views[a], bp, views[b])]
-        cands.sort(key=lambda b: -cosine(intent_vecs[a], index.vectors[b]))
+        av = views[a]
+        city, country = _place(av.get("city")), _place(av.get("country"))
+        pool = set()
+        for group in [ap.kind] + ([PHRASES] if _has_phrases(av) else []):
+            if city:
+                pool.update(by_city[(city, group)])
+                if country:
+                    pool.update(by_country_only[(country, group)])
+            elif country:
+                pool.update(by_country[(country, group)])
+            if ap.remote_ok:
+                pool.update(online[group])
+        pool.discard(a)
+        cands = [b for b in sorted(pool, key=order.__getitem__)
+                 if (parsed[b].kind == ap.kind or _cross_kind_ok(ap, av, parsed[b], views[b]))
+                 and location_ok(ap, av, parsed[b], views[b])]
+        intent_vec = index.embed(av.intent_text)
+        cands.sort(key=lambda b: -cosine(intent_vec, index.vectors[b]))
         out[a] = cands[:size]
     return out, index
