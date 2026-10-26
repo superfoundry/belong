@@ -46,7 +46,7 @@ POLICY = {
     "matching_allowed_imports": ["__future__", "collections", "dataclasses", "math", "re", "typing", "unicodedata",
                                  "belong.schema"],
     "k_crowd_threshold": 20,
-    "approach_limit_per_week": 3,
+    "approach_limit_per_day": 15,
     "listing_updates_per_day": 5,
     "output_types": ["Introduction", "FollowUpOut", "Reveal", "Receipt"],
 }

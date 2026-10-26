@@ -108,7 +108,7 @@ Exit:
 - Every field in each view is marked shown by its owner.
 - Reason text references only reason_fields; no hidden values appear (string check).
 - Follow-up questions come from the fixed menu only.
-- Approach limits per person per week.
+- Approach limits per listing per day (15 in the prototype).
 - Write a receipt: `{check, result, timestamp, hash}`; never the content.
 
 ## 8. Prototype scope (Step 2)

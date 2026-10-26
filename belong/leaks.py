@@ -21,7 +21,8 @@ Audits:
   R1  never the only reason   every proposal clears the shown-only threshold and has
                               reason fields shown by both
   R2  only counts in a crowd  every hidden field used had a shared value >= k people
-  R3  approach limit          no listing introduced more than the weekly limit
+  R3  approach limit          no listing introduced more than the daily limit in any 24 hours
+                              (an introduction without a send time counts as the same day)
   R4  distinct people         no one is introduced to their own other listing
   R5  opt-ins                 follow-ups only to listings that opted in to questions,
                               except "include close matches?" (the opt-in itself): at most
@@ -34,6 +35,7 @@ from __future__ import annotations
 import hashlib
 import json
 import re
+from datetime import datetime, timedelta
 
 from .schema import FOLLOWUP_MENU, HIDDEN, SHOWN
 
@@ -85,7 +87,6 @@ def leak_report(board, introductions: list, followups: list, reveals: list, rece
         findings.append({"audit": audit, "detail": detail})
 
     # A1 + A2: introductions
-    intro_count = {}
     for intro in introductions:
         for viewer, other, key in ((intro["person_a"], intro["person_b"], "a_view"),
                                    (intro["person_b"], intro["person_a"], "b_view")):
@@ -104,8 +105,6 @@ def leak_report(board, introductions: list, followups: list, reveals: list, rece
             for s in sorted(every_hidden):
                 if _contains(text, s):
                     find("A2", f"{intro['intro_id']} {key}: hidden value {s!r} reached {viewer}")
-        for p in (intro["person_a"], intro["person_b"]):
-            intro_count[p] = intro_count.get(p, 0) + 1
 
     # A3: follow-ups
     for fu in followups:
@@ -210,10 +209,24 @@ def leak_report(board, introductions: list, followups: list, reveals: list, rece
         if to not in (intro["person_a"], intro["person_b"]) or l is None or not l.notify_close:
             find("R5", f"{intro['intro_id']}: close match sent to {to}, who didn't opt in to close matches")
 
-    # R3: approach limit
-    for person, n in intro_count.items():
-        if n > approach_limit:
-            find("R3", f"{person} was introduced {n} times (limit {approach_limit})")
+    # R3: approach limit, per rolling 24 hours. Re-implemented here, not taken from the Warden.
+    def sent(intro):
+        try:
+            return datetime.fromisoformat(str(intro.get("sent_at") or "").rstrip("Z"))
+        except ValueError:
+            return None
+    times: dict = {}
+    for intro in introductions:
+        for p in (intro["person_a"], intro["person_b"]):
+            times.setdefault(p, []).append(sent(intro))
+    for person, ts in times.items():
+        if None in ts:  # no send time to go on: count them all as one day
+            worst = len(ts)
+        else:
+            ts = sorted(ts)
+            worst = max(sum(1 for u in ts if t <= u < t + timedelta(days=1)) for t in ts)
+        if worst > approach_limit:
+            find("R3", f"{person} was introduced {worst} times in one day (limit {approach_limit})")
 
     return {
         "ok": not findings,

@@ -113,7 +113,7 @@ that nothing published relies on unpublished code.
 | 14 | No hidden value of either person appears anywhere in an introduction (string check). | `no_hidden_values` → `find_forbidden` | `test_hidden_values_stay_out_even_when_one_side_shows_the_same_key`, audit A2 |
 | 15 | Follow-up questions come only from the fixed menu, and the Warden attaches the wording. | `FOLLOWUP_MENU` in [schema.py](belong/schema.py); `exit_followup` | Audit A3 |
 | 16 | **Mutual reveal.** A hidden detail is revealed only if both people share it, are connected (both said yes), and both opted in. Each person is asked about *all* their hidden details, so the question itself reveals nothing. | `exit_reveal`; `reveal_consents` in [agent.py](belong/agent.py) | `test_shared_detail_revealed_only_when_both_opt_in`, `test_nothing_revealed_before_both_say_yes`, audit A4 |
-| 17 | No listing is introduced more than 3 times a week. | `approach_limit` check (counted per listing) | `test_approach_limit_is_enforced`, audit R3 |
+| 17 | **No listing is introduced more than 15 times a day** (any 24 hours), so nobody is flooded and a fake account can only reach a few people. The Matchmaker also proposes at most 3 per listing in one run, so they arrive a few at a time. The Warden stamps each introduction with when it was sent, and the independent audit re-counts every listing's introductions in each 24 hours (one with no send time counts as the same day). | `approach_limit` check (counted per listing, last 24 hours) in [warden.py](belong/warden.py); `Introduction.sent_at`; audit R3 in [leaks.py](belong/leaks.py) | `test_approach_limit_is_enforced`, `test_the_approach_limit_is_per_day`, `test_an_introduction_carries_when_it_was_sent`, `test_too_many_introductions_in_one_day_are_caught`; attack suite: "Spam one person with more introductions than the daily limit" |
 | 18 | **Receipts carry no content:** exactly `{seq, check, result, timestamp, commitment, hash}`. The commitment is a keyed HMAC of what was checked: auditors holding the key can confirm it, and nobody can read content out of it. | `Warden._receipt` | `test_receipts_have_fixed_fields_and_no_content`, audit A5 |
 | 19 | **Receipts can't be quietly deleted, reordered or edited, even by Belong.** Each receipt's hash covers the previous one, and anyone can re-compute the chain without keys. | `chain_hash`, `verify_chain` in [warden.py](belong/warden.py); re-implemented independently in [leaks.py](belong/leaks.py) and in the trust page's JavaScript | `test_anyone_can_verify_the_receipt_chain`, `test_deleting_or_editing_a_receipt_breaks_the_chain`, audit A6 |
 | 20 | A proposal naming someone who hasn't signed up (or pairing a person with themselves) is refused cleanly. | `proposal_known_people` check | Attack suite: "Propose a person who hasn't signed up" |
@@ -211,7 +211,8 @@ here so nobody mistakes the prototype for the finished service.
    phrasings it has never seen.
 6. **Receipt key management** is a placeholder: the HMAC key is derived from the run
    seed. In production it belongs to independent auditors.
-7. **Rate and approach limits** are simple in-memory counters for one simulated week.
+7. **Rate and approach limits** are simple in-memory counters, reset when the server restarts. 15 a day is
+   the user's choice for the prototype; whether it should differ by kind of listing (dating vs selling) is open.
 8. **The Warden's rules haven't been audited by an outside party** (planned for Step 3).
 9. **The Warden checks that reasons are private, not that they're true.** A compromised
    Matchmaker could cite "city" for two people in different cities. The Warden would

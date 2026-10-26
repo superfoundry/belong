@@ -111,7 +111,7 @@ function filterable(sectionId, rowsHtml, headHtml, placeholder) {
 
 function render(d) {
   const m = d.metrics, lr = d.leak_report;
-  $("meta").textContent = `${d.meta.n} synthetic people · seed ${d.meta.seed} · ${d.meta.matcher} · k = ${d.meta.k_crowd} · approach limit ${d.meta.approach_limit}/week`;
+  $("meta").textContent = `${d.meta.n} synthetic people · seed ${d.meta.seed} · ${d.meta.matcher} · k = ${d.meta.k_crowd} · approach limit ${d.meta.approach_limit}/day`;
   const people = Object.fromEntries(d.people.map(p => [p.id, p]));
   const name = id => { const f = (people[id]?.fields || []).find(f => f.key === "first_name"); return `${f ? esc(f.value) + " " : ""}<span class="muted mono">${id}</span>`; };
 
