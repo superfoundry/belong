@@ -152,6 +152,59 @@ class Drafting(unittest.TestCase):
         self.assertEqual(problems, [])
         self.assertTrue(any("where they are" in m for m in draft["missing"]))
 
+    def test_format_and_travel_take_their_fixed_choices(self):
+        """Matching reads both, so the agent's wording is put into the fixed wording, and anything else
+        goes back to the agent to fix."""
+        from belong.agent_llm import UPDATE_LISTING_TOOL
+        keys = UPDATE_LISTING_TOOL["input_schema"]["properties"]["fields"]["items"]["properties"]["key"]["enum"]
+        self.assertIn("format", keys)
+        self.assertIn("travel", keys)
+        args = {**CLIMBER, "fields": CLIMBER["fields"] + [{"key": "format", "values": ["in-person"], "visibility": SHOWN},
+                                                          {"key": "travel", "values": ["up to 30km"], "visibility": SHOWN}]}
+        draft, problems, _ = build_draft(args, "Yuki", "25-29")
+        self.assertEqual(problems, [])
+        by_key = {f["key"]: f for f in draft["fields"]}
+        self.assertEqual((by_key["format"]["value"], by_key["travel"]["value"]), ("In person", "Up to 30 km"))
+        self.assertEqual(by_key["travel"]["options"], ["Same city", "Up to 30 km", "Up to 100 km"])
+        bad = {**CLIMBER, "fields": CLIMBER["fields"] + [{"key": "travel", "values": ["Up to 50 km"], "visibility": SHOWN}]}
+        draft, problems, _ = build_draft(bad, "Yuki", "25-29")
+        self.assertIsNone(draft)
+        self.assertTrue(any("travel" in p for p in problems))
+
+    def test_a_format_in_other_words_is_put_into_a_fixed_choice_the_warden_accepts(self):
+        """The Warden takes a format only from the fixed choices, so the agent's wording is read into one
+        first (a negated online word means in person), and the reviewed draft passes the entry check."""
+        from tests.test_demo import fill
+        for wording, fixed in (("online only", "Online"), ("not online", "In person"),
+                               ("in-person or remote", "In person or online"), ("only in person", "In person")):
+            args = {**CLIMBER, "fields": CLIMBER["fields"] + [{"key": "format", "values": [wording], "visibility": SHOWN}]}
+            draft, problems, _ = build_draft(args, "Yuki", "25-29")
+            self.assertEqual(problems, [], wording)
+            self.assertEqual({f["key"]: f["value"] for f in draft["fields"]}["format"], fixed, wording)
+            s = DemoSession(seed=7, agent=None, people=50)
+            s.verify("A", "Yuki", 27)
+            lid = s.new_listing("A")
+            s.submit("A", fill(draft), lid)
+            self.assertTrue(s.slots["A"].listing(lid).entry["accepted"], (wording, s.slots["A"].listing(lid).entry))
+
+    def test_a_listing_that_meets_online_needs_no_place(self):
+        cv = {"kind": "other", "exactness": 0.6, "intent_text": "I review CVs and I'm looking for new clients.",
+              "fields": [{"key": "seeking", "values": ["a CV review client"], "visibility": SHOWN},
+                         {"key": "offering", "values": ["a CV reviewer"], "visibility": SHOWN},
+                         {"key": "headline", "values": ["Offering CV reviews"], "visibility": SHOWN}]}
+        online = {**cv, "fields": cv["fields"] + [{"key": "format", "values": ["Online"], "visibility": SHOWN}]}
+        draft, _, _ = build_draft(online, "Kai", "25-29")
+        self.assertFalse(any("where they are" in m for m in draft["missing"]))
+        in_person = {**cv, "fields": cv["fields"] + [{"key": "format", "values": ["In person"], "visibility": SHOWN}]}
+        draft, _, _ = build_draft(in_person, "Kai", "25-29")
+        self.assertTrue(any("where they are" in m for m in draft["missing"]))
+
+    def test_the_instructions_explain_how_and_where_people_meet(self):
+        from belong.agent_llm import SYSTEM_PROMPT
+        self.assertIn("travel", SYSTEM_PROMPT)
+        self.assertIn("- travel (default shown): Same city, Up to 30 km, Up to 100 km", SYSTEM_PROMPT)
+        self.assertIn("- format (default shown): In person, Online, In person or online", SYSTEM_PROMPT)
+
     def test_dating_needs_who_they_want_to_meet(self):
         args = {"kind": "dating", "exactness": 0.6, "intent_text": "Looking for a relationship in Lisbon, aged 30 to 39.",
                 "fields": [{"key": "city", "values": ["Lisbon"], "visibility": SHOWN}]}
@@ -323,6 +376,58 @@ class InstantProfile(unittest.TestCase):
                          {"city": "Galway", "schedule": "weekends", "level": "beginner"})
         self.assertEqual(quick_facts("i live in malaga, spain, looking to meet people")["city"], "Malaga")
         self.assertEqual(quick_facts("yes, i enjoy chess and languages")["interests"], ["chess", "languages"])
+
+    def test_how_and_how_far_they_meet_are_picked_up(self):
+        from belong.agent import quick_facts
+        self.assertEqual(quick_facts("Language exchange in Osaka, online is fine")["format"], "In person or online")
+        self.assertEqual(quick_facts("I need a tutor in Lisbon or online")["format"], "In person or online")
+        self.assertEqual(quick_facts("I review CVs, online only")["format"], "Online")
+        self.assertEqual(quick_facts("happy to meet in person")["format"], "In person")
+        self.assertEqual(quick_facts("I can travel up to 50 km")["travel"], "Up to 30 km")  # never further than they said
+        self.assertEqual(quick_facts("anywhere within 20 miles")["travel"], "Up to 30 km")
+        self.assertEqual(quick_facts("within 150km is fine")["travel"], "Up to 100 km")
+        self.assertEqual(quick_facts("within 10 km")["travel"], "Same city")
+
+    def test_online_only_takes_only_or_just(self):
+        """Any other mention of online keeps meeting in person open; a negated one means in person."""
+        from belong.agent import format_from_text
+        cases = {
+            "online works for me": "In person or online", "remote is fine": "In person or online",
+            "happy to meet online": "In person or online", "in person or online": "In person or online",
+            "online only": "Online", "only online": "Online", "just online": "Online", "remote only, please": "Online",
+            "not online": "In person", "no online": "In person", "without online": "In person",
+            "i don't want to meet online": "In person", "online doesn't work for me": "In person",
+            "only in person": "In person", "in person only, online if i must": "In person",
+            "not just online": "In person or online", "not only online": "In person or online",
+            "i'm not sure yet, but online is fine": "In person or online", "weekends": None,
+        }
+        for said, fmt in cases.items():
+            self.assertEqual(format_from_text(said), fmt, said)
+
+    def test_kinds_without_a_format_never_get_one(self):
+        from belong.agent import fill_gaps, quick_facts
+        self.assertNotIn("format", quick_facts("Climbing partner in Osaka on weekends, online works for me"))
+        self.assertEqual(quick_facts("Language exchange in Osaka, online works for me")["format"], "In person or online")
+        for kind, added in (("climbing", False), ("running", False), ("roommate", False), ("dating", False),
+                            ("language", True), ("tutoring", True), ("cofounder", True), ("other", True), (None, True)):
+            draft = {"kind": kind, "fields": []}
+            fill_gaps(draft, {"format": "In person or online", "schedule": "weekends"})
+            keys = {f["key"] for f in draft["fields"]}
+            self.assertEqual("format" in keys, added, kind)
+            self.assertIn("schedule", keys)
+        draft = {"kind": "climbing", "fields": [{"key": "format", "value": None}]}  # one the agent set is still filled
+        self.assertEqual(fill_gaps(draft, {"format": "Online"}), ["format"])
+
+    def test_a_format_noted_early_doesnt_stick_to_a_kind_without_one(self):
+        """"Online works for me" before the kind is known is noted, but a climbing draft doesn't take it."""
+        client = ScriptedClient(reply(tool(CLIMBER)), reply(text("Saved.")))
+        s = DemoSession(seed=7, agent=ClaudeAgent(client=client))
+        s.verify("A", "Yuki", 27)
+        s.prefill("A", "Online works for me")
+        self.assertEqual({f["key"]: f["value"] for f in s.slots["A"].draft["fields"]}["format"], "In person or online")
+        s.agent_message("A", "climbing partner in Osaka")
+        self.assertEqual(s.slots["A"].draft["kind"], "climbing")
+        self.assertNotIn("format", {f["key"] for f in s.slots["A"].draft["fields"]})
 
     def test_vague_messages_fill_nothing(self):
         from belong.agent import quick_facts

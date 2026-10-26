@@ -1,10 +1,16 @@
 """Shared data model (SPEC §4).
 
 Plain, immutable dataclasses. Every module may import this one; it has no behaviour
-beyond small read helpers.
+beyond small read helpers. Some of those helpers read a value the same way everywhere it
+matters, so matching and the Warden can't disagree about it: a place name, how someone
+will meet (in person or online), how far they'll travel, and the distance between two
+cities (approximate city centres; SPEC §5 matching rules).
 """
 from __future__ import annotations
 
+import math
+import re
+import unicodedata
 from dataclasses import dataclass
 from typing import Optional, Union
 
@@ -66,7 +72,8 @@ FIELD_REGISTRY: dict[str, FieldSpec] = {
     "topics": FieldSpec(False, SHOWN, multi=True),
     # Paid or practical requests: shown so the other side knows the terms up front.
     "pay": FieldSpec(False, SHOWN),       # e.g. "¥4,000 per hour" (offered or charged), a rent budget
-    "format": FieldSpec(False, SHOWN),    # "In person", "Online", "In person or online"
+    "format": FieldSpec(False, SHOWN),    # "In person", "Online", "In person or online" (FORMATS)
+    "travel": FieldSpec(False, SHOWN),    # how far they'll go to meet in person: one of TRAVEL
     "diet": FieldSpec(False, SHOWN),
     "smoking": FieldSpec(False, SHOWN),
     "children": FieldSpec(False, HIDDEN),
@@ -78,6 +85,148 @@ FIELD_REGISTRY: dict[str, FieldSpec] = {
     "health": FieldSpec(True, HIDDEN),
     "kinks": FieldSpec(True, HIDDEN, multi=True),
 }
+
+# How two people can meet (the "format" field). Any wording is read into one of these by meeting_format().
+FORMATS = ("In person", "Online", "In person or online")
+
+# How far someone will go to meet in person (the "travel" field): fixed choices, in km. Someone who
+# doesn't say stays in their own city.
+TRAVEL = {"Same city": 0, "Up to 30 km": 30, "Up to 100 km": 100}
+TRAVEL_DEFAULT = "Same city"
+MAX_TRAVEL_KM = max(TRAVEL.values())
+
+# Approximate city centres (latitude, longitude), by plain city name and plain country (see plain_place):
+# a city's centre is known only in its own country, so a "Cambridge" shown with another country, or with
+# none, has no known centre and is only ever "the same city" as itself. Data only: nothing here is about
+# a person.
+CITY_COORDS = {
+    **{(city, "japan"): at for city, at in {
+        "osaka": (34.694, 135.502), "kyoto": (35.012, 135.768), "kobe": (34.690, 135.196),
+        "nara": (34.685, 135.805), "tokyo": (35.676, 139.650), "yokohama": (35.444, 139.638),
+        "kawasaki": (35.531, 139.703), "saitama": (35.862, 139.646), "nagoya": (35.182, 136.907)}.items()},
+    **{(city, "germany"): at for city, at in {
+        "berlin": (52.520, 13.405), "potsdam": (52.391, 13.065), "hamburg": (53.551, 9.994),
+        "munich": (48.135, 11.582), "munchen": (48.135, 11.582), "frankfurt": (50.111, 8.682),
+        "cologne": (50.938, 6.960), "koln": (50.938, 6.960)}.items()},
+    **{(city, "united kingdom"): at for city, at in {
+        "london": (51.507, -0.128), "oxford": (51.752, -1.258), "cambridge": (52.205, 0.122),
+        "brighton": (50.823, -0.137), "manchester": (53.481, -2.243), "liverpool": (53.408, -2.992)}.items()},
+    **{(city, "portugal"): at for city, at in {
+        "lisbon": (38.722, -9.139), "lisboa": (38.722, -9.139), "sintra": (38.803, -9.382),
+        "cascais": (38.698, -9.422), "porto": (41.158, -8.629), "braga": (41.545, -8.427)}.items()},
+    # Another Cambridge, an ocean away from the one above.
+    **{(city, "united states"): at for city, at in {
+        "cambridge": (42.373, -71.119), "boston": (42.360, -71.058)}.items()},
+}
+EARTH_RADIUS_KM = 6371.0
+
+
+def plain_place(value) -> Optional[str]:
+    """A place name compared ignoring case, spacing and accents ("Málaga" == "malaga ")."""
+    if not value:
+        return None
+    decomposed = "".join(c for c in unicodedata.normalize("NFKD", str(value)) if not unicodedata.combining(c))
+    return " ".join(decomposed.lower().split()) or None
+
+
+def city_centre(city, country) -> Optional[tuple]:
+    """A city's approximate centre, read in the country given with it (by plain names), or None if
+    that city isn't known in that country, or no country is given."""
+    return CITY_COORDS.get((plain_place(city), plain_place(country)))
+
+
+def km_between(city_a, country_a, city_b, country_b) -> Optional[float]:
+    """Great-circle distance between two cities, each read in its own country: 0 for the same city
+    (by plain name) in the same country, None if either country is missing or either city's centre
+    isn't known in its country."""
+    a, b = plain_place(city_a), plain_place(city_b)
+    ca, cb = plain_place(country_a), plain_place(country_b)
+    if not (a and b and ca and cb):
+        return None
+    if (a, ca) == (b, cb):
+        return 0.0
+    pa, pb = CITY_COORDS.get((a, ca)), CITY_COORDS.get((b, cb))
+    if pa is None or pb is None:
+        return None
+    lat1, lon1, lat2, lon2 = (math.radians(x) for x in (*pa, *pb))
+    h = math.sin((lat2 - lat1) / 2) ** 2 + math.cos(lat1) * math.cos(lat2) * math.sin((lon2 - lon1) / 2) ** 2
+    return 2 * EARTH_RADIUS_KM * math.asin(min(1.0, math.sqrt(h)))
+
+
+# Reading how someone will meet from their own words. said() tells a plain mention ("online is fine")
+# from a negated one ("not online", "no remote", "online doesn't work for me"); only_said() spots "only
+# online", "just online" and "online only". "Not only online" / "not just online" mean "also online".
+ONLINE_WORDS = r"on-?line|remote(?:ly)?|video(?: calls?)?|virtual(?:ly)?|zoom"
+IN_PERSON_WORDS = r"in[- ]?person|face[- ]to[- ]face|offline|meet(?:ing)?[- ]?ups?|locally"
+_NEGATED_BEFORE = re.compile(
+    r"(?:\b(?:not|no|never|without|cannot)|n't)"
+    # a few words may stand between the negation and the thing: "don't want to meet online"
+    r"(?:\s+(?:to|be|do|doing|meet|meeting|want|wanting|interested|in|on|for|keen|available|able|really|any|"
+    r"a|an|the|via|over|by|through|go|going|possible|with|comfortable|happy|work|working)){0,3}\s+$")
+# "online isn't for me" is a no; "online isn't a problem" / "doesn't bother me" / "wouldn't hurt" is a yes.
+_NEGATED_AFTER = re.compile(
+    r"(?:(?:\s+(?:is|are|does|do|would|will|really))?\s+(?:not|never)\b|\s+\w*n't\b)"
+    r"(?!\s+(?:be\s+)?(?:a\s+(?:problem|big\s+deal|concern|dealbreaker|deal\s+breaker)|an\s+(?:issue|obstacle)"
+    r"|matter|bother|hurt|mind|bad)\b)")
+_EITHER = re.compile(r"\b(either|both|hybrid)\b")
+_NOT_ONLY = re.compile(r"\bnot\s+(?:only|just)\b|\bnot\s+\S+[- ]only\b")
+
+
+def _plain_words(text, words: str) -> str:
+    """Lower case, straight apostrophes, and "not only X" / "not just X" / "not X-only" read as "also X"."""
+    low = " ".join(str(text).lower().replace("\u2019", "'").split())
+    low = re.sub(r"\bnot\s+(?:only|just)\b", "also", low)
+    return re.sub(r"\bnot\s+(" + words + r")[- ]only\b", r"also \1", low)
+
+
+def said(text, words: str) -> Optional[bool]:
+    """Does the text say this (`words`, a regex)? True if at least once without a negation, False if
+    only negated ("not online", "without video calls", "online isn't for me"), None if not at all."""
+    if not isinstance(text, str):
+        return None
+    low = _plain_words(text, words)
+    found = None
+    for m in re.finditer(r"\b(?:" + words + r")\b", low):
+        if _NEGATED_BEFORE.search(low[:m.start()]) or _NEGATED_AFTER.match(low, m.end()):
+            found = False
+        else:
+            return True
+    return found
+
+
+def only_said(text, words: str) -> bool:
+    """Does the text say *only* this: "only online", "just online", "online only"?"""
+    if not isinstance(text, str):
+        return False
+    low = _plain_words(text, words)
+    return bool(re.search(r"\b(?:only|just)\s+(?:" + words + r")\b|\b(?:" + words + r")[- ]only\b", low))
+
+
+def meeting_format(value) -> Optional[str]:
+    """A format in any wording, as one of FORMATS ("online only" -> "Online", "in-person" ->
+    "In person", "either" -> "In person or online"), or None if it says neither. A negated online
+    word ("not online") or "only" with an in-person word ("in person only") means in person only; a
+    negated in-person word ("not in person") means online only; "not only online" means either."""
+    if not isinstance(value, str):
+        return None
+    online, in_person = said(value, ONLINE_WORDS), said(value, IN_PERSON_WORDS)
+    if online is False or only_said(value, IN_PERSON_WORDS):
+        return "In person"
+    if in_person is False or only_said(value, ONLINE_WORDS):
+        return "Online"
+    if _EITHER.search(value.lower()) or (online and in_person) or _NOT_ONLY.search(value.lower()):
+        return "In person or online"
+    return "Online" if online else "In person" if in_person else None
+
+
+def travel_choice(value) -> Optional[str]:
+    """A travel distance as one of TRAVEL ("up to 30km" -> "Up to 30 km"), or None if it isn't one."""
+    if not isinstance(value, str):
+        return None
+    key = re.sub(r"[^a-z0-9]", "", value.lower())
+    key = {"30km": "upto30km", "100km": "upto100km"}.get(key, key)
+    return next((c for c in TRAVEL if re.sub(r"[^a-z0-9]", "", c.lower()) == key), None)
+
 
 # The only follow-up questions the Matchmaker may ask (SPEC §3, §7). It refers to
 # them by id; the Warden attaches the text at exit.

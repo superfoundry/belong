@@ -10,7 +10,7 @@ import re
 from dataclasses import dataclass
 from typing import Optional
 
-from ..schema import AGE_BAND_BOUNDS
+from ..schema import AGE_BAND_BOUNDS, said
 
 # Checked in order: functional kinds first, so "climbing partner" isn't read as dating.
 _KIND_PATTERNS = [
@@ -23,12 +23,11 @@ _KIND_PATTERNS = [
     ("dating", r"\bdate\b|dating|relationship|partner|romance|something casual"),
 ]
 
-REMOTE_KINDS = {"language", "cofounder", "tutoring", "other"}
-
-
 @dataclass(frozen=True)
 class ParsedIntent:
     kind: Optional[str]
+    # The text says online or remote is fine ("not online" doesn't). Only used when the listing
+    # shows no format (narrow.meeting_modes); dating always meets in person, so it is never remote.
     remote_ok: bool = False
     seeking: tuple = ()  # dating: genders acceptable to this person
     age_range: Optional[tuple] = None  # dating: (lo_idx, hi_idx) into AGE_BANDS
@@ -48,8 +47,9 @@ def _age_range(text: str) -> Optional[tuple]:
 def parse_intent(text: str) -> ParsedIntent:
     low = text.lower()
     kind = next((k for k, pat in _KIND_PATTERNS if re.search(pat, low)), None)
-    # kind None may still become "other" (an open-ended listing), which can be remote too.
-    remote = bool(re.search(r"\bonline\b|\bremote\b", low)) and (kind in REMOTE_KINDS or kind is None)
+    # Any kind of listing may meet online except dating, which is in person only. "Not online" or
+    # "no remote" says the opposite (schema.said).
+    remote = said(low, r"online|remote") is True and kind != "dating"
 
     if kind == "dating":
         seeking = set()

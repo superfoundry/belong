@@ -37,6 +37,15 @@ class TakeOverLink(unittest.TestCase):
         self.assertEqual(accepted, "^" + SLOT_ID.pattern + "$")
 
 
+class TrustPage(unittest.TestCase):
+    def test_the_attack_count_comes_from_the_suite(self):
+        """The page states no fixed number of attacks; it shows how many the suite actually tried."""
+        trust = (PAGE_DIR / "trust.html").read_text()
+        self.assertIsNone(re.search(r"Tries \d+ attacks", trust))
+        self.assertIn('id="attack-count"', trust)
+        self.assertIn('$("attack-count").textContent = `${r.attempts} attacks`', trust)
+
+
 class Script(unittest.TestCase):
     """Every page's own script parses (a syntax error blanks the whole page)."""
 

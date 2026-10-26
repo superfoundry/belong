@@ -231,7 +231,7 @@ function listingCard(l = listing()) {
   const s = shownOf(l), live = l.listed && !l.unsaved, paused = l.listed && l.active === false;
   // The same rule as the phone: who you're looking for, and where, before it can go live.
   const ready = !!(s.seeking || (l.draft.kind === "dating" && l.draft.intent_text)) && !!(s.city || s.country);
-  const meta = [["Where", [s.city, s.country].filter(Boolean).join(", ")], ["When", s.schedule], ["Pay", s.pay], ["Format", s.format], ["Level", s.level]]
+  const meta = [["Where", [s.city, s.country].filter(Boolean).join(", ")], ["Travel", s.travel], ["When", s.schedule], ["Pay", s.pay], ["Format", s.format], ["Level", s.level]]
     .filter(([, v]) => v);
   const badge = paused ? '<span class="badge plain">Paused</span>' : live ? '<span class="badge">Live</span>' : '<span class="badge plain">Draft</span>';
   return `<div class="card"><p class="title">${esc(cap(s.headline || l.title))}${badge}</p>
