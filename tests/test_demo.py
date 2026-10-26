@@ -303,12 +303,12 @@ def box_people(s: DemoSession):
         s.submit(slot, {"intent_text": intent, "exactness": 0.6,
                         "fields": [{"key": k, "value": v, "visibility": SHOWN} for k, v in fields.items()]}, lid)
         return lid
-    seller = person("A", "Kai", 31, {"first_name": "Kai", "country": "Japan", "city": "Tokyo", "headline": "Selling 100 cardboard boxes",
+    seller = person("A", "Kai", 31, {"first_name": "Kai", "country": "Japan", "city": "Nagoya", "headline": "Selling 100 cardboard boxes",
                                      "seeking": "a cardboard box buyer", "offering": "a cardboard box seller", "pay": "$1 each",
-                                     "topics": ["cardboard boxes", "moving supplies"]}, "Selling 100 cardboard boxes in Tokyo.")
-    seeker = person("B", "Ren", 52, {"first_name": "Ren", "country": "Japan", "city": "Tokyo", "headline": "Looking for free cardboard boxes",
+                                     "topics": ["cardboard boxes", "moving supplies"]}, "Selling 100 cardboard boxes in Nagoya.")
+    seeker = person("B", "Ren", 52, {"first_name": "Ren", "country": "Japan", "city": "Nagoya", "headline": "Looking for free cardboard boxes",
                                      "seeking": "a free cardboard box giver", "offering": "a cardboard box recipient", "pay": "Free",
-                                     "topics": ["cardboard boxes", "moving"]}, "Looking for free cardboard boxes in Tokyo.")
+                                     "topics": ["cardboard boxes", "moving"]}, "Looking for free cardboard boxes in Nagoya.")
     return seller, seeker
 
 
@@ -512,7 +512,8 @@ class SeveralListings(unittest.TestCase):
 
     def test_both_listings_are_matched_on_their_own(self):
         second = self.s.new_listing("A")
-        self.s.agent_message("A", "Looking for a roommate in Osaka, moving in November.", second)
+        # Someone among the synthetic people in Osaka is moving in December.
+        self.s.agent_message("A", "Looking for a roommate in Osaka, moving in December.", second)
         self.s.submit("A", fill(self.s.slots["A"].listing(second).draft), second)
         self.s.run_matchmaker()
         listings = {l["id"]: l for l in self.s.phone_state("A")["listings"]}

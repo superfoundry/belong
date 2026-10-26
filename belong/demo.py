@@ -1,6 +1,7 @@
 """Two-person demo (proof of concept for the front end).
 
-Two people, A and B, join a service already holding 300 synthetic listings. Each person
+Two people, A and B, join a service already holding synthetic listings (5,000 when served;
+BELONG_PEOPLE changes it). Each person
 can hold several listings at once (say, one looking for a tutor and one looking for
 love). Each listing has its own conversation with the person's agent, its own draft and
 its own introductions, and is matched on its own; a person is never introduced to their
@@ -46,6 +47,7 @@ K_CROWD = 20
 APPROACH_LIMIT = 15  # introductions per listing per day (the Warden's limit)
 PER_RUN = 3  # at most this many new introductions per listing in one Matchmaker run, so nobody gets them all at once
 LOOK_PAST = 1000  # how far down each listing's ranking the Matchmaker looks, past people already introduced
+SHORTLIST = 400  # candidates per phone listing; only the two phones are matched each run, so it can be generous
 MAX_LISTINGS = 5
 MESSAGE_MAX = 1000  # characters in one message to a match
 REACTIONS = ("👍", "❤️", "😂", "😮", "🙏")  # the only reactions a message can get
@@ -126,10 +128,12 @@ class _Slot:
 
 
 class DemoSession:
-    def __init__(self, seed: int = 7, agent="auto"):
+    def __init__(self, seed: int = 7, agent="auto", people: int = 300):
         """agent: "auto" picks a model-powered agent when one is configured (else the rule-based
-        agent), None forces the rule-based agent (tests), or pass any object with respond()."""
+        agent), None forces the rule-based agent (tests), or pass any object with respond().
+        people: how many synthetic people share the board with the two phones."""
         self.lock = threading.Lock()
+        self.people = people
         self._agent_choice = agent
         self.generation = 0
         # People who use Belong. through their own AI assistant (the connector). Their matches are
@@ -172,7 +176,7 @@ class DemoSession:
         self.generation += 1
         self.llm, self.agent_status = self._make_agent()
         self.rng = random.Random(seed)
-        self.personas = {p.person.id: p for p in generate(300, seed)}
+        self.personas = {p.person.id: p for p in generate(self.people, seed)}
         self.clock = Clock()
         self.warden = Warden(self.clock, key=hashlib.sha256(f"demo-audit-{seed}".encode()).digest(),
                              approach_limit_per_day=APPROACH_LIMIT)
@@ -182,7 +186,7 @@ class DemoSession:
         self._seed_receipts = len(self.warden.receipts)
         # The Matchmaker doesn't remember who was introduced, so it ranks everyone; the demo skips pairs
         # already introduced and sends the Warden at most PER_RUN new ones per listing each run.
-        self.matcher = OfflineMatcher(k_crowd=K_CROWD, max_per_person=LOOK_PAST)
+        self.matcher = OfflineMatcher(k_crowd=K_CROWD, max_per_person=LOOK_PAST, shortlist_size=SHORTLIST)
         self.slots = {s: _Slot(s) for s in SLOTS}
         self.events = []
         self.intros = {}  # intro_id -> Introduction
@@ -648,7 +652,7 @@ class DemoSession:
         events_before, sent_before = len(self.events), (len(self.intros), len(self.outputs["followups"]))
         self.clock.advance(minutes=10) if quiet else self.clock.advance(hours=1)
         self.last_run = self.clock.now()
-        result = self.matcher.match(self.board)
+        result = self.matcher.match(self.board, focus=demo_ids)  # only the phones' matches, not everyone's
         mine = [p for p in result.proposals if {p.person_a, p.person_b} & demo_ids]
         self.last_proposals = mine
         # New pairs only, a few per listing at a time, in the Matchmaker's own order.

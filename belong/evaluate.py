@@ -45,6 +45,11 @@ def truth_intent_met(a: Truth, b: Truth) -> bool:
             return False  # a band needs a musician, a musician needs a band
         genre_ok = a.genre == b.genre or a.exactness < 0.5
         return genre_ok and (a.role != "band" or b.role == a.seeks)
+    if a.kind == "service":
+        return a.sub == b.sub and a.role != b.role  # a provider and a customer of the same service
+    if a.kind == "item":
+        # Selling meets buying; giving away meets looking for it free (not looking to pay).
+        return a.sub == b.sub and {a.role, b.role} in ({"seller", "buyer"}, {"giver", "taker"})
     return True  # roommate: same city is enough
 
 

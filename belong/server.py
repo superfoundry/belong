@@ -52,7 +52,9 @@ FILES = {
 }
 MAX_BODY = 64 * 1024
 
-SESSION = DemoSession()
+# How many synthetic people the demo starts with (BELONG_PEOPLE; tests use DemoSession's own 300).
+PEOPLE = int(os.environ.get("BELONG_PEOPLE", "5000"))
+SESSION = DemoSession(people=PEOPLE)
 # The chat mockup's own session: one person, matched against the synthetic people, so it never
 # touches the two phones. Made on first use.
 _CHAT = None
@@ -63,7 +65,7 @@ CHAT_ACTIONS = {"reset", "verify", "new_listing", "open_listing", "prefill", "ag
 def chat_session() -> DemoSession:
     global _CHAT
     if _CHAT is None:
-        _CHAT = DemoSession()
+        _CHAT = DemoSession(people=PEOPLE)
         _CHAT.assistant_slots = {"A"}  # the connector user
     return _CHAT
 

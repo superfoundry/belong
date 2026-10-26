@@ -110,9 +110,9 @@ class IntentReading(unittest.TestCase):
     def test_parser_agrees_with_truth_on_synthetic_people(self):
         for p in generate(300, 11):
             if not p.truth.bad_intent:
-                # Open-ended listings are recognised by their seeking/offering phrases, not the text,
-                # so the text must not look like one of the named kinds.
-                expected = None if p.truth.kind == "other" else p.truth.kind
+                # Open-ended listings, services and things are recognised by their seeking/offering
+                # phrases, not the text, so the text must not look like one of the named kinds.
+                expected = None if p.truth.kind in ("other", "service", "item") else p.truth.kind
                 self.assertEqual(parse_intent(p.intent_text).kind, expected, p.intent_text)
 
 

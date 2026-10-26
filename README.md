@@ -3,8 +3,9 @@
 Belong. connects two people, for dating or practical needs, through AI agents: private
 details can improve a match without ever being revealed.
 
-This repository is the Step 2 prototype from [SPEC.md](SPEC.md). It uses 300
-synthetic people and plain Python; secure hardware comes in Step 3.
+This repository is the Step 2 prototype from [SPEC.md](SPEC.md). It uses synthetic people
+(5,000 in the demo, set with `BELONG_PEOPLE`; 300 in tests and the batch run), with names from
+their region, and plain Python; secure hardware comes in Step 3.
 
 - **Any kind of match.** Besides the named kinds (dating, climbing, running, language
   exchange, tutoring, cofounder, roommate), the agent can create an open-ended listing:
@@ -123,7 +124,7 @@ belong/                                    [open] = published as open source
   agent_llm.py     personal agent powered by Claude, plus the instructions
                    and draft checks shared by every model-powered agent
   agent_openai.py  personal agent powered by OpenAI (standard library only)
-  synth.py         300 synthetic people + ground truth                 §8.1
+  synth.py         synthetic people (regional names) + ground truth §8.1
   evaluate.py      match quality vs ground truth
   sim.py           one simulated week, end to end                      §8.5
   demo.py          two-person demo session + boundary log
