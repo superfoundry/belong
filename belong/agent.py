@@ -382,6 +382,10 @@ def asked_kind(low: str):
     girlfriend who climbs" and "a date with a climber" are dating). None if it asks for no kind it knows."""
     purpose = without_hobbies(low)
     if _is_dating(purpose):
+        if _ROMANTIC.search(_set_aside(low)):
+            # Romantic wording leaves no doubt: what they say they do ("I climb a lot") is a hobby, exactly
+            # as kind_question reads it, so the two never disagree.
+            purpose = _I_DO.sub(" ", purpose)
         return request_kind(_TRAITS.sub(" ", purpose))
     return request_kind(low)
 
@@ -452,8 +456,9 @@ def kind_question(message: str):
         return {"text": f"Are you looking for {options[0]['label']}, or {other['label']}{which}? Or both? I can make "
                         f"two separate listings.", "options": options}
     if asked_kind(low) is None and activity_partner(purpose) is None:
-        # A partner for something it doesn't know ("a pottery partner"): which activity, in words it knows.
-        if unknown_partner(purpose):
+        # A partner for something it doesn't know ("a pottery partner", or one named only by a sensitive word,
+        # "a chemo buddy"): which activity, in words it knows. Read on their own wording too, as the note is.
+        if unknown_partner(purpose) or unknown_partner(without_hobbies(message.lower())):
             return {"text": f"{WHICH_ACTIVITY} {ACTIVITY_HINT}",
                     "options": [{"kind": None, "label": "a partner for an activity", "activity": None}]}
         # Nothing outside their hobbies asks for a kind, but a hobby names one: a guess, so ask.
@@ -833,6 +838,22 @@ def known_city(text) -> tuple:
     return _CITY_NAMES.get(m.group(1)) or _title(m.group(1)), (next(iter(countries)) if len(countries) == 1 else None)
 
 
+_ORIGIN = _re.compile(r"\b(?:born|raised|grew up|grown up|came|come|comes|coming|moved|emigrated|immigrated|"
+                      r"originally|from|left|parents?|family|ancestors?|heritage|descent|roots)\b[^.!?,;]*$")
+
+
+def _lives_in(low: str, country: str) -> bool:
+    """Does the text say they are in this country: "in <country>" (or "based/living/located in"), not as
+    where they or their family came from?"""
+    for m in _re.finditer(r"\bin\s+(?:the\s+)?" + _re.escape(country) + r"\b", low):
+        if not _ORIGIN.search(low[max(0, m.start() - 60):m.start()]):
+            return True
+    # "I live in Malaga, Spain", "based near Porto in the north of Portugal": where they live, in that sentence.
+    lives = _re.search(r"\b(?:live|lives|living|based|located|staying|reside|residing)\b[^.!?;]*?\b"
+                       + _re.escape(country) + r"\b", low)
+    return bool(lives) and not _ORIGIN.search(lives.group(0))
+
+
 def quick_facts(text: str) -> dict:
     """Facts stated plainly in one message, as field -> value, only in words the agent recognises: a
     known city and its country, a country, the fixed choices (schedule, level, gender, languages, format,
@@ -849,7 +870,9 @@ def quick_facts(text: str) -> dict:
         if country:
             out["country"] = country
     if "country" not in out:
-        found = next((c for c in COUNTRIES if len(c) > 3 and _re.search(r"\b" + _re.escape(c.lower()) + r"\b", low)), None)
+        # Only where they are ("in Japan", "based in Portugal"), never a country merely mentioned: "my
+        # parents came from Nigeria" or "I grew up in Ghana" says where someone is from, not where they are.
+        found = next((c for c in COUNTRIES if len(c) > 3 and _lives_in(low, c.lower())), None)
         if found:
             out["country"] = _country(found)
 
