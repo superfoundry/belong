@@ -1,4 +1,4 @@
-"""Two-person demo (proof of concept for the front end).
+"""Two-person demo (proof of concept for the front end; SPEC §8, the web view).
 
 Two people, A and B, join a service already holding synthetic listings (5,000 when served;
 BELONG_PEOPLE changes it). Each person
@@ -6,6 +6,10 @@ can hold several listings at once (say, one looking for a tutor and one looking 
 love). Each listing has its own conversation with the person's agent, its own draft and
 its own introductions, and is matched on its own; a person is never introduced to their
 own other listing.
+
+The presenter can also take over a synthetic person (from the inspector, `take_over`): they
+get a phone of their own, held to the same rules as A and B, their live listing is matched
+like a phone's, and nothing is decided for them any more until they're handed back.
 
 Everything Belong. receives or sends is recorded in a data log for the presenter:
 
@@ -42,7 +46,8 @@ from .schema import AGE_BANDS, FIELD_REGISTRY, FOLLOWUP_MENU, HIDDEN, SHOWN, Fie
 from .synth import generate
 from .warden import Clock, Warden
 
-SLOTS = ("A", "B")
+SLOTS = ("A", "B")  # the two demo phones; a synthetic person taken over gets a phone too (take_over)
+SLOT_ID = re.compile(r"[A-Za-z0-9]{1,16}")  # a taken-over phone's id: their person id, safe in URLs and HTML
 K_CROWD = 20
 APPROACH_LIMIT = 15  # introductions per listing per day (the Warden's limit)
 PER_RUN = 3  # at most this many new introductions per listing in one Matchmaker run, so nobody gets them all at once
@@ -73,9 +78,9 @@ class DemoError(ValueError):
 class _Listing:
     """One of a person's listings: its own chat with their agent, draft and introductions."""
 
-    def __init__(self, slot: str, n: int):
+    def __init__(self, slot: str, n: int, listing_id: str = None):
         self.n = n
-        self.id = f"demo{slot}-{n}"  # the listing's id in matching
+        self.id = listing_id or f"demo{slot}-{n}"  # the listing's id in matching
         self.chat = []  # [{"from": "agent"|"me", "text": str}]
         self.agent_conversation = []  # the agent's own history for this listing
         self.agent_busy = False
@@ -99,9 +104,10 @@ def _current(attr):
 class _Slot:
     """One phone: one verified person, any number of listings."""
 
-    def __init__(self, slot: str):
+    def __init__(self, slot: str, person_id: str = None):
         self.slot = slot
-        self.person_id = f"demo{slot}"  # the person (owner of the listings)
+        self.person_id = person_id or f"demo{slot}"  # the person (owner of the listings)
+        self.taken_over = person_id is not None  # a synthetic person the presenter answers as
         self.person = None
         self.name = None
         self.listings: list[_Listing] = []
@@ -187,7 +193,8 @@ class DemoSession:
         # The Matchmaker doesn't remember who was introduced, so it ranks everyone; the demo skips pairs
         # already introduced and sends the Warden at most PER_RUN new ones per listing each run.
         self.matcher = OfflineMatcher(k_crowd=K_CROWD, max_per_person=LOOK_PAST, shortlist_size=SHORTLIST)
-        self.slots = {s: _Slot(s) for s in SLOTS}
+        self.slots = {s: _Slot(s) for s in SLOTS}  # plus a phone for each synthetic person taken over
+        self.handed_back = {}  # slot -> _Slot: taken over, then handed back (simulated again until taken over again)
         self.events = []
         self.intros = {}  # intro_id -> Introduction
         self.declined = set()  # (listing_id, about): said no to "Would that work for you?" about that listing
@@ -215,12 +222,13 @@ class DemoSession:
 
     def _receipts_since(self, start: int, slot=None) -> list:
         new = [r.to_dict() for r in self.warden.receipts[start:]]
-        for s in ([slot] if slot else []):
-            self.slots[s].receipts += new
+        st = (self.slots.get(slot) or self.handed_back.get(slot)) if slot else None
+        if st is not None:
+            st.receipts += new
         return new
 
     def _slot(self, slot: str) -> _Slot:
-        if slot not in self.slots:
+        if not isinstance(slot, str) or slot not in self.slots:
             raise DemoError("unknown phone")
         return self.slots[slot]
 
@@ -338,6 +346,8 @@ class DemoSession:
 
     def verify(self, slot: str, name: str, age) -> None:
         st = self._slot(slot)
+        if st.taken_over:
+            raise DemoError("This person is already verified.")  # their age band is on their live listing
         name = (name or "").strip()[:30]
         try:
             age = int(age)
@@ -411,7 +421,8 @@ class DemoSession:
         if empty is not None:
             st.current = empty.id
             return empty.id
-        listing = _Listing(slot, max((l.n for l in st.listings), default=0) + 1)
+        n = max((l.n for l in st.listings), default=0) + 1
+        listing = _Listing(slot, n, f"{st.person_id}-{n}" if st.taken_over else None)
         listing.chat = [{"from": "agent", "text": f"Hi {st.name}, I'm your agent. I work only for you, and nothing is "
                                                   "shared without your OK. Tell me what you're looking for, in your own words."
                          if not st.listings else "What else are you looking for? I'll keep this listing separate "
@@ -845,7 +856,10 @@ class DemoSession:
         """After a yes that changes the terms, the person's agent rewords the headline and description to
         match what they agreed to; then the whole update is checked by the Warden and goes live."""
         with self.lock:
-            st, generation, llm = self._slot(slot), self.generation, self.llm
+            st = self.slots.get(slot) or self.handed_back.get(slot)  # handed back meanwhile: still their update
+            if st is None:
+                return  # the demo was reset
+            generation, llm = self.generation, self.llm
             mine = st.listing(listing_id)
             name, band, conversation = st.name, st.person.age_band, mine.agent_conversation
             self._sync_draft(mine, updated)  # the agent sees the listing as it will be
@@ -1052,6 +1066,83 @@ class DemoSession:
                 self._event("blocked", f"Blocked: {title}", f"Stopped by the Warden's '{failed[-1]}' check.",
                             receipts=receipts)
 
+    # -- presenter: answering as a synthetic person ---------------------------------
+
+    def take_over(self, persona_id) -> str:
+        """Give a synthetic person a phone, so the presenter can answer as them (the inspector's
+        "Take over"). Returns the phone's slot id: their person id, safe in URLs and HTML.
+
+        Their phone holds their listing that is already live (same id, nothing re-entered), with a
+        draft built from it, so their profile shows them their own shown and hidden details, and any
+        introductions that already involve it. From then on the listing is matched like a phone's,
+        what the Warden sends it reaches this phone, and nothing is decided for them any more
+        (`_slot_of` finds them, so the simulated answers in run_matchmaker, decide and reveal stop).
+        Only someone on the board who passed the Warden's entry check; never A or B. Taking over
+        someone already on a phone returns that phone."""
+        pid = persona_id if isinstance(persona_id, str) else ""
+        if pid in self.slots and self.slots[pid].taken_over:
+            return pid
+        if pid in self.handed_back:  # their phone comes back as it was, with anything sent meanwhile
+            st = self.slots[pid] = self.handed_back.pop(pid)
+            self._attach_intros(st)
+            self._event("inside", f"Presenter took over {st.name} again", "Their phone is back as it was.", slots=[pid])
+            return pid
+        persona = self.personas.get(pid)
+        if persona is None or pid in SLOTS or not SLOT_ID.fullmatch(pid):
+            raise DemoError("That person isn't one of the synthetic people in the live demo.")
+        if pid not in self.board or self.board.listing(pid).owner != pid or not persona.person.verified:
+            raise DemoError("That person didn't pass the Warden's entry check, so they have no live listing.")
+        live = self.board.listing(pid)
+        first = live.get("first_name")
+        st = _Slot(pid, person_id=pid)
+        st.person, st.name = persona.person, (first.value if first else persona.values.get("first_name") or pid)
+        mine = _Listing(pid, 1, listing_id=pid)
+        mine.prefs = {"notify_close": live.notify_close, "notify_questions": live.notify_questions}
+        mine.entry = {"accepted": True, "problems": []}
+        # Their profile, from what's live: every detail they have, hidden ones in their hidden well
+        # (on their own phone only), and the sensitive ones they never turned on, still off.
+        mine.draft = {**agent.empty_draft(st.name, persona.person.age_band), "kind": persona.truth.kind, "by": "sync"}
+        self._sync_draft(mine, live)
+        mine.chat = [{"from": "agent", "text": f"Hi {st.name}, I'm your agent. Your listing is live: "
+                                              f"“{self._live_title(live)}”. I'll tell you when Belong. finds "
+                                              "someone who is also looking for you."}]
+        st.listings.append(mine)
+        st.current = mine.id
+        self.slots[pid] = st
+        self._attach_intros(st)
+        self._event("inside", f"Presenter took over {st.name}",
+                    "A synthetic person, now on a phone of their own. Only what the Warden sends them reaches it, "
+                    "and nothing is decided for them until they're handed back.", slots=[pid])
+        return pid
+
+    def hand_back(self, slot) -> None:
+        """Stop answering as a synthetic person: their phone closes and they're simulated again. Their
+        listings stay as they are; taking them over again brings the phone back as it was."""
+        st = self._slot(slot)
+        if not st.taken_over:
+            raise DemoError("Only a synthetic person who was taken over can be handed back.")
+        self.handed_back[slot] = self.slots.pop(slot)
+        self._event("inside", f"Presenter handed {st.name} back", "Simulated again: they answer for themselves.")
+
+    def _attach_intros(self, st: _Slot) -> None:
+        """Introductions sent to this phone's listings while they were simulated, with the details
+        they chose to compare meanwhile and what the Warden's reveal (it goes to both people) showed."""
+        for mine in st.listings:
+            for intro_id, intro in self.intros.items():
+                if mine.id not in (intro.person_a, intro.person_b):
+                    continue
+                if intro_id not in mine.intro_ids:
+                    mine.intro_ids.append(intro_id)
+                other = intro.person_b if intro.person_a == mine.id else intro.person_a
+                if (intro_id, mine.id) in self.consents and intro_id not in mine.my_consents:
+                    mine.my_consents[intro_id] = set(self.consents[(intro_id, mine.id)])
+                if (intro_id, mine.id) in self.consents and (intro_id, other) in self.consents \
+                        and intro_id not in mine.reveal_results:  # both chose, so the Warden settled it
+                    pair = {intro.person_a, intro.person_b}
+                    mine.reveal_results[intro_id] = [{"key": r["key"], "values": r["values"]}
+                                                     for r in self.outputs["reveals"]
+                                                     if {r["person_a"], r["person_b"]} == pair]
+
     # -- views ---------------------------------------------------------------------
 
     def _listing_state(self, mine: _Listing) -> dict:
@@ -1107,7 +1198,7 @@ class DemoSession:
         current = next((l for l in listings if l["id"] == st.current), None) or \
             {"id": None, "listed": False, "draft": None, "chat": [], "agent_busy": False, "entry": None,
              "followups": [], "intros": [], "hidden_keys": []}
-        return {"slot": slot, "verified": st.person is not None, "name": st.name,
+        return {"slot": slot, "taken_over": st.taken_over, "verified": st.person is not None, "name": st.name,
                 "age_band": st.person.age_band if st.person else None,
                 "listings": listings, "current": st.current, "receipts": st.receipts[-60:],
                 # The current listing, for clients that show one at a time.
@@ -1144,7 +1235,10 @@ class DemoSession:
                 "events": self.events[-150:], "leak_report": {"ok": report["ok"], "findings": report["findings"],
                                                                "checked": report["checked"]},
                 "followup_menu": FOLLOWUP_MENU, "agent_status": self.agent_status,
-                "matchmaker_last_run": self.last_run}
+                "matchmaker_last_run": self.last_run,
+                "taken_over": [{"slot": s, "name": st.name} for s, st in self.slots.items() if st.taken_over]}
 
     def state(self) -> dict:
-        return {"phones": {s: self.phone_state(s) for s in SLOTS}, "room": self.room_state()}
+        """Every phone (A, B and anyone taken over), each with only its own person's view, and the
+        presenter's panel."""
+        return {"phones": {s: self.phone_state(s) for s in self.slots}, "room": self.room_state()}
