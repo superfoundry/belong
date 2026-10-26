@@ -31,7 +31,7 @@ from dataclasses import replace
 
 from ..schema import AGE_BANDS, FOLLOWUP_MENU, HIDDEN, Listing
 from .contract import FollowUp, MatchResult, Matcher, Proposal  # noqa: F401 (re-exported)
-from .intent import ParsedIntent, parse_intent
+from .intent import GENDERS, ParsedIntent, default_age_range, parse_intent
 from .marketboard import Marketboard
 from .narrow import ONLINE, ShownView, how_they_meet, shortlists, within_reach
 from .text import cosine
@@ -322,10 +322,15 @@ def intent_met(ap: ParsedIntent, av: ShownView, bp: ParsedIntent, bv: ShownView)
     kind = ap.kind
     if kind == "dating":
         gender, band = bv.get("gender"), bv.get("age_band")
-        if gender is None or band is None or ap.age_range is None or gender not in ap.seeking:
+        # Someone open to anyone doesn't need to know your gender; anyone else needs it shown (a hidden
+        # gender never decides a match, so it can't count for them).
+        anyone = set(GENDERS) <= set(ap.seeking)
+        if band not in AGE_BANDS or not (anyone or gender in ap.seeking):
             return False
+        # No age range said: not a strict preference (as with a climbing level), so one age band
+        # either side of their own shown band (default_age_range in intent.py).
+        lo, hi = ap.age_range or default_age_range(av.get("age_band"))
         slack = 1 if ex < 0.5 else 0
-        lo, hi = ap.age_range
         return lo - slack <= AGE_BANDS.index(band) <= hi + slack
     if kind == "language":
         native = bv.get("native_language")
@@ -489,7 +494,9 @@ class OfflineMatcher:
         listings' own load is left out."""
         listings = {l.person_id: l for l in board.listings() if l.active}  # paused listings aren't matched
         views = {pid: ShownView(l) for pid, l in listings.items()}
-        parsed = {pid: effective_kind(parse_intent(l.intent_text), views[pid]) for pid, l in listings.items()}
+        # Each listing's description and its shown headline (never a hidden field).
+        parsed = {pid: effective_kind(parse_intent(l.intent_text, str(views[pid].get("headline") or "")), views[pid])
+                  for pid, l in listings.items()}
 
         followups = []
         for pid, p in parsed.items():
@@ -499,7 +506,7 @@ class OfflineMatcher:
                 continue  # only people who opted in are asked questions
             v = views[pid]
             if p.kind == "dating" and p.age_range is None:
-                followups.append(FollowUp(pid, "age_range"))
+                followups.append(FollowUp(pid, "age_range"))  # to narrow the default (one band either side)
             elif p.kind in ("climbing", "running") and v.exactness >= 0.8 and v.get("schedule") is None:
                 followups.append(FollowUp(pid, "schedule"))
 
