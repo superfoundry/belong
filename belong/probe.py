@@ -303,12 +303,12 @@ def attack_suite(body: dict) -> dict:
                                                   "broaden", about=b), board))
 
     def approach_flood():
-        # Limit is 3 a week: the first three get through, the fourth must not.
+        # One more than the daily limit, all at once: the extra one must not get through.
         out = None
-        for other in ids[2:6]:
+        for other in ids[2:3 + warden.approach_limit]:
             out = warden.exit_introduction(P(person_b=other, reason_fields=_shared_reasons(board, a, other)), board)
         return out
-    attempt("compromised matchmaker", "Spam one person with more introductions than the weekly limit", approach_flood)
+    attempt("compromised matchmaker", "Spam one person with more introductions than the daily limit", approach_flood)
 
     # Forging outputs
     attempt("forgery", "Build an Introduction without going through the Warden",

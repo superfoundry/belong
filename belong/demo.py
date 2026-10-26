@@ -43,7 +43,9 @@ from .warden import Clock, Warden
 
 SLOTS = ("A", "B")
 K_CROWD = 20
-APPROACH_LIMIT = 3
+APPROACH_LIMIT = 15  # introductions per listing per day (the Warden's limit)
+PER_RUN = 3  # at most this many new introductions per listing in one Matchmaker run, so nobody gets them all at once
+LOOK_PAST = 1000  # how far down each listing's ranking the Matchmaker looks, past people already introduced
 MAX_LISTINGS = 5
 MESSAGE_MAX = 1000  # characters in one message to a match
 REACTIONS = ("👍", "❤️", "😂", "😮", "🙏")  # the only reactions a message can get
@@ -173,12 +175,14 @@ class DemoSession:
         self.personas = {p.person.id: p for p in generate(300, seed)}
         self.clock = Clock()
         self.warden = Warden(self.clock, key=hashlib.sha256(f"demo-audit-{seed}".encode()).digest(),
-                             approach_limit_per_week=APPROACH_LIMIT)
+                             approach_limit_per_day=APPROACH_LIMIT)
         self.board = Marketboard()
         for p in self.personas.values():
             self.warden.admit(p.person, agent.draft_listing(p, self.clock.now()), self.board)
         self._seed_receipts = len(self.warden.receipts)
-        self.matcher = OfflineMatcher(k_crowd=K_CROWD, max_per_person=APPROACH_LIMIT)
+        # The Matchmaker doesn't remember who was introduced, so it ranks everyone; the demo skips pairs
+        # already introduced and sends the Warden at most PER_RUN new ones per listing each run.
+        self.matcher = OfflineMatcher(k_crowd=K_CROWD, max_per_person=LOOK_PAST)
         self.slots = {s: _Slot(s) for s in SLOTS}
         self.events = []
         self.intros = {}  # intro_id -> Introduction
@@ -191,6 +195,12 @@ class DemoSession:
         self.connections = set()
         self.outputs = {"followups": [], "reveals": []}
         self.last_proposals = []
+        self.last_run = None  # demo time the Matchmaker last ran (it runs every few seconds on its own)
+        # Held back by the Warden: not sent again until something changes, so a stuck pair doesn't
+        # add receipts every few seconds. pair -> (versions, failed checks, when)
+        self.held_back = {}
+        self.held_questions = {}  # (listing, question, about) -> listing version it was held back at
+        self.at_limit = {}  # listing -> when a pair with it hit the daily introduction limit
         self._event("inside", "Matching service started",
                     f"{len(self.board.listings())} synthetic listings, all accepted by the Warden's entry check.")
 
@@ -630,21 +640,32 @@ class DemoSession:
         return {l.id for st in self.slots.values() for l in st.listings if l.id in self.board}
 
     def run_matchmaker(self, quiet: bool = False) -> None:
-        """quiet: the background run every few seconds. It only leaves a trace in the presenter's
-        log when it actually sends something (a new introduction or question)."""
+        """quiet: the automatic run every few seconds. It only leaves a trace in the presenter's log
+        when something happens: a new introduction or question, or one the Warden held back."""
         demo_ids = self._demo_listing_ids()
         if not demo_ids:
             raise DemoError("Neither phone has a listing yet.")
         events_before, sent_before = len(self.events), (len(self.intros), len(self.outputs["followups"]))
         self.clock.advance(minutes=10) if quiet else self.clock.advance(hours=1)
+        self.last_run = self.clock.now()
         result = self.matcher.match(self.board)
         mine = [p for p in result.proposals if {p.person_a, p.person_b} & demo_ids]
         self.last_proposals = mine
+        # New pairs only, a few per listing at a time, in the Matchmaker's own order.
+        fresh, per = [], {}
+        for p in mine:
+            if frozenset((p.person_a, p.person_b)) in self.introduced_pairs or self._still_held(p):
+                continue
+            if per.get(p.person_a, 0) >= PER_RUN or per.get(p.person_b, 0) >= PER_RUN:
+                continue
+            per[p.person_a], per[p.person_b] = per.get(p.person_a, 0) + 1, per.get(p.person_b, 0) + 1
+            fresh.append(p)
         self._event("inside", "Matchmaker ran",
                     f"Read all {len(self.board.listings())} listings, including hidden details. "
-                    f"Proposed {len(result.proposals)} pairs; {len(mine)} involve the demo phones. "
+                    f"Proposed {len(result.proposals)} pairs; {len(fresh)} new ones involve the demo phones. "
                     f"Nothing it read can be sent to anyone except through the Warden's checks.",
-                    payload=[self._proposal_summary(p) for p in mine])
+                    payload=[self._proposal_summary(p) for p in fresh])
+        noted = len(self.events)
 
         for fu in result.followups:
             slot, listing = self._owner_of(fu.person_id)
@@ -656,12 +677,15 @@ class DemoSession:
             # person who'd be asked first declines, as they do in the simulation.)
             if fu.after and self._slot_of(fu.after) is not None and (fu.after, fu.person_id) not in self.declined:
                 continue
+            key = (fu.person_id, fu.question_id, fu.about)
+            if self.held_questions.get(key) == self.board.listing(fu.person_id).version:
+                continue  # held back before, and nothing has changed since
             self._exit_followup(fu, slot, listing)
 
-        for p in mine:
+        for p in fresh:
             pair = frozenset((p.person_a, p.person_b))
-            if pair in self.introduced_pairs:
-                continue
+            if any(self._within_hour(self.at_limit.get(x)) for x in (p.person_a, p.person_b)):
+                continue  # at the daily limit: wait an hour of demo time before trying again
             start = len(self.warden.receipts)
             intro = self.warden.exit_introduction(p, self.board)
             owners = [o for o in (self._owner_of(p.person_a), self._owner_of(p.person_b)) if o[0]]
@@ -671,9 +695,13 @@ class DemoSession:
                 self.slots[s].receipts += receipts
             if intro is None:
                 failed = [r["check"] for r in receipts if r["result"] == "fail"]
+                self.held_back[pair] = (self._versions(p), tuple(failed), self.clock.now())
+                if "approach_limit" in failed:
+                    self.at_limit.update({p.person_a: self.clock.now(), p.person_b: self.clock.now()})
                 self._event("blocked", f"Introduction {self._name(p.person_a)} + {self._name(p.person_b)} held back",
                             f"Failed: {', '.join(failed)}", receipts=receipts, slots=slots)
                 continue
+            self.held_back.pop(pair, None)
             self.introduced_pairs.add(pair)
             self.intros[intro.intro_id] = intro
             self.intro_reasons[intro.intro_id] = list(p.reason_fields)
@@ -681,6 +709,9 @@ class DemoSession:
                 listing.intro_ids.append(intro.intro_id)
                 # "No matches yet" no longer applies.
                 listing.followups = [q for q in listing.followups if q["question_id"] != "broaden"]
+                # A one-way close match is only news to its recipient; the other person isn't told.
+                if not intro.one_way_to or intro.one_way_to == listing.id:
+                    self._tell(listing, "Belong. found someone for this listing. Go back to Belong. to see them.")
             if intro.one_way_to:
                 to_a = intro.one_way_to == intro.person_a
                 self._event("out", f"Close match for {self._name(intro.one_way_to)}",
@@ -697,12 +728,35 @@ class DemoSession:
                         payload=[{"to": self._name(intro.person_a), "view": intro.a_view},
                                  {"to": self._name(intro.person_b), "view": intro.b_view}],
                         receipts=receipts, slots=slots)
-        if quiet and (len(self.intros), len(self.outputs["followups"])) == sent_before:
-            del self.events[events_before:]  # nothing new: no trace in the log
+        if quiet and len(self.events) == noted:
+            del self.events[events_before:]  # nothing happened: no trace in the log
             return
         if not mine and not any(l.followups for st in self.slots.values() for l in st.listings):
             self._event("inside", "No match yet for the demo phones",
                         "Nobody on the board meets their intent and is also looking for them.")
+
+    def _versions(self, p: Proposal) -> tuple:
+        return tuple(self.board.listing(x).version if x in self.board else -1 for x in (p.person_a, p.person_b))
+
+    def _still_held(self, p: Proposal) -> bool:
+        """Held back before and nothing changed: neither listing was updated, and (for the daily
+        introduction limit) less than an hour of demo time has passed, so it isn't sent again yet."""
+        held = self.held_back.get(frozenset((p.person_a, p.person_b)))
+        if held is None or held[0] != self._versions(p):
+            return False
+        return self._within_hour(held[2]) if "approach_limit" in held[1] else True
+
+    def _within_hour(self, when) -> bool:
+        if not when:
+            return False
+        from datetime import datetime, timedelta
+        now = datetime.fromisoformat(self.clock.now().rstrip("Z"))
+        return now - datetime.fromisoformat(when.rstrip("Z")) < timedelta(hours=1)
+
+    @staticmethod
+    def _tell(listing: _Listing, text: str) -> None:
+        """A line from the person's own agent in that listing's chat (not sent to the model)."""
+        listing.chat.append({"from": "agent", "text": text, "notice": True})
 
     def _exit_followup(self, fu: FollowUp, slot: str, listing: _Listing) -> None:
         start = len(self.warden.receipts)
@@ -711,6 +765,7 @@ class DemoSession:
         name = self.slots[slot].name
         if out is None:
             failed = [r["check"] for r in receipts if r["result"] == "fail"]
+            self.held_questions[(fu.person_id, fu.question_id, fu.about)] = self.board.listing(fu.person_id).version
             self._event("blocked", f"Question to {name} held back", f"Failed: {', '.join(failed)}",
                         receipts=receipts, slots=[slot])
             return
@@ -718,6 +773,7 @@ class DemoSession:
         self.outputs["followups"].append(d)
         listing.followups.append({"question_id": d["question_id"], "question_text": d["question_text"],
                                   "offer_add": d["offer_add"], "seek_add": d["seek_add"], "pay": d["pay"], "about": fu.about})
+        self._tell(listing, "Belong. has a question for this listing. Go back to Belong. to answer it.")
         self._event("out", f"Question to {name}", "A fixed-menu question, worded by the Warden:",
                     payload={"question": d["question_text"]}, receipts=receipts, slots=[slot])
 
@@ -1083,7 +1139,8 @@ class DemoSession:
         return {"listings": len(self.board.listings()), "k": K_CROWD, "inside": inside,
                 "events": self.events[-150:], "leak_report": {"ok": report["ok"], "findings": report["findings"],
                                                                "checked": report["checked"]},
-                "followup_menu": FOLLOWUP_MENU, "agent_status": self.agent_status}
+                "followup_menu": FOLLOWUP_MENU, "agent_status": self.agent_status,
+                "matchmaker_last_run": self.last_run}
 
     def state(self) -> dict:
         return {"phones": {s: self.phone_state(s) for s in SLOTS}, "room": self.room_state()}

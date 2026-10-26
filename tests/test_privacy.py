@@ -84,6 +84,25 @@ class WardenExitBlocksLeaks(unittest.TestCase):
         self.assertIsNotNone(w.exit_introduction(proposal(), board))
         self.assertIsNone(w.exit_introduction(proposal(), board))
 
+    def test_the_approach_limit_is_per_day(self):
+        w, board = roommates_board()
+        self.assertEqual(w.approach_limit, 15)  # the default: 15 introductions per listing per day
+        w.approach_limit = 2
+        self.assertIsNotNone(w.exit_introduction(proposal(), board))
+        w.clock.advance(hours=23)
+        self.assertIsNotNone(w.exit_introduction(proposal(), board))
+        self.assertIsNone(w.exit_introduction(proposal(), board))  # two in the last 24 hours
+        w.clock.advance(hours=1, seconds=1)
+        self.assertIsNotNone(w.exit_introduction(proposal(), board))  # the first is now over a day old
+
+    def test_an_introduction_carries_when_it_was_sent(self):
+        w, board = roommates_board()
+        intro = w.exit_introduction(proposal(), board)
+        self.assertEqual(intro.to_dict()["sent_at"], w.clock.now())
+        w.clock.advance(hours=5)
+        again = w.refresh_introduction(intro.intro_id, ["city"], board)
+        self.assertEqual(again.sent_at, intro.sent_at)  # a refresh isn't a new introduction
+
 
 class LeakReportCatchesPlantedLeaks(unittest.TestCase):
     """Test the tester: the independent audit must notice a leak if one gets out."""
@@ -102,6 +121,20 @@ class LeakReportCatchesPlantedLeaks(unittest.TestCase):
         report = self._report(board, [d])
         self.assertFalse(report["ok"])
         self.assertEqual(report["findings"][0]["audit"], "A2")
+
+    def test_too_many_introductions_in_one_day_are_caught(self):
+        w, board = roommates_board()
+        d = self._intro(board, w)
+
+        def at(hour):
+            day, h = divmod(hour, 24)
+            return {**d, "sent_at": f"2026-10-{12 + day:02d}T{h:02d}:00:00Z"}
+        r3 = lambda intros: [f for f in self._report(board, intros)["findings"] if f["audit"] == "R3"]
+        self.assertEqual(r3([at(0), at(5), at(23)]), [])  # 3 within a day: at the limit
+        self.assertEqual(r3([at(0), at(10), at(24), at(30), at(48)]), [])  # 3 a day, spread out
+        self.assertEqual(len(r3([at(20), at(25), at(30), at(40)])), 2)  # 4 within 24 hours, for both people
+        no_time = {k: v for k, v in d.items() if k != "sent_at"}
+        self.assertEqual(len(r3([no_time] * 2 + [at(0), at(48)])), 2)  # no send time: counted as one day
 
     def test_hidden_field_in_view_is_caught(self):
         w, board = roommates_board()

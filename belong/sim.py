@@ -24,15 +24,18 @@ from .synth import generate
 from .warden import Clock, Warden
 
 
-def run(n: int = 300, seed: int = 7, matcher=None, k_crowd: int = 20, approach_limit: int = 3) -> dict:
+def run(n: int = 300, seed: int = 7, matcher=None, k_crowd: int = 20, approach_limit: int = 15,
+        per_round: int = 3) -> dict:
     rng = random.Random(seed + 1)
     personas = {p.person.id: p for p in generate(n, seed)}
-    matcher = matcher or OfflineMatcher(k_crowd=k_crowd, max_per_person=approach_limit)
+    # The Warden allows up to approach_limit introductions a day; the Matchmaker proposes at most
+    # per_round for each person in one round, so nobody gets them all at once.
+    matcher = matcher or OfflineMatcher(k_crowd=k_crowd, max_per_person=per_round)
     clock = Clock()
     # In the real room this key belongs to the auditors; here it's derived from the seed
     # so runs are reproducible.
     warden = Warden(clock, key=hashlib.sha256(f"audit-key-{seed}".encode()).digest(),
-                    approach_limit_per_week=approach_limit)
+                    approach_limit_per_day=approach_limit)
     board = Marketboard()
 
     # Day 0: entry
