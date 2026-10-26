@@ -482,3 +482,15 @@ class FairRanking(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class NegationThatMeansFine(unittest.TestCase):
+    """A negation after "online" that goes on to mean it's fine is not a no (review finding)."""
+
+    def test_fine_phrasings_still_allow_online(self):
+        from belong.schema import ONLINE_WORDS, said
+        for text in ("Online is not a problem for me", "online isn't an issue", "Online doesn't bother me",
+                     "Remote wouldn't be an issue", "remote doesn't matter to me", "remote wouldn't hurt"):
+            self.assertIs(said(text, ONLINE_WORDS), True, text)
+        for text in ("online isn't for me", "online doesn't work for me", "not online", "online is not an option"):
+            self.assertIs(said(text, ONLINE_WORDS), False, text)

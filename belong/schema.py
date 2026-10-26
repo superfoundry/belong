@@ -163,7 +163,11 @@ _NEGATED_BEFORE = re.compile(
     # a few words may stand between the negation and the thing: "don't want to meet online"
     r"(?:\s+(?:to|be|do|doing|meet|meeting|want|wanting|interested|in|on|for|keen|available|able|really|any|"
     r"a|an|the|via|over|by|through|go|going|possible|with|comfortable|happy|work|working)){0,3}\s+$")
-_NEGATED_AFTER = re.compile(r"(?:\s+(?:is|are|does|do|would|will|really))?\s+(?:not|never)\b|\s+\w*n't\b")
+# "online isn't for me" is a no; "online isn't a problem" / "doesn't bother me" / "wouldn't hurt" is a yes.
+_NEGATED_AFTER = re.compile(
+    r"(?:(?:\s+(?:is|are|does|do|would|will|really))?\s+(?:not|never)\b|\s+\w*n't\b)"
+    r"(?!\s+(?:be\s+)?(?:a\s+(?:problem|big\s+deal|concern|dealbreaker|deal\s+breaker)|an\s+(?:issue|obstacle)"
+    r"|matter|bother|hurt|mind|bad)\b)")
 _EITHER = re.compile(r"\b(either|both|hybrid)\b")
 _NOT_ONLY = re.compile(r"\bnot\s+(?:only|just)\b|\bnot\s+\S+[- ]only\b")
 
