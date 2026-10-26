@@ -23,12 +23,11 @@ _KIND_PATTERNS = [
     ("dating", r"\bdate\b|dating|relationship|partner|romance|something casual"),
 ]
 
-REMOTE_KINDS = {"language", "cofounder", "tutoring", "other"}
-
-
 @dataclass(frozen=True)
 class ParsedIntent:
     kind: Optional[str]
+    # The text says online or remote is fine. Only used when the listing shows no format
+    # (narrow.meeting_modes); dating always meets in person, so it is never remote.
     remote_ok: bool = False
     seeking: tuple = ()  # dating: genders acceptable to this person
     age_range: Optional[tuple] = None  # dating: (lo_idx, hi_idx) into AGE_BANDS
@@ -48,8 +47,8 @@ def _age_range(text: str) -> Optional[tuple]:
 def parse_intent(text: str) -> ParsedIntent:
     low = text.lower()
     kind = next((k for k, pat in _KIND_PATTERNS if re.search(pat, low)), None)
-    # kind None may still become "other" (an open-ended listing), which can be remote too.
-    remote = bool(re.search(r"\bonline\b|\bremote\b", low)) and (kind in REMOTE_KINDS or kind is None)
+    # Any kind of listing may meet online except dating, which is in person only.
+    remote = bool(re.search(r"\bonline\b|\bremote\b", low)) and kind != "dating"
 
     if kind == "dating":
         seeking = set()

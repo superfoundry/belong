@@ -842,7 +842,8 @@ function profileCard(slot, p, l, c) {
   const entry = l.entry;
   const fact = (label, value, empty) => `<div class="profile-line"><span class="label tertiary">${label}</span>${value
     ? `<span class="body-s">${esc(value)}</span>` : `<span class="body-s tertiary">${empty || "Not added yet"}</span>`}</div>`;
-  const used = new Set(["first_name", "age_band", "city", "country", "seeking", "offering", "headline", "gender", "pay", "format", "schedule", "role", "subject"]);
+  const used = new Set(["first_name", "age_band", "city", "country", "seeking", "offering", "headline", "gender", "pay", "format", "travel", "schedule", "role", "subject"]);
+  const travel = shown.travel ? fact("Travel", shown.travel) : "";
   const extra = Object.entries(shown).filter(([k]) => !used.has(k)).map(([, v]) => val(v));
   const who = `<div class="row"><span class="monogram" aria-hidden="true">${esc((p.name || "?").slice(0, 1).toUpperCase())}</span>
       <div class="grow"><div class="heading-m">${esc(p.name || "")}</div>
@@ -865,6 +866,7 @@ function profileCard(slot, p, l, c) {
         : `<p class="body-s tertiary" style="margin: var(--space-1) 0 var(--space-3)">Your agent will fill this in as you chat</p>`}
       ${fact(offering ? "Rate" : "Pay", shown.pay)}
       ${fact("Where", place)}
+      ${travel}
       ${fact("When", shown.schedule)}
       ${fact("Format", shown.format)}
       ${shown.subject ? fact("Subject", shown.subject) : ""}
@@ -873,7 +875,7 @@ function profileCard(slot, p, l, c) {
   } else if (layout === "dating") {
     body = `${who}
       ${fact("Looking for", d && d.intent_text, "Your agent will fill this in as you chat")}
-      ${shown.gender ? fact("Gender", shown.gender) : ""}`;
+      ${shown.gender ? fact("Gender", shown.gender) : ""}${travel}`;
   } else {
     const sd = sides(shown);
     body = `${who}
@@ -881,7 +883,7 @@ function profileCard(slot, p, l, c) {
         : sd.side === "offers" ? fact("Offering", sd.main) : fact("Looking for", shown.seeking, "Your agent will fill this in as you chat")}
       ${sd.other && !shown.headline ? fact("You are", sd.other) : ""}
       ${shown.schedule ? fact("When", shown.schedule) : ""}
-      ${shown.pay ? fact("Pay", shown.pay) : ""}${shown.format ? fact("Format", shown.format) : ""}`;
+      ${shown.pay ? fact("Pay", shown.pay) : ""}${shown.format ? fact("Format", shown.format) : ""}${travel}`;
   }
   return `
     ${entry && !entry.accepted ? `<div class="notice error"><b>Listing refused by the Warden agent.</b><br>${entry.problems.map(esc).join("<br>")}</div>` : ""}
