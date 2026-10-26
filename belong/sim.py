@@ -103,8 +103,18 @@ def run(n: int = 300, seed: int = 7, matcher=None, k_crowd: int = 20, approach_l
                            "b_said_yes": decisions.get((d["intro_id"], d["person_b"]))} for d in intro_dicts],
         "followups": followup_dicts,
         "reveals": reveal_dicts,
-        "receipts": receipt_dicts,
+        # The inspector shows a tally per check and the latest 100; the full chain was audited above (A5, A6).
+        "receipts": receipt_dicts[-100:],
+        "receipts_total": len(receipt_dicts),
+        "receipt_tally": _tally(receipt_dicts),
     }
+
+
+def _tally(receipts) -> dict:
+    out = {}
+    for r in receipts:
+        out.setdefault(r["check"], {"pass": 0, "fail": 0})[r["result"]] += 1
+    return out
 
 
 def _count_rejections(entry_log) -> dict:

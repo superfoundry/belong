@@ -171,9 +171,9 @@ function render(d) {
     <div class="scroll"><table><thead><tr><th>Between</th><th>Detail</th></tr></thead><tbody>${d.reveals.map(r => `<tr><td>${name(r.person_a)} ↔ ${name(r.person_b)}</td><td><span class="pill hidden">${esc(r.key)}: ${esc(r.values.join(", "))}</span></td></tr>`).join("")}</tbody></table></div></div>`;
 
   // Receipts
-  const tally = {};
-  d.receipts.forEach(r => { const t = tally[r.check] = tally[r.check] || {pass: 0, fail: 0}; t[r.result]++; });
-  $("receipts").innerHTML = `<div class="card"><h2>Warden receipts (${d.receipts.length})</h2>
+  const tally = d.receipt_tally || {};
+  if (!d.receipt_tally) d.receipts.forEach(r => { const t = tally[r.check] = tally[r.check] || {pass: 0, fail: 0}; t[r.result]++; });
+  $("receipts").innerHTML = `<div class="card"><h2>Warden receipts (${(d.receipts_total || d.receipts.length).toLocaleString()})</h2>
     <p class="note">Every check writes {check, result, timestamp, hash}. The hash is a keyed HMAC of what was checked, so auditors can verify it without the receipt containing any content.</p>
     <table><thead><tr><th>Check</th><th>Pass</th><th>Fail</th></tr></thead><tbody>${Object.entries(tally).map(([k, t]) => `<tr><td class="mono">${k}</td><td>${t.pass}</td><td>${t.fail}</td></tr>`).join("")}</tbody></table></div>
     <div class="card scroll"><h2>Latest 100</h2><table><thead><tr><th>Check</th><th>Result</th><th>Time</th><th>Hash</th></tr></thead><tbody>
@@ -181,7 +181,14 @@ function render(d) {
 }
 
 tabs();
-fetch("run.json").then(r => r.json()).then(render).catch(e => { $("meta").textContent = "Couldn't load run.json. Run: python3 -m belong run"; });
+// The server builds this run (the same people as the demo) when it starts; until then, wait and retry.
+function load() {
+  fetch("run.json").then(r => {
+    if (r.status === 503) { $("meta").textContent = "Preparing the batch run with the demo's people. This takes a minute or two after a restart…"; setTimeout(load, 5000); return null; }
+    return r.json();
+  }).then(d => d && render(d)).catch(e => { $("meta").textContent = "Couldn't load run.json. Run: python3 -m belong run"; });
+}
+load();
 </script>
 </body>
 </html>
