@@ -130,3 +130,16 @@ class OpenAIChatModel(unittest.TestCase):
         llm = OpenAIAgent(api_key="test", model="gpt-5", post=post)
         self.assertEqual(llm.chat_json("system", [], {}), {"reply": "Hi!", "react": ""})
         self.assertEqual(asked, ["gpt-5-mini", "gpt-5"])
+
+
+class TakenOver(unittest.TestCase):
+    def test_someone_taken_over_gets_no_simulated_replies(self):
+        s = DemoSession(seed=7, agent=None)
+        s.run_inline = True
+        model = StubModel()
+        intro_id, other = connected_to_a_synthetic_person(s, model)
+        calls = len(model.calls)
+        slot = s.take_over(other)
+        s.send_message("A", intro_id, "Are you there?")
+        self.assertEqual(len(model.calls), calls)  # the presenter answers as them now
+        self.assertTrue(any(i["intro_id"] == intro_id for i in s.phone_state(slot)["intros"]))

@@ -1,12 +1,13 @@
-"""The phone page: every screen it can open exists. (A screen was once deleted by an edit
-and the menu silently stopped working.)"""
+"""The web pages: every screen the phone page can open exists (a screen was once deleted by an
+edit and the menu silently stopped working), the inspector's "Take over" works, and every script parses."""
 from __future__ import annotations
 
 import re
 import unittest
 from pathlib import Path
 
-PAGE = (Path(__file__).resolve().parent.parent / "belong" / "web" / "demo.html").read_text()
+PAGE_DIR = Path(__file__).resolve().parent.parent / "belong" / "web"
+PAGE = (PAGE_DIR / "demo.html").read_text()
 
 
 class Screens(unittest.TestCase):
@@ -18,6 +19,22 @@ class Screens(unittest.TestCase):
         opened |= {"verify", "signedout", "belong", "found", "thread", "profile"}
         self.assertTrue(opened)
         self.assertEqual(opened - defined, set(), "screens the page opens but doesn't define")
+
+
+class TakeOverLink(unittest.TestCase):
+    """The inspector's "Take over" reaches a real action, and the phone page opens any phone the demo makes."""
+
+    def test_the_inspector_takes_over_through_an_action_the_server_has(self):
+        from belong import server
+        inspector = (PAGE_DIR / "index.html").read_text()
+        self.assertIn('fetch("/api/take_over"', inspector)
+        self.assertIn("take_over", server.ACTIONS)
+        self.assertIn('"/demo?phone=" + encodeURIComponent(d.slot)', inspector)
+
+    def test_the_phone_page_accepts_every_phone_id_the_demo_makes(self):
+        from belong.demo import SLOT_ID
+        accepted = re.search(r"const VIEW = ONLY && /(.+?)/\.test\(ONLY\)", PAGE).group(1)
+        self.assertEqual(accepted, "^" + SLOT_ID.pattern + "$")
 
 
 class Script(unittest.TestCase):
