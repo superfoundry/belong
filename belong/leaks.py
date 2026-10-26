@@ -72,6 +72,25 @@ def _contains(text: str, s: str) -> bool:
     return _word(s).search(text) is not None
 
 
+_TOKENS = re.compile(r"\w+")
+
+
+def _finder(values):
+    """Which of `values` appear in a text as whole words: the same answer as checking each value with
+    _contains, but a value is only checked when its first word is in the text (a value can't appear
+    otherwise), so a large population doesn't mean searching every text for every value."""
+    by_first, always = {}, []
+    for v in values:
+        words = _TOKENS.findall(v.lower())
+        (by_first.setdefault(words[0], []) if words else always).append((v, frozenset(words)))
+
+    def found(text: str) -> list:
+        words = set(_TOKENS.findall(text.lower()))
+        hits = [v for w in words for v, need in by_first.get(w, ()) if need <= words and _contains(text, v)]
+        return sorted(set(hits + [v for v, _ in always if _contains(text, v)]))
+    return found
+
+
 def _scrub(text: str, allowed: set) -> str:
     for s in sorted(allowed, key=len, reverse=True):
         text = _word(s).sub(" ", text)
@@ -93,6 +112,7 @@ def leak_report(board, introductions: list, followups: list, reveals: list, rece
                 if visibility is None or f.visibility == visibility for s in f.strings()}
 
     every_hidden = set().union(*(strings(pid, HIDDEN) for pid in listings)) if listings else set()
+    hidden_in = _finder(every_hidden)
     findings = []
 
     def find(audit, detail):
@@ -114,9 +134,8 @@ def leak_report(board, introductions: list, followups: list, reveals: list, rece
             both_shown = set(listings[viewer].shown()) & set(listings[other].shown())
             allowed = strings(other, SHOWN) | {s for k in both_shown for s in listings[viewer].get(k).strings()}
             text = _scrub(json.dumps(view, ensure_ascii=False), allowed)
-            for s in sorted(every_hidden):
-                if _contains(text, s):
-                    find("A2", f"{intro['intro_id']} {key}: hidden value {s!r} reached {viewer}")
+            for s in hidden_in(text):
+                find("A2", f"{intro['intro_id']} {key}: hidden value {s!r} reached {viewer}")
 
     # A3: follow-ups
     for fu in followups:
@@ -127,9 +146,8 @@ def leak_report(board, introductions: list, followups: list, reveals: list, rece
                 or ((fu.get("phrase") or fu.get("offer_add") or fu.get("seek_add") or fu.get("pay"))
                     and fu["question_id"] != "also_offer"):
             find("A3", f"follow-up to {fu['person_id']} is not a fixed-menu question")
-        for s in every_hidden:
-            if _contains(fu["question_text"], s):
-                find("A3", f"follow-up to {fu['person_id']} contains hidden value {s!r}")
+        for s in hidden_in(fu["question_text"]):
+            find("A3", f"follow-up to {fu['person_id']} contains hidden value {s!r}")
 
     # A4: reveals
     intro_by_pair = {frozenset((i["person_a"], i["person_b"])): i["intro_id"] for i in introductions}
@@ -149,15 +167,15 @@ def leak_report(board, introductions: list, followups: list, reveals: list, rece
 
     # A5: receipts carry no content
     all_values = set().union(*(strings(pid) for pid in listings)) if listings else set()
+    value_in = _finder({v for v in all_values if len(v) > 2})
     for r in receipts:
         if (set(r) != RECEIPT_KEYS or r["result"] not in ("pass", "fail") or not isinstance(r["seq"], int)
                 or not _HEX64.fullmatch(str(r["hash"])) or not _HEX64.fullmatch(str(r["commitment"]))):
             find("A5", f"receipt has unexpected shape: {sorted(r)}")
             continue
         blob = f"{r['check']} {r['timestamp']}"
-        for s in all_values:
-            if len(s) > 2 and _contains(blob, s):
-                find("A5", f"receipt for {r['check']} contains a field value")
+        for s in value_in(blob):
+            find("A5", f"receipt for {r['check']} contains a field value")
 
     # A6: the chain is unbroken (the first receipt given is taken as the anchor)
     shaped = [r for r in receipts if set(r) == RECEIPT_KEYS]
