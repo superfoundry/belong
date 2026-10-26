@@ -243,6 +243,13 @@ here so nobody mistakes the prototype for the finished service.
     it needs the other person's criteria to be fully met and is one-way. An "also offer" question
     tells someone that a person somewhere is looking for a thing, without who or where; it only
     quotes a phrase that person chose to show.
+17. **The hosted demo is still a demo.** Run online (README, "Run it online"), it is one shared
+    demo session for everyone who has its password: anyone using it at the same time sees the same
+    two phones, and what they type stays in the server's memory until it restarts. It runs on Google
+    Cloud, so Google, and anyone who can manage that project, could in principle read that memory.
+    The password keeps strangers out (and off the AI key); it's sent over the host's HTTPS and
+    checked by `_authorized` in [server.py](belong/server.py) (`tests/test_server.py`). Locally the
+    server still listens only on the machine itself. Use made-up details only.
 
 ---
 

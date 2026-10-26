@@ -1,0 +1,10 @@
+# Never in the image: keys, history, local runs.
+.env
+.git
+.claude
+out
+tests
+tools
+**/__pycache__
+*.pyc
+.DS_Store

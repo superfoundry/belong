@@ -1,0 +1,10 @@
+# Never uploaded to Google Cloud: keys, history, local runs.
+.env
+.git
+.claude
+out
+tests
+tools
+**/__pycache__
+*.pyc
+.DS_Store
