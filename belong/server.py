@@ -223,9 +223,19 @@ class _Handler(BaseHTTPRequestHandler):
                 return self._redirect(_safe_next(self._query().get("next", "/")))
             return self._login_page(next_path=self._query().get("next", "/"))
         if path == "/api/state":
+            phone = self._query().get("phone")
             with SESSION.lock:
                 _match_if_due(SESSION)
+                if phone is not None:
+                    # A single-phone page (a phone of its own, or a taken-over person): just that
+                    # phone, without the presenter's view and its leak audit.
+                    if phone not in SESSION.slots:
+                        return self._json(404, {"error": "No such phone."})
+                    return self._json(200, {"phones": {phone: SESSION.phone_state(phone)}})
                 return self._json(200, SESSION.state())
+        if path == "/api/demo":
+            # What the live demo holds, so the inspector can tell whether its run shows the same people.
+            return self._json(200, {"seed": SESSION.seed, "people": SESSION.people})
         if path == "/api/chat/state":
             session = chat_session()
             with session.lock:

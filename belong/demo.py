@@ -287,11 +287,13 @@ class DemoSession:
             mine.draft = {"intent_text": "", "exactness": listing.exactness, "kind": None, "fields": [], "understood": "",
                           "notes": [], "missing": [], "complete": False, "by": "sync"}
         live = {f.key: f for f in listing.fields}
+        confirmed = set(listing.confirmed_shown)  # sensitive details they chose to show, already confirmed
         fields = []
         for f in mine.draft["fields"]:
             g = live.get(f["key"])
             if g is not None:
-                f = {**f, "value": value_to_json(g.value), "visibility": g.visibility, "enabled": True}
+                f = {**f, "value": value_to_json(g.value), "visibility": g.visibility, "enabled": True,
+                     **({"confirmed": True} if g.key in confirmed else {})}
             elif f.get("value") not in (None, "", []):
                 f = {**f, "value": None}
             fields.append(f)
@@ -300,7 +302,8 @@ class DemoSession:
             if key not in known:
                 fields.append({"key": key, "label": agent.LABELS.get(key, key), "value": value_to_json(g.value),
                                "visibility": g.visibility, "sensitive": g.sensitive, "multi": FIELD_REGISTRY[key].multi,
-                               "enabled": True, "locked": key == "age_band", "options": []})
+                               "enabled": True, "locked": key == "age_band", "options": [],
+                               **({"confirmed": True} if key in confirmed else {})})
         mine.draft = {**mine.draft, "intent_text": listing.intent_text, "exactness": listing.exactness, "fields": fields}
 
     def _unsaved(self, mine) -> bool:
@@ -1045,6 +1048,8 @@ class DemoSession:
             if generation != self.generation:
                 return
             self.persona_typing.discard(intro_id)
+            if self._slot_of(me) is not None:
+                return  # taken over meanwhile: the presenter answers as them now
             live = self.threads.setdefault(intro_id, [])
             theirs = [n for n, m in enumerate(live[:len(thread)]) if m["from"] != me]
             if react and theirs:
@@ -1167,6 +1172,14 @@ class DemoSession:
                                               "someone who is also looking for you."}]
         st.listings.append(mine)
         st.current = mine.id
+        for intro_id in [i for i, x in self.intros.items() if pid in (x.person_a, x.person_b)]:
+            self.persona_typing.discard(intro_id)
+        for other in self.slots.values():
+            for theirs in other.listings:
+                asked_of_them = {q.get("about") for q in theirs.followups if q["question_id"] == "also_offer"}
+                asked_of_them |= {about for q, about in theirs.asked if q == "also_offer"}
+                if pid in asked_of_them:
+                    mine.asked.add(("also_offer", theirs.id))  # they were simulated, so taken to have said no
         self.slots[pid] = st
         self._attach_intros(st)
         self._event("inside", f"Presenter took over {st.name}",
@@ -1182,6 +1195,21 @@ class DemoSession:
             raise DemoError("Only a synthetic person who was taken over can be handed back.")
         self.handed_back[slot] = self.slots.pop(slot)
         self._event("inside", f"Presenter handed {st.name} back", "Simulated again: they answer for themselves.")
+        for mine in st.listings:  # anything left waiting on them is answered as a simulated person would
+            for intro_id in list(mine.intro_ids):
+                intro = self.intros[intro_id]
+                other = intro.person_b if intro.person_a == mine.id else intro.person_a
+                if (intro_id, mine.id) not in self.decisions and (
+                        self.decisions.get((intro_id, other)) is True or intro.one_way_to == mine.id):
+                    self._record(intro_id, mine.id, self.rng.random() < 0.8)
+                    if self.warden.is_connected(intro_id):
+                        self.connections.add(frozenset((intro.person_a, intro.person_b)))
+                if self.warden.is_connected(intro_id) and (intro_id, other) in self.consents \
+                        and (intro_id, mine.id) not in self.consents:
+                    listing = self.board.listing(mine.id)
+                    self.consents[(intro_id, mine.id)] = {f.key for f in listing.fields
+                                                          if f.visibility == HIDDEN and self.rng.random() < 0.7}
+                    self._settle_reveal(intro)
 
     def _attach_intros(self, st: _Slot) -> None:
         """Introductions sent to this phone's listings while they were simulated, with the details
@@ -1287,10 +1315,16 @@ class DemoSession:
                     rows.append(row)
                 inside.append({"slot": st.slot, "name": st.name, "title": self._live_title(l),
                                "intent_text": l.intent_text, "fields": rows})
-        intro_dicts = [i.to_dict() for i in self.intros.values()]
-        report = leak_report(self.board, intro_dicts, self.outputs["followups"], self.outputs["reveals"],
-                             [r.to_dict() for r in self.warden.receipts[self._seed_receipts:]],
-                             self.last_proposals, self.connections, self.consents, K_CROWD, APPROACH_LIMIT)
+        # The audit runs again whenever anything it reads has changed, not on every page check-in.
+        key = (self.generation, self.board.changes, len(self.intros), len(self.outputs["followups"]),
+               len(self.outputs["reveals"]), len(self.warden.receipts), len(self.connections), len(self.consents),
+               id(self.last_proposals))
+        if getattr(self, "_audit", (None, None))[0] != key:
+            intro_dicts = [i.to_dict() for i in self.intros.values()]
+            self._audit = (key, leak_report(self.board, intro_dicts, self.outputs["followups"], self.outputs["reveals"],
+                                            [r.to_dict() for r in self.warden.receipts[self._seed_receipts:]],
+                                            self.last_proposals, self.connections, self.consents, K_CROWD, APPROACH_LIMIT))
+        report = self._audit[1]
         return {"listings": len(self.board.listings()), "k": K_CROWD, "inside": inside,
                 "events": self.events[-150:], "leak_report": {"ok": report["ok"], "findings": report["findings"],
                                                                "checked": report["checked"]},
