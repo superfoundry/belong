@@ -9,7 +9,9 @@ still unknown is left as None, which can trigger a fixed-menu follow-up question
 
 The rules are a fallback, not understanding: the range of what people type is endless. They read
 a hobby the person mentions ("I enjoy climbing") as a hobby, not as the kind of match, whenever
-something else in the text says what they want.
+something else in the text asks for anything, before or after it ("I enjoy climbing and I'm looking
+to meet a woman"). Ages said with "no" or "not" ("no one over 40") mean the opposite of the plain
+wording, and numbers that measure or count something ("30 km", "2 kids") are never ages.
 """
 from __future__ import annotations
 
@@ -29,14 +31,23 @@ _KIND_PATTERNS = [
     ("roommate", r"roommate|flatmate|housemate"),
 ]
 
+# Where someone starts saying what they want ("... and I'm looking to meet a woman", "want a running
+# buddy", "I'd love to meet"). A hobby ends there, and text that still has one of these after the
+# hobbies are taken out is a request, so the kind is never read from the hobbies instead.
+_REQUEST_WORDS = (r"\b(?:looking|seeking|searching|hoping|want(?:s|ed|ing)?|wish(?:ing)?|need(?:s|ing)?|"
+                  r"would (?:like|love)|(?:i|we)['’]?d (?:like|love)|in search of|interested in meeting)\b")
+REQUEST = re.compile(_REQUEST_WORDS)
+_UNTIL_REQUEST = rf"(?:(?!{_REQUEST_WORDS})[^.!?;])*"
 # Something the person says they enjoy ("I enjoy rock climbing and tennis", "who loves hiking", "my
-# hobbies are..."), up to the end of the sentence. A hobby is not what they want to meet someone for,
-# so the kind is read without these first, and from them only if nothing else says what they want.
+# hobbies are..."), up to the end of the sentence or where a request starts. A hobby is not what they
+# want to meet someone for, so the kind is read without these first, and from them only if nothing
+# else in the text asks for anything.
 _HOBBY = re.compile(
-    r"\b(?:i|we|who|she|he|they)\s+(?:really\s+|also\s+|both\s+)?(?:enjoy|love|like|adore)s?\b[^.!?;]*"
-    r"|\b(?:i'?m|i am|who'?s|who is|we'?re|also)\s+(?:really\s+|also\s+|big\s+)?(?:into|a fan of|passionate about)\b"
-    r"[^.!?;]*"
-    r"|\bmy (?:hobbies|interests|passions) (?:are|include)\b[^.!?;]*|\bhobbies\b:?[^.!?;]*")
+    r"\b(?:i|we|who|she|he|they)\s+(?:really\s+|also\s+|both\s+|just\s+|simply\s+)?(?:enjoy|love|like|adore)s?\b"
+    + _UNTIL_REQUEST
+    + r"|\b(?:i'?m|i am|who'?s|who is|we'?re|also)\s+(?:really\s+|also\s+|big\s+|just\s+)?(?:into|a fan of|passionate about)\b"
+    + _UNTIL_REQUEST
+    + r"|\bmy (?:hobbies|interests|passions) (?:are|include)\b" + _UNTIL_REQUEST + r"|\bhobbies\b:?" + _UNTIL_REQUEST)
 
 # --- Dating ---------------------------------------------------------------------------
 # Said outright ("a date", "a relationship", "a girlfriend", "looking for love"), or as wanting to
@@ -140,9 +151,23 @@ _N = r"(1[89]|[2-9]\d)"
 _SELF_AGE = re.compile(rf"\b(?:i'?m|i am|im|as)\s+(?:only\s+|just\s+)?(?:an?\s+)?{_N}(?:[- ]?(?:years?[- ]old|yo|y/o))?\b"
                        r"|\bin my (?:early |mid |late )?(?:[2-9]0['’]?s|(?:twent|thirt|fort|fift|sixt)ies)\b")
 _RANGE = re.compile(rf"\b{_N}\s*(?:-|–|to|and)\s*{_N}\b")
+# Said with "no", "not" or "at most": the opposite of the plain wording. "No one over 40" is 40 or
+# younger, "not younger than 30" is 30 or older. Read before the plain wording below.
+_NOBODY = r"(?:no(?:body| one|-one)?|not|never)\s+(?:anyone\s+|anybody\s+|someone\s+|people\s+|one\s+)?"
+_AT_MOST = re.compile(rf"\b(?:{_NOBODY}(?:over|older than|above)|at most|max(?:imum)?|no more than)\s+{_N}\b")
+_AT_LEAST = re.compile(rf"\b(?:{_NOBODY}(?:under|younger than|below)|min(?:imum)?|no less than)\s+{_N}\b")
 _OLDER = re.compile(rf"\b{_N}\s*(?:\+|or older|or over|and older|and over|and up)|\b(?:over|older than|at least)\s+{_N}\b")
 _YOUNGER = re.compile(rf"\b(under|younger than|below|up to)\s+{_N}\b|\b{_N}\s*(?:or younger|or under|and under)\b")
-_DECADE = re.compile(r"\b(?:(early|mid|late)[\s-]*)?(?:([2-9])0(?:['’]?s|[\s-]*something)|(twent|thirt|fort|fift|sixt)ies)\b")
+# A decade of someone's life, not of music or film ("80s music", "90s films").
+_DECADE = re.compile(r"\b(?:(early|mid|late)[\s-]*)?(?:([2-9])0(?:['’]?s|[\s-]*something)|(twent|thirt|fort|fift|sixt)ies)\b"
+                     r"(?!\s*(?:music|films?|movies?|songs?|style|fashion|hip[- ]?hop|rock|pop|tv|television|shows?|"
+                     r"anime|vibes?|kids?|cars?|bands?|disco|aesthetic))")
+# Numbers that aren't ages: a measured or counted thing after them ("30 km", "20 minutes", "10 years
+# of experience", "2 kids", "25 people"), or money ("$30"). "30 years old" is still an age.
+_UNITS = (r"(?:years?|yrs?)\b(?!\s*(?:old|of age|young))|km\b|kilomet\w*|miles?\b|mi\b|minutes?\b|mins?\b|hours?\b|"
+          r"hrs?\b|days?\b|weeks?\b|months?\b|cm\b|kg\b|lbs?\b|%|percent\b|kids?\b|children\b|people\b|persons?\b|"
+          r"times\b|euros?\b|dollars?\b|yen\b|pounds?\b|k\b|floors?\b|stops?\b|stations?\b|members?\b|games?\b")
+_NOT_AGES = re.compile(rf"[£€$¥]\s?\d[\d,.]*|\b\d+(?:\s*(?:-|–|to|and)\s*\d+)?\s*(?:{_UNITS})")
 _AROUND = re.compile(rf"\b(?:around|about|roughly|approximately|approx\.?|circa|close to)\s+{_N}\b|\b{_N}\s*-?\s*ish\b")
 _DECADE_WORDS = {"twent": 2, "thirt": 3, "fort": 4, "fift": 5, "sixt": 6}
 _PART_OF_DECADE = {"early": (0, 3), "mid": (4, 6), "late": (7, 9), None: (0, 9)}
@@ -152,6 +177,7 @@ AROUND_YEARS = 3  # "around 30" means 27 to 33
 _MY_AGE = re.compile(r"\b(?:my|our) (?:own )?age\b|\bsimilar(?:ly)?[- ]aged?\b|\bsame age\b|\bmy age group\b")
 _YOUNGER_THAN_ME = re.compile(r"\byounger\b")
 _OLDER_THAN_ME = re.compile(r"\bolder\b")
+_NEGATED_BEFORE = re.compile(r"(?:\b(?:not|no|never|nobody|without)|n['’]t)(?:\s+[a-z'’-]+){0,2}\s*$")
 
 
 def _decade(m) -> tuple:
@@ -161,40 +187,56 @@ def _decade(m) -> tuple:
 
 
 def _ages_said(text: str, plain_numbers: bool) -> list:
-    """(lo, hi) ages for every way an age range is written: "25 to 34", "30 or older", "under 40",
-    "early 30s", "in their thirties", "30-something", "around 30". With plain_numbers, bare numbers
-    count too: two are a range, one is around that age."""
+    """(lo, hi, how) for every way an age range is written: a range ("25 to 34", "early 30s", "in their
+    thirties", "30-something", "around 30"; how "range"), a lower bound ("30 or older", "not younger
+    than 30"; "min") or an upper bound ("under 40", "no one over 40", "at most 35"; "max"). With
+    plain_numbers, bare numbers count too: two are a range, one is around that age."""
     spans = []
 
-    def take(rx, span):
+    def take(rx, span, how):
         nonlocal text
-        text = rx.sub(lambda m: spans.append(span(m)) or " ", text)
+        text = rx.sub(lambda m: spans.append((*span(m), how)) or " ", text)
 
-    take(_RANGE, lambda m: (int(m.group(1)), int(m.group(2))))
-    take(_OLDER, lambda m: (int(m.group(1) or m.group(2)), 99))
+    take(_RANGE, lambda m: (int(m.group(1)), int(m.group(2))), "range")
+    take(_AT_MOST, lambda m: (18, int(m.group(1))), "max")
+    take(_AT_LEAST, lambda m: (int(m.group(1)), 99), "min")
+    take(_OLDER, lambda m: (int(m.group(1) or m.group(2)), 99), "min")
     take(_YOUNGER, lambda m: (18, int(m.group(2) or m.group(3)) - (1 if m.group(1) in ("under", "younger than", "below")
-                                                                    else 0)))
-    take(_DECADE, _decade)
-    take(_AROUND, lambda m: (int(m.group(1) or m.group(2)) - AROUND_YEARS, int(m.group(1) or m.group(2)) + AROUND_YEARS))
+                                                                    else 0)), "max")
+    take(_DECADE, _decade, "range")
+    take(_AROUND, lambda m: (int(m.group(1) or m.group(2)) - AROUND_YEARS, int(m.group(1) or m.group(2)) + AROUND_YEARS),
+         "range")
     if not spans and plain_numbers:
         ages = [int(x) for x in re.findall(rf"\b{_N}\b", text)]
         if len(ages) >= 2:
-            spans.append((ages[0], ages[1]))
+            spans.append((ages[0], ages[1], "range"))
         elif ages:
-            spans.append((ages[0] - AROUND_YEARS, ages[0] + AROUND_YEARS))
+            spans.append((ages[0] - AROUND_YEARS, ages[0] + AROUND_YEARS, "range"))
     return spans
 
 
-def _years(wanted: str, whole: str = "") -> Optional[tuple]:
+def _combined(spans: list) -> Optional[tuple]:
+    """One age range from everything said: the ranges together ("late 20s to early 30s"), within every
+    bound ("30s, no one over 35" is 30 to 35). None if the bounds contradict each other."""
+    ranges = [(lo, hi) for lo, hi, how in spans if how == "range"]
+    lo = min(r[0] for r in ranges) if ranges else 0
+    hi = max(r[1] for r in ranges) if ranges else 99
+    lo = max([lo] + [l for l, _, how in spans if how == "min"])
+    hi = min([hi] + [h for _, h, how in spans if how == "max"])
+    lo = lo if ranges or any(how == "min" for *_, how in spans) else 18
+    return (lo, hi) if lo <= hi else None  # as said: below 18 is never a band
+
+
+def _years(wanted: str, whole: str = "", guess: bool = True) -> Optional[tuple]:
     """The ages, in years, someone asks for: read where they say what they want, or failing that
     anywhere (but then only written as an age range, so "Single woman, 34, ..." isn't read as one).
-    Their own age ("I'm 34", "in my early 30s") never counts."""
-    spans = _ages_said(_SELF_AGE.sub(" ", wanted), plain_numbers=True)
+    Their own age ("I'm 34", "in my early 30s") and measured things ("30 km") never count. Without
+    guess, a bare number where they say what they want isn't read as an age either."""
+    clean = lambda t: _NOT_AGES.sub(" ", _SELF_AGE.sub(" ", t))
+    spans = _ages_said(clean(wanted), plain_numbers=guess)
     if not spans and whole:
-        spans = _ages_said(_SELF_AGE.sub(" ", whole), plain_numbers=False)
-    if not spans:
-        return None
-    return min(lo for lo, _ in spans), max(hi for _, hi in spans)  # as said: below 18 is never a band
+        spans = _ages_said(clean(whole), plain_numbers=False)
+    return _combined(spans) if spans else None
 
 
 def _relative_years(wanted: str, own_band) -> Optional[tuple]:
@@ -203,12 +245,15 @@ def _relative_years(wanted: str, own_band) -> Optional[tuple]:
     if own_band not in AGE_BANDS:
         return None
     i, last = AGE_BANDS.index(own_band), len(AGE_BANDS) - 1
+    # "Not older than me" / "no one younger" say the opposite of "older" / "younger".
+    said = lambda rx: [bool(_NEGATED_BEFORE.search(wanted[:m.start()])) for m in rx.finditer(wanted)]
+    younger, older = said(_YOUNGER_THAN_ME), said(_OLDER_THAN_ME)
     bands = []
     if _MY_AGE.search(wanted):
         bands += [max(0, i - 1), min(last, i + 1)]
-    if _YOUNGER_THAN_ME.search(wanted):
+    if (False in younger) or (True in older):
         bands += [max(0, i - 1), i]
-    if _OLDER_THAN_ME.search(wanted):
+    if (False in older) or (True in younger):
         bands += [i, min(last, i + 1)]
     if not bands:
         return None
@@ -259,12 +304,13 @@ def _wanted_part(desc: str, head: str) -> tuple:
     return wanted, (f"{desc}. {head}" if head else desc)
 
 
-def dating_wants(text: str, headline: str = "") -> tuple:
+def dating_wants(text: str, headline: str = "", guess: bool = True) -> tuple:
     """(genders wanted, ages wanted in years or None), read from a dating description and its shown
-    headline, whatever kind the words alone would suggest."""
+    headline, whatever kind the words alone would suggest. Without guess, a bare number ("a woman,
+    30") isn't read as around that age: a person's agent asks instead (agent.wanted_ages)."""
     wanted, whole = _wanted_part(_plain(text), _plain(headline))
     seeking = set(GENDERS) if _ANYONE.search(wanted) else {g for g, rx in _SEEKS.items() if rx.search(wanted)}
-    return tuple(sorted(seeking)), _years(wanted, whole)
+    return tuple(sorted(seeking)), _years(wanted, whole, guess)
 
 
 def relative_years(text: str, own_band, headline: str = "") -> Optional[tuple]:
@@ -313,11 +359,20 @@ def parse_intent(text: str, headline: str = "") -> ParsedIntent:
     return found
 
 
+def request_kind(low: str) -> Optional[str]:
+    """The kind of match the text asks for outside what it says the person enjoys, or None."""
+    return _named_kind(_HOBBY.sub(" ", low))
+
+
 def _parse(text: str, headline: str) -> ParsedIntent:
     desc, head = _plain(text), _plain(headline)
     low = f"{desc}. {head}" if head else desc
-    # What they want, before what they enjoy: "meet a woman ... I enjoy climbing" is dating.
-    kind = _named_kind(_HOBBY.sub(" ", low)) or _named_kind(low)
+    # What they want, before what they enjoy: "meet a woman ... I enjoy climbing" is dating. Only a text
+    # that asks for nothing else is read from its hobbies ("I enjoy climbing and I'm looking for someone
+    # kind" asks for something, just not a climbing partner).
+    kind = request_kind(low)
+    if kind is None and not REQUEST.search(_HOBBY.sub(" ", low)):
+        kind = _named_kind(low)
     return _reading(low, kind, desc, head)
 
 

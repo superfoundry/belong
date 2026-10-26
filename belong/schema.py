@@ -104,13 +104,16 @@ UNDERSTOOD_FIELDS = ("kind", "wants_gender", "wants_age")
 GENDERS = ("woman", "man", "nonbinary")
 # Ages a listing may ask for ("wants_age"), in years.
 AGE_MIN, AGE_MAX = 18, 99
-_AGE_SPAN = re.compile(r"(\d{1,3})-(\d{1,3})")
+# The one accepted form: ASCII digits, no leading zero, one hyphen ("30-39"). Anything else that
+# means the same ("030-039", "３０-３９", "30 to 39") is put into this form by age_span_choice first.
+_AGE_SPAN = re.compile(r"([1-9][0-9])-([1-9][0-9])")
 _AGE_WORDING = re.compile(r"\s*(\d{1,3})\s*(?:-|–|—|to)\s*(\d{1,3})\s*", re.I)
 
 
 def age_span(value) -> Optional[tuple]:
-    """A "wants_age" value as (lo, hi) years, or None unless it is exactly "lo-hi" with
-    AGE_MIN <= lo <= hi <= AGE_MAX. The Warden and matching read it with this one function."""
+    """A "wants_age" value as (lo, hi) years, or None unless it is exactly "lo-hi" in ASCII digits
+    with no leading zero and AGE_MIN <= lo <= hi <= AGE_MAX. The Warden and matching read it with
+    this one function, so they can't disagree about what a value means."""
     m = _AGE_SPAN.fullmatch(value) if isinstance(value, str) else None
     if not m:
         return None
@@ -119,10 +122,10 @@ def age_span(value) -> Optional[tuple]:
 
 
 def age_span_choice(value) -> Optional[str]:
-    """Other ways of writing an age range in years ("33 to 42", "33–42") put into the fixed
-    "lo-hi" form, or None if it isn't one within AGE_MIN..AGE_MAX. Relative wording ("early 30s",
-    "around my age") is for the person's agent to work out, not this."""
-    m = _AGE_WORDING.fullmatch(value) if isinstance(value, str) else None
+    """Other ways of writing an age range in years ("33 to 42", "33–42", "033-042", full-width or
+    other digits) put into the fixed "lo-hi" form, or None if it isn't one within AGE_MIN..AGE_MAX.
+    Relative wording ("early 30s", "around my age") is for the person's agent to work out, not this."""
+    m = _AGE_WORDING.fullmatch(unicodedata.normalize("NFKC", value)) if isinstance(value, str) else None
     if not m:
         return None
     text = f"{int(m.group(1))}-{int(m.group(2))}"

@@ -31,7 +31,7 @@ import re
 
 from . import synth as vocab
 from .agent import (_BY_KIND, _COMMON, _KIND_NAMES, _SENSITIVE_VOCAB, ALL_MONTHS, DATING_ONLY, LABELS, field_options,
-                    wants_text)
+                    mentions_sensitive, wants_text)
 from .matching.intent import ages_text, default_age_range, parse_intent
 from .schema import (AGE_MAX, AGE_MIN, GENDERS, HEADLINE_MAX, FIELD_REGISTRY, FREE_TEXT_MAX, HIDDEN, SHOWN,
                      age_span_choice, meeting_format, travel_choice)
@@ -275,9 +275,10 @@ Lisbon, aged 30 to 39", "I tutor maths in Kyoto and I'm looking for new students
 physics tutor in Berlin", "Looking for a technical cofounder for a climate startup", "Native \
 German speaker learning Japanese, looking for a language exchange (online is fine)", "Looking \
 for a roommate in London, moving in November", "Running buddy in Tokyo for easy weekend runs".
-- Never put sensitive things (religion, health, politics, income, intimacy) into intent_text. \
-If they mention one, offer to add it as a hidden detail instead, and explain it can improve \
-matches but is never shown.
+- Never put sensitive things (religion, health, politics, income, intimacy, sexual orientation or \
+gender identity) into intent_text, or into any detail that is shown (seeking, offering, headline, \
+topics, interests, or a place): "a Muslim partner" is not an activity. If they mention one, offer to \
+add it as a hidden detail instead, and explain it can improve matches but is never shown.
 - Sensitive details always start hidden. If they want to show one, tell them they can switch it \
 in the listing editor themselves.
 - Belong. never helps find a specific person (names, handles, someone's workplace or looks). If \
@@ -381,6 +382,9 @@ def build_draft(args: dict, first_name: str, age_band: str) -> tuple:
     city = " ".join(str(city_values[0]).split()) if city_values else None
 
     values, visibility = {"first_name": first_name, "age_band": age_band}, {}
+    # The details the agent chose shown or hidden for on purpose. Every other visibility below is a default,
+    # and a default never overrides the person's own choice when this draft replaces theirs (carry_over).
+    listed = sorted(k for k, f in fields_in.items() if f.get("visibility") in (SHOWN, HIDDEN))
     for key, f in fields_in.items():
         if key == "kind":  # its value is the kind chosen above; listed only to keep the person's choice of hidden
             if f.get("visibility") in (SHOWN, HIDDEN):
@@ -480,6 +484,16 @@ def build_draft(args: dict, first_name: str, age_band: str) -> tuple:
     for key, words in _SENSITIVE_VOCAB.items():
         if any(re.search(r"\b" + re.escape(w.lower()) + r"\b", low) for w in words):
             problems.append(f"Don't put {LABELS[key].lower()} in intent_text; add it as a hidden '{key}' field instead.")
+    # A shown detail in free text never carries a sensitive word (a religion, an orientation, a health
+    # condition): matches would see it. It belongs in the matching sensitive detail, hidden, or nowhere.
+    for key, value in values.items():
+        spec = FIELD_REGISTRY.get(key)
+        if spec is None or spec.sensitive or key in STRICT_KEYS or key in ("first_name", "age_band", "kind"):
+            continue
+        if visibility.get(key, spec.default) == SHOWN and any(
+                mentions_sensitive(v) for v in (value if isinstance(value, tuple) else (value,))):
+            problems.append(f"'{key}' is shown, so it must not say anything sensitive (religion, health, politics, "
+                            f"sexuality or intimacy). Take that out; if it matters, add it as a hidden sensitive field.")
 
     if problems:
         return None, problems, notes
@@ -508,7 +522,7 @@ def build_draft(args: dict, first_name: str, age_band: str) -> tuple:
     draft = {"intent_text": intent, "exactness": exactness, "kind": kind, "fields": fields,
              "understood": understood, "notes": notes, "missing": missing, "complete": not missing, "by": "claude",
              "suggestions": _suggestions(args.get("suggestions")),
-             "separate": args.get("separate_listing") is True}
+             "separate": args.get("separate_listing") is True, "listed": listed}
     return draft, [], notes
 
 

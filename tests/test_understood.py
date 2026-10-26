@@ -193,11 +193,33 @@ class TheWardenChecksTheFormats(unittest.TestCase):
                Field("wants_gender", ("woman", "woman"), SHOWN, False), Field("wants_gender", "woman", SHOWN, False),
                Field("wants_age", "16-25", SHOWN, False), Field("wants_age", "40-30", SHOWN, False),
                Field("wants_age", "30-100", SHOWN, False), Field("wants_age", "early 30s", SHOWN, False),
-               Field("wants_age", "30 - 39", SHOWN, False), Field("wants_age", "30", SHOWN, False)]
+               Field("wants_age", "30 - 39", SHOWN, False), Field("wants_age", "30", SHOWN, False),
+               # Only ASCII digits, no leading zero: anything else matching or a reader could take differently.
+               Field("wants_age", "٣٠-٣٩", SHOWN, False), Field("wants_age", "３０-３９", SHOWN, False),
+               Field("wants_age", "030-039", SHOWN, False), Field("wants_age", "30-039", SHOWN, False),
+               Field("wants_age", "030-39", SHOWN, False), Field("wants_age", "30-39\n", SHOWN, False),
+               Field("wants_age", "30–39", SHOWN, False), Field("wants_age", "18-100", SHOWN, False)]
         for f in bad:
             result = self.admit(f)
             self.assertFalse(result.accepted, f)
             self.assertIn("listing_schema", result.failed_checks, f)
+        for good in ("18-99", "30-39", "99-99"):
+            self.assertTrue(self.admit(Field("wants_age", good, SHOWN, False)).accepted, good)
+
+    def test_other_ways_of_writing_ages_are_put_into_the_fixed_form_first(self):
+        from belong.schema import age_span, age_span_choice
+        for said, fixed in (("33 to 42", "33-42"), ("33–42", "33-42"), ("030-039", "30-39"), ("３０-３９", "30-39"),
+                            ("٣٠-٣٩", "30-39"), (" 30 - 39 ", "30-39"), ("16-25", None), ("early 30s", None)):
+            self.assertEqual(age_span_choice(said), fixed, said)
+            if fixed:
+                self.assertIsNotNone(age_span(fixed))
+        # The phone's editor and the model agent both convert before the Warden checks.
+        s = DemoSession(seed=7, agent=None)
+        s.verify("A", "Ken", 37)
+        s.agent_message("A", "Looking for a relationship with a woman in Osaka. I'm a man.")
+        s.submit("A", fill(s.slots["A"].draft, values={"wants_age": "０３０-０３９"}))
+        self.assertTrue(s.slots["A"].entry["accepted"], s.slots["A"].entry)
+        self.assertEqual(s.board.listing("demoA-1").get("wants_age").value, "30-39")
 
     def test_the_wardens_wording_never_uses_a_fixed_choice_as_a_word(self):
         """"Near each other" would read as the kind "other" and get a fair introduction refused."""
@@ -466,6 +488,343 @@ class InTheLiveDemo(unittest.TestCase):
             self.assertIn(listing.get("age_band").value, {"30-34", "35-39", "40-49"}, pid)
             self.assertEqual(listing.get("kind").value, "dating", pid)  # never a climber
         self.assertTrue(s.room_state()["leak_report"]["ok"])
+
+class HiddenStaysHidden(unittest.TestCase):
+    """A detail the person hid is never shown again just because a later agent draft left it out: only a
+    visibility the agent chose on purpose replaces theirs."""
+
+    def save(self, fields):
+        return {"kind": "dating", "exactness": 0.6, "suggestions": [], "separate_listing": False,
+                "intent_text": "Looking to meet a woman in Kyoto, aged 30 to 39.",
+                "fields": [{"key": "city", "values": ["Kyoto"], "visibility": SHOWN}] + fields}
+
+    def visibilities(self, s):
+        return {f["key"]: f["visibility"] for f in s.slots["A"].draft["fields"] if f["value"]}
+
+    def test_a_model_save_that_leaves_a_hidden_detail_out_keeps_it_hidden(self):
+        first = [{"key": "gender", "values": ["man"], "visibility": SHOWN},
+                 {"key": "wants_gender", "values": ["woman"], "visibility": SHOWN},
+                 {"key": "wants_age", "values": ["30-39"], "visibility": SHOWN}]
+        later = [{"key": "schedule", "values": ["weekends"], "visibility": SHOWN}]  # leaves all of those out
+        client = ScriptedClient(reply(tool(self.save(first), "t1")), reply(text("Saved.")),
+                                reply(tool(self.save(later), "t2")), reply(text("Added weekends.")),
+                                reply(tool(self.save(later + [{"key": "gender", "values": ["man"],
+                                                               "visibility": SHOWN}]), "t3")), reply(text("Shown.")))
+        s = DemoSession(seed=7, agent=ClaudeAgent(client=client))
+        s.verify("A", "Ken", 37)
+        s.agent_message("A", "I'm a man looking to meet a woman in Kyoto, 30 to 39.")
+        hide = ("kind", "gender", "wants_gender", "wants_age")
+        s.submit("A", fill(s.slots["A"].draft, hidden={k: next(f["value"] for f in s.slots["A"].draft["fields"]
+                                                               if f["key"] == k) for k in hide}))
+        self.assertTrue(s.slots["A"].entry["accepted"])
+        s.agent_message("A", "I'm free on weekends")
+        vis = self.visibilities(s)
+        self.assertEqual({k: vis[k] for k in hide}, {k: HIDDEN for k in hide})
+        self.assertEqual(vis["schedule"], SHOWN)
+        values = {f["key"]: f["value"] for f in s.slots["A"].draft["fields"]}
+        self.assertEqual((values["gender"], values["wants_gender"], values["wants_age"]), ("man", ["woman"], "30-39"))
+        # Saving it keeps them hidden on the live listing too.
+        s.submit("A", fill(s.slots["A"].draft))
+        live = s.board.listing("demoA-1")
+        self.assertEqual({k: live.get(k).visibility for k in hide}, {k: HIDDEN for k in hide})
+        # The agent listing one with a visibility of its own (the person asked to show it) is a choice made on purpose.
+        s.agent_message("A", "Please show my gender")
+        self.assertEqual(self.visibilities(s)["gender"], SHOWN)
+        self.assertEqual(self.visibilities(s)["wants_gender"], HIDDEN)
+
+    def test_the_rule_based_agent_keeps_a_hidden_detail_hidden_too(self):
+        s = DemoSession(seed=7, agent=None)
+        s.verify("A", "Ken", 37)
+        s.agent_message("A", "Looking for a relationship with a woman in Osaka. I'm a man.")
+        s.submit("A", fill(s.slots["A"].draft, hidden={"gender": "man", "wants_gender": ["woman"]}))
+        s.agent_message("A", "Looking for a relationship with a woman in Osaka, aged 30 to 39. I'm a man.")
+        vis = self.visibilities(s)
+        self.assertEqual((vis["gender"], vis["wants_gender"], vis["wants_age"]), (HIDDEN, HIDDEN, SHOWN))
+
+    def test_keep_visibility_never_shows_a_sensitive_detail(self):
+        old = {"fields": [{"key": "religion", "visibility": SHOWN, "sensitive": True},
+                          {"key": "gender", "visibility": HIDDEN, "sensitive": False}]}
+        new = {"listed": [], "fields": [{"key": "religion", "visibility": HIDDEN, "sensitive": True},
+                                        {"key": "gender", "visibility": SHOWN, "sensitive": False}]}
+        agent.keep_visibility(new, old)
+        self.assertEqual([f["visibility"] for f in new["fields"]], [HIDDEN, HIDDEN])
+        draft, _, _ = build_draft({"kind": "climbing", "exactness": 0.6, "intent_text": "A climbing partner in Osaka.",
+                                   "fields": [{"key": "city", "values": ["Osaka"], "visibility": SHOWN},
+                                              {"key": "level", "values": ["beginner"]}]}, "Ken", "35-39")
+        self.assertEqual(draft["listed"], ["city"])  # level had no visibility of the agent's own
+
+
+class HobbiesFirst(unittest.TestCase):
+    """A hobby mentioned before the request is still a hobby (the user's report), and when the offline
+    agent isn't sure, it asks instead of guessing."""
+
+    HOBBY_FIRST = "I enjoy rock climbing and I'm looking to meet a woman around my age"
+
+    def test_a_hobby_ends_where_the_request_starts(self):
+        from belong.matching.intent import parse_intent
+        for message in (self.HOBBY_FIRST, "I love hiking and want to find a girlfriend in Osaka.",
+                        "I enjoy rock climbing and I'm looking for someone special in Osaka.",
+                        "I like climbing, would like to meet a man in Kyoto."):
+            self.assertEqual(parse_intent(message).kind, "dating", message)
+            draft = agent.draft_from_message(message, "Ken", "35-39")
+            self.assertEqual(draft["kind"], "dating", message)
+            self.assertNotEqual({f["key"]: f["value"] for f in draft["fields"]}["kind"], "climbing")
+        self.assertEqual(parse_intent("I enjoy running and I want a running buddy.").kind, "running")
+        # Asking for something, just not what they enjoy: not read from the hobby.
+        self.assertIsNone(parse_intent("I love climbing. Looking for someone fun in Osaka.").kind)
+        self.assertEqual(parse_intent("I love climbing. Based in Osaka.").kind, "climbing")  # matching's fallback
+
+    def test_a_kind_only_from_a_hobby_is_asked_never_recorded(self):
+        for message, label in (("I love climbing. Based in Osaka.", "a climbing partner"),
+                               ("I enjoy tennis and chess, I'm in Tokyo.", "a tennis partner"),
+                               ("I love climbing. Looking for someone fun in Osaka.", "a climbing partner")):
+            question = agent.kind_question(message)
+            self.assertTrue(question["text"].startswith(f"Are you looking for {label}? Or something else?"), message)
+            draft = agent.draft_from_message(message, "Ken", "35-39")
+            self.assertIsNone(draft["kind"], message)
+            self.assertNotIn("kind", {f["key"] for f in draft["fields"]})
+        self.assertIn("Are you looking for a climbing partner, or something else?",
+                      agent.draft_from_message("I love climbing. Based in Osaka.", "Ken", "35-39")["notes"][0])
+
+    def test_in_the_demo_the_answer_decides_and_keeps_the_first_message(self):
+        for answer, kind in (("yes", "climbing"), ("a relationship", "dating"), ("a tennis partner", "other")):
+            s = DemoSession(seed=7, agent=None)
+            s.verify("A", "Ken", 37)
+            s.agent_message("A", "I love climbing. Based in Osaka.")
+            self.assertIsNone(s.phone_state("A")["listings"][0]["draft"])  # asked, nothing saved
+            s.agent_message("A", answer)
+            draft = s.phone_state("A")["listings"][0]["draft"]
+            values = {f["key"]: f["value"] for f in draft["fields"]}
+            self.assertEqual((draft["kind"], values["city"]), (kind, "Osaka"), answer)
+
+    def test_the_hobby_first_report_in_the_demo(self):
+        s = DemoSession(seed=7, agent=None)
+        s.verify("A", "Ken", 37)
+        s.agent_message("A", self.HOBBY_FIRST + " in Osaka.")
+        self.assertIn("a date, or a climbing partner", s.phone_state("A")["listings"][0]["chat"][-1]["text"])
+        s.agent_message("A", "a date")
+        self.assertEqual([l["draft"]["kind"] for l in s.phone_state("A")["listings"]], ["dating"])
+
+
+class TheAnswerChoosesWhatItNames(unittest.TestCase):
+    OPTIONS = agent.kind_question(VISITING)["options"]  # a date, or a climbing partner
+    PARTNER = agent.kind_question("Looking for a partner in Berlin.")["options"]  # a date, or a partner for what?
+
+    def kinds(self, answer, options=None):
+        return [c["kind"] for c in agent.chosen_kinds(answer, options or self.OPTIONS) or []]
+
+    def test_an_activity_only_mentioned_is_not_chosen(self):
+        for answer in ("a date, I just like climbing", "a date, I climb sometimes though", "a date. I really love climbing",
+                       "a date, I'm into climbing", "a date, and I go climbing on weekends"):
+            self.assertEqual(self.kinds(answer), ["dating"], answer)
+            self.assertEqual(self.kinds(answer, self.PARTNER), ["dating"], answer)
+
+    def test_an_activity_named_as_the_choice_is(self):
+        for answer in ("climbing", "rock climbing", "just climbing please", "climbing on weekends", "the climbing one",
+                       "I'd like a climbing partner", "not a date, climbing"):
+            self.assertEqual(self.kinds(answer), ["climbing"], answer)
+        for answer in ("both", "a date and a climbing partner", "both, please", "date and climbing"):
+            self.assertEqual(self.kinds(answer), ["dating", "climbing"], answer)
+
+    def test_otherwise_it_asks_once_more(self):
+        for answer in ("I climb on weekends", "hmm", "yes", "no"):
+            self.assertIsNone(agent.chosen_kinds(answer, self.OPTIONS), answer)
+        s = DemoSession(seed=7, agent=None)
+        s.verify("A", "Ken", 37)
+        s.agent_message("A", VISITING)
+        s.agent_message("A", "a date, I just like climbing")
+        self.assertEqual([l["draft"]["kind"] for l in s.phone_state("A")["listings"]], ["dating"])  # one listing
+
+
+class RomanticAnswers(unittest.TestCase):
+    ANSWERS = ("a life partner", "a long-term partner", "looking for love", "a wife", "someone to marry", "a soulmate",
+               "a relationship", "a girlfriend")
+
+    def test_they_choose_the_date(self):
+        for options in (TheAnswerChoosesWhatItNames.OPTIONS, TheAnswerChoosesWhatItNames.PARTNER):
+            for answer in self.ANSWERS:
+                self.assertEqual(agent.chosen_kinds(answer, options), [{"kind": "dating", "activity": None}], answer)
+        self.assertIsNone(agent.chosen_kinds("not a relationship", TheAnswerChoosesWhatItNames.OPTIONS))
+
+    def test_the_first_message_is_kept(self):
+        for answer in self.ANSWERS:
+            s = DemoSession(seed=7, agent=None)
+            s.verify("A", "Ken", 37)
+            s.agent_message("A", VISITING)
+            s.agent_message("A", answer)
+            listings = s.phone_state("A")["listings"]
+            self.assertEqual(len(listings), 1, answer)
+            values = {f["key"]: f["value"] for f in listings[0]["draft"]["fields"]}
+            self.assertEqual((listings[0]["draft"]["kind"], values["city"], values["wants_gender"], values["wants_age"]),
+                             ("dating", "Osaka", ["woman"], "30-49"), answer)
+
+    def test_a_kind_that_wasnt_offered_starts_over(self):
+        s = DemoSession(seed=7, agent=None)
+        s.verify("A", "Ken", 37)
+        s.agent_message("A", VISITING)
+        s.agent_message("A", "Actually I need a roommate in Tokyo from November.")
+        draft = s.phone_state("A")["listings"][0]["draft"]
+        self.assertEqual((draft["kind"], {f["key"]: f["value"] for f in draft["fields"]}["city"]), ("roommate", "Tokyo"))
+
+
+class DetailsInTheAnswer(unittest.TestCase):
+    def test_what_the_answer_says_besides_the_choice_is_kept(self):
+        s = DemoSession(seed=7, agent=None)
+        s.verify("A", "Ken", 37)
+        s.agent_message("A", "I'd like to meet a woman in Kyoto. I go running most mornings.")
+        s.agent_message("A", "a date, I'm a man, ideally 30 to 45")
+        draft = s.phone_state("A")["listings"][0]["draft"]
+        values = {f["key"]: f["value"] for f in draft["fields"]}
+        self.assertEqual((draft["kind"], values["gender"], values["wants_age"]), ("dating", "man", "30-45"))
+        self.assertIn("I'm a man, ideally 30 to 45.", draft["intent_text"])
+
+    def test_the_choice_itself_adds_nothing(self):
+        options = TheAnswerChoosesWhatItNames.OPTIONS
+        for answer in ("a date", "Both, please", "just climbing, not a date", "a life partner", "yes"):
+            self.assertEqual(agent.answer_details(answer, options, agent.chosen_kinds(answer, options) or []), "", answer)
+        self.assertEqual(agent.answer_details("climbing, on weekends", options, [{"kind": "climbing", "activity": None}]),
+                         "on weekends.")
+
+
+class AnyActivityNextToADate(unittest.TestCase):
+    def test_the_activity_reader_is_general(self):
+        for message, label in (("I'd like to meet a man in Kyoto. I play tennis most weekends.", "a tennis partner"),
+                               ("Hoping to meet a woman in Osaka. I go hiking a lot.", "a hiking partner"),
+                               ("Want to meet a woman in Osaka, I enjoy chess and jazz.", "a chess partner"),
+                               ("Looking to meet a man in Lisbon. We could play golf.", "a golf partner"),
+                               ("I'd like to meet a woman in Berlin, I do yoga on Sundays.", "a yoga partner")):
+            question = agent.kind_question(message)
+            self.assertIsNotNone(question, message)
+            self.assertTrue(question["text"].startswith(f"Are you looking for a date, or {label}? Or both?"), message)
+        # Romantic words leave no doubt: then what they do or enjoy is a hobby. And nobody else's hobby counts.
+        for message in ("Looking for a relationship. I play tennis on weekends.",
+                        "Looking for a relationship with a woman in Osaka. I enjoy climbing.",
+                        "Looking to meet a man in Osaka, who loves hiking and chess.",
+                        "I want to meet a woman in Osaka. I love dogs.", "I'd like to meet a man. I go out a lot."):
+            self.assertIsNone(agent.kind_question(message), message)
+
+    def test_both_makes_a_listing_for_that_activity(self):
+        s = DemoSession(seed=7, agent=None)
+        s.verify("A", "Ken", 37)
+        s.agent_message("A", "I'd like to meet a man in Kyoto. I play tennis most weekends.")
+        s.agent_message("A", "both")
+        listings = s.phone_state("A")["listings"]
+        self.assertEqual([l["draft"]["kind"] for l in listings], ["dating", "other"])
+        other = {f["key"]: f["value"] for f in listings[1]["draft"]["fields"]}
+        self.assertEqual((other["seeking"], other["headline"]), ("a tennis partner", "Looking for a tennis partner"))
+
+
+class AgesSaidCarefully(unittest.TestCase):
+    def test_negation_and_bounds(self):
+        from belong.matching.intent import dating_wants
+        for text, years in (("no one over 40", (18, 40)), ("nobody older than 45", (18, 45)),
+                            ("not younger than 30", (30, 99)), ("no one under 25", (25, 99)), ("at most 35", (18, 35)),
+                            ("at least 30 and no one over 40", (30, 40)), ("in his 30s, no one over 35", (30, 35)),
+                            ("under 35, 30+", (30, 34)), ("aged 25 to 34", (25, 34)), ("late 20s to early 30s", (27, 33))):
+            self.assertEqual(dating_wants(f"Looking for a woman in Osaka, {text}.")[1], years, text)
+
+    def test_numbers_that_arent_ages(self):
+        from belong.matching.intent import dating_wants
+        for text in ("with 10 years of experience", "I have 2 kids", "within 30 km", "20 minutes from Osaka",
+                     "between 20 and 30 minutes away", "who likes 80s music", "budget $40", "about 30 minutes away"):
+            self.assertIsNone(dating_wants(f"Looking for a woman, {text}.")[1], text)
+        self.assertEqual(dating_wants("Looking for a woman, 30 years old.")[1], (27, 33))  # still an age
+
+    def test_relative_ages_with_not(self):
+        from belong.matching.intent import relative_years
+        self.assertEqual(relative_years("Looking for a man not older than me", "35-39"), (30, 39))
+        self.assertEqual(relative_years("Looking for a man, nobody younger than me", "35-39"), (35, 49))
+
+    def test_the_offline_agent_asks_instead_of_guessing_from_a_number(self):
+        for message in ("Looking for a woman in Osaka, 30.", "Looking for a woman in Osaka aged 30."):
+            self.assertEqual(agent.wanted_ages(message, "30-34")[0], None, message)
+            draft = agent.draft_from_message(message, "Ken", "30-34")
+            self.assertNotIn("wants_age", {f["key"] for f in draft["fields"] if f["value"]})
+            self.assertTrue(any(n.startswith("I wasn't sure which ages you meant") for n in draft["notes"]), message)
+        self.assertEqual(agent.wanted_ages("Looking for a woman in Osaka, no one over 40.", "30-34")[0], "18-40")
+        self.assertEqual(agent.wanted_ages("Looking for a woman in Osaka around 30.", "30-34")[0], "27-33")
+        draft = agent.draft_from_message("Looking for a woman within 30 km of Osaka, I have 2 kids.", "Ken", "30-34")
+        self.assertNotIn("wants_age", {f["key"] for f in draft["fields"] if f["value"]})
+
+
+class ChangingTheKindInTheEditor(unittest.TestCase):
+    def test_the_layout_for_a_kind(self):
+        dating, climbing = agent.kind_layout("dating"), agent.kind_layout("climbing")
+        self.assertTrue({"gender", "wants_gender", "wants_age"} <= {r["key"] for r in dating["rows"]})
+        self.assertTrue({"wants_gender", "wants_age", "gender"} <= set(climbing["drop"]))
+        self.assertIn("level", dating["drop"])
+        self.assertEqual(agent.kind_layout(None)["drop"], [])  # no kind chosen yet: nothing taken away
+
+    def test_who_and_what_ages_never_go_live_on_a_listing_that_isnt_dating(self):
+        s = DemoSession(seed=7, agent=None)
+        s.verify("A", "Ken", 37)
+        s.agent_message("A", "Looking for a relationship with a woman in Osaka, 30 to 39. I'm a man.")
+        body = fill(s.slots["A"].draft, values={"kind": "climbing"})
+        self.assertTrue({"wants_gender", "wants_age"} <= {f["key"] for f in body["fields"]})
+        s.submit("A", body)
+        live = s.board.listing("demoA-1")
+        self.assertEqual(live.get("kind").value, "climbing")
+        self.assertIsNone(live.get("wants_gender"))
+        self.assertIsNone(live.get("wants_age"))
+        # No kind on the listing, and a description that isn't dating: the same.
+        s.agent_message("A", "Looking for a climbing partner in Osaka.")
+        body = fill(s.slots["A"].draft)
+        body["fields"] = [f for f in body["fields"] if f["key"] != "kind"] + [
+            {"key": "wants_gender", "value": ["woman"], "visibility": SHOWN}]
+        s.submit("A", body)
+        self.assertIsNone(s.board.listing("demoA-1").get("wants_gender"))
+
+    def test_the_phone_rebuilds_the_rows_and_saves_only_what_can_match(self):
+        import json
+        import shutil
+        import subprocess
+        import tempfile
+        from tests.test_dating import _js
+        node = shutil.which("node")
+        if not node:
+            self.skipTest("node isn't installed")
+        dating = agent.draft_from_message("Looking for a relationship with a woman in Osaka. I'm a man.", "Ken", "35-39")
+        cases = {"dating": dating, "climbing": agent.kind_layout("climbing"), "to_dating": agent.kind_layout("dating"),
+                 "nobody": agent.draft_from_message("Looking for someone special in Osaka.", "Ken", "35-39"),
+                 "wants": agent.dating_wants(dating)}
+        code = "\n".join(_js(n) for n in ("const hasValue", "const spanOf", "const agesText", "const UNDERSTOOD",
+                                          "const GENDER_WORDS", "function wantsText", "function matchFacts",
+                                          "const CLIENT_WORDS", "const FILLER", "const words", "function sides",
+                                          "function draftValues", "function layoutFor", "function lookingFor",
+                                          "function canSave", "function checklist", "function relayout"))
+        code += "\nconst val = v => Array.isArray(v) ? v.join(', ') : v;\n"
+        code += f"const C = {json.dumps(cases)};\n" + r"""
+const keys = fs => fs.map(f => f.key);
+const stash = {};
+const d = JSON.parse(JSON.stringify(C.dating));
+const l = { listed: true, wants: C.wants };
+const out = { live_dating: canSave({ draft: d }, l) };
+d.kind = "climbing"; d.fields = relayout(d.fields, C.climbing, stash);
+out.climbing_keys = keys(d.fields);
+d.kind = "dating"; d.fields = relayout(d.fields, C.to_dating, stash);
+out.back = d.fields.filter(f => ["gender", "wants_gender"].includes(f.key)).map(f => [f.key, f.value]);
+const n = JSON.parse(JSON.stringify(C.nobody));
+out.live_nobody = canSave({ draft: n }, { listed: true, wants: null });
+const fresh = JSON.parse(JSON.stringify(C.nobody)); fresh.kind = "climbing";
+fresh.fields = relayout(fresh.fields, C.climbing, {}); fresh.kind = "dating";
+fresh.fields = relayout(fresh.fields, C.to_dating, {});
+out.switched_keys = keys(fresh.fields);
+out.match_dating = matchFacts({ first_name: "A", wants_gender: ["woman"], kind: "dating" }, true).wants;
+out.match_climbing = matchFacts({ first_name: "A", wants_gender: ["woman"], kind: "climbing" }, false).wants;
+console.log(JSON.stringify(out));"""
+        with tempfile.NamedTemporaryFile("w", suffix=".js", delete=False) as f:
+            f.write(code)
+        result = subprocess.run([node, f.name], capture_output=True, text=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        out = json.loads(result.stdout)
+        self.assertTrue(out["live_dating"])
+        self.assertFalse({"gender", "wants_gender", "wants_age", "kinks", "children"} & set(out["climbing_keys"]))
+        self.assertIn("level", out["climbing_keys"])
+        self.assertEqual(out["back"], [["gender", "man"], ["wants_gender", ["woman"]]])  # put aside, and back
+        self.assertFalse(out["live_nobody"])  # a live dating listing nobody can match can't be saved
+        self.assertTrue({"gender", "wants_gender", "wants_age"} <= set(out["switched_keys"]))
+        self.assertNotIn("level", out["switched_keys"])
+        self.assertEqual((out["match_dating"], out["match_climbing"]), ("a woman", ""))
 
 
 if __name__ == "__main__":

@@ -41,6 +41,7 @@ from .agent_openai import OpenAIAgent
 from .leaks import leak_report
 from .matching.marketboard import Marketboard
 from .matching.contract import FollowUp, Proposal
+from .matching.intent import parse_intent
 from .matching.matcher import OfflineMatcher
 from .schema import (AGE_BANDS, FIELD_REGISTRY, FOLLOWUP_MENU, HIDDEN, SHOWN, Field, Listing, Person, age_band_index,
                      age_span_choice, value_to_json)
@@ -585,11 +586,9 @@ class DemoSession:
                     new.draft = d
                     moved.append(new.id)
                     continue
-                # Keep anything already on the profile that the agent's draft left empty.
-                if listing.draft:
-                    agent.fill_gaps(d, {f["key"]: f["value"] for f in listing.draft["fields"]
-                                        if f.get("enabled") and f["value"] not in (None, "", [])
-                                        and not f.get("sensitive") and f["key"] not in ("first_name", "age_band")})
+                # Keep anything already on the profile that the agent's draft left empty, and the person's
+                # own choice of shown or hidden for every detail the agent didn't set on purpose.
+                agent.carry_over(d, listing.draft)
                 listing.draft = d
                 updated = True
             if moved and updated:
@@ -611,24 +610,30 @@ class DemoSession:
         if pending is None:
             question = agent.kind_question(text)
             if question:
-                listing.pending_kind = {"text": text, "options": question["options"]}
+                listing.pending_kind = {"text": text, "options": question["options"], "question": question["text"]}
                 listing.chat.append({"from": "agent", "text": question["text"]})
                 return
             self._rules_draft(st, listing, text)
             return
         chosen = agent.chosen_kinds(text, pending["options"])
-        if chosen is None and agent.says_what_they_want(text):  # a new request instead of an answer: start from it
+        if chosen is None and agent.says_what_they_want(text):
+            # A kind that wasn't offered: a new request instead of an answer, so start from it.
             listing.pending_kind = None
             self._rules_reply(st, listing, text)
             return
         if chosen is None:  # not an answer: ask again, briefly
-            which = " or ".join(o["label"] for o in pending["options"])
-            listing.chat.append({"from": "agent", "text": f"Sorry, I didn't catch that. {which[:1].upper()}{which[1:]}? "
-                                                          f"{agent.ASK_HINT}"})
+            if len(pending["options"]) > 1:
+                which = " or ".join(o["label"] for o in pending["options"])
+                again = f"{which[:1].upper()}{which[1:]}? {agent.ASK_HINT}"
+            else:
+                again = pending.get("question") or "What would you like to meet someone for?"
+            listing.chat.append({"from": "agent", "text": f"Sorry, I didn't catch that. {again}"})
             return
         listing.pending_kind = None
-        # Their first message, plus the answer if it says more than which ("a date, and I'm a man").
-        message = pending["text"] + (f" {text}" if agent.quick_facts(text) else "")
+        # Their first message, plus everything the answer says besides the choice ("a date, I'm a man, 30
+        # to 40" adds "I'm a man, 30 to 40"). The kind they chose is passed on its own.
+        details = agent.answer_details(text, pending["options"], chosen)
+        message = f"{pending['text']} {details}" if details else pending["text"]
         for n, choice in enumerate(chosen):
             if choice["kind"] is None:  # "both", and the activity isn't named yet: ask, on its own listing
                 target = self._another_listing(st, listing)
@@ -659,6 +664,7 @@ class DemoSession:
 
     def _rules_draft(self, st: _Slot, listing: _Listing, text: str, kind=None, activity=None) -> None:
         draft = agent.draft_from_message(text, st.name, st.person.age_band, kind=kind, activity=activity)
+        agent.keep_visibility(draft, listing.draft)  # a detail they hid stays hidden
         listing.draft = draft
         hidden = sum(1 for f in draft["fields"] if f["value"] and f["enabled"] and f["visibility"] == HIDDEN)
         reply = f"Here's what I understood: {draft['understood']}. I've drafted your listing"
@@ -670,6 +676,11 @@ class DemoSession:
 
     def options(self, slot: str, kind, city) -> dict:
         return agent.field_options(kind, city)
+
+    @staticmethod
+    def layout(kind, city) -> dict:
+        """The profile's rows for a kind of match, for the editor when the person changes the kind."""
+        return agent.kind_layout(kind, city)
 
     # -- 3. entering the room -----------------------------------------------------
 
@@ -719,12 +730,18 @@ class DemoSession:
             if spec.sensitive and vis == SHOWN and f.get("confirmed"):
                 confirmed.append(key)
             fields.append(Field(key=key, value=value, visibility=vis, sensitive=spec.sensitive))
+        # Only dating records who they'd like to meet and their ages (the same rule as build_draft): the
+        # kind on the listing, or with none, the kind its description reads as.
+        intent = str(body.get("intent_text", ""))
+        kind = next((f.value for f in fields if f.key == "kind"), None) or parse_intent(intent).kind
+        if kind != "dating":
+            fields = [f for f in fields if f.key not in agent.DATING_ONLY]
         version = self.board.listing(mine.id).version + 1 if mine.id in self.board else 1
         try:
             exactness = float(body.get("exactness", 0.6))
         except (TypeError, ValueError):
             exactness = -1.0  # the Warden's schema check will refuse it
-        return Listing(person_id=mine.id, intent_text=str(body.get("intent_text", "")),
+        return Listing(person_id=mine.id, intent_text=intent,
                        exactness=exactness, fields=tuple(fields), updated_at=self.clock.now(),
                        version=version, confirmed_shown=tuple(confirmed), owner_id=st.person_id,
                        notify_close=mine.prefs["notify_close"], notify_questions=mine.prefs["notify_questions"],
