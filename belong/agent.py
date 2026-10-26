@@ -97,7 +97,7 @@ def reveal_consents(listing: Listing, rng: random.Random) -> set:
 import re as _re
 
 from . import synth as _vocab
-from .matching.intent import parse_intent as _parse_intent
+from .matching.intent import ages_text, default_age_range, own_gender, parse_intent as _parse_intent
 
 ALL_MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August",
               "September", "October", "November", "December"]
@@ -127,6 +127,10 @@ _KIND_NAMES = {
     "roommate": "a roommate",
     "other": "something else",
 }
+# Why dating needs your gender, and what hiding it means (hidden details never decide a match).
+GENDER_NOTE = ("Please set your gender below. It's needed so people looking for a woman or a man can find you. "
+               "You can keep it hidden, but a hidden detail never decides a match, so then only people open to "
+               "anyone can match you, and you may get fewer matches.")
 _SENSITIVE_VOCAB = {
     "religion": [r for r in _vocab.RELIGION if r != "not religious"],
     "health": _vocab.HEALTH,
@@ -212,10 +216,8 @@ def draft_from_message(message: str, first_name: str, age_band: str) -> dict:
         month = next((m for m in ALL_MONTHS if m.lower() in low), None)
         if month:
             v["move_in"] = month
-    if kind == "dating":
-        m = _re.search(r"\b(?:i'm|i am|as) an? (woman|man)\b|\bi'm (nonbinary|non-binary)\b", low)
-        if m:
-            v["gender"] = "nonbinary" if m.group(2) else m.group(1)
+    if kind == "dating" and (gender := own_gender(low)):
+        v["gender"] = gender
     diet = next((d for d in _vocab.DIET if _re.search(r"\b" + d + r"\b", low)), None)
     if diet:
         v["diet"] = diet
@@ -248,9 +250,11 @@ def draft_from_message(message: str, first_name: str, age_band: str) -> dict:
     if not city and not parsed.remote_ok:
         notes.append("Which city? I couldn't tell, so please pick one below.")
     if kind == "dating" and parsed.age_range is None:
-        notes.append("You didn't mention an age range. Add one to your description, or the Matchmaker will ask.")
+        notes.append(f"You didn't say what ages you'd like, so for now you're open to "
+                     f"{ages_text(default_age_range(age_band))} (one age band either side of yours). Add an age "
+                     f"range to your description to change that.")
     if kind == "dating" and "gender" not in v:
-        notes.append("Please set your gender below: it has to be shown for dating matches.")
+        notes.append(GENDER_NOTE)
 
     keys = _COMMON + _BY_KIND.get(kind, [])
     options = field_options(kind, v.get("city"))
@@ -344,9 +348,8 @@ def quick_facts(text: str) -> dict:
     level = next((l for l in _vocab.LEVELS if _re.search(r"\b" + l + r"\b", low)), None)
     if level:
         out["level"] = level
-    m = _re.search(r"\b(?:i'm|i am|as) an? (woman|man)\b|\bi'm (nonbinary|non-binary)\b", low)
-    if m:
-        out["gender"] = "nonbinary" if m.group(2) else m.group(1)
+    if gender := own_gender(low):
+        out["gender"] = gender  # "I'm a woman", "I am non-binary"
 
     native = _find_language(r"speak (\w+) natively|native (\w+) speaker|my native language is (\w+)|fluent (\w+) speaker|"
                             r"i'm a native (\w+)|i speak fluent (\w+)", low)
@@ -403,6 +406,21 @@ def quick_facts(text: str) -> dict:
 
 def _article(phrase: str) -> str:
     return "an" if phrase[:1] in "aeiou" else "a"
+
+
+def dating_ages(draft) -> dict | None:
+    """For the person's own dating draft: the ages its description asks for, read the way matching
+    reads it, or the ages they're open to until they say (one age band either side of their own).
+    Only ever shown on their own phone."""
+    if not draft or draft.get("kind") != "dating":
+        return None
+    fields = {f.get("key"): f for f in draft.get("fields", []) if f.get("enabled", True)}
+    headline = fields.get("headline") or {}
+    parsed = _parse_intent(draft.get("intent_text") or "",
+                           str(headline.get("value") or "") if headline.get("visibility", SHOWN) == SHOWN else "")
+    band = (fields.get("age_band") or {}).get("value")
+    return {"stated": ages_text(parsed.age_range) if parsed.age_range else None,
+            "default": ages_text(default_age_range(band))}
 
 
 def empty_draft(first_name: str, age_band: str) -> dict:
