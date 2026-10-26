@@ -141,8 +141,8 @@ def compare_narrowing(personas: list, shortlist_size: int = 40) -> dict:
     shortlist size and compares the proposals with the ground truth."""
     from . import agent
     from .matching.marketboard import Marketboard
-    from .matching.matcher import (CLOSE_EXACTNESS, OfflineMatcher, ShownView, effective_kind, has_phrases,
-                                   index_words, intent_met, nearly, parse_intent)
+    from .matching.matcher import (CLOSE_EXACTNESS, OfflineMatcher, ShownView, has_phrases, index_words, intent_met,
+                                   nearly, understood)
     from .matching.narrow import shortlists
 
     board, by_id = Marketboard(), {p.person.id: p for p in personas}
@@ -150,7 +150,7 @@ def compare_narrowing(personas: list, shortlist_size: int = 40) -> dict:
         board.put(p.person, agent.draft_listing(p, "2026-10-12T09:00:00Z"))
     listings = {l.person_id: l for l in board.listings()}
     views = {pid: ShownView(l) for pid, l in listings.items()}
-    parsed = {pid: effective_kind(parse_intent(l.intent_text), views[pid]) for pid, l in listings.items()}
+    parsed = {pid: understood(views[pid]) for pid in listings}  # read exactly as the Matchmaker reads them
     wide = {pid: ShownView(replace(l, exactness=CLOSE_EXACTNESS)) for pid, l in listings.items()}
 
     def could_accept(a, b) -> bool:

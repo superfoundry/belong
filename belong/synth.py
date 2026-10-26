@@ -4,8 +4,9 @@ Names come from each person's region (most people in Japan have Japanese names),
 is in the format a person's agent writes now: a headline, topics, the format (in person, online, or
 both; some web designers and CV reviewers work online only), how far they'll travel to meet in person
 (most stay in their city), a price where there is one, and "looking for" / "offering" phrases for
-services, things to sell or give away, and open-ended requests. The demo serves 5,000 of them; tests
-and the batch run use 300.
+services, things to sell or give away, and open-ended requests. Like any agent's listing, each also
+records what the agent understood: the kind of match and, for dating, who they'd like to meet and
+those people's ages. The demo serves 5,000 of them; tests and the batch run use 300.
 
 Each Persona carries:
   - the Person record (as the KYC provider would report it),
@@ -20,7 +21,8 @@ import random
 from dataclasses import dataclass, field
 from typing import Optional
 
-from .schema import AGE_BAND_BOUNDS, AGE_BANDS, FIELD_REGISTRY, HIDDEN, SHOWN, TRAVEL, Person, age_band_index
+from .schema import (AGE_BAND_BOUNDS, AGE_BANDS, FIELD_REGISTRY, GENDERS, HIDDEN, MATCH_KINDS, SHOWN, TRAVEL, Person,
+                     age_band_index)
 
 CITIES = {
     "Osaka": ("JP", ["Namba", "Umeda", "Tennoji", "Nakazakicho"]),
@@ -458,6 +460,29 @@ def _write_listing(t: Truth, v: dict, country: str, rng) -> None:
         v["format"] = "In person"
 
 
+def understood_kind(kind: str) -> str:
+    """A truth kind as the "kind" field records it: services and things are matched by their
+    phrases, as "other"."""
+    return kind if kind in MATCH_KINDS else "other"
+
+
+def _write_understanding(t: Truth, v: dict) -> None:
+    """What the person's agent understood and recorded on the listing (shown fields): the kind of
+    match, and for dating who they'd like to meet and those people's ages in years. Someone who left
+    out the age range (omit_age) has none recorded, so they rely on the default until asked. Uses no
+    randomness, so everything else about each person is the same as before these fields existed."""
+    v["kind"] = understood_kind(t.kind)
+    if t.kind == "dating":
+        v["wants_gender"] = tuple(g for g in GENDERS if g in t.seeking)
+        if not t.omit_age:
+            v["wants_age"] = ages_in_years(t.age_range)
+
+
+def ages_in_years(age_range: tuple) -> str:
+    """A range of age bands, (lo_idx, hi_idx), as the "wants_age" field writes it: "25-39"."""
+    return f"{AGE_BAND_BOUNDS[age_range[0]][0]}-{AGE_BAND_BOUNDS[age_range[1]][1]}"
+
+
 def generate(n: int = 300, seed: int = 7) -> list[Persona]:
     rng = random.Random(seed)
     # How far each person travels, and who works online only, come from a stream of their own, so
@@ -529,6 +554,7 @@ def generate(n: int = 300, seed: int = 7) -> list[Persona]:
                 v["seeking"] = v["offering"] = "a photography walk buddy"
 
         _write_listing(t, v, country, rng)
+        _write_understanding(t, v)
 
         # Visibility choices. Sensitive categories start hidden + off; some people turn
         # them on, and a few choose to show one.

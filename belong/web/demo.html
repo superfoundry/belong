@@ -398,6 +398,26 @@ const badge = (tone, text) => `<span class="badge ${tone}">${esc(text)}</span>`;
 const tags = values => values.map(v => `<span class="tag">${esc(v)}</span>`).join("");
 const cap = t => t ? t.charAt(0).toUpperCase() + t.slice(1) : t;
 const hasValue = v => Array.isArray(v) ? v.length > 0 : v !== null && v !== undefined && v !== "";
+// What a person's agent understood, recorded on the listing: the kind of match and, for dating, who
+// they'd like to meet and those people's ages. Worded the same on your profile and on a match's card.
+const KIND_LABELS = { dating: "Dating", climbing: "Climbing partner", running: "Running buddy", language: "Language exchange",
+  cofounder: "Cofounder", tutoring: "Tutoring", roommate: "Roommate", other: "Something else" };
+const UNDERSTOOD = ["kind", "wants_gender", "wants_age"];
+const GENDER_WORDS = { woman: "a woman", man: "a man", nonbinary: "a non-binary person" };
+const spanOf = v => { const m = /^(\d+)-(\d+)$/.exec(v || ""); return m ? [+m[1], +m[2]] : null; };
+const agesText = a => a ? (a[1] >= 99 ? `${a[0]} or older` : `${a[0]}–${a[1]}`) : "";
+function wantsText(genders, ages) {
+  const g = Array.isArray(genders) ? genders : genders ? [genders] : [];
+  const who = g.length >= 3 ? "anyone" : g.map(x => GENDER_WORDS[x] || x).join(" or ");
+  return [who, agesText(ages)].filter(Boolean).join(", ");
+}
+// A match's shown details as tags, and who they'd like to meet in words.
+function matchFacts(fields) {
+  const skip = ["first_name", "seeking", "offering", "headline", ...UNDERSTOOD];
+  const facts = Object.entries(fields).filter(([k]) => !skip.includes(k)).map(([, v]) => val(v));
+  const wants = fields.wants_gender || fields.wants_age ? wantsText(fields.wants_gender, spanOf(fields.wants_age)) : "";
+  return { facts, wants };
+}
 
 function curId(slot) { return local[slot].current || (S && S.phones[slot].current) || null; }
 function curListing(slot) {
@@ -649,7 +669,7 @@ const SCREENS = {
     const i = connected(p).find(x => x.intro_id === L.thread);
     if (!i) return `<div class="screen">${backBar(slot, "found", "Found.")}</div>`;
     const name = i.view.fields.first_name || "Someone", t = i.thread || [];
-    const facts = Object.entries(i.view.fields).filter(([k]) => !["first_name", "seeking", "offering", "headline"].includes(k)).map(([, v]) => val(v));
+    const { facts } = matchFacts(i.view.fields);
     const avatar = n => `<span class="avatar" aria-hidden="true">${esc((n || "?").slice(0, 1).toUpperCase())}</span>`;
     const text = L.msg[i.intro_id] || "";
     return `<div class="thread">
@@ -793,28 +813,37 @@ function sides(shown) {
   return { side: "both", main: shown.seeking, other: shown.offering };
 }
 
+// Who a dating draft would like to meet and their ages, as matching reads them: the details on the
+// profile first (as edited here), else what the server read from the description (l.wants).
+function lookingFor(c, l) {
+  const { shown } = draftValues(c), w = (l && l.wants) || {};
+  return { genders: shown.wants_gender || w.genders || [], ages: spanOf(shown.wants_age) || w.ages || null, def: w.default };
+}
+
 function checklist(c, l) {
   const d = c.draft, { shown, hidden } = draftValues(c);
   const where = { done: !!(shown.city || shown.country), label: "Where", ask: "I'm based in " };
   const looking = { done: !!shown.seeking, label: "Who you're looking for", ask: "I'm looking for " };
   const hiddenItem = { done: hidden.length > 0, label: "A hidden detail", optional: true, ask: "Something private that could improve my matches: " };
-  // Dating also needs your own gender and the ages you want: it's how the right people find you.
-  // Gender may stay hidden, but a hidden detail never decides a match, so the person is told what that means.
+  // Dating needs who you'd like to meet, your own gender and their ages: it's how the right people find
+  // you. Gender may stay hidden, but a hidden detail never decides a match, so the person is told what that means.
   const gender = (d ? d.fields : []).find(f => f.key === "gender" && f.enabled && hasValue(f.value));
-  const ages = l && l.ages;
+  const lf = lookingFor(c, l);
   const datingNeeds = [
     gender && gender.visibility === "hidden"
       ? { done: true, label: "Your gender", ask: "I'm a ", warn: true,
-          why: "Your gender is hidden, so it can't be used when someone looks for a woman or a man: hidden details never decide a match. You may get fewer matches." }
+          why: "Your gender is hidden, so it can't help people looking for a woman or a man find you: hidden details never decide a match. You may get fewer matches." }
       : { done: !!gender, label: "Your gender", ask: "I'm a ", why: "Your gender is needed so people looking for a woman or a man can find you." },
-    { done: !!(ages && ages.stated), label: "An age range", ask: "Ideally aged ",
-      why: ages ? `No age range yet, so you're open to people aged ${ages.default}.` : "" },
+    { done: !!lf.ages, label: "Their age", ask: "Ideally aged ",
+      why: lf.def ? `No ages yet, so you're open to people aged ${agesText(lf.def)}, one age band either side of yours.` : "" },
   ];
   // What to add next is the agent's call, by common sense for this request (the problem for a
   // repair, interests for dating). Who and where are always needed, for matching, and for dating
   // your gender and the ages you want.
   const essentials = d && d.kind === "dating"
-    ? [{ done: !!(d && d.intent_text), label: "Who you're looking for", ask: "I'm looking for " }, where, ...datingNeeds]
+    ? [{ done: lf.genders.length > 0, label: "Who you'd like to meet", ask: "I'd like to meet ",
+         why: "Who you'd like to meet (a woman, a man, or anyone): you're only introduced to people you'd like to meet who'd also like to meet you." },
+       where, ...datingNeeds]
     : [shown.offering && !shown.seeking ? { ...looking, done: true } : looking, where];
   if (d && Array.isArray(d.suggestions)) return [...essentials, ...d.suggestions.map(x => ({ done: false, label: x.label, ask: x.ask }))];
   if (d && d.by === "quick") return essentials;  // the agent's suggestions arrive with its reply
@@ -855,8 +884,10 @@ function profileCard(slot, p, l, c) {
   const entry = l.entry;
   const fact = (label, value, empty) => `<div class="profile-line"><span class="label tertiary">${label}</span>${value
     ? `<span class="body-s">${esc(value)}</span>` : `<span class="body-s tertiary">${empty || "Not added yet"}</span>`}</div>`;
-  const used = new Set(["first_name", "age_band", "city", "country", "seeking", "offering", "headline", "gender", "pay", "format", "travel", "schedule", "role", "subject"]);
+  const used = new Set(["first_name", "age_band", "city", "country", "seeking", "offering", "headline", "gender", "pay", "format", "travel", "schedule", "role", "subject", ...UNDERSTOOD]);
   const travel = shown.travel ? fact("Travel", shown.travel) : "";
+  // What your agent understood (shown details, so you can check exactly what matching uses).
+  const kindLine = shown.kind ? fact("Kind of match", KIND_LABELS[shown.kind] || shown.kind) : "";
   const extra = Object.entries(shown).filter(([k]) => !used.has(k)).map(([, v]) => val(v));
   const who = `<div class="row"><span class="monogram" aria-hidden="true">${esc((p.name || "?").slice(0, 1).toUpperCase())}</span>
       <div class="grow"><div class="heading-m">${esc(p.name || "")}</div>
@@ -877,6 +908,7 @@ function profileCard(slot, p, l, c) {
       ${headline
         ? `<h3 class="heading-l" style="margin: var(--space-1) 0 var(--space-3)">${esc(cap(headline))}</h3>`
         : `<p class="body-s tertiary" style="margin: var(--space-1) 0 var(--space-3)">Your agent will fill this in as you chat</p>`}
+      ${kindLine}
       ${fact(offering ? "Rate" : "Pay", shown.pay)}
       ${fact("Where", place)}
       ${travel}
@@ -886,12 +918,15 @@ function profileCard(slot, p, l, c) {
       ${sd.other ? fact(offering ? "For" : "You are", offering ? shown.seeking : sd.other) : ""}
       <div class="posted">${who}</div>`;
   } else if (layout === "dating") {
+    const lf = lookingFor(c, l), wanted = wantsText(lf.genders, lf.ages);
     body = `${who}
-      ${fact("Looking for", d && d.intent_text, "Your agent will fill this in as you chat")}
+      ${kindLine}
+      ${fact("Looking for", wanted && cap(wanted), "Your agent will fill this in as you chat")}
       ${shown.gender ? fact("Gender", shown.gender) : ""}${travel}`;
   } else {
     const sd = sides(shown);
     body = `${who}
+      ${kindLine}
       ${shown.headline ? `<h3 class="heading-l" style="margin: var(--space-4) 0 var(--space-1)">${esc(cap(shown.headline))}</h3>`
         : sd.side === "offers" ? fact("Offering", sd.main) : fact("Looking for", shown.seeking, "Your agent will fill this in as you chat")}
       ${sd.other && !shown.headline ? fact("You are", sd.other) : ""}
@@ -987,8 +1022,8 @@ function fieldRow(slot, f) {
   if (f.locked) control = `<span class="body-s">${esc(f.value)}</span> <span class="caption tertiary">from your ID check</span>`;
   else if (f.multi && f.options && f.options.length) control = `<div>${f.options.map(o => `<button class="tag${(f.value || []).includes(o) ? " on" : ""}" onclick="toggleChip(${at},'${esc(o)}')">${esc(o)}</button>`).join("")}</div>`;
   else if (f.multi) control = `<input class="input" value="${esc(val(f.value) ?? "")}" placeholder="Separate with commas" oninput="cur('${slot}').draft.fields[${i}].value=this.value.split(',').map(s=>s.trim()).filter(Boolean)">`;
-  else if (f.options && f.options.length) control = `<select class="select" onchange="setVal(${at},this.value)"><option value="">Choose…</option>${f.options.map(o => `<option ${o === f.value ? "selected" : ""}>${esc(o)}</option>`).join("")}</select>`;
-  else control = `<input class="input" value="${esc(f.value ?? "")}" oninput="cur('${slot}').draft.fields[${i}].value=this.value">`;
+  else if (f.options && f.options.length) control = `<select class="select" onchange="setVal(${at},this.value)"><option value="">Choose…</option>${f.options.map(o => `<option value="${esc(o)}" ${o === f.value ? "selected" : ""}>${esc(f.key === "kind" ? KIND_LABELS[o] || o : o)}</option>`).join("")}</select>`;
+  else control = `<input class="input" value="${esc(f.value ?? "")}"${f.key === "wants_age" ? ` placeholder="Ages in years, e.g. 30-39"` : ""} oninput="cur('${slot}').draft.fields[${i}].value=this.value">`;
   const always = ["seeking", "offering"].includes(f.key);
   const choice = f.locked ? "" : always ? `<span class="caption tertiary push">Always shown, so the right person can find you</span>` :
     `<span class="segmented push" role="group" aria-label="${label}: shown or hidden">
@@ -1002,6 +1037,7 @@ function fieldRow(slot, f) {
 }
 function setVal(slot, i, v) {
   const f = cur(slot).draft.fields[i]; f.value = v;
+  if (f.key === "kind") cur(slot).draft.kind = v || null;  // the profile follows the kind you choose
   if (f.key === "city") refreshOptions(slot, v); else renderPhone(slot);
 }
 function toggleChip(slot, i, o) {
@@ -1047,7 +1083,7 @@ function broadenCard(slot, l) {
 
 function introCard(slot, l, i) {
   const f = i.view.fields;
-  const facts = Object.entries(f).filter(([k]) => !["first_name", "seeking", "offering", "headline"].includes(k)).map(([, v]) => val(v));
+  const { facts, wants } = matchFacts(f);
   let action = "", status = "";
   if (i.status === "pending") action = `<div class="row" style="margin-top: var(--space-5)"><button class="btn grow" onclick="decide('${slot}','${i.intro_id}',true)">Say yes</button><button class="btn secondary" onclick="decide('${slot}','${i.intro_id}',false)">Not now</button></div>
     <p class="caption tertiary" style="margin: var(--space-2) 0 0">${i.close ? "They haven't been told about you. If you say yes, they're asked too." : "You're only introduced if you both say yes."}</p>`;
@@ -1056,6 +1092,7 @@ function introCard(slot, l, i) {
   else { status = badge("success", "Introduced"); action = `<button class="btn secondary sm" style="margin-top: var(--space-4)" onclick="openView('${slot}','thread',{thread:'${i.intro_id}'})">Open chat in Found.</button>`; }
   return `<div class="card sm intro">${i.close ? `<p class="caption text-ai" style="margin:0 0 var(--space-2)">Close match: not exactly what you asked for</p>` : ""}
     <div class="row"><h3 class="heading-l grow">${esc(f.first_name || "Someone")}</h3>${status}</div>
+    ${wants ? `<p class="body-s secondary" style="margin: var(--space-2) 0 0">Looking for ${esc(wants)}</p>` : ""}
     <div style="margin-top: var(--space-3)">${tags(facts)}</div>
     <p class="reason">${esc(i.view.reason)}</p>${action}</div>`;
 }
