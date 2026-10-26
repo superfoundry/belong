@@ -128,8 +128,9 @@ def _satisfies(want: list, have_list: list, exactness: float, also_have=()) -> b
     head, offered_head = _head(want), _head(have_list)
     if _language_clash(want, have_list):
         return False  # a German tutor is no help to someone learning Spanish
-    if head in have_list:
-        # Same role: the phrases themselves must agree.
+    if head == offered_head or (head in have_list and head in ROLE_WORDS):
+        # Same role: the phrases themselves must agree. The wanted noun has to be what they are
+        # ("a CV reviewer"), not just a word describing something else ("a CV review client").
         phrase = set(have_list)
         share = sum(1 for w in want if w in phrase) / len(want)
         return share >= 0.5 if exactness < 0.5 else share > 0.5
@@ -370,13 +371,17 @@ class OfflineMatcher:
 
     # -- main ------------------------------------------------------------------
 
-    def match(self, board: Marketboard) -> MatchResult:
+    def match(self, board: Marketboard, focus=None) -> MatchResult:
+        """focus: only find matches and questions for these listings (against everyone), e.g. the
+        demo's two phones, instead of for every listing on the board."""
         listings = {l.person_id: l for l in board.listings() if l.active}  # paused listings aren't matched
         views = {pid: ShownView(l) for pid, l in listings.items()}
         parsed = {pid: effective_kind(parse_intent(l.intent_text), views[pid]) for pid, l in listings.items()}
 
         followups = []
         for pid, p in parsed.items():
+            if focus is not None and pid not in focus:
+                continue
             if not listings[pid].notify_questions:
                 continue  # only people who opted in are asked questions
             v = views[pid]
@@ -385,7 +390,7 @@ class OfflineMatcher:
             elif p.kind in ("climbing", "running") and v.exactness >= 0.8 and v.get("schedule") is None:
                 followups.append(FollowUp(pid, "schedule"))
 
-        lists, index = shortlists(parsed, views, self.shortlist_size)
+        lists, index = shortlists(parsed, views, self.shortlist_size, focus)
         # A person's own listings are never paired with each other.
         pairs = {tuple(sorted((a, b))) for a, cands in lists.items() for b in cands
                  if listings[a].owner != listings[b].owner}
@@ -455,6 +460,8 @@ class OfflineMatcher:
         # No match yet and close matches off: ask whether to include them (the Warden asks only once).
         # A yes is also the opt-in to questions. Close matches already look a little wider.
         for pid in sorted(listings):
+            if focus is not None and pid not in focus:
+                continue
             if not listings[pid].notify_close and pid not in has_match and pid not in also_offer:
                 followups.append(FollowUp(pid, "broaden"))
 
