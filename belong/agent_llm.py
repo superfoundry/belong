@@ -505,6 +505,18 @@ class ClaudeAgent:
                                                   if draft else "Sorry, could you say that another way?")
         return honest(reply, attempted, draft is not None), draft
 
+    def chat_json(self, system: str, messages: list, schema: dict) -> dict:
+        """One plain reply as JSON (used for simulated people's chat replies). Claude answers in text
+        and the JSON object is read out of it; `schema` is described in the system prompt."""
+        from .persona_chat import parse_json
+        convo = list(messages) or [{"role": "user", "content": "(say hello)"}]
+        try:
+            response = self.client.messages.create(model=self.model, max_tokens=1000, system=system,
+                                                   messages=convo, output_config={"effort": "low"})
+        except Exception as e:  # the SDK's own errors (credentials, rate limits, network)
+            raise AgentUnavailable(f"couldn't get a reply from Claude ({type(e).__name__})") from e
+        return parse_json("".join(b.text for b in response.content if getattr(b, "type", "") == "text"))
+
     def _call(self, system: str, conversation: list):
         request = dict(
             model=self.model,
