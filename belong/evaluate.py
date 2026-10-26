@@ -13,11 +13,16 @@ from __future__ import annotations
 from dataclasses import replace
 
 from .schema import TRAVEL, km_between
-from .synth import Persona, Truth
+from .synth import CITIES, COUNTRY_NAMES, Persona, Truth
 
 
 def _sched_overlap(x, y) -> bool:
     return x == y or "flexible" in (x, y)
+
+
+def _country(city: str):
+    """The country a synthetic person's city is in (every synthetic listing shows it)."""
+    return COUNTRY_NAMES.get(CITIES.get(city, (None,))[0])
 
 
 def can_meet(a: Truth, b: Truth) -> bool:
@@ -27,7 +32,7 @@ def can_meet(a: Truth, b: Truth) -> bool:
         return True
     if not (a.in_person and b.in_person):
         return False
-    km = km_between(a.city, b.city)
+    km = km_between(a.city, _country(a.city), b.city, _country(b.city))
     return km is not None and km <= min(TRAVEL[a.travel], TRAVEL[b.travel])
 
 

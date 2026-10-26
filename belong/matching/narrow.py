@@ -7,8 +7,10 @@
      and any other only in person. Dating is always in person.
   2. Where, by travel distance (in person only). Two cities are in reach when the distance
      between them is within *both* people's shown "travel" (same city = 0 km; no travel
-     given = the same city only). A city whose centre isn't known is only in reach of
-     itself. In the same country, someone who gives no city is open to anywhere in it.
+     given = the same city only). A distance is used only between two cities in the country
+     both people show, each city's centre read in that country: a city whose centre isn't
+     known there (or a listing that shows no country) is only in reach of a city of the same
+     name. In the same country, someone who gives no city is open to anywhere in it.
   3. What, by meaning. Listings of a structured kind (dating, language, ...) are compared
      with their own kind. Listings compared by their "looking for" / "you are" phrases are
      found through an inverted index of the words in their phrases, topics and what they show
@@ -103,24 +105,32 @@ def travel_km(view: ShownView) -> float:
     return TRAVEL[choice or TRAVEL_DEFAULT]
 
 
-def _km(a: str, b: str):
-    return _cached(_KM, (a, b) if a <= b else (b, a), lambda pair: km_between(*pair))
+def _km(a: str, b: str, country: str):
+    """The distance between two cities in one country (plain names), or None if either isn't known there."""
+    key = (a, b, country) if a <= b else (b, a, country)
+    return _cached(_KM, key, lambda k: km_between(k[0], k[2], k[1], k[2]))
 
 
-def _near(city: str) -> list:
-    """Known cities within the longest travel distance of this one, with their distance: worked out
-    once, so a listing only ever looks at the cities it could reach."""
+def _near(city: str, country) -> list:
+    """Known cities in the same country within the longest travel distance of this one, with their
+    distance: worked out once, so a listing only ever looks at the cities it could reach. A city whose
+    centre isn't known in the country shown with it (or with no country) has none."""
     if not _NEAR:
-        for a in CITY_COORDS:
-            _NEAR[a] = sorted((km, b) for b in CITY_COORDS if b != a
-                              for km in [km_between(a, b)] if km <= MAX_TRAVEL_KM)
-    return _NEAR.get(city, [])
+        for a, a_country in CITY_COORDS:
+            _NEAR[(a, a_country)] = sorted(
+                (km, b) for b, b_country in CITY_COORDS if b_country == a_country and b != a
+                for km in [km_between(a, a_country, b, b_country)] if km <= MAX_TRAVEL_KM)
+    return _NEAR.get((city, country), [])
 
 
 def within_reach(av: ShownView, bv: ShownView):
     """Where two people could meet in person (step 2): "city" if their cities are in reach (the same
     city, or within both people's travel distance), "country" if they share a country and at least
-    one is open to anywhere in it (no city given), else None. Shown fields only."""
+    one is open to anywhere in it (no city given), else None. Shown fields only.
+
+    A distance needs both people to show the same country, and each city's centre is read in that
+    country, so a Cambridge in one country is never near a London in another. Without both
+    countries, a city is only in reach of a city of the same name."""
     a_city, b_city = _place(av.get("city")), _place(bv.get("city"))
     a_country, b_country = _place(av.get("country")), _place(bv.get("country"))
     if a_country and b_country and a_country != b_country:
@@ -128,7 +138,9 @@ def within_reach(av: ShownView, bv: ShownView):
     if a_city and b_city:
         if a_city == b_city:
             return "city"
-        km = _km(a_city, b_city)
+        if not (a_country and b_country):
+            return None  # no shown country, so no known centre: only the same city
+        km = _km(a_city, b_city, a_country)
         return "city" if km is not None and km <= min(travel_km(av), travel_km(bv)) else None
     if a_country and b_country:
         return "country"
@@ -189,8 +201,8 @@ def _places_of(p: ParsedIntent, view: ShownView) -> list:
 
 
 def _places_looked_at(p: ParsedIntent, view: ShownView) -> list:
-    """The place groups a listing looks in: its own city and the cities within its own travel
-    distance (the other person's distance is checked by the filter), anyone in its country who
+    """The place groups a listing looks in: its own city and the cities in its shown country within
+    its own travel distance (the other person's distance is checked by the filter), anyone in its country who
     is open to anywhere in it (or, with no city, everyone in its country), and online if it
     meets online. Together they hold everyone it could meet."""
     modes = meeting_modes(p, view)
@@ -200,7 +212,7 @@ def _places_looked_at(p: ParsedIntent, view: ShownView) -> list:
         if city:
             limit = travel_km(view)
             out.append(("city", city))
-            out += [("city", other) for km, other in _near(city) if km <= limit]
+            out += [("city", other) for km, other in _near(city, country) if km <= limit]
             if country:
                 out.append(("anywhere in", country))
         elif country:

@@ -296,6 +296,32 @@ def attack_suite(body: dict) -> dict:
     attempt("compromised matchmaker", "Cite where two people are to make far-apart cities sound close",
             far_apart_as_near, by="reason_text: worded from both shown cities and the distance between them")
 
+    def sounds_close(x_place, y_place):
+        """Introduce two people placed as given, citing where they are; does either reason say they're
+        in the same place or near each other? (None: the introduction itself was refused.)"""
+        x = on_board(f"placed{next(fresh)}", fields=_placed(a_listing, *x_place))
+        y = on_board(f"placed{next(fresh)}", fields=_placed(a_listing, *y_place))
+        intro = warden.exit_introduction(P(person_a=x, person_b=y, reason_fields=("city",)), board)
+        if intro is None:
+            return None
+        return bool(re.search(r"both in|near each other", intro.a_view["reason"] + " " + intro.b_view["reason"]))
+
+    def same_name_as_near():
+        # Two cities called Cambridge in different countries, and a Cambridge whose namesake is near a
+        # London in another country. Neither pair is in the same place or near each other.
+        said = [sounds_close(("Cambridge", "United States"), ("Cambridge", "United Kingdom")),
+                sounds_close(("Cambridge", "United States"), ("London", "United Kingdom"))]
+        return True if any(said) else None
+    attempt("compromised matchmaker", "Cite two cities with the same name in different countries to make them sound close",
+            same_name_as_near, by="reason_text: two cities compared only in the country both people show")
+
+    def hidden_country_as_near():
+        # One person is in Cambridge and hides that it's in the United Kingdom; the other is in London,
+        # United Kingdom. "Near each other" would be true, but only a hidden detail could say so.
+        return True if sounds_close(("Cambridge", "United Kingdom", HIDDEN), ("London", "United Kingdom")) else None
+    attempt("compromised matchmaker", "Word where two people are from a country one of them hides",
+            hidden_country_as_near, by="reason_text: only countries both people show shape the wording")
+
     # "Want to include close matches?" needs no opt-in (it is the opt-in), so it has its own limits.
     def broaden_twice():
         pid = on_board("unasked", notify_questions=False, notify_close=False)
@@ -345,10 +371,10 @@ def attack_suite(body: dict) -> dict:
             "results": results, "your_intents": custom}
 
 
-def _placed(listing: Listing, city: str, country: str) -> tuple:
+def _placed(listing: Listing, city: str, country: str, country_visibility: str = SHOWN) -> tuple:
     """The listing's fields, moved to another city (shown) and travelling nowhere."""
     fields = [f for f in listing.fields if f.key not in ("city", "country", "travel")]
-    return tuple(fields + [Field("city", city, SHOWN, False), Field("country", country, SHOWN, False)])
+    return tuple(fields + [Field("city", city, SHOWN, False), Field("country", country, country_visibility, False)])
 
 
 def _shared_reasons(board, a: str, b: str) -> tuple:

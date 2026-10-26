@@ -9,6 +9,7 @@ from unittest import mock
 from belong import agent
 from belong.evaluate import can_meet, compare_narrowing
 from belong.leaks import leak_report
+from belong.matching.contract import Proposal
 from belong.matching.marketboard import Marketboard
 from belong.matching.matcher import (OfflineMatcher, ShownView, _minutes, effective_kind, index_words,
                                      parse_intent, recently_updated)
@@ -17,6 +18,9 @@ from belong.schema import HIDDEN, km_between, meeting_format, travel_choice
 from belong.synth import generate
 from belong.warden import reason_text
 from tests.helpers import fld, listing, person, warden
+
+SAME_NAME = "Cite two cities with the same name in different countries to make them sound close"
+HIDDEN_COUNTRY = "Word where two people are from a country one of them hides"
 
 
 def board_of(*listings):
@@ -86,6 +90,29 @@ class HowTheyMeet(unittest.TestCase):
         self.assertEqual(meeting_format("Remote or face to face"), "In person or online")
         self.assertIsNone(meeting_format("weekends"))
 
+    def test_a_negated_online_or_only_in_person_means_in_person(self):
+        for value in ("not online", "No remote", "in person, not online", "without video calls",
+                      "online isn't possible", "only in person", "In person only, online if needed"):
+            self.assertEqual(meeting_format(value), "In person", value)
+        self.assertEqual(meeting_format("not in person"), "Online")
+        self.assertEqual(meeting_format("not only online"), "In person or online")
+        # With no format shown, a description that says "not online" means in person too.
+        self.assertFalse(parse_intent("Need a web designer, no remote work.").remote_ok)
+        self.assertTrue(parse_intent("Need a web designer, remote is fine.").remote_ok)
+        not_online = web("kenji", "client", "Tokyo", "Japan", None, intent="Need a web designer in Tokyo, not online.")
+        self.assertEqual(pairs(board_of(web("lena", "designer", "London", "United Kingdom", "Online"), not_online)[1]),
+                         set())
+
+    def test_the_warden_accepts_only_the_fixed_formats(self):
+        for fmt in ("In person", "Online", "In person or online"):
+            result = warden().admit(person("lena"), web("lena", "designer", "Tokyo", "Japan", fmt), Marketboard())
+            self.assertTrue(result.accepted, (fmt, result.problems))
+        for fmt in ("online only", "not online", "Zoom calls"):
+            result = warden().admit(person("lena"), web("lena", "designer", "Tokyo", "Japan", fmt), Marketboard())
+            self.assertFalse(result.accepted, fmt)
+            self.assertIn("listing_schema", result.failed_checks)
+            self.assertTrue(any("'format' must be one of" in p for p in result.problems), result.problems)
+
     def test_without_a_format_the_description_decides(self):
         online_text = web("kenji", "client", "Tokyo", "Japan", None, intent="Need a web designer, online is fine.")
         in_person_text = web("kenji", "client", "Tokyo", "Japan", None, intent="Need a web designer in Tokyo.")
@@ -109,7 +136,7 @@ class TravelDistance(unittest.TestCase):
     """Step 2: in person, two cities are in reach within *both* people's travel distance."""
 
     def test_both_limits_must_reach(self):
-        self.assertAlmostEqual(km_between("Osaka", "Kobe"), 28, delta=2)
+        self.assertAlmostEqual(km_between("Osaka", "Japan", "Kobe", "Japan"), 28, delta=2)
         for a, b, met in (("Up to 30 km", "Up to 30 km", True), ("Up to 30 km", None, False),
                           (None, "Up to 30 km", False), ("Up to 100 km", "Same city", False),
                           ("Same city", "Up to 100 km", False), ("Up to 100 km", "Up to 30 km", True)):
@@ -117,18 +144,60 @@ class TravelDistance(unittest.TestCase):
             self.assertEqual(got == {frozenset(("pa", "pb"))}, met, (a, b))
 
     def test_a_longer_trip_needs_the_longer_choice(self):
-        self.assertAlmostEqual(km_between("Osaka", "Kyoto"), 43, delta=2)
+        self.assertAlmostEqual(km_between("Osaka", "Japan", "Kyoto", "Japan"), 43, delta=2)
         self.assertEqual(pairs(board_of(roommate("pa", "Osaka", "Up to 30 km"), roommate("pb", "Kyoto", "Up to 30 km"))[1]),
                          set())
         self.assertEqual(pairs(board_of(roommate("pa", "Osaka", "Up to 100 km"), roommate("pb", "Kyoto", "Up to 100 km"))[1]),
                          {frozenset(("pa", "pb"))})
 
     def test_an_unknown_city_only_matches_itself(self):
-        self.assertIsNone(km_between("Galway", "Athenry"))
+        self.assertIsNone(km_between("Galway", "Ireland", "Athenry", "Ireland"))
         far = (roommate("pa", "Galway", "Up to 100 km", "Ireland"), roommate("pb", "Athenry", "Up to 100 km", "Ireland"))
         self.assertEqual(pairs(board_of(*far)[1]), set())
         same = (roommate("pa", "Galway", None, "Ireland"), roommate("pb", "galway ", None, "Ireland"))
         self.assertEqual(pairs(board_of(*same)[1]), {frozenset(("pa", "pb"))})
+
+    def test_same_name_cities_in_different_countries_are_not_in_reach(self):
+        """A city's centre is read in the country its listing shows: Cambridge, United States is an ocean
+        away from London, and a Cambridge shown without a country (or with a hidden one) is only ever
+        "the same city" as another Cambridge."""
+        self.assertAlmostEqual(km_between("Cambridge", "United Kingdom", "London", "United Kingdom"), 79, delta=3)
+        self.assertGreater(km_between("Cambridge", "United States", "London", "United Kingdom"), 5000)
+        self.assertLess(km_between("Cambridge", "United States", "Boston", "United States"), 10)
+        self.assertIsNone(km_between("Cambridge", None, "London", "United Kingdom"))
+        self.assertIsNone(km_between("Boston", "United Kingdom", "London", "United Kingdom"))  # not known there
+        far = "Up to 100 km"
+
+        def uk(pid, city):
+            return roommate(pid, city, far, "United Kingdom")
+
+        def us(pid, city):
+            return roommate(pid, city, far, "United States")
+
+        def no_country(pid, city, hidden=None):
+            l = roommate(pid, city, far)
+            fields = tuple(f for f in l.fields if f.key != "country")
+            return replace(l, fields=fields + ((fld("country", hidden, HIDDEN),) if hidden else ()))
+
+        cases = [
+            (uk("pa", "Cambridge"), uk("pb", "London"), True),  # about 80 km apart
+            (us("pa", "Cambridge"), us("pb", "Boston"), True),
+            (us("pa", "Cambridge"), uk("pb", "London"), False),  # an ocean apart
+            (us("pa", "Cambridge"), uk("pb", "Cambridge"), False),  # the same name in other countries
+            (no_country("pa", "Cambridge"), uk("pb", "London"), False),  # no shown country, no known centre
+            (no_country("pa", "Cambridge", hidden="United Kingdom"), uk("pb", "London"), False),  # never a hidden one
+            (no_country("pa", "Cambridge"), uk("pb", "Cambridge"), True),  # the same name is still the same city
+        ]
+        for a, b, met in cases:
+            where = (a.shown().get("city"), a.shown().get("country"), b.shown().get("city"), b.shown().get("country"))
+            self.assertEqual(within_reach(ShownView(a), ShownView(b)) == "city", met, where)
+            self.assertEqual(pairs(board_of(a, b)[1]) == {frozenset(("pa", "pb"))}, met, where)
+        # Narrowing looks only at cities in reach in the shown country.
+        _, board = board_of(us("cam", "Cambridge"), uk("lon", "London"), us("bos", "Boston"), uk("camuk", "Cambridge"))
+        views = {l.person_id: ShownView(l) for l in board.listings()}
+        parsed = {pid: effective_kind(parse_intent(v.intent_text), v) for pid, v in views.items()}
+        lists, _ = shortlists(parsed, views, 10, focus={"cam", "camuk"}, words=index_words)
+        self.assertEqual((set(lists["cam"]), set(lists["camuk"])), ({"bos"}, {"lon"}))
 
     def test_no_city_is_still_open_to_anywhere_in_the_country(self):
         anywhere = listing("pa", "Looking for a roommate anywhere in Japan, moving in November.",
@@ -173,8 +242,10 @@ class WhereInTheReason(unittest.TestCase):
     """The Warden words where people are from both their shown cities, so it is always true."""
 
     def test_reason_text_for_nearby_and_same_cities(self):
-        self.assertEqual(reason_text([("city", "Osaka", "Kyoto")]), "You're near each other: Osaka and Kyoto.")
-        self.assertEqual(reason_text([("city", "Osaka", "osaka")]), "You're both in osaka.")
+        japan = ("Japan", "Japan")
+        self.assertEqual(reason_text([("city", "Osaka", "Kyoto")], japan), "You're near each other: Osaka and Kyoto.")
+        self.assertEqual(reason_text([("city", "Osaka", "osaka")], japan), "You're both in osaka.")
+        self.assertEqual(reason_text([("city", "Lisbon", "Lisboa")], ("Portugal", "portugal")), "You're both in Lisboa.")
         self.assertEqual(reason_text([("country", "Japan", "Japan")]), "You're both in Japan.")
 
     def test_a_compromised_matchmaker_cannot_make_far_cities_near(self):
@@ -190,8 +261,56 @@ class WhereInTheReason(unittest.TestCase):
         name = "Cite where two people are to make far-apart cities sound close"
         result = lambda: next(x for x in probe.attack_suite({"seed": 1})["results"] if x["attack"] == name)
         self.assertTrue(result()["blocked"])
-        with mock.patch("belong.warden._where_text", lambda key, mine, theirs: f"You're both in {theirs}."):
+        with mock.patch("belong.warden._where_text", lambda key, mine, theirs, countries=None: f"You're both in {theirs}."):
             self.assertFalse(result()["blocked"])
+
+    def test_same_name_cities_are_worded_by_the_shown_countries(self):
+        """"Both in" and "near each other" only when both people show the same country."""
+        us_uk, uk, us = ("United States", "United Kingdom"), ("United Kingdom",) * 2, ("United States",) * 2
+        self.assertEqual(reason_text([("city", "Cambridge", "Cambridge")], us_uk), "You're in Cambridge; they're in Cambridge.")
+        self.assertEqual(reason_text([("city", "Cambridge", "London")], us_uk), "You're in Cambridge; they're in London.")
+        self.assertEqual(reason_text([("city", "Cambridge", "London")], uk), "You're near each other: Cambridge and London.")
+        self.assertEqual(reason_text([("city", "Cambridge", "Boston")], us), "You're near each other: Cambridge and Boston.")
+        self.assertEqual(reason_text([("city", "Boston", "London")], uk), "You're in Boston; they're in London.")
+        # Without both countries, nothing is claimed.
+        self.assertEqual(reason_text([("city", "Cambridge", "London")]), "You're in Cambridge; they're in London.")
+        self.assertEqual(reason_text([("city", "Osaka", "Osaka")]), "You're in Osaka; they're in Osaka.")
+
+    def test_the_warden_words_cities_only_from_countries_both_people_show(self):
+        """A compromised Matchmaker cites where two people are. The wording leans on neither a city's
+        name alone nor a country someone hides."""
+        def placed(pid, city, country, visibility=None):
+            return listing(pid, "Looking for a roommate, moving in November.", [
+                fld("first_name", pid.title()), fld("city", city), fld("country", country, visibility),
+                fld("move_in", "November"), fld("schedule", "weekends")])
+        cases = [
+            (placed("pa", "Cambridge", "United Kingdom", HIDDEN), placed("pb", "London", "United Kingdom"),
+             "You're in Cambridge; they're in London.", "You're in London; they're in Cambridge."),
+            (placed("pa", "Cambridge", "United States"), placed("pb", "Cambridge", "United Kingdom"),
+             "You're in Cambridge; they're in Cambridge.", "You're in Cambridge; they're in Cambridge."),
+            (placed("pa", "Cambridge", "United Kingdom"), placed("pb", "London", "United Kingdom"),
+             "You're near each other: Cambridge and London.", "You're near each other: London and Cambridge."),
+        ]
+        for a, b, a_reads, b_reads in cases:
+            w, board = board_of(a, b)
+            intro = w.exit_introduction(Proposal("pa", "pb", True, True, 1.0, 1.0, 0.1, ("city",), ()), board)
+            self.assertIsNotNone(intro)
+            self.assertEqual((intro.a_view["reason"], intro.b_view["reason"]), (a_reads, b_reads))
+
+    def test_the_attack_suite_catches_same_name_cities_and_a_hidden_country(self):
+        """Test the tester: a Warden that words two cities as if both people were in one country (by
+        their names alone, or from a country one of them hides) lets both attacks through."""
+        from belong import probe
+        from belong.warden import _where_text
+
+        def blocked():
+            got = {x["attack"]: x["blocked"] for x in probe.attack_suite({"seed": 1})["results"]}
+            return got[SAME_NAME], got[HIDDEN_COUNTRY]
+
+        self.assertEqual(blocked(), (True, True))
+        one_country = lambda key, mine, theirs, countries=None: _where_text(key, mine, theirs, ("United Kingdom",) * 2)
+        with mock.patch("belong.warden._where_text", one_country):
+            self.assertEqual(blocked(), (False, False))
 
     def test_an_introduction_between_nearby_cities_passes_every_check(self):
         w, board = board_of(replace(roommate("pa", "Osaka", "Up to 100 km"),
@@ -304,6 +423,13 @@ class FairRanking(unittest.TestCase):
         board = self.plumbers()
         self.assertEqual(self.first(board), {"py"})  # a tie: the order on the board decides
         self.assertEqual(self.first(board, load={"py": 3}), {"pz"})
+
+    def test_a_focused_run_leaves_out_the_focus_listings_own_load(self):
+        """The demo matches only its phones (focus). A phone's own load is the same for every one of its
+        candidates, so it is left out: two busy phones aren't pushed down for each other."""
+        board = self.plumbers()
+        self.assertEqual(self.first(board, focus={"pc", "py"}, load={"pc": 5, "py": 5}), {"py"})
+        self.assertEqual(self.first(board, focus={"pc"}, load={"pc": 5, "py": 5}), {"pz"})  # the other side's still counts
 
     def test_a_listing_updated_in_the_last_day_comes_first(self):
         board = self.plumbers(z_updated="2026-10-14T09:00:00Z")

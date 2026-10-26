@@ -52,14 +52,17 @@ looks at every listing in the same order, using only what people show:
 
 1. **How you'd meet.** If both listings are happy to meet online, they can be matched wherever
    they are. If either one only meets in person, both must meet in person, and step 2 decides.
-   A listing that doesn't say reads its description ("online is fine" means either). Dating is
+   A listing that doesn't say reads its description ("online is fine" means either; "not online"
+   means in person). Only "online only" or "just online" makes a listing online only. Dating is
    always in person.
 2. **Where, by travel distance.** Two people in the same city can meet. Two people in different
    cities can meet only if the distance between them is within what *both* said they'd travel:
    Osaka and Kobe (about 28 km) need "up to 30 km" from both; Osaka and Kyoto (about 43 km) need
    "up to 100 km". Someone who doesn't say stays in their own city. Distances come from a short
-   list of approximate city centres; any other city only matches itself. Someone who gives a
-   country but no city is open to anywhere in it.
+   list of approximate city centres, each known only in its own country, and are used only when
+   both people show the same country: a Cambridge in the United States is never near London. Any
+   other city, or a city shown without a country, only matches a city of the same name. Someone
+   who gives a country but no city is open to anywhere in it.
 3. **What, by meaning.** Named kinds (dating, language exchange, tutoring...) are compared with
    their own kind. Everything else is compared by its "looking for" and "you are" phrases, but only
    with listings that share a word (or the start of one, so "repair" meets "repairman") between
@@ -70,7 +73,8 @@ looks at every listing in the same order, using only what people show:
    the only reason and only count when at least 20 people share them.
 5. **Fair ranking.** Among pairs that qualify, a listing that already had introductions today
    ranks a little lower, and one updated in the last day a little higher, so new and quiet
-   listings get seen. This only changes the order; it never lets a pair skip a rule.
+   listings get seen. This only changes the order; it never lets a pair skip a rule. When only the
+   demo's phones are matched, their own introductions don't count against meeting each other.
 
 ## Run it
 
