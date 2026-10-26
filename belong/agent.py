@@ -342,7 +342,10 @@ def unknown_partner(text) -> bool:
 # dogs" names none). Read only to ask a question, never to decide anything.
 _I_DO = _re.compile(r"\b(?:i|we)\s+(?:could\s+|can\s+|might\s+|would\s+)?"
                     r"(?:also\s+|really\s+|often\s+|usually\s+|regularly\s+|sometimes\s+|mostly\s+)?"
-                    r"(?:play|go|do|practi[cs]e|climb|boulder|run|jog)s?\b[^.,;!?]*")
+                    r"(?:play|go|do|practi[cs]e|climb|boulder|run|jog)s?\b"
+                    # up to where a new clause starts: "I play tennis | and want a girlfriend"
+                    r"(?:(?!\s+(?:and|but|so)\s+(?:i\b|i'?m|i'?d|we\b|want|wanna|need|looking|would|am|are|hope|"
+                    r"keen|trying))[^.,;!?])*")
 _I_ENJOY = _re.compile(r"\b(?:i'?m into|i am into|i (?:really |also |just )?(?:enjoy|love|like|adore)|"
                        r"my hobbies (?:are|include)|i'?m (?:a )?(?:big )?fan of)\s+([a-z][a-z ,'\-]{2,80}?)"
                        r"(?=[.!?;]|$|\s(?:but|so|because)\b|\sand i\b|\s" + HOBBY_END + ")")
@@ -827,31 +830,71 @@ _CITY_NAMES = {plain_place(c): c for c in _vocab.CITIES}  # the demo's own spell
 _KNOWN_CITY = _re.compile(r"\b(" + "|".join(map(_re.escape, sorted(_CITY_COUNTRIES, key=len, reverse=True))) + r")\b")
 
 
+# Where someone is, read carefully (the offline agent and the instant first draft). A place counts only when
+# the sentence is about them, now: "I live in Osaka", "Looking for a tutor in Germany", "Born in Kyoto, based in
+# Berlin" (Berlin). A sentence about someone else ("my parents live in Nigeria"), the past or an origin ("I grew
+# up in Munich", "I used to live in Israel", "originally from London") gives no place unless the person says
+# they are there themselves ("...but now I'm in Portugal"). Two different places left: none, and it asks.
+_OTHERS = _re.compile(r"\b(?:parents?|family|families|mum|mom|mother|dad|father|sisters?|brothers?|siblings?|"
+                      r"relatives?|grand(?:parents?|ma|mother|pa|father)|husband|wife|ex|friends?|cousins?|aunts?|"
+                      r"uncles?|daughters?|sons?|kids?|children|partner'?s|boss|colleagues?)\b")
+_PAST = _re.compile(r"\b(?:born|raised|grew up|grown up|originally|used to|lived|back home|childhood|"
+                    r"as a (?:kid|child)|when i was|came|emigrated|immigrated|ancestors?|heritage|descent|roots|"
+                    r"years ago|last year i was)\b")
+_FROM = _re.compile(r"\b(?:from|left|leaving)\s+(?:the\s+)?$")  # "from London", "left Spain": not where they are
+_SELF_HERE = _re.compile(r"(?:\b(?:i|we)\s+(?:now\s+|currently\s+|still\s+)?(?:live|reside|stay)\s+in"
+                         r"|\b(?:i'?m|i am|we'?re|we are)\s+(?:now\s+|currently\s+)?(?:living\s+|based\s+|staying\s+|"
+                         r"located\s+)?in|\b(?:i|we)\s+(?:just\s+)?(?:moved|relocated)\s+to)"
+                         r"(?:\s+[a-z' -]{1,30},)?\s+(?:the\s+)?$")  # also "I live in Malaga, Spain"
+_NOW_HERE = _re.compile(r"(?:(?:^|[,;]\s*|\b(?:but|and|now)\s+)(?:now\s+|currently\s+)?(?:based|living|live|staying|stay)\s+in"
+                        r"|\b(?:moved|relocated|moving)\s+to|\bnow\s+in)\s+(?:the\s+)?$")
+
+
+def _places_in(sentence: str) -> list:
+    """(kind, name) for the known cities and countries a sentence names, with where each starts."""
+    found = [("city", m.group(1), m.start()) for m in _KNOWN_CITY.finditer(sentence)]
+    for c in COUNTRIES:
+        if len(c) > 3:
+            found += [("country", c, m.start()) for m in _re.finditer(r"\b" + _re.escape(c.lower()) + r"\b", sentence)]
+    return found
+
+
+def where_they_are(text) -> tuple:
+    """(city or None, country or None) for where the person is, only when the text says so about them."""
+    low = plain_place(" ".join(str(text or "").lower().split())) or ""
+    cities, countries = [], []
+    for sentence in _re.split(r"(?<=[.!?;])\s+|\n", low):
+        others, past = bool(_OTHERS.search(sentence)), bool(_PAST.search(sentence))
+        for kind, name, at in _places_in(sentence):
+            before = sentence[:at]
+            if _FROM.search(before):
+                continue
+            if others and not _SELF_HERE.search(before):
+                continue  # about someone else, unless they say they're there themselves
+            if past and not (_SELF_HERE.search(before) or _NOW_HERE.search(before)):
+                continue  # where they were or came from, not where they are
+            if kind == "city":
+                cities.append(_CITY_NAMES.get(name) or _title(name))
+            elif kind == "country":
+                countries.append(_country(name) or _title(name))
+    cities, countries = list(dict.fromkeys(cities)), list(dict.fromkeys(countries))
+    if len(cities) > 1:
+        return None, None  # two places: not sure which, so none (the agent asks)
+    city = cities[0] if cities else None
+    city_countries = _CITY_COUNTRIES.get(plain_place(city).lower() if city else "", set()) if city else set()
+    country = next(iter(city_countries)) if len(city_countries) == 1 else None
+    if countries:
+        if len(countries) > 1 or (country and countries[0] != country):
+            return (None, None) if country is None or countries[0] != country else (city, country)
+        country = countries[0]
+    return city, country
+
+
 def known_city(text) -> tuple:
-    """(city, country or None) for the first known city a text names ("in malaga" names none), else
-    (None, None). A city is never read from anything else the person writes ("I'm in recovery", "I'm in
-    therapy" are not places)."""
-    m = _KNOWN_CITY.search(plain_place(text) or "")
-    if not m:
-        return None, None
-    countries = _CITY_COUNTRIES[m.group(1)]
-    return _CITY_NAMES.get(m.group(1)) or _title(m.group(1)), (next(iter(countries)) if len(countries) == 1 else None)
-
-
-_ORIGIN = _re.compile(r"\b(?:born|raised|grew up|grown up|came|come|comes|coming|moved|emigrated|immigrated|"
-                      r"originally|from|left|parents?|family|ancestors?|heritage|descent|roots)\b[^.!?,;]*$")
-
-
-def _lives_in(low: str, country: str) -> bool:
-    """Does the text say they are in this country: "in <country>" (or "based/living/located in"), not as
-    where they or their family came from?"""
-    for m in _re.finditer(r"\bin\s+(?:the\s+)?" + _re.escape(country) + r"\b", low):
-        if not _ORIGIN.search(low[max(0, m.start() - 60):m.start()]):
-            return True
-    # "I live in Malaga, Spain", "based near Porto in the north of Portugal": where they live, in that sentence.
-    lives = _re.search(r"\b(?:live|lives|living|based|located|staying|reside|residing)\b[^.!?;]*?\b"
-                       + _re.escape(country) + r"\b", low)
-    return bool(lives) and not _ORIGIN.search(lives.group(0))
+    """(city, country or None) where the person is, if the text names a known city for them; see where_they_are.
+    A city is never read from anything else the person writes ("I'm in recovery" is not a place)."""
+    city, country = where_they_are(text)
+    return (city, country) if city else (None, None)
 
 
 def quick_facts(text: str) -> dict:
@@ -863,18 +906,12 @@ def quick_facts(text: str) -> dict:
     low = " ".join(text.lower().split())
     out = {}
 
-    # Where: a city it knows ("I live in Osaka", "based in Tokyo, Japan"), or a country on its own.
-    city, country = known_city(low)
+    # Where they are: a known city and its country, or a country, only when said about them now (where_they_are).
+    city, country = where_they_are(low)
     if city:
         out["city"] = city
-        if country:
-            out["country"] = country
-    if "country" not in out:
-        # Only where they are ("in Japan", "based in Portugal"), never a country merely mentioned: "my
-        # parents came from Nigeria" or "I grew up in Ghana" says where someone is from, not where they are.
-        found = next((c for c in COUNTRIES if len(c) > 3 and _lives_in(low, c.lower())), None)
-        if found:
-            out["country"] = _country(found)
+    if country:
+        out["country"] = country
 
     # When they're free.
     for pattern, sched in [(r"\bweekends?\b", "weekends"), (r"\b(?:weekday )?evenings?\b|\bafter work\b", "weekday evenings"),

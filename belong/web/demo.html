@@ -454,13 +454,28 @@ function toast(msg) { const t = $("toast"); t.textContent = msg; t.style.display
 function syncDraft(slot) {
   const l = curListing(slot), c = cur(slot);
   if (l && l.draft && c.draftFrom !== JSON.stringify(l.draft)) {
+    const before = c.draftFrom;
     c.draftFrom = JSON.stringify(l.draft);
-    if (c.keepLocal && c.draft) return;  // the server just took this copy's choices of shown or hidden: keep editing it
+    if (c.keepLocal > 0 && c.draft) {
+      // Choices of shown or hidden are on their way to the server. If only visibilities changed there (our
+      // own push), keep editing this copy, unsaved edits and all. If the agent changed the draft meanwhile,
+      // take its draft and put the person's own choices back on it, so none of them is lost.
+      const mine = visibilityChanges(c.draft, before);
+      if (sameValues(JSON.parse(before), l.draft)) return;
+      c.draft = JSON.parse(c.draftFrom);
+      if (mine) for (const f of c.draft.fields) if (f.key in mine.visibility) f.visibility = mine.visibility[f.key];
+      return;
+    }
     c.draft = JSON.parse(c.draftFrom);
     const sc = SCENARIOS[scenario]?.[slot];
     if (sc && c.applyScenario) { applyScenario(c.draft, sc); c.applyScenario = false; }
   }
   if (!l || !l.draft) { c.draft = null; c.draftFrom = null; }
+}
+// The same details and values, whatever is shown or hidden.
+function sameValues(a, b) {
+  const vals = d => JSON.stringify([d.intent_text, d.kind, (d.fields || []).map(f => [f.key, f.value, f.enabled])]);
+  return vals(a) === vals(b);
 }
 function applyScenario(draft, sc) {
   for (const f of draft.fields) {
@@ -1095,8 +1110,8 @@ function enable(slot, i, on) { const f = cur(slot).draft.fields[i]; f.enabled = 
 async function pushVisibility(slot) {
   const c = cur(slot), vis = visibilityChanges(c.draft, c.draftFrom);
   if (!vis) return;
-  c.keepLocal = true;
-  try { await api("visibility", { slot, listing_id: curId(slot), ...vis }); } finally { c.keepLocal = false; }
+  c.keepLocal = (c.keepLocal || 0) + 1;  // a counter: several quick changes may be on their way at once
+  try { await api("visibility", { slot, listing_id: curId(slot), ...vis }); } finally { c.keepLocal--; }
 }
 async function refreshOptions(slot, city) {
   const d = cur(slot).draft;
@@ -1184,9 +1199,9 @@ async function send(slot) {
   // hidden in the editor stays hidden. If that fails, the message isn't sent.
   const vis = visibilityChanges(c.draft, c.draftFrom);
   if (vis) {
-    c.keepLocal = true;
-    const ok = await api("visibility", { slot, listing_id, ...vis });
-    c.keepLocal = false;
+    c.keepLocal = (c.keepLocal || 0) + 1;
+    let ok = false;
+    try { ok = await api("visibility", { slot, listing_id, ...vis }); } finally { c.keepLocal--; }
     if (!ok) return;
   }
   c.applyScenario = SCENARIOS[scenario]?.[slot]?.message === text;

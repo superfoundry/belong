@@ -52,6 +52,7 @@ SLOTS = ("A", "B")  # the two demo phones; a synthetic person taken over gets a 
 SLOT_ID = re.compile(r"[A-Za-z0-9]{1,16}")  # a taken-over phone's id: their person id, safe in URLs and HTML
 K_CROWD = 20
 APPROACH_LIMIT = 15  # introductions per listing per day (the Warden's limit)
+GUESSED_PLACES = {"city", "country"}  # see _Listing.provisional
 PER_RUN = 3  # at most this many new introductions per listing in one Matchmaker run, so nobody gets them all at once
 LOOK_PAST = 1000  # how far down each listing's ranking the Matchmaker looks, past people already introduced
 SHORTLIST = 400  # candidates per phone listing; only the two phones are matched each run, so it can be generous
@@ -98,6 +99,10 @@ class _Listing:
         self.asked = set()  # (question_id, about) already answered: never asked again
         # The rule-based agent asked which kind of match this is: {"text": their message, "options": [...]}
         self.pending_kind = None
+        # Where they are, as the instant first draft guessed it from keywords, until an agent decides. Places
+        # are the guesses that can say something about someone (an origin or a family's country), so a model
+        # agent isn't handed them: it reads their words itself, and they're dropped unless its draft has them.
+        self.provisional = set()
         # The person's own choices of shown or hidden for this listing's details, key -> visibility: what they
         # saved (_sync_draft) and what they set in the editor (set_visibility). Every agent draft keeps them
         # unless its agent chose otherwise on purpose (agent.keep_visibility), so hidden stays hidden.
@@ -291,6 +296,7 @@ class DemoSession:
     @staticmethod
     def _sync_draft(mine, listing) -> None:
         """After a save, the draft is exactly what went live (including edits made by hand)."""
+        mine.provisional = set()  # what went live is theirs now, guesses included
         if not mine.draft:  # a listing made without the agent: start its draft from what's live
             mine.draft = {"intent_text": "", "exactness": listing.exactness, "kind": None, "fields": [], "understood": "",
                           "notes": [], "missing": [], "complete": False, "by": "sync"}
@@ -534,7 +540,10 @@ class DemoSession:
             listing.draft = agent.empty_draft(st.name, st.person.age_band)
         else:
             listing.draft = copy.deepcopy(listing.draft)
+        had = {f["key"] for f in listing.draft["fields"] if f.get("value") not in (None, "", [])}
         agent.fill_gaps(listing.draft, facts, listing.choices)  # a detail they hid stays hidden
+        listing.provisional |= {f["key"] for f in listing.draft["fields"] if f["key"] in GUESSED_PLACES
+                                and f.get("value") not in (None, "", []) and f["key"] not in had}
         if not listing.draft.get("intent_text"):
             # Until the agent writes one, their own words describe what they want (never shown).
             listing.draft["intent_text"] = " ".join((text or "").split())[:500]
@@ -555,8 +564,10 @@ class DemoSession:
             generation, llm = self.generation, self.llm
             name, band, conversation = st.name, st.person.age_band, listing.agent_conversation
             # The profile as it stands, with the person's choices of shown or hidden, for the agent to build on.
-            current = ({**copy.deepcopy(listing.draft or {"fields": []}), "choices": dict(listing.choices)}
+            # What the instant first draft only guessed is left out: the model reads their words itself.
+            current = ({**self._without_guesses(listing), "choices": dict(listing.choices)}
                        if listing.draft or listing.choices else None)
+            chosen_before = dict(listing.choices)
 
         reply = draft = None
         if llm is not None:
@@ -573,6 +584,7 @@ class DemoSession:
             listing.agent_busy = False
             if reply is None:
                 self._rules_reply(st, listing, text)
+                listing.provisional = set()  # the offline agent read the same words: nothing left to confirm
                 return
             # Everything the agent saved this turn, in order: usually one draft; two when the person
             # said "both" to "a date, or a partner for that activity?" (one listing for each kind).
@@ -596,9 +608,18 @@ class DemoSession:
                 # Keep anything already on the profile that the agent's draft left empty, and the person's
                 # own choice of shown or hidden for every detail the agent didn't set on purpose (build_draft
                 # does this already; this also covers any agent that hands back a draft of its own).
-                agent.carry_over(d, listing.draft, listing.choices)
+                agent.carry_over(d, self._without_guesses(listing), listing.choices)
+                # A choice of shown or hidden the person made while the agent was replying wins over the
+                # agent's draft: hidden always, shown only for a detail that isn't sensitive.
+                for key, vis in listing.choices.items():
+                    if chosen_before.get(key) != vis:
+                        for f in d.get("fields", []):
+                            if f["key"] == key and (vis == HIDDEN or not f.get("sensitive")):
+                                f["visibility"] = vis
                 listing.draft = d
                 updated = True
+            if updated:
+                listing.provisional = set()  # the agent has decided them (kept or dropped)
             if moved and updated:
                 st.current = listing.id  # both: the person stays on this listing, and the other is waiting
             # The tick on the phone comes from what actually happened, not from what the agent says.
@@ -609,6 +630,15 @@ class DemoSession:
                                                               "stays as it is." if not updated else
                                      "I've started a separate listing for the other one, with its own details.",
                                      "moved_to": new_id})
+
+    @staticmethod
+    def _without_guesses(listing) -> dict:
+        """The listing's draft without what the instant first draft guessed and no agent has confirmed."""
+        draft = copy.deepcopy(listing.draft or {"fields": []})
+        for f in draft.get("fields", []):
+            if f["key"] in listing.provisional:
+                f["value"] = [] if f.get("multi") else None
+        return draft
 
     def _rules_reply(self, st: _Slot, listing: _Listing, text: str) -> None:
         """The offline, rule-based agent: drafts from this one message. When the message could mean
@@ -1013,7 +1043,8 @@ class DemoSession:
             mine = st.listing(listing_id)
             name, band, conversation = st.name, st.person.age_band, mine.agent_conversation
             self._sync_draft(mine, updated)  # the agent sees the listing as it will be
-            current = copy.deepcopy(mine.draft)
+            current = {**copy.deepcopy(mine.draft or {"fields": []}), "choices": dict(mine.choices)}
+            headline_vis = mine.choices.get("headline", SHOWN)  # a headline they hid stays hidden
         ask = (f'Belong. asked me: "{question_text}" and I said yes. Update my listing so its headline and '
                "description describe what I agreed to now. Keep everything else as it is, and keep "
                "separate_listing false.")
@@ -1031,7 +1062,7 @@ class DemoSession:
                 fields = tuple(replace(f, value=words["headline"]) if f.key == "headline" and words.get("headline") else f
                                for f in updated.fields)
                 if words.get("headline") and not updated.get("headline"):
-                    fields += (Field("headline", words["headline"], SHOWN, False),)
+                    fields += (Field("headline", words["headline"], headline_vis, False),)
                 updated = replace(updated, fields=fields, intent_text=draft.get("intent_text") or updated.intent_text)
                 if updated.get("headline"):
                     note += f" It now reads “{updated.get('headline').value}”."
