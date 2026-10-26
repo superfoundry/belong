@@ -65,8 +65,15 @@ with an automatic certificate, and [systemd](deploy/belong.service) keeps it run
 4. `sudo nano /opt/belong/.env`: put in `OPENAI_API_KEY=...` and `BELONG_PASSWORD=...`, then
    `sudo systemctl restart belong`. Open `https://ADDRESS`.
 
-To update, upload a new archive and run step 3 again (`.env` is kept; the demo starts fresh).
 `sudo journalctl -u belong` shows the server's own output (startup and errors, never requests).
+
+**Updates deploy themselves.** Once set up, every merge to `main` that passes the tests is sent to
+the VM by GitHub ([ci.yml](.github/workflows/ci.yml)), and the demo restarts fresh. One-time setup:
+a deploy key (its private half is a GitHub secret, `VM_SSH_KEY`), the VM's address and host key as
+repo variables (`VM_HOST`, `VM_KNOWN_HOSTS`), and on the VM `sudo sh deploy/allow-deploys.sh "<public
+key>"`. That key can only run [belong-update](deploy/belong-update), which replaces the app's code and
+restarts it; it never runs anything from the upload as root and never touches `.env`. Without the
+setup, upload a new archive and run step 3 again (`.env` is kept).
 
 ### Or on Google Cloud Run
 

@@ -1,0 +1,47 @@
+# Every pull request and every push to main: all tests, then the 300-person simulation with its
+# leak audit (exit 1 on any leak). A merge to main then deploys to the VM, only if both pass.
+name: Tests and deploy
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python: ["3.11", "3.13"]  # the VM's (Debian 12) and the one we develop on
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - name: All tests (they fail on any leak)
+        run: python3 -m unittest -v
+      - name: 300-person simulation and leak audit
+        run: python3 -m belong run
+
+  deploy:
+    needs: test
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && vars.VM_HOST != ''
+    runs-on: ubuntu-latest
+    concurrency: deploy
+    steps:
+      - uses: actions/checkout@v4
+      - name: Send main to the VM
+        # The deploy key can only run belong-update on the VM (deploy/allow-deploys.sh): it
+        # replaces the app's code and restarts it. Keys and the demo password stay on the VM.
+        env:
+          SSH_KEY: ${{ secrets.VM_SSH_KEY }}
+          KNOWN_HOSTS: ${{ vars.VM_KNOWN_HOSTS }}
+          VM_HOST: ${{ vars.VM_HOST }}
+        run: |
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/deploy_key && chmod 600 ~/.ssh/deploy_key
+          printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
+          git archive --format=tar.gz HEAD | ssh -i ~/.ssh/deploy_key -o BatchMode=yes -o StrictHostKeyChecking=yes "deploy@$VM_HOST"

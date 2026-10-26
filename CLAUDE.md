@@ -9,6 +9,15 @@ and tested) before changing code.
 2. No spam, no fakes
 3. Efficiency
 
+## How we fix things
+
+- **Fix the general mechanism, never the example.** A reported case ("a beginner ice hockey coach
+  didn't meet a figure skater") is one instance of a wider problem. Name the general rule it breaks
+  and fix that. Never add example-specific words, activity lists, synonyms or prompt examples that
+  mirror the case; prefer letting the person's agent supply meaning (fields like `topics`) over lists
+  in matching code. Then check the fix on new, unrelated examples, and keep prompt examples
+  different from the reported ones.
+
 ## Rules that must never break
 
 - **The room has no way out.** Code in `belong/matching/` imports only `re`, `math`,
@@ -85,7 +94,6 @@ Module docstrings say which SPEC section they implement.
 python3 -m unittest -v      # all tests
 python3 -m belong run       # 300-person simulation + leak report (exit 1 on leak)
 python3 -m belong serve     # demo / (and /demo), connector mockup /connector, landing /welcome, trust /trust, inspector /inspector
-gcloud run deploy belong --source . ...   # hosted demo: see README, "Run it online"
 ```
 
 Pure standard library: don't add dependencies without asking. The one exception is the
@@ -95,3 +103,11 @@ OpenAI, else Claude if configured, else rules (BELONG_AGENT overrides). Keys liv
 (git-ignored, loaded by `python3 -m belong serve`); never write a key into the repo. Every
 model-powered agent must route drafts through `build_draft`. Tests never call the network: construct
 `DemoSession(..., agent=None)` or pass a scripted stub client (see tests/test_agent_llm.py).
+
+## Working together
+
+The shared code is the private GitHub repo `superfoundry/belong`. Work on a branch and open a pull
+request; GitHub runs every test and the leak audit (`.github/workflows/ci.yml`), and only a passing
+change can be merged. A merge to `main` deploys to the demo VM by itself (README, "Run it online").
+Never push straight to `main`, never put a key or the demo password in the repo or a workflow, and
+each person keeps their own `.env`.
