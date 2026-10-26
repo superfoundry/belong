@@ -1,7 +1,8 @@
 """Web server. By default loopback only (127.0.0.1 and ::1), never on a network interface.
 
-Hosted (see README, "Run it online"): the container listens on all interfaces (BELONG_HOST=0.0.0.0)
-behind the host's HTTPS, and BELONG_PASSWORD, when set, is required on every request.
+Hosted (see README, "Run it online"): behind HTTPS (Caddy on a VM, or Cloud Run), with
+BELONG_PASSWORD set. Then every page and action needs it: /login asks for the password alone and sets
+a cookie that proves it without containing it.
 
   /, /demo                  two-person demo (belong/web/demo.html)
   /welcome                  landing page (belong/web/landing.html)
@@ -21,8 +22,9 @@ Trust API (for people and their agents; see the trust page for examples):
 """
 from __future__ import annotations
 
-import base64
+import hashlib
 import hmac
+import html
 import json
 import os
 import socket
@@ -95,29 +97,105 @@ UNLOCKED = {ACTIONS["agent"]}
 PROBES = {"canary": probe.canary_test, "attacks": probe.attack_suite}
 
 
-def _authorized(header: str) -> bool:
-    """With BELONG_PASSWORD set (the hosted demo), every request needs it (HTTP Basic, any user name)."""
-    password = os.environ.get("BELONG_PASSWORD", "")
+# -- The hosted demo's password (BELONG_PASSWORD) ------------------------------------------------
+
+COOKIE = "belong_session"
+SIGNED_IN_FOR = 30 * 24 * 3600  # seconds
+OPEN_PATHS = {"/login"}  # and the design files (/ds/...), which the sign-in page needs
+LOGIN_LIMIT = 20  # failed attempts a minute, from anyone; then sign-in pauses for that minute
+_failures: list = []
+_failures_lock = threading.Lock()
+
+
+def _password() -> str:
+    return os.environ.get("BELONG_PASSWORD", "")
+
+
+def _session_token(password: str) -> str:
+    """What the cookie holds: derived from the password, so it proves you knew it without containing
+    it, survives restarts and redeploys, and stops working when the password changes."""
+    return hmac.new(password.encode(), b"belong demo session v1", hashlib.sha256).hexdigest()
+
+
+def _authorized(cookie_header: str) -> bool:
+    """With BELONG_PASSWORD set (the hosted demo), every request needs the sign-in cookie."""
+    password = _password()
     if not password:
         return True
+    from http.cookies import CookieError, SimpleCookie
     try:
-        scheme, _, encoded = (header or "").partition(" ")
-        given = base64.b64decode(encoded, validate=True).decode().partition(":")[2]
-    except (ValueError, UnicodeDecodeError):
+        jar = SimpleCookie(cookie_header or "")
+    except CookieError:
         return False
-    return scheme.lower() == "basic" and hmac.compare_digest(given.encode(), password.encode())
+    given = jar[COOKIE].value if COOKIE in jar else ""
+    return hmac.compare_digest(given.encode(), _session_token(password).encode())
+
+
+def _too_many_failures(record: bool = False) -> bool:
+    now = time.monotonic()
+    with _failures_lock:
+        _failures[:] = [t for t in _failures if now - t < 60]
+        if record:
+            _failures.append(now)
+        return len(_failures) >= LOGIN_LIMIT
+
+
+def _safe_next(target: str) -> str:
+    """Only a path on this site (never another site) after signing in."""
+    return target if target.startswith("/") and not target.startswith("//") and "\\" not in target else "/"
 
 
 class _Handler(BaseHTTPRequestHandler):
-    def _locked_out(self) -> bool:
-        if _authorized(self.headers.get("Authorization", "")):
+    def _locked_out(self, path: str) -> bool:
+        if path in OPEN_PATHS or path.startswith("/ds/") or _authorized(self.headers.get("Cookie", "")):
             return False
-        self.send_response(401)
-        self.send_header("WWW-Authenticate", 'Basic realm="Belong. demo", charset="UTF-8"')
-        self.send_header("Content-Type", "text/plain; charset=utf-8")
-        self.end_headers()
-        self.wfile.write(b"This demo needs a password.")
+        if self.command == "GET" and not path.startswith("/api/"):
+            from urllib.parse import quote
+            self.send_response(303)
+            self.send_header("Location", "/login?next=" + quote(self.path, safe="/"))
+            self.end_headers()
+        else:
+            # Read (and drop) any body first: answering before it's read can cut the connection
+            # before the answer arrives.
+            length = int(self.headers.get("Content-Length") or 0)
+            if 0 < length <= MAX_BODY:
+                self.rfile.read(length)
+            self._json(401, {"error": "This demo needs its password. Sign in at /login."})
         return True
+
+    def _login_page(self, code: int = 200, next_path: str = "/", error: str = "") -> None:
+        page = (WEB / "login.html").read_text()
+        page = page.replace("{{next}}", html.escape(_safe_next(next_path)))
+        page = page.replace("{{error_class}}", " error" if error else "")
+        page = page.replace("{{error}}", f'<p class="error" role="alert">{html.escape(error, quote=False)}</p>' if error else "")
+        self._send(code, page.encode(), "text/html; charset=utf-8")
+
+    def _login(self) -> None:
+        from urllib.parse import parse_qs
+        length = int(self.headers.get("Content-Length") or 0)
+        if length > MAX_BODY:
+            return self._json(413, {"error": "Request too large."})
+        form = {k: v[0] for k, v in parse_qs(self.rfile.read(length).decode("utf-8", "replace")).items()}
+        next_path = _safe_next(form.get("next", "/"))
+        password = _password()
+        if not password:
+            return self._redirect(next_path)
+        if _too_many_failures():
+            return self._login_page(429, next_path, "Too many tries. Wait a minute, then try again.")
+        if not hmac.compare_digest(form.get("password", "").encode(), password.encode()):
+            _too_many_failures(record=True)
+            return self._login_page(401, next_path, "That password isn't right.")
+        secure = "; Secure" if self.headers.get("X-Forwarded-Proto", "") == "https" else ""
+        self.send_response(303)
+        self.send_header("Set-Cookie", f"{COOKIE}={_session_token(password)}; Path=/; Max-Age={SIGNED_IN_FOR}; "
+                                       f"HttpOnly; SameSite=Lax{secure}")
+        self.send_header("Location", next_path)
+        self.end_headers()
+
+    def _redirect(self, location: str) -> None:
+        self.send_response(303)
+        self.send_header("Location", location)
+        self.end_headers()
 
     def _send(self, code: int, body: bytes, ctype: str) -> None:
         self.send_response(code)
@@ -130,9 +208,13 @@ class _Handler(BaseHTTPRequestHandler):
         self._send(code, json.dumps(obj, ensure_ascii=False).encode(), "application/json")
 
     def do_GET(self):
-        if self._locked_out():
-            return
         path = self.path.split("?")[0]
+        if self._locked_out(path):
+            return
+        if path == "/login":
+            if _authorized(self.headers.get("Cookie", "")):  # signed in already, or no password set
+                return self._redirect(_safe_next(self._query().get("next", "/")))
+            return self._login_page(next_path=self._query().get("next", "/"))
         if path == "/api/state":
             with SESSION.lock:
                 _match_if_due(SESSION)
@@ -198,9 +280,11 @@ class _Handler(BaseHTTPRequestHandler):
         return self.send_error(404)
 
     def do_POST(self):
-        if self._locked_out():
-            return
         path = self.path.split("?")[0]
+        if self._locked_out(path):
+            return
+        if path == "/login":
+            return self._login()
         if path.startswith("/api/probe/"):
             fn = PROBES.get(path.removeprefix("/api/probe/"))
             if fn is None:

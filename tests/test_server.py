@@ -1,12 +1,13 @@
 """The web server (belong/server.py): loopback only unless told otherwise, the hosted demo's
-password on every request, and the Matchmaker running when an open page checks in."""
+password (asked alone, at /login) on every request, and the Matchmaker running when an open page
+checks in."""
 from __future__ import annotations
 
-import base64
 import os
 import threading
 import unittest
 import urllib.error
+import urllib.parse
 import urllib.request
 from http.server import ThreadingHTTPServer
 from unittest import mock
@@ -16,42 +17,89 @@ from belong.__main__ import main
 from belong.demo import DemoSession
 
 
-def basic(password: str, user: str = "anyone") -> str:
-    return "Basic " + base64.b64encode(f"{user}:{password}".encode()).decode()
-
-
 class Password(unittest.TestCase):
+    """The hosted demo asks for its password alone (/login), then a cookie proves it."""
+
+    def setUp(self):
+        server._failures.clear()
+        self.httpd = ThreadingHTTPServer(("127.0.0.1", 0), server._Handler)
+        threading.Thread(target=self.httpd.serve_forever, daemon=True).start()
+        self.base = f"http://127.0.0.1:{self.httpd.server_address[1]}"
+        self.env = mock.patch.dict(os.environ, {"BELONG_PASSWORD": "tide-42"})
+        self.env.start()
+
+    def tearDown(self):
+        self.env.stop()
+        self.httpd.shutdown()
+        self.httpd.server_close()
+        server._failures.clear()
+
+    def request(self, path, data=None, cookie=None):
+        """(status, headers, body) without following redirects."""
+        class NoRedirect(urllib.request.HTTPRedirectHandler):
+            def redirect_request(self, *a, **k):
+                return None
+        req = urllib.request.Request(self.base + path, data=data, headers={"Cookie": cookie} if cookie else {})
+        try:
+            with urllib.request.build_opener(NoRedirect).open(req) as r:
+                return r.status, r.headers, r.read().decode()
+        except urllib.error.HTTPError as e:
+            with e:
+                return e.code, e.headers, e.read().decode()
+
+    def sign_in(self, password, next_path="/"):
+        return self.request("/login", urllib.parse.urlencode({"password": password, "next": next_path}).encode())
+
     def test_no_password_set_means_open(self):
         with mock.patch.dict(os.environ, {"BELONG_PASSWORD": ""}):
             self.assertTrue(server._authorized(""))
+            self.assertEqual(self.request("/api/state")[0], 200)
 
-    def test_with_a_password_every_request_needs_it(self):
-        with mock.patch.dict(os.environ, {"BELONG_PASSWORD": "tide-42"}):
-            self.assertTrue(server._authorized(basic("tide-42")))
-            for header in ("", basic("wrong"), "Bearer tide-42", "Basic not-base64!", basic("tide-4")):
-                self.assertFalse(server._authorized(header), header)
+    def test_pages_send_you_to_sign_in_and_actions_are_refused(self):
+        status, headers, _ = self.request("/connector")
+        self.assertEqual((status, headers["Location"]), (303, "/login?next=/connector"))
+        for path in ("/api/state", "/api/trust/receipts"):
+            self.assertEqual(self.request(path)[0], 401, path)
+        self.assertEqual(self.request("/api/reset", b"{}")[0], 401)
+        self.assertEqual(self.request("/api/probe/attacks", b"{}")[0], 401)
+        self.assertEqual(self.request("/ds/tokens.css")[0], 200)  # the sign-in page's own styles
 
-    def test_the_server_refuses_pages_and_actions_without_it(self):
-        httpd = ThreadingHTTPServer(("127.0.0.1", 0), server._Handler)
-        threading.Thread(target=httpd.serve_forever, daemon=True).start()
-        base = f"http://127.0.0.1:{httpd.server_address[1]}"
+    def test_the_sign_in_page_asks_for_the_password_alone(self):
+        status, _, page = self.request("/login?next=/connector")
+        self.assertEqual(status, 200)
+        self.assertIn('type="password"', page)
+        self.assertNotIn("username", page.lower())
+        self.assertIn('value="/connector"', page)
 
-        def status(path, header=None, data=None):
-            req = urllib.request.Request(base + path, data=data, headers={"Authorization": header} if header else {})
-            try:
-                return urllib.request.urlopen(req).status
-            except urllib.error.HTTPError as e:
-                return e.code
-        try:
-            with mock.patch.dict(os.environ, {"BELONG_PASSWORD": "tide-42"}):
-                for path in ("/", "/api/state", "/api/trust/receipts", "/ds/tokens.css"):
-                    self.assertEqual(status(path), 401, path)
-                self.assertEqual(status("/api/reset", data=b"{}"), 401)
-                self.assertEqual(status("/api/probe/attacks", data=b"{}"), 401)
-                self.assertEqual(status("/trust", basic("tide-42")), 200)
-        finally:
-            httpd.shutdown()
-            httpd.server_close()
+    def test_the_right_password_sets_a_cookie_that_doesnt_contain_it(self):
+        status, headers, _ = self.sign_in("tide-42", "/connector")
+        self.assertEqual((status, headers["Location"]), (303, "/connector"))
+        cookie = headers["Set-Cookie"]
+        self.assertNotIn("tide-42", cookie)
+        self.assertIn("HttpOnly", cookie)
+        self.assertIn("SameSite=Lax", cookie)
+        jar = cookie.split(";")[0]
+        self.assertEqual(self.request("/api/state", cookie=jar)[0], 200)
+        self.assertEqual(self.request("/trust", cookie=jar)[0], 200)
+
+    def test_a_wrong_password_or_cookie_gets_nothing(self):
+        status, headers, page = self.sign_in("tide-4")
+        self.assertEqual(status, 401)
+        self.assertIsNone(headers["Set-Cookie"])
+        self.assertIn("That password isn't right.", page)
+        self.assertEqual(self.request("/api/state", cookie=f"{server.COOKIE}=tide-42")[0], 401)
+        self.assertEqual(self.request("/api/state", cookie=f"{server.COOKIE}=")[0], 401)
+
+    def test_never_sent_to_another_site_after_signing_in(self):
+        for target in ("//evil.example", "https://evil.example", "/\\evil.example"):
+            self.assertEqual(self.sign_in("tide-42", target)[1]["Location"], "/", target)
+
+    def test_guessing_is_limited(self):
+        for _ in range(server.LOGIN_LIMIT):
+            self.sign_in("wrong")
+        status, headers, page = self.sign_in("tide-42")  # even the right one waits out the minute
+        self.assertEqual(status, 429)
+        self.assertIsNone(headers["Set-Cookie"])
 
 
 @mock.patch("belong.__main__.load_dotenv", lambda: None)  # never read the real .env in tests
