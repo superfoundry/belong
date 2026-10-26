@@ -314,16 +314,23 @@
   .embedded .site-nav, .embedded .phone-wrap .eyebrow, .embedded .wrap-head { display: none !important; }
   .embedded body { background: transparent; }
   .embedded .stage { padding: var(--space-3) 0 0; }
-  body.only-A .stage, body.only-B .stage { grid-template-columns: minmax(0, 420px); justify-content: center; }
-  body.only-A .panel, body.only-B .panel, body.only-A .phone-wrap:last-child, body.only-B .phone-wrap:first-child { display: none; }
+  /* One phone on its own: /demo?phone=A or B, or a synthetic person taken over from the inspector. */
+  body.single .stage { grid-template-columns: minmax(0, 420px); justify-content: center; }
+  body.single .panel, body.single .phone-wrap:not(.on) { display: none; }
+  /* A taken-over person's phone opens in a small window, so the phone fits it. */
+  body.taken .stage { padding: var(--space-3) var(--space-3) var(--space-4); }
+  body.taken .phone { height: calc(100vh - 76px); min-height: 520px; max-height: 800px; }
+  .wrap-head { display: flex; align-items: center; gap: var(--space-2); margin: 0 0 var(--space-2) var(--space-2); }
+  .wrap-head .eyebrow { flex: 1; color: var(--text-tertiary); }
+  .phone-wrap.gone .wrap-head .btn { display: none; }
 </style>
 </head>
 <body>
 <script src="/nav.js"></script>
 <div class="stage">
-  <div class="phone-wrap"><p class="eyebrow">Person A's phone</p><div class="phone" id="phone-A"></div></div>
+  <div class="phone-wrap" data-slot="A"><p class="eyebrow">Person A's phone</p><div class="phone" id="phone-A"></div></div>
   <div class="panel" id="room" data-theme="dark"></div>
-  <div class="phone-wrap"><p class="eyebrow">Person B's phone</p><div class="phone" id="phone-B"></div></div>
+  <div class="phone-wrap" data-slot="B"><p class="eyebrow">Person B's phone</p><div class="phone" id="phone-B"></div></div>
 </div>
 <div class="toast" id="toast" role="status"></div>
 <script>
@@ -362,10 +369,27 @@ const SCENARIOS = {
 
 let S = null;               // last state from the server
 let scenario = "blank";
+// The phones on this page: A and B beside the presenter panel, or one phone on its own
+// (?phone=A, ?phone=B, or ?phone=<id> for a synthetic person taken over from the inspector).
+// Phone ids are letters and digits only; the server refuses any phone that doesn't exist.
+const ONLY = new URLSearchParams(location.search).get("phone");
+const VIEW = ONLY && /^[A-Za-z0-9]{1,16}$/.test(ONLY) ? [ONLY] : ["A", "B"];
+const SINGLE = VIEW.length === 1;
+if (SINGLE) {
+  document.body.classList.add("single");
+  if (!document.querySelector(`.phone-wrap[data-slot="${ONLY}"]`)) {
+    document.body.classList.add("taken");
+    document.querySelector(".stage").insertAdjacentHTML("beforeend", `<div class="phone-wrap gone" data-slot="${ONLY}">
+      <div class="wrap-head"><p class="eyebrow" id="label-${ONLY}">Synthetic person</p>
+        <button class="btn ghost sm" onclick="handBack('${ONLY}')">Hand back</button></div>
+      <div class="phone" id="phone-${ONLY}"></div></div>`);
+  }
+  document.querySelector(`.phone-wrap[data-slot="${ONLY}"]`).classList.add("on");
+}
 // Per phone: the open tab, the verify form, which listing is open, and per-listing local
 // state (an editable copy of the draft, the half-typed message, chat sheet state).
 const fresh = () => ({ tab: null, view: null, thread: null, form: {}, current: null, ls: {}, seen: {}, msg: {}, seenFound: {} });
-const local = { A: fresh(), B: fresh() };
+const local = Object.fromEntries(VIEW.map(s => [s, fresh()]));
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const val = v => Array.isArray(v) ? v.join(", ") : v;
 const $ = id => document.getElementById(id);
@@ -444,8 +468,19 @@ function unread(slot, i) {
 }
 
 function renderPhone(slot) {
+  document.querySelector(`.phone-wrap[data-slot="${slot}"]`).classList.toggle("gone", !S.phones[slot]);
+  if (!S.phones[slot]) {  // a taken-over person who was handed back, or the demo was reset
+    $("phone-" + slot).innerHTML = `<div class="screen"><div class="empty card md"><h2 class="heading-l">No longer on a phone</h2>
+      <p class="body-s secondary">This synthetic person was handed back, or the demo was reset, so they answer for themselves again. Take them over again from the inspector.</p></div></div>`;
+    if ($("label-" + slot)) $("label-" + slot).textContent = "Synthetic person";
+    return;
+  }
   if (S.phones[slot].verified) syncDraft(slot);
   const p = S.phones[slot], L = local[slot], screen = screenFor(slot);
+  if (p.taken_over && $("label-" + slot)) {
+    $("label-" + slot).textContent = `Answering as ${p.name}`;
+    document.title = `${p.name} in the Belong. demo`;
+  }
   if (screen === "thread") { const i = connected(p).find(x => x.intro_id === L.thread); if (i) L.seen[i.intro_id] = (i.thread || []).length; }
   const pending = p.listings.reduce((n, l) => n + needsAnswer(l), 0);
   if (screen === "found" || screen === "thread") for (const i of connected(p)) L.seenFound[i.intro_id] = true;
@@ -517,7 +552,7 @@ function messageRow(slot, i, m, n, t, theirName, myName) {
 // Tapping anywhere else closes an open reaction picker.
 document.addEventListener("click", e => {
   if (!document.contains(e.target)) return;  // the tap redrew the screen (e.g. it opened the picker)
-  for (const slot of ["A", "B"]) {
+  for (const slot of VIEW) {
     if (local[slot].gear && !e.target.closest(`#phone-${slot} .gear-pop, #phone-${slot} .gear`)) {
       local[slot].gear = null; renderPhone(slot);
     }
@@ -1080,13 +1115,19 @@ function reveal(slot, intro_id) {
 // Behind the scenes (presenter view, in the system's dark treatment)
 // ---------------------------------------------------------------------------------
 const KIND = { in: ["", "Received"], out: ["olive", "Sent"], blocked: ["error", "Blocked"], inside: ["ai", "Private"] };
+// A synthetic person taken over (from the inspector) gets their phone in a small window of its own.
+function openPhone(slot) { window.open("/demo?phone=" + encodeURIComponent(slot), "belong-" + slot, "width=420,height=860"); }
+async function handBack(slot) {
+  if (await api("hand_back", { slot })) { toast("Handed back: they answer for themselves again."); render([slot]); }
+}
 function renderRoom() {
   const r = S.room, lr = r.leak_report;
   const blocked = r.events.filter(e => e.kind === "blocked").length;
+  const taken = (r.taken_over || []).map(t => `<a href="/demo?phone=${encodeURIComponent(t.slot)}" onclick="openPhone('${esc(t.slot)}'); return false">${esc(t.name)}</a>`);
   $("room").innerHTML = `
     <p class="eyebrow">Presenter view</p>
     <h2 class="display-s" style="margin-top: var(--space-2)">Behind the scenes</h2>
-    <p class="sub"><b>${esc(r.agent_status)}</b> on each phone. Single-phone views: <a href="/demo?phone=A" target="_blank">A</a>, <a href="/demo?phone=B" target="_blank">B</a>.<br>
+    <p class="sub"><b>${esc(r.agent_status)}</b> on each phone. Single-phone views: <a href="/demo?phone=A" target="_blank">A</a>, <a href="/demo?phone=B" target="_blank">B</a>.${taken.length ? ` Synthetic people taken over from the <a href="/inspector">inspector</a>: ${taken.join(", ")}.` : ""}<br>
       What private matching reads and what Belong. sends out. The goal for production is that no one can see this, not even the people who run Belong. It's shown here only because the data is synthetic.</p>
     <div class="controls">
       <select class="select" id="scenario" aria-label="Scenario" onchange="scenario=this.value; resetLocal(false); render(['A','B'])">${Object.entries(SCENARIOS).map(([k, s]) => `<option value="${k}" ${k === scenario ? "selected" : ""}>${esc(s.label)}</option>`).join("")}</select>
@@ -1129,7 +1170,7 @@ function payloadHtml(e) {
 }
 
 function resetLocal(clearForms = true) {
-  for (const s of ["A", "B"]) {
+  for (const s of VIEW) {
     if (clearForms) local[s] = fresh();
     else { Object.assign(local[s], { tab: null, view: null, form: {} }); for (const c of Object.values(local[s].ls)) c.chatText = ""; }
   }
@@ -1171,23 +1212,22 @@ async function fastForward() {
 
 // Redraw only what changed, so acting on one phone never disturbs the other
 // (half-typed text, open sections, scroll position).
-const last = { A: null, B: null, room: null };
+const last = { room: null };
 function render(force = []) {
-  for (const slot of ["A", "B"]) {
-    const snap = JSON.stringify(S.phones[slot]);
+  for (const slot of VIEW) {
+    const snap = JSON.stringify(S.phones[slot] ?? null);
     if (force.includes(slot) || snap !== last[slot]) { last[slot] = snap; renderPhone(slot); }
   }
+  if (SINGLE) return;  // the presenter panel isn't on a single-phone page
   const roomSnap = JSON.stringify(S.room) + scenario + ffBusy;
   if (roomSnap !== last.room) { last.room = roomSnap; renderRoom(); }
 }
-const ONLY = new URLSearchParams(location.search).get("phone");
-if (ONLY === "A" || ONLY === "B") document.body.classList.add("only-" + ONLY);
-fetch(STATE_URL).then(r => r.json()).then(d => { S = d; render(["A", "B"]); });
+fetch(STATE_URL).then(r => r.json()).then(d => { S = d; render(VIEW); });
 // Keep in sync with actions from other windows or devices (e.g. each person on their own phone).
 // Each check-in also lets the Matchmaker run (every few seconds), so matches arrive without a button.
 setInterval(async () => {
   if (inflight) return;
-  try { const d = await (await fetch(STATE_URL)).json(); if (!inflight) { const first = !S; S = d; render(first ? ["A", "B"] : []); } } catch (_) {}
+  try { const d = await (await fetch(STATE_URL)).json(); if (!inflight) { const first = !S; S = d; render(first ? VIEW : []); } } catch (_) {}
 }, 2500);
 </script>
 </body>
