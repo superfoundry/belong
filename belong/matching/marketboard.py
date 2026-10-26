@@ -19,9 +19,11 @@ class Marketboard:
         # Every version each listing has had, so the audit can check an output against the listing
         # as it was when the output was sent (a question quotes the version live at the time).
         self._versions: dict[str, list] = {}
+        self.changes = 0  # goes up whenever a listing is added, updated or withdrawn
 
     def put(self, person: Person, listing: Listing) -> None:
         """Store a listing under its own id (a person may own several)."""
+        self.changes += 1
         self._persons[listing.person_id] = person
         self._listings[listing.person_id] = listing
         self._versions.setdefault(listing.person_id, []).append(listing)
@@ -35,6 +37,7 @@ class Marketboard:
 
     def withdraw(self, listing_id: str) -> None:
         """Take a listing off the board (only the Warden calls this, when its owner deletes it)."""
+        self.changes += 1
         self._withdrawn[listing_id] = self._listings.pop(listing_id)
 
     def person(self, listing_id: str) -> Person:

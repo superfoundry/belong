@@ -124,17 +124,44 @@ class Listening(unittest.TestCase):
 
 
 class MatchingOnCheckIn(unittest.TestCase):
-    def test_runs_at_most_every_few_seconds(self):
-        s = DemoSession(seed=7, agent=None)
-        with mock.patch.object(s, "run_matchmaker") as run, mock.patch.object(server.time, "monotonic") as clock:
-            clock.return_value = 1000.0
-            server._match_if_due(s)
-            server._match_if_due(s)  # a second page checking in straight away
-            self.assertEqual(run.call_count, 1)
-            clock.return_value = 1000.0 + server.MATCH_EVERY
-            server._match_if_due(s)
-            self.assertEqual(run.call_count, 2)
-            run.assert_called_with(quiet=True)
+    """It runs when a page checks in, but only when something changed (or once a minute anyway)."""
+
+    def setUp(self):
+        self.s = DemoSession(seed=7, agent=None)
+        self.run = mock.patch.object(self.s, "run_matchmaker", return_value=False).start()
+        self.clock = mock.patch.object(server.time, "monotonic", return_value=1000.0).start()
+        self.addCleanup(mock.patch.stopall)
+        server._last_match.pop(id(self.s), None)
+
+    def checkin(self, at):
+        self.clock.return_value = 1000.0 + at
+        server._match_if_due(self.s)
+        return self.run.call_count
+
+    def test_the_first_check_in_runs_it(self):
+        self.assertEqual(self.checkin(0), 1)
+        self.run.assert_called_with(quiet=True)
+
+    def test_nothing_changed_means_it_waits(self):
+        self.checkin(0)
+        self.assertEqual(self.checkin(server.MATCH_EVERY), 1)
+        self.assertEqual(self.checkin(server.IDLE_EVERY - 1), 1)
+        self.assertEqual(self.checkin(server.IDLE_EVERY), 2)  # once a minute anyway
+
+    def test_a_change_starts_it_again_but_not_more_than_every_few_seconds(self):
+        self.checkin(0)
+        self.s.changes += 1
+        self.assertEqual(self.checkin(1), 1)
+        self.assertEqual(self.checkin(server.MATCH_EVERY), 2)
+        self.s.board.changes += 1  # a listing updated (e.g. by the agent, off the request)
+        self.assertEqual(self.checkin(2 * server.MATCH_EVERY), 3)
+
+    def test_after_sending_something_it_looks_again(self):
+        self.run.return_value = True  # there may be more people waiting
+        self.checkin(0)
+        self.run.return_value = False
+        self.assertEqual(self.checkin(server.MATCH_EVERY), 2)
+        self.assertEqual(self.checkin(2 * server.MATCH_EVERY), 2)
 
 
 if __name__ == "__main__":

@@ -52,7 +52,9 @@ FILES = {
 }
 MAX_BODY = 64 * 1024
 
-SESSION = DemoSession()
+# How many synthetic people the demo starts with (BELONG_PEOPLE; tests use DemoSession's own 300).
+PEOPLE = int(os.environ.get("BELONG_PEOPLE", "5000"))
+SESSION = DemoSession(people=PEOPLE)
 # The chat mockup's own session: one person, matched against the synthetic people, so it never
 # touches the two phones. Made on first use.
 _CHAT = None
@@ -63,7 +65,7 @@ CHAT_ACTIONS = {"reset", "verify", "new_listing", "open_listing", "prefill", "ag
 def chat_session() -> DemoSession:
     global _CHAT
     if _CHAT is None:
-        _CHAT = DemoSession()
+        _CHAT = DemoSession(people=PEOPLE)
         _CHAT.assistant_slots = {"A"}  # the connector user
     return _CHAT
 
@@ -327,6 +329,8 @@ class _Handler(BaseHTTPRequestHandler):
             else:
                 with session.lock:
                     action(session, body)
+            with session.lock:
+                session.changes += 1  # something happened: the Matchmaker will look again
         except DemoError as e:
             with session.lock:
                 return self._json(400, {"error": str(e), **shape(session)})
@@ -341,23 +345,30 @@ class _IPv6Server(ThreadingHTTPServer):
     address_family = socket.AF_INET6
 
 
-MATCH_EVERY = 6  # seconds between Matchmaker runs in the demo
-_last_match: dict = {}  # id(session) -> when its Matchmaker last ran
+MATCH_EVERY = 6  # at most this often (seconds) when something has changed
+IDLE_EVERY = 60  # and once a minute anyway, for what only time changes (a daily limit opening up again)
+_last_match: dict = {}  # id(session) -> {"at": when it last ran, "seen": what it had seen, "more": it sent something}
+
+
+def _activity(session: DemoSession) -> tuple:
+    return session.board.changes, session.changes
 
 
 def _match_if_due(session: DemoSession) -> None:
-    """The demo's Matchmaker runs on its own every few seconds, like the real service would, so
-    nobody has to press Run Matchmaker. It runs when an open page checks in (they poll every few
-    seconds), so nothing runs while nobody is looking, and a host may pause the CPU between requests.
-    Quiet runs only show in the log when they send something. Call with the session's lock held."""
-    now = time.monotonic()
-    if now - _last_match.get(id(session), 0) < MATCH_EVERY:
-        return
-    _last_match[id(session)] = now
+    """The demo's Matchmaker runs on its own, like the real service would, so nobody has to press a
+    button. It runs when an open page checks in (they poll every few seconds), so nothing runs while
+    nobody is looking; and it only runs when something changed (a listing, an answer, a decision) or
+    its last run sent something, plus once a minute anyway. Call with the session's lock held."""
+    now, last = time.monotonic(), _last_match.get(id(session))
+    if last is not None:
+        changed = last["more"] or _activity(session) != last["seen"]
+        if not (changed and now - last["at"] >= MATCH_EVERY) and now - last["at"] < IDLE_EVERY:
+            return
     try:
-        session.run_matchmaker(quiet=True)
+        more = session.run_matchmaker(quiet=True)
     except DemoError:
-        pass  # no demo listings yet
+        more = False  # no demo listings yet
+    _last_match[id(session)] = {"at": now, "seen": _activity(session), "more": more}
 
 
 def serve(port: int = 8000, host: str = "127.0.0.1") -> None:

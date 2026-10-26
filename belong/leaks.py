@@ -56,13 +56,25 @@ def _as_quoted(headline):
     return h[:1].lower() + h[1:]
 
 
+_WORDS: dict = {}  # value -> its compiled whole-word pattern (Python's own cache is too small here)
+
+
+def _word(s: str):
+    pattern = _WORDS.get(s)
+    if pattern is None:
+        if len(_WORDS) > 200_000:
+            _WORDS.clear()
+        pattern = _WORDS[s] = re.compile(r"(?<!\w)" + re.escape(s) + r"(?!\w)", re.I)
+    return pattern
+
+
 def _contains(text: str, s: str) -> bool:
-    return re.search(r"(?<!\w)" + re.escape(s) + r"(?!\w)", text, flags=re.I) is not None
+    return _word(s).search(text) is not None
 
 
 def _scrub(text: str, allowed: set) -> str:
     for s in sorted(allowed, key=len, reverse=True):
-        text = re.sub(r"(?<!\w)" + re.escape(s) + r"(?!\w)", " ", text, flags=re.I)
+        text = _word(s).sub(" ", text)
     return text
 
 

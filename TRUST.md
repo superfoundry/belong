@@ -128,6 +128,7 @@ that nothing published relies on unpublished code.
 | 28 | **Messages only between two people who both said yes**, delivered only to them, never read by matching, and never logged: the presenter panel shows that a message was sent, not what it says. Reactions are one of a fixed few, on that same conversation only. If someone uses Belong. through their own AI assistant (the connector), their match is told on their side of the chat, because what they write passes through that assistant's provider. | `DemoSession.send_message` (requires the Warden's `is_connected`); threads are kept outside the Marketboard | `test_no_messages_until_both_say_yes`, `test_messages_reach_only_the_two_people_and_never_matching`, `test_only_a_few_reactions_and_only_between_connected_people` |
 | 29 | **A paused listing isn't matched.** The person can switch a listing off (the gear on it): it gets no new introductions or questions until they switch it back on. Existing matches and chats stay. | `Listing.active`; `OfflineMatcher.match` skips paused listings; Warden's `listings_active` and `listing_active` checks | `test_a_paused_listing_gets_no_new_matches`; attack suite: "Introduce someone to a paused listing", "Ask a paused listing a question" |
 | 30 | **A deleted listing is never matched again.** Deleting takes it off the Marketboard through the Warden, which checks the person owns it and writes a receipt. | `Warden.withdraw` (`listing_withdrawn`), `Marketboard.withdraw`; `DemoSession.delete_listing` | `test_a_deleted_listing_is_never_matched_again`; attack suite: "Introduce someone to a deleted listing" |
+| 31 | **A simulated person's replies are written only from what they'd know.** In the demo, an AI model plays a synthetic person you're connected with: it says hello when you match, then answers only your messages (never a chat between two synthetic people), and may react with one of the same fixed few reactions. It is given that person's own shown details and request, what their introduction showed them about you (your shown details and the Warden's reason) and the conversation, never anyone's hidden details. At most 30 replies a conversation; a synthetic person someone has taken over doesn't auto-reply. | [persona_chat.py](belong/persona_chat.py) `context`, `reply`; `DemoSession._persona_turn` / `_persona_reply` in [demo.py](belong/demo.py) | [test_persona_chat.py](tests/test_persona_chat.py): `test_the_model_never_sees_anyones_hidden_details`, `test_two_real_people_get_no_simulated_replies`, `test_replies_stop_after_a_while`, `test_they_say_hello_when_you_match` |
 
 ### Testing Belong. with your own agent
 
@@ -254,6 +255,9 @@ here so nobody mistakes the prototype for the finished service.
     refuses to start without a password (`_authorized`, `_login` in [server.py](belong/server.py);
     `tests/test_server.py`). On a VM the demo still listens only on the VM itself, behind Caddy;
     run locally, only on your own machine. Use made-up details only.
+18. **What you write to a simulated person goes to the AI provider** (OpenAI or Anthropic), because a
+    model writes their replies. Only in the demo, and only to synthetic people: messages between two real
+    people are never sent to a model.
 
 ---
 

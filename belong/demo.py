@@ -1,6 +1,7 @@
 """Two-person demo (proof of concept for the front end).
 
-Two people, A and B, join a service already holding 300 synthetic listings. Each person
+Two people, A and B, join a service already holding synthetic listings (5,000 when served;
+BELONG_PEOPLE changes it). Each person
 can hold several listings at once (say, one looking for a tutor and one looking for
 love). Each listing has its own conversation with the person's agent, its own draft and
 its own introductions, and is matched on its own; a person is never introduced to their
@@ -30,7 +31,7 @@ import threading
 from datetime import datetime, timezone
 from dataclasses import replace
 
-from . import agent
+from . import agent, persona_chat
 from .agent_llm import AgentUnavailable, ClaudeAgent
 from .agent_openai import OpenAIAgent
 from .leaks import leak_report
@@ -46,8 +47,10 @@ K_CROWD = 20
 APPROACH_LIMIT = 15  # introductions per listing per day (the Warden's limit)
 PER_RUN = 3  # at most this many new introductions per listing in one Matchmaker run, so nobody gets them all at once
 LOOK_PAST = 1000  # how far down each listing's ranking the Matchmaker looks, past people already introduced
+SHORTLIST = 400  # candidates per phone listing; only the two phones are matched each run, so it can be generous
 MAX_LISTINGS = 5
 MESSAGE_MAX = 1000  # characters in one message to a match
+PERSONA_REPLIES = 30  # a simulated person replies at most this many times in one conversation
 REACTIONS = ("👍", "❤️", "😂", "😮", "🙏")  # the only reactions a message can get
 
 
@@ -126,10 +129,12 @@ class _Slot:
 
 
 class DemoSession:
-    def __init__(self, seed: int = 7, agent="auto"):
+    def __init__(self, seed: int = 7, agent="auto", people: int = 300):
         """agent: "auto" picks a model-powered agent when one is configured (else the rule-based
-        agent), None forces the rule-based agent (tests), or pass any object with respond()."""
+        agent), None forces the rule-based agent (tests), or pass any object with respond().
+        people: how many synthetic people share the board with the two phones."""
         self.lock = threading.Lock()
+        self.people = people
         self._agent_choice = agent
         self.generation = 0
         # People who use Belong. through their own AI assistant (the connector). Their matches are
@@ -172,7 +177,7 @@ class DemoSession:
         self.generation += 1
         self.llm, self.agent_status = self._make_agent()
         self.rng = random.Random(seed)
-        self.personas = {p.person.id: p for p in generate(300, seed)}
+        self.personas = {p.person.id: p for p in generate(self.people, seed)}
         self.clock = Clock()
         self.warden = Warden(self.clock, key=hashlib.sha256(f"demo-audit-{seed}".encode()).digest(),
                              approach_limit_per_day=APPROACH_LIMIT)
@@ -182,20 +187,23 @@ class DemoSession:
         self._seed_receipts = len(self.warden.receipts)
         # The Matchmaker doesn't remember who was introduced, so it ranks everyone; the demo skips pairs
         # already introduced and sends the Warden at most PER_RUN new ones per listing each run.
-        self.matcher = OfflineMatcher(k_crowd=K_CROWD, max_per_person=LOOK_PAST)
+        self.matcher = OfflineMatcher(k_crowd=K_CROWD, max_per_person=LOOK_PAST, shortlist_size=SHORTLIST)
         self.slots = {s: _Slot(s) for s in SLOTS}
         self.events = []
         self.intros = {}  # intro_id -> Introduction
         self.declined = set()  # (listing_id, about): said no to "Would that work for you?" about that listing
         self.intro_reasons = {}  # intro_id -> the reason fields it was made with
         self.threads = {}  # intro_id -> [{"from": listing_id, "text"}]: messages between two connected people
+        self.persona_typing = set()  # intro_ids where a simulated person is writing a reply
+        self.persona_replies = {}  # intro_id -> how many times the simulated person has replied
         self.introduced_pairs = set()
         self.decisions = {}  # (intro_id, listing_id) -> bool
         self.consents = {}  # (intro_id, listing_id) -> set
         self.connections = set()
         self.outputs = {"followups": [], "reveals": []}
         self.last_proposals = []
-        self.last_run = None  # demo time the Matchmaker last ran (it runs every few seconds on its own)
+        self.last_run = None  # demo time the Matchmaker last ran (it runs on its own when something changes)
+        self.changes = 0  # goes up with every action anyone takes (the server counts them)
         # Held back by the Warden: not sent again until something changes, so a stuck pair doesn't
         # add receipts every few seconds. pair -> (versions, failed checks, when)
         self.held_back = {}
@@ -639,16 +647,17 @@ class DemoSession:
     def _demo_listing_ids(self) -> set:
         return {l.id for st in self.slots.values() for l in st.listings if l.id in self.board}
 
-    def run_matchmaker(self, quiet: bool = False) -> None:
-        """quiet: the automatic run every few seconds. It only leaves a trace in the presenter's log
-        when something happens: a new introduction or question, or one the Warden held back."""
+    def run_matchmaker(self, quiet: bool = False) -> bool:
+        """quiet: the automatic run. It only leaves a trace in the presenter's log when something
+        happens: a new introduction or question, or one the Warden held back. Returns whether it
+        sent anything (then there may be more waiting for the next run)."""
         demo_ids = self._demo_listing_ids()
         if not demo_ids:
             raise DemoError("Neither phone has a listing yet.")
         events_before, sent_before = len(self.events), (len(self.intros), len(self.outputs["followups"]))
         self.clock.advance(minutes=10) if quiet else self.clock.advance(hours=1)
         self.last_run = self.clock.now()
-        result = self.matcher.match(self.board)
+        result = self.matcher.match(self.board, focus=demo_ids)  # only the phones' matches, not everyone's
         mine = [p for p in result.proposals if {p.person_a, p.person_b} & demo_ids]
         self.last_proposals = mine
         # New pairs only, a few per listing at a time, in the Matchmaker's own order.
@@ -728,12 +737,14 @@ class DemoSession:
                         payload=[{"to": self._name(intro.person_a), "view": intro.a_view},
                                  {"to": self._name(intro.person_b), "view": intro.b_view}],
                         receipts=receipts, slots=slots)
+        sent = (len(self.intros), len(self.outputs["followups"])) != sent_before
         if quiet and len(self.events) == noted:
             del self.events[events_before:]  # nothing happened: no trace in the log
-            return
+            return sent
         if not mine and not any(l.followups for st in self.slots.values() for l in st.listings):
             self._event("inside", "No match yet for the demo phones",
                         "Nobody on the board meets their intent and is also looking for them.")
+        return sent
 
     def _versions(self, p: Proposal) -> tuple:
         return tuple(self.board.listing(x).version if x in self.board else -1 for x in (p.person_a, p.person_b))
@@ -905,6 +916,8 @@ class DemoSession:
             slots = [s for s in (self._slot_of(intro.person_a), self._slot_of(intro.person_b)) if s]
             self._event("out", f"{self._name(intro.person_a)} and {self._name(intro.person_b)} connected",
                         "Both said yes, so each can now be put in touch.", slots=slots)
+            if self._slot_of(other) is None and not self.threads.get(intro_id):
+                self._persona_turn(intro_id, other)  # a simulated person you matched with says hello first
 
     def _record(self, intro_id: str, listing_id: str, yes: bool) -> None:
         self.decisions[(intro_id, listing_id)] = yes
@@ -981,6 +994,56 @@ class DemoSession:
         self._event("out", f"{st.name} sent {self._name(other)} a message",
                     "Delivered only to the two of them. Matching never reads messages.",
                     slots=[s for s in (slot, self._slot_of(other)) if s])
+        if self._slot_of(other) is None:
+            self._persona_turn(intro_id, other)  # a simulated person answers, since someone wrote to them
+
+    def _persona_turn(self, intro_id: str, me: str) -> None:
+        """A simulated person writes (and maybe reacts): a hello when a real person matches with
+        them, then only in answer to that person's messages. One reply at a time per conversation,
+        at most PERSONA_REPLIES times. Two simulated people never chat."""
+        if intro_id in self.persona_typing or self.persona_replies.get(intro_id, 0) >= PERSONA_REPLIES:
+            return
+        self.persona_typing.add(intro_id)
+        generation = self.generation
+        self._spawn(lambda: self._persona_reply(intro_id, me, generation))
+
+    def _persona_reply(self, intro_id: str, me: str, generation: int) -> None:
+        import time
+        started = time.monotonic()
+        with self.lock:
+            if generation != self.generation:
+                return
+            intro = self.intros[intro_id]
+            mine = self.board.listing(me)
+            # Only what this person would know: their own shown details and request, and the
+            # introduction they were shown. Never anyone's hidden details.
+            ctx = persona_chat.context(self._name(me), mine.shown(), mine.intent_text,
+                                       intro.a_view if intro.person_a == me else intro.b_view)
+            thread = [dict(m) for m in self.threads.get(intro_id, [])]
+            llm, rng = self.llm, random.Random(f"{intro_id}:{len(thread)}")
+        try:
+            text, react = persona_chat.reply(llm, ctx, thread, me, REACTIONS, rng)
+        except Exception:  # the model is unavailable: answer simply rather than not at all
+            text, react = persona_chat.fallback(thread, me, REACTIONS, rng)
+        if not self.run_inline:
+            time.sleep(max(0.0, 1.5 - (time.monotonic() - started)))  # people take a moment to type
+        with self.lock:
+            if generation != self.generation:
+                return
+            self.persona_typing.discard(intro_id)
+            live = self.threads.setdefault(intro_id, [])
+            theirs = [n for n, m in enumerate(live[:len(thread)]) if m["from"] != me]
+            if react and theirs:
+                live[theirs[-1]]["reactions"][me] = react
+            at = datetime.now(timezone.utc).isoformat(timespec="seconds")
+            live.append({"from": me, "text": text, "at": at, "reactions": {}})
+            self.persona_replies[intro_id] = self.persona_replies.get(intro_id, 0) + 1
+            other = intro.person_b if intro.person_a == me else intro.person_a
+            self._event("out", f"{self._name(me)} replied to {self._name(other)}",
+                        "A simulated person's reply, written by the AI model from what they were shown. "
+                        "Its content isn't logged.", slots=[s for s in [self._slot_of(other)] if s])
+            if any(m["from"] != me for m in live[len(thread):]):
+                self._persona_turn(intro_id, me)  # they wrote again while this reply was being written
 
     def react(self, slot: str, intro_id: str, index, emoji: str) -> None:
         """React to a message in a conversation with a match: one of a fixed few, one per
@@ -1079,7 +1142,8 @@ class DemoSession:
                 item["thread"] = [{"mine": m["from"] == mine.id, "text": m["text"], "at": m["at"],
                                    "reactions": [{"emoji": e, "mine": who == mine.id} for who, e in m["reactions"].items()]}
                                   for m in self.threads.get(intro_id, [])]
-                item["simulated"] = self._slot_of(other) is None  # a synthetic person can't reply
+                item["simulated"] = self._slot_of(other) is None  # their replies are written by the AI model
+                item["typing"] = intro_id in self.persona_typing
                 item["their_assistant"] = self._slot_of(other) in self.assistant_slots
             intros.append(item)
         hidden_keys = []
