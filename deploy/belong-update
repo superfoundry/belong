@@ -1,0 +1,17 @@
+#!/bin/sh
+# Installed as /usr/local/sbin/belong-update by deploy/allow-deploys.sh. GitHub's deploy (after the
+# tests pass on main) pipes the code here as a .tar.gz over SSH, and the deploy key can run nothing
+# else. It only replaces the app's code and restarts it: nothing from the upload runs as root, and it
+# never touches /opt/belong/.env, Caddy or the service definition.
+set -eu
+tmp=$(mktemp -d)
+trap 'rm -rf "$tmp"' EXIT
+head -c 50000000 | tar -xz -C "$tmp" --no-same-owner --no-same-permissions
+[ -f "$tmp/belong/__main__.py" ] || { echo "That isn't the Belong. code." >&2; exit 1; }
+if [ -n "$(find "$tmp" -type l)" ]; then echo "Links aren't allowed in the upload." >&2; exit 1; fi
+rm -rf /opt/belong/belong /opt/belong/out
+cp -r "$tmp/belong" /opt/belong/belong
+for f in README.md SPEC.md TRUST.md; do [ -f "$tmp/$f" ] && cp "$tmp/$f" /opt/belong/; done
+chown -R belong:belong /opt/belong
+systemctl restart belong
+echo "Deployed."
