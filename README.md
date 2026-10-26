@@ -55,8 +55,10 @@ you want to meet someone *for*: "I enjoy climbing" in a dating request is a hobb
 a climbing partner) and, for dating, who you'd like to meet and their ages ("Looking for: a woman,
 30–49"). It works the ages out from what you said: "early 30s", "late 20s to mid 30s", "around my
 age" (one age band either side of yours). When your words could mean two things (meeting a woman,
-and climbing; or just "a partner"), it asks you one short question before saving anything, and
-"both" makes two listings, each with its own kind. The Warden lets these details in only as fixed
+and climbing; or just "a partner"), it should ask you one short question before saving, and "both"
+makes two listings, each with its own kind. The Claude or OpenAI agent is told to ask (an
+instruction, not something the code can check); the rule-based agent asks when its own readers
+see two readings, and never records a kind or an age range it only guessed. The Warden lets these details in only as fixed
 choices (no listing can ask for anyone under 18), and matching uses them first. Your description is
 read only for what they don't say, and it's never shown to anyone. A detail you hide never decides a
 match: matching then reads your description as if the detail weren't there.

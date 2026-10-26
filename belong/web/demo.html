@@ -411,11 +411,11 @@ function wantsText(genders, ages) {
   const who = g.length >= 3 ? "anyone" : g.map(x => GENDER_WORDS[x] || x).join(" or ");
   return [who, agesText(ages)].filter(Boolean).join(", ");
 }
-// A match's shown details as tags, and who they'd like to meet in words.
-function matchFacts(fields) {
+// A match's shown details as tags, and, for a dating match only, who they'd like to meet in words.
+function matchFacts(fields, dating) {
   const skip = ["first_name", "seeking", "offering", "headline", ...UNDERSTOOD];
   const facts = Object.entries(fields).filter(([k]) => !skip.includes(k)).map(([, v]) => val(v));
-  const wants = fields.wants_gender || fields.wants_age ? wantsText(fields.wants_gender, spanOf(fields.wants_age)) : "";
+  const wants = dating && (fields.wants_gender || fields.wants_age) ? wantsText(fields.wants_gender, spanOf(fields.wants_age)) : "";
   return { facts, wants };
 }
 
@@ -814,10 +814,22 @@ function sides(shown) {
 }
 
 // Who a dating draft would like to meet and their ages, as matching reads them: the details on the
-// profile first (as edited here), else what the server read from the description (l.wants).
+// profile as edited here when they're shown, else what the description says (l.wants.said, read by
+// the server), because a hidden detail never decides a match.
 function lookingFor(c, l) {
-  const { shown } = draftValues(c), w = (l && l.wants) || {};
-  return { genders: shown.wants_gender || w.genders || [], ages: spanOf(shown.wants_age) || w.ages || null, def: w.default };
+  const { shown } = draftValues(c), w = (l && l.wants) || {}, said = w.said || {};
+  const genders = shown.wants_gender ? [].concat(shown.wants_gender) : said.genders || [];
+  return { genders, ages: spanOf(shown.wants_age) || said.ages || null, def: w.default };
+}
+
+// Save (or Start matching) needs who and where; a live listing can be saved without them (synthetic
+// people's listings, taken over, are matched by their headline and topics too), except a dating listing
+// nobody can match: one with no gender wanted is never matched.
+function canSave(c, l) {
+  const d = c.draft;
+  if (!d || (d.kind === "dating" && !lookingFor(c, l).genders.length)) return false;
+  const items = checklist(c, l);
+  return (items[0].done && items[1].done) || l.listed;
 }
 
 function checklist(c, l) {
@@ -874,9 +886,7 @@ function profileCard(slot, p, l, c) {
   const required = items.filter(i => !i.optional);
   let done = required.filter(i => i.done).length, total = required.length;
   if (d && Array.isArray(d.suggestions)) { total = filled + required.filter(i => !i.done).length; done = filled; }
-  // Essentials: who and where. A listing that's already live has them (synthetic people's listings,
-  // taken over, are matched by headline and topics as well as phrases).
-  const ready = d && ((items[0].done && items[1].done) || l.listed);
+  const ready = canSave(c, l);
   const place = [shown.city, shown.country].filter(Boolean).join(", ");
   const missing = items.map((it, n) => ({ ...it, n })).filter(i => !i.done).slice(0, 4);
   // Why an essential matters (dating: your gender, the ages you want), while it's missing or hidden.
@@ -985,7 +995,7 @@ function chatHtml(slot, l, c) {
       <span class="caption tertiary">${c.chatMin ? "Open" : "Minimize"}</span><span class="chevron" aria-hidden="true"></span></button>
     <div class="chat-pane">
       ${l.chat.map((m, n) => `<div class="bubble ${m.from}">${esc(m.text)}</div>` +
-        (m.draft_updated && l.unsaved && n === lastUpdate ? `<div class="bubble-note">${badge("ai", "Profile updated")} <button class="btn sm" onclick="submit('${slot}')">Save changes</button></div>` :
+        (m.draft_updated && l.unsaved && n === lastUpdate && canSave(c, l) ? `<div class="bubble-note">${badge("ai", "Profile updated")} <button class="btn sm" onclick="submit('${slot}')">Save changes</button></div>` :
          m.draft_updated ? `<div class="bubble-note">${badge("ai", "Profile updated")}${l.listed && n > liveAt ? ` <span class="caption secondary">Save changes to make it live</span>` : ""}</div>` : "")).join("")}${pending}
       ${busy ? `<div class="bubble agent typing" aria-label="Your agent is replying"><span></span><span></span><span></span></div>` : ""}</div>
     <div class="composer-bar"><textarea class="textarea" id="chat-${slot}" aria-label="Message to your agent" placeholder="${l.chat.length > 1 ? "Reply to your agent" : "What are you looking for?"}" oninput="cur('${slot}').chatText=this.value"
@@ -1037,8 +1047,34 @@ function fieldRow(slot, f) {
 }
 function setVal(slot, i, v) {
   const f = cur(slot).draft.fields[i]; f.value = v;
-  if (f.key === "kind") cur(slot).draft.kind = v || null;  // the profile follows the kind you choose
-  if (f.key === "city") refreshOptions(slot, v); else renderPhone(slot);
+  if (f.key === "kind") changeKind(slot, v);
+  else if (f.key === "city") refreshOptions(slot, v); else renderPhone(slot);
+}
+// A new kind of match gets that kind's details: rows it has are added, and rows only another kind has
+// (a climbing level, or who a dating listing would like to meet) are put aside, to come back if the
+// kind is changed back. The server drops who and what ages from any listing that isn't dating too.
+async function changeKind(slot, kind) {
+  const c = cur(slot), d = c.draft;
+  d.kind = kind || null;  // the profile follows the kind you choose
+  const city = (d.fields.find(f => f.key === "city") || {}).value || "";
+  const layout = await (await fetch(`/api/layout?kind=${encodeURIComponent(kind || "")}&city=${encodeURIComponent(city)}`)).json();
+  d.fields = relayout(d.fields, layout, c.stash ||= {});
+  renderPhone(slot);
+}
+function relayout(fields, layout, stash) {
+  const drop = new Set(layout.drop), rows = new Map(layout.rows.map(r => [r.key, r])), out = [];
+  for (const f of fields) {
+    if (drop.has(f.key)) { stash[f.key] = f; continue; }
+    const row = rows.get(f.key);
+    if (row && f.key !== "kind" && row.options.length) {  // this kind's choices (a tutor or a student, ...)
+      f.options = row.options;
+      if (!f.multi && hasValue(f.value) && !row.options.includes(f.value)) f.value = null;
+    }
+    out.push(f);
+  }
+  const have = new Set(out.map(f => f.key));
+  for (const row of layout.rows) if (!have.has(row.key)) { out.push(stash[row.key] || { ...row }); delete stash[row.key]; }
+  return out;
 }
 function toggleChip(slot, i, o) {
   const f = cur(slot).draft.fields[i]; const s = new Set(f.value || []);
@@ -1083,7 +1119,7 @@ function broadenCard(slot, l) {
 
 function introCard(slot, l, i) {
   const f = i.view.fields;
-  const { facts, wants } = matchFacts(f);
+  const { facts, wants } = matchFacts(f, (f.kind || l.kind) === "dating");
   let action = "", status = "";
   if (i.status === "pending") action = `<div class="row" style="margin-top: var(--space-5)"><button class="btn grow" onclick="decide('${slot}','${i.intro_id}',true)">Say yes</button><button class="btn secondary" onclick="decide('${slot}','${i.intro_id}',false)">Not now</button></div>
     <p class="caption tertiary" style="margin: var(--space-2) 0 0">${i.close ? "They haven't been told about you. If you say yes, they're asked too." : "You're only introduced if you both say yes."}</p>`;

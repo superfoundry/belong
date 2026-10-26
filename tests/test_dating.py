@@ -370,8 +370,10 @@ class TheReportedCase(unittest.TestCase):
         self.assertTrue(no_ages, others)
         self.assertIn("p003", no_ages)  # the reported listing: "I'd like to meet women in Osaka for someone to date."
         # Her phone shows what her agent understood: a man, "early 30s" in years, as matching reads it.
+        # "said": what her description alone says, which matching reads if she hides those details.
         self.assertEqual(s.phone_state("B")["listings"][0]["wants"], {"genders": ["man"], "ages": [30, 33],
-                                                                      "default": [25, 39]})
+                                                                      "default": [25, 39],
+                                                                      "said": {"genders": ["man"], "ages": [30, 34]}})
         self.assertTrue(s.room_state()["leak_report"]["ok"])
 
     def test_without_her_gender_men_looking_for_women_cant_find_her(self):

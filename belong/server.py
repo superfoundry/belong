@@ -252,6 +252,11 @@ class _Handler(BaseHTTPRequestHandler):
             q = parse_qs(urlparse(self.path).query)
             with SESSION.lock:
                 return self._json(200, SESSION.options("A", (q.get("kind") or [None])[0], (q.get("city") or [None])[0]))
+        if path == "/api/layout":
+            # The profile's rows for a kind of match, when the person changes the kind in the editor.
+            from urllib.parse import parse_qs, urlparse
+            q = parse_qs(urlparse(self.path).query)
+            return self._json(200, SESSION.layout((q.get("kind") or [None])[0], (q.get("city") or [None])[0]))
         route = FILES.get(path)
         if path == "/run.json" and route and not route[0].exists():
             return self._json(503, {"preparing": True})  # the inspector's run is still being built

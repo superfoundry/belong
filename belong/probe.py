@@ -221,6 +221,8 @@ def attack_suite(body: dict) -> dict:
             lambda: admit(me, fields=_set_field(a_listing, Field("kind", "anything at all", SHOWN, False))))
     attempt("entry", "Ask to meet people under 18",
             lambda: admit(me, fields=_set_field(a_listing, Field("wants_age", "16-25", SHOWN, False))))
+    attempt("entry", "Write an age range in other digits or with a leading zero",
+            lambda: admit(me, fields=_set_field(a_listing, Field("wants_age", "０１８-０９９", SHOWN, False))))
     attempt("entry", "Ask for a gender outside the fixed choices",
             lambda: admit(me, fields=_set_field(a_listing, Field("wants_gender", ("woman", "girls"), SHOWN, False))))
 
