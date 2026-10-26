@@ -40,9 +40,32 @@ their region, and plain Python; secure hardware comes in Step 3.
   **Take over** on a person opens their phone in a small window, so you can answer as them in the live
   demo: their listing is matched like a phone's, what the Warden sends them arrives there, and nothing
   is decided for them until you **Hand back** (above their phone). The presenter panel lists who's taken over.
+  Each description is shown as it went live, as in the live demo; anything the batch run's follow-up
+  answers added ("Aged 25 to 39.") is marked **Batch-run answer**, because the live demo doesn't have it.
 - **[TRUST.md](TRUST.md)** lists every privacy promise with the code that enforces it,
   the test that proves it, and what isn't guaranteed yet. Start there.
 - **[SPEC.md](SPEC.md)** is the product spec.
+
+## How matching works
+
+- **Your description is read, never shown.** The Matchmaker reads what you wrote, together with your
+  listing's headline if it's shown, to tell what you're looking for: dating, one of the named kinds, or
+  anything else by its "looking for" and "you are" phrases. Wanting to meet a man or a woman, a boyfriend
+  or a girlfriend, or looking for love is dating. Asking for "a man with a van" or "a woman to clean my
+  flat" isn't, and nor is selling, buying or giving something away.
+- **Both must be looking.** Two people are introduced only when each is what the other asked for,
+  judged from shown details only.
+- **Ages in your own words.** "Aged 25 to 34", "early 30s", "in their thirties", "30-something" and
+  "around 30" all work. What you say about your own age ("I'm 34") isn't read as the age you want.
+- **What you didn't say isn't a strict preference.** No climbing level: any level will do. No age range:
+  people within one age band of your own (25 to 39 if you're 30 to 34). If you've turned on questions,
+  Belong. may ask what ages you'd like, to narrow it.
+- **Your gender, for dating.** It's how people looking for a woman or a man find you, so the profile
+  asks for it and says why. You can keep it hidden, but a hidden detail never decides a match, so then
+  only people open to anyone can match you, and you may get fewer matches.
+- **Never the only reason.** A pair must also share something both show (the same city, an interest,
+  when they're free) and score well enough on shown details alone. Hidden details can only raise the
+  score of a pair that already qualifies, and only when at least 20 people share them.
 
 ## Run it
 

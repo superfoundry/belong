@@ -25,7 +25,7 @@ import re
 
 from . import synth as vocab
 from .agent import _BY_KIND, _COMMON, _KIND_NAMES, _SENSITIVE_VOCAB, ALL_MONTHS, LABELS, field_options
-from .matching.intent import REMOTE_KINDS, parse_intent
+from .matching.intent import REMOTE_KINDS, ages_text, default_age_range, parse_intent
 from .schema import HEADLINE_MAX, FIELD_REGISTRY, FREE_TEXT_MAX, HIDDEN, SHOWN
 from .warden import specific_person_problems
 
@@ -192,8 +192,13 @@ when; don't ask about hobbies or interests. Ask about interests only for social 
 - Ask at most one or two questions at a time, and only about things you really need. When they \
 answer "either", "both" or "not sure", treat every option as fine and move on; never ask them to \
 pick between options they've said they're open to. You need \
-the kind of match and where (country, and city if relevant) before drafting. For dating you also need their gender, who they want to meet (a man, a woman, or \
-anyone) and an age range. For a language exchange: their native language and the one they're \
+the kind of match and where (country, and city if relevant) before drafting. For dating you also need \
+who they want to meet (a man, a woman, or anyone), their own gender and the age range they want, so ask \
+for the ones they haven't said. Their gender: ask plainly, and save it in "gender"; it's shown by default, \
+because that's how people looking for a woman or a man find them. Offer the usual choice: they can keep it \
+hidden, but a hidden detail never decides a match, so then only people open to anyone can match them and \
+they may get fewer matches. Never pick hidden for them. The age range goes in intent_text (e.g. "aged 30 to \
+39", "early 30s"); until they give one they're open to people one age band either side of their own. For a language exchange: their native language and the one they're \
 learning. For tutoring: the subject and whether they teach or want lessons. For a cofounder: \
 whether they're the technical or business side.
 - Save early and often. As soon as a message says anything about what the person is looking for or \
@@ -324,8 +329,10 @@ def build_draft(args: dict, first_name: str, age_band: str) -> tuple:
                 notes.append(f"{key} was set to hidden: only the person can choose to show a sensitive detail.")
             visibility[key] = vis
 
-    # Can matching read the description?
-    parsed = parse_intent(intent)
+    # Can matching read the description? Read it as matching does: with the headline, if it's shown (it
+    # always is on a non-dating listing, below).
+    headline_shown = kind != "dating" or visibility.get("headline", SHOWN) == SHOWN
+    parsed = parse_intent(intent, values.get("headline", "") if headline_shown else "")
     open_ended = [k for k in ("seeking", "offering") if k in values]
     if not intent:
         missing.append("what they're looking for (intent_text)")
@@ -339,16 +346,22 @@ def build_draft(args: dict, first_name: str, age_band: str) -> tuple:
             if not parsed.seeking:
                 missing.append("who they want to meet ('a man', 'a woman' or 'anyone', in intent_text)")
             if parsed.age_range is None:
-                missing.append("an age range (e.g. 'aged 30 to 39' in intent_text)")
+                missing.append(f"the age range they want (e.g. 'aged 30 to 39' or 'early 30s' in intent_text); until "
+                               f"then they're open to {ages_text(default_age_range(age_band))}, one age band either "
+                               f"side of their own")
             if "gender" not in values:
-                missing.append("their gender (shown for dating matches)")
+                missing.append("their gender (needed so people looking for a woman or a man can find them; they may "
+                               "keep it hidden, but then only people open to anyone can match them)")
             elif visibility.get("gender") == HIDDEN:
-                visibility["gender"] = SHOWN
-                notes.append("gender was set to shown: dating matches need it.")
+                # Their choice stands: nobody is made to show their gender. A hidden detail never decides a
+                # match, so the person should know what it costs.
+                notes.append("gender is hidden: a hidden detail never decides a match, so people looking for a woman "
+                             "or a man won't be matched with them, only people open to anyone. Make sure they know "
+                             "they may get fewer matches and can switch it to shown.")
     else:
         if parsed.kind == "dating":
-            problems.append("intent_text reads like dating. Rephrase it without words like 'date', 'relationship' "
-                            "or 'partner'.")
+            problems.append("intent_text (with the headline) reads like dating. Rephrase it without words like "
+                            "'date', 'relationship', 'love' or 'partner'.")
         for k in ("seeking", "offering"):
             if k not in values:
                 missing.append(f"a '{k}' phrase (a short noun phrase, e.g. 'a fishing teacher')")
