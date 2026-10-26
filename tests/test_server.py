@@ -3,6 +3,7 @@ password (asked alone, at /login) on every request, and the Matchmaker running w
 checks in."""
 from __future__ import annotations
 
+import json
 import os
 import threading
 import unittest
@@ -100,6 +101,41 @@ class Password(unittest.TestCase):
         status, headers, page = self.sign_in("tide-42")  # even the right one waits out the minute
         self.assertEqual(status, 429)
         self.assertIsNone(headers["Set-Cookie"])
+
+
+class StateRoutes(unittest.TestCase):
+    """A single-phone page gets only its own phone; the inspector can ask what the demo holds."""
+
+    def setUp(self):
+        self.httpd = ThreadingHTTPServer(("127.0.0.1", 0), server._Handler)
+        threading.Thread(target=self.httpd.serve_forever, daemon=True).start()
+        self.base = f"http://127.0.0.1:{self.httpd.server_address[1]}"
+        self.env = mock.patch.dict(os.environ, {"BELONG_PASSWORD": ""})
+        self.env.start()
+
+    def tearDown(self):
+        self.env.stop()
+        self.httpd.shutdown()
+        self.httpd.server_close()
+
+    def get(self, path):
+        try:
+            with urllib.request.urlopen(self.base + path) as r:
+                return r.status, json.loads(r.read())
+        except urllib.error.HTTPError as e:
+            with e:
+                return e.code, json.loads(e.read())
+
+    def test_one_phone_only(self):
+        status, body = self.get("/api/state?phone=A")
+        self.assertEqual((status, list(body)), (200, ["phones"]))
+        self.assertEqual(list(body["phones"]), ["A"])
+        self.assertEqual(self.get("/api/state?phone=zzz")[0], 404)
+
+    def test_what_the_demo_holds(self):
+        status, body = self.get("/api/demo")
+        self.assertEqual(status, 200)
+        self.assertEqual(body, {"seed": server.SESSION.seed, "people": server.SESSION.people})
 
 
 @mock.patch("belong.__main__.load_dotenv", lambda: None)  # never read the real .env in tests

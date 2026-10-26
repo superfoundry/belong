@@ -9,8 +9,10 @@ a cookie that proves it without containing it.
   /connector (and /chat)    mockup: one person using Belong. inside a ChatGPT-style chat, through a connector
                             (belong/web/chat.html), on its own demo session
   /trust                    trust page (belong/web/trust.html)
-  /inspector                batch-run inspector (belong/web/index.html + out/run.json)
-  /api/...                  demo actions; each POST returns the full demo state
+  /inspector                batch-run inspector (belong/web/index.html + out/run.json); "Take over" gives a
+                            synthetic person a phone in the live demo (/demo?phone=<their id>)
+  /api/...                  demo actions; each POST returns the full demo state. A "slot" must be a phone
+                            that exists: A, B, or someone taken over (the connector's session: A or B only)
 
 Trust API (for people and their agents; see the trust page for examples):
   GET  /api/trust/attestation?nonce=N   measurements + policy (simulated attestation)
@@ -94,6 +96,9 @@ ACTIONS = {
     "decide": lambda s, b: s.decide(b.get("slot"), b.get("intro_id"), b.get("yes")),
     "reveal": lambda s, b: s.reveal(b.get("slot"), b.get("intro_id"), b.get("keys") or []),
     "attack": lambda s, b: s.attack(),
+    # The inspector's "Take over": a phone for a synthetic person (the reply carries its "slot").
+    "take_over": lambda s, b: s.take_over(b.get("persona_id")),
+    "hand_back": lambda s, b: s.hand_back(b.get("slot")),
 }
 UNLOCKED = {ACTIONS["agent"]}
 PROBES = {"canary": probe.canary_test, "attacks": probe.attack_suite}
@@ -218,9 +223,19 @@ class _Handler(BaseHTTPRequestHandler):
                 return self._redirect(_safe_next(self._query().get("next", "/")))
             return self._login_page(next_path=self._query().get("next", "/"))
         if path == "/api/state":
+            phone = self._query().get("phone")
             with SESSION.lock:
                 _match_if_due(SESSION)
+                if phone is not None:
+                    # A single-phone page (a phone of its own, or a taken-over person): just that
+                    # phone, without the presenter's view and its leak audit.
+                    if phone not in SESSION.slots:
+                        return self._json(404, {"error": "No such phone."})
+                    return self._json(200, {"phones": {phone: SESSION.phone_state(phone)}})
                 return self._json(200, SESSION.state())
+        if path == "/api/demo":
+            # What the live demo holds, so the inspector can tell whether its run shows the same people.
+            return self._json(200, {"seed": SESSION.seed, "people": SESSION.people})
         if path == "/api/chat/state":
             session = chat_session()
             with session.lock:
@@ -325,19 +340,28 @@ class _Handler(BaseHTTPRequestHandler):
         if session is not SESSION:
             # The chat is person A; the optional test phone beside it is person B.
             body["slot"] = body.get("slot") if body.get("slot") in ("A", "B") else "A"
+        elif "slot" in body:
+            # A, B, or a synthetic person taken over in this session; nothing else.
+            with session.lock:
+                known = isinstance(body["slot"], str) and body["slot"] in session.slots
+                if not known:
+                    return self._json(400, {"error": "No such phone.", **shape(session)})
         try:
             if action in UNLOCKED:
-                action(session, body)  # takes the session lock itself, around the slow agent call
+                result = action(session, body)  # takes the session lock itself, around the slow agent call
             else:
                 with session.lock:
-                    action(session, body)
+                    result = action(session, body)
             with session.lock:
                 session.changes += 1  # something happened: the Matchmaker will look again
         except DemoError as e:
             with session.lock:
                 return self._json(400, {"error": str(e), **shape(session)})
         with session.lock:
-            return self._json(200, shape(session))
+            out = shape(session)
+            if action is ACTIONS["take_over"]:
+                out["slot"] = result
+            return self._json(200, out)
 
     def log_message(self, *args):
         pass
