@@ -8,9 +8,15 @@ tool call is checked here before it touches the draft:
   - it must not target a specific person (the Warden's own rule, checked early),
   - sensitive details must not be written into the free-text description,
   - every value must come from the allowed options, and sensitive fields stay hidden
-    (only the person can choose to show one, in the listing editor).
+    (only the person can choose to show one, in the listing editor),
+  - what the agent understood is recorded on the listing as shown details the person can check:
+    the kind of match it chose ("kind") and, for dating, who they'd like to meet and those people's
+    ages in years ("wants_gender", "wants_age"), in the fixed forms the Warden accepts. Matching uses
+    them before anything in the description (TRUST.md #33).
 
-Problems go back to the agent as a tool error so it can fix them and try again.
+Problems go back to the agent as a tool error so it can fix them and try again. When the kind of match
+is unclear, the agent asks one short question before saving (SYSTEM_PROMPT), and an answer of "both"
+saves two listings in one turn (turn_drafts).
 
 This agent works for the person. It runs outside matching and only ever sees its own
 person's conversation. The person still reviews the listing before anything is
@@ -24,9 +30,11 @@ from __future__ import annotations
 import re
 
 from . import synth as vocab
-from .agent import _BY_KIND, _COMMON, _KIND_NAMES, _SENSITIVE_VOCAB, ALL_MONTHS, LABELS, field_options
+from .agent import (_BY_KIND, _COMMON, _KIND_NAMES, _SENSITIVE_VOCAB, ALL_MONTHS, DATING_ONLY, LABELS, field_options,
+                    wants_text)
 from .matching.intent import ages_text, default_age_range, parse_intent
-from .schema import HEADLINE_MAX, FIELD_REGISTRY, FREE_TEXT_MAX, HIDDEN, SHOWN, meeting_format, travel_choice
+from .schema import (AGE_MAX, AGE_MIN, GENDERS, HEADLINE_MAX, FIELD_REGISTRY, FREE_TEXT_MAX, HIDDEN, SHOWN,
+                     age_span_choice, meeting_format, travel_choice)
 from .warden import specific_person_problems
 
 MODEL = "claude-opus-5-5"
@@ -45,7 +53,10 @@ UPDATE_LISTING_TOOL = {
     "input_schema": {
         "type": "object",
         "properties": {
-            "kind": {"type": "string", "enum": KINDS, "description": "The kind of match."},
+            "kind": {"type": "string", "enum": KINDS,
+                     "description": "The kind of match: what they want to meet someone for, never a hobby they "
+                                    "mention. It's recorded on their listing (the 'kind' detail) and matching uses "
+                                    "it. Don't save while it's unclear: ask first."},
             "intent_text": {
                 "type": "string",
                 "description": "What they're looking for, one or two plain sentences in the first person. "
@@ -62,10 +73,12 @@ UPDATE_LISTING_TOOL = {
                     "properties": {
                         "key": {"type": "string", "enum": EDITABLE_KEYS},
                         "values": {"type": "array", "items": {"type": "string"},
-                                   "description": "One value, or several for interests / kinks. Fields with "
-                                                  "allowed values (e.g. format: In person, Online, In person "
-                                                  "or online; travel: Same city, Up to 30 km, Up to 100 km) "
-                                                  "take one of them."},
+                                   "description": "One value, or several for interests / kinks / wants_gender. "
+                                                  "Fields with allowed values (e.g. format: In person, Online, In "
+                                                  "person or online; travel: Same city, Up to 30 km, Up to 100 km) "
+                                                  "take one of them. Dating only: wants_gender takes woman, man "
+                                                  "and/or nonbinary (all three for anyone); wants_age takes one "
+                                                  "age range in years written lo-hi, e.g. 30-39 (18 to 99)."},
                         "visibility": {"type": "string", "enum": [SHOWN, HIDDEN]},
                     },
                     "required": ["key", "values", "visibility"],
@@ -112,7 +125,7 @@ class AgentUnavailable(Exception):
 # them). Everything else is short free text.
 STRICT_KEYS = {"gender", "schedule", "level", "pace", "native_language", "learning_language", "role",
                "move_in", "diet", "smoking", "children", "income_band", "religion", "politics", "health", "kinks",
-               "format", "travel"}
+               "format", "travel", "kind", "wants_gender"}
 # Fixed-choice fields matching reads in its own words: other wordings ("online only", "up to 30km")
 # are put into the fixed wording before they're checked.
 _NORMALISE = {"format": meeting_format, "travel": travel_choice}
@@ -127,7 +140,13 @@ def _options_catalogue() -> str:
         spec = FIELD_REGISTRY[key]
         tag = "sensitive, always hidden unless the person shows it themselves" if spec.sensitive else \
             f"default {spec.default}"
-        if key in STRICT_KEYS:
+        if key == "kind":
+            lines.append(f"- kind ({tag}): set for you from the kind you choose; list it in fields only to keep "
+                         f"the person's own choice of hidden")
+        elif key == "wants_age":
+            lines.append(f"- wants_age ({tag}, dating only): an age range in years, written lo-hi, from {AGE_MIN} "
+                         f"to {AGE_MAX}, e.g. 30-39")
+        elif key in STRICT_KEYS:
             opts = ROLE_OPTIONS if key == "role" else ALL_MONTHS if key == "move_in" else generic.get(key) or []
             if key == "income_band":
                 opts = sorted({b for bands in vocab.INCOME.values() for b in bands}) + GENERIC_INCOME
@@ -155,7 +174,20 @@ How to work:
 - Pick the kind that genuinely fits. Use a named kind (dating, climbing, running, language, \
 tutoring, cofounder, roommate) only when it really is that. For anything else, use kind "other". \
 Never squeeze a request into a kind it doesn't fit, and never tell the person Belong. can't help \
-with something just because it isn't a named kind.
+with something just because it isn't a named kind. The kind is what they want to meet someone FOR, \
+never a hobby or interest they happen to mention: "looking for a relationship; I enjoy hiking and \
+chess" is dating, and hiking and chess go in "interests". The kind you choose is saved on their \
+listing and is what matching uses, so their description never has to repeat it.
+- When it's unclear, ask before saving. If a message could mean more than one kind of match, don't \
+guess. Words that plainly mean romance ("a relationship", "a date", "a girlfriend") make it dating, \
+and activities they only say they enjoy are interests. But wanting to meet a man or a woman alongside \
+an activity they mention could be a date or a partner for that activity, and "a partner" with nothing \
+saying whether it's romantic or for something to do together could be either. Then ask ONE short \
+question and wait for the answer before calling update_listing, e.g. "Are you looking for a date, or \
+a [activity] partner? Or both? I can make two separate listings." Never save a guessed kind while \
+it's unclear. If they say both, save one listing for each kind, in the same turn: first the current \
+listing (separate_listing false), then the other (separate_listing true), each with its own kind, \
+headline and details.
 - For every kind except dating, set two short noun phrases (under 120 characters, starting with "a"/"an"), \
 written as "[activity] [role]": "seeking" = who they're looking for; "offering" = who they are, \
 from the other person's point of view. Work "offering" out yourself; never ask what they "offer" or \
@@ -205,20 +237,26 @@ when; don't ask about hobbies or interests. Ask about interests only for social 
 - Ask at most one or two questions at a time, and only about things you really need. When they \
 answer "either", "both" or "not sure", treat every option as fine and move on; never ask them to \
 pick between options they've said they're open to. You need \
-the kind of match and where (country, and city if relevant) before drafting. For dating you also need \
-who they want to meet (a man, a woman, or anyone), their own gender and the age range they want, so ask \
-for the ones they haven't said. Their gender: ask plainly, and save it in "gender"; it's shown by default, \
-because that's how people looking for a woman or a man find them. Offer the usual choice: they can keep it \
-hidden, but a hidden detail never decides a match, so then only people open to anyone can match them and \
-they may get fewer matches. Never pick hidden for them. The age range goes in intent_text (e.g. "aged 30 to \
-39", "early 30s"); until they give one they're open to people one age band either side of their own. For a language exchange: their native language and the one they're \
+the kind of match and where (country, and city if relevant) before drafting. For dating, always \
+record three things: their own gender ("gender"), who they'd like to meet ("wants_gender": woman, man \
+and/or nonbinary; all three for anyone) and those people's ages in years ("wants_age", written lo-hi, \
+e.g. "30-39"). Work the ages out from whatever they said, using their age band (below): "around my \
+age" is about one age band either side of theirs (age band 35-39: "30-49"), "early 30s" is "30-33", \
+"late 20s to mid 30s" is "27-36", "a bit younger" is the band below theirs and their own, "40 or \
+older" is "40-99". Ask only for what they gave nothing about; until they give ages they're open to \
+people one age band either side of their own. Their gender: ask plainly if you don't know it; it's \
+shown by default, because that's how people looking for a woman or a man find them. Offer the usual \
+choice: they can keep it hidden, but a hidden gender can't help others find them (a hidden detail never \
+decides a match), so then only people open to anyone can match them and they may get fewer matches. \
+Never pick hidden for them. For a language exchange: their native language and the one they're \
 learning. For tutoring: the subject and whether they teach or want lessons. For a cofounder: \
 whether they're the technical or business side.
-- Save early and often. As soon as a message says anything about what the person is looking for or \
-offering, call update_listing before you reply, even if it's the first message and you only know one thing \
+- Save early and often (unless the kind is unclear: then ask first, as above). As soon as a message says \
+anything about what the person is looking for or offering, call update_listing before you reply, even if \
+it's the first message and you only know one thing \
 (e.g. "I'm offering piano lessons" is enough to save them as a piano teacher looking for students). A message \
 that says nothing about that ("hi", "connect me", "how does this work?") is not a request: just answer it and \
-ask what they're looking for; never save a draft from it. Call update_listing as soon as you learn anything, with everything you're sure of (pick the closest kind, or "other"), then keep asking \
+ask what they're looking for; never save a draft from it. Call update_listing as soon as you learn anything, with everything you're sure of (the kind that fits, or "other" when it's clearly none of the named ones), then keep asking \
 about what's still missing. The profile on their screen updates every time you save, so never \
 wait until you know everything. Each save replaces the draft, so always include what's already \
 on the profile (shown to you below) plus what's new. Never invent details they didn't give.
@@ -268,6 +306,15 @@ def _clean_value(key: str, values: list, city) -> tuple:
     values = [" ".join(str(v).split()) for v in values if str(v).strip()]
     if not values:
         return None, None
+    if key == "wants_age":
+        # Years, in the fixed form the Warden accepts ("33 to 42" is put into "33-42" first). Relative
+        # wording ("around my age") must be worked out by the agent, never guessed here.
+        fixed = [age_span_choice(v) for v in values]
+        if len(values) > 1 or fixed[0] is None:
+            return None, (f"wants_age: {', '.join(values)} isn't an age range in years. Give one range written lo-hi, "
+                          f"from {AGE_MIN} to {AGE_MAX} (e.g. 30-39); work out wording like 'around my age' from "
+                          f"their age band")
+        return fixed[0], None
     if key in STRICT_KEYS:
         if key in _NORMALISE:
             values = [_NORMALISE[key](v) or v for v in values]
@@ -280,6 +327,8 @@ def _clean_value(key: str, values: list, city) -> tuple:
         if bad:
             return None, f"{key}: {', '.join(bad)} isn't an allowed value. Allowed: {', '.join(options)}"
         values = [lookup[v.lower()] for v in values]
+        if key == "wants_gender":
+            values = [g for g in GENDERS if g in values]
     elif any(len(v) > FREE_TEXT_MAX for v in values):
         return None, f"{key} must be under {FREE_TEXT_MAX} characters"
     if spec.multi:
@@ -333,6 +382,10 @@ def build_draft(args: dict, first_name: str, age_band: str) -> tuple:
 
     values, visibility = {"first_name": first_name, "age_band": age_band}, {}
     for key, f in fields_in.items():
+        if key == "kind":  # its value is the kind chosen above; listed only to keep the person's choice of hidden
+            if f.get("visibility") in (SHOWN, HIDDEN):
+                visibility["kind"] = f["visibility"]
+            continue
         value, err = _clean_value(key, f.get("values") or [], city)
         if err:
             problems.append(err)
@@ -344,35 +397,52 @@ def build_draft(args: dict, first_name: str, age_band: str) -> tuple:
                 notes.append(f"{key} was set to hidden: only the person can choose to show a sensitive detail.")
             visibility[key] = vis
 
-    # Can matching read the description? Read it as matching does: with the headline, if it's shown (it
-    # always is on a non-dating listing, below).
+    # The kind the agent chose is what it understood: it goes on the listing as the "kind" detail (shown
+    # unless the person chose hidden), and matching uses it before anything in the description.
+    values["kind"] = kind
+    visibility["kind"] = visibility.get("kind", FIELD_REGISTRY["kind"].default)
+    if kind != "dating":
+        for key in DATING_ONLY:
+            if values.pop(key, None) is not None:
+                visibility.pop(key, None)
+                notes.append(f"{key} was left out: it's only used for dating.")
+    # What matching reads from the description: only what the shown details don't say (with the headline,
+    # if it's shown; it always is on a non-dating listing, below).
     headline_shown = kind != "dating" or visibility.get("headline", SHOWN) == SHOWN
     parsed = parse_intent(intent, values.get("headline", "") if headline_shown else "")
+    shown = lambda key: key in values and visibility.get(key) == SHOWN
     open_ended = [k for k in ("seeking", "offering") if k in values]
     if not intent:
         missing.append("what they're looking for (intent_text)")
     elif kind == "dating":
         if open_ended:
             problems.append("seeking/offering aren't used for dating; remove them.")
-        if parsed.kind != "dating":
-            missing.append("a description that clearly says this is dating, e.g. 'Looking for a relationship with "
-                           "a woman in Lisbon, aged 30 to 39'")
-        else:
-            if not parsed.seeking:
-                missing.append("who they want to meet ('a man', 'a woman' or 'anyone', in intent_text)")
-            if parsed.age_range is None:
-                missing.append(f"the age range they want (e.g. 'aged 30 to 39' or 'early 30s' in intent_text); until "
-                               f"then they're open to {ages_text(default_age_range(age_band))}, one age band either "
-                               f"side of their own")
-            if "gender" not in values:
-                missing.append("their gender (needed so people looking for a woman or a man can find them; they may "
-                               "keep it hidden, but then only people open to anyone can match them)")
-            elif visibility.get("gender") == HIDDEN:
-                # Their choice stands: nobody is made to show their gender. A hidden detail never decides a
-                # match, so the person should know what it costs.
-                notes.append("gender is hidden: a hidden detail never decides a match, so people looking for a woman "
-                             "or a man won't be matched with them, only people open to anyone. Make sure they know "
-                             "they may get fewer matches and can switch it to shown.")
+        if not shown("kind") and parsed.kind != "dating":
+            # Only a hidden kind leaves it to the description, and this one doesn't read as dating.
+            missing.append("the kind is hidden, so matching reads the description, and it doesn't clearly say "
+                           "this is dating: keep 'kind' shown, or say so in intent_text")
+        if "wants_gender" not in values:
+            missing.append("who they want to meet: set wants_gender (woman, man and/or nonbinary; all three for "
+                           "anyone)")
+        if "wants_age" not in values:
+            missing.append(f"the ages they'd like, in years: set wants_age (e.g. 30-39); work out wording like "
+                           f"'around my age' or 'early 30s' from their age band {age_band}, and ask only if they "
+                           f"said nothing. Until then they're open to {ages_text(default_age_range(age_band))}, one age "
+                           f"band either side of their own")
+        for key in DATING_ONLY:
+            if key in values and not shown(key):
+                # Their choice stands. A hidden detail never decides a match, so the description is read instead.
+                notes.append(f"{key} is hidden: a hidden detail never decides a match, so matching reads this from "
+                             f"the description instead. Make sure they know, and that the description says it.")
+        if "gender" not in values:
+            missing.append("their gender (needed so people looking for a woman or a man can find them; they may "
+                           "keep it hidden, but then only people open to anyone can match them)")
+        elif visibility.get("gender") == HIDDEN:
+            # Their choice stands: nobody is made to show their gender. A hidden detail never decides a
+            # match, so the person should know what it costs.
+            notes.append("gender is hidden: a hidden detail never decides a match, so people looking for a woman "
+                         "or a man won't be matched with them, only people open to anyone. Make sure they know "
+                         "they may get fewer matches and can switch it to shown.")
     else:
         if parsed.kind == "dating":
             problems.append("intent_text (with the headline) reads like dating. Rephrase it without words like "
@@ -417,7 +487,8 @@ def build_draft(args: dict, first_name: str, age_band: str) -> tuple:
     options = field_options(kind, city)
     # The kind's usual fields, the two phrases for every non-dating listing, and anything else
     # the agent set (e.g. native_language on an open-ended listing). Nothing set is dropped.
-    keys = list(dict.fromkeys(_COMMON + _BY_KIND.get(kind, []) + ([] if kind == "dating" else ["headline", "seeking", "offering", "topics"])
+    keys = list(dict.fromkeys(["kind"] + _COMMON + _BY_KIND.get(kind, [])
+                              + ([] if kind == "dating" else ["headline", "seeking", "offering", "topics"])
                               + [k for k in values if k in FIELD_REGISTRY]))
     fields = []
     for key in keys:
@@ -432,6 +503,8 @@ def build_draft(args: dict, first_name: str, age_band: str) -> tuple:
         })
     where = values.get("city") or values.get("country")
     understood = f"Looking for {_KIND_NAMES[kind]}" + (f" in {where}" if where else "")
+    if kind == "dating" and (values.get("wants_gender") or values.get("wants_age")):
+        understood += ", with " + wants_text(values.get("wants_gender"), values.get("wants_age"))
     draft = {"intent_text": intent, "exactness": exactness, "kind": kind, "fields": fields,
              "understood": understood, "notes": notes, "missing": missing, "complete": not missing, "by": "claude",
              "suggestions": _suggestions(args.get("suggestions")),
@@ -450,14 +523,37 @@ def honest(reply: str, attempted: bool, saved: bool) -> str:
     return reply
 
 
+def turn_drafts(saved: list):
+    """Everything one turn saved, as one draft to hand back: the current listing's latest draft, then
+    each separate listing's latest (one per kind), in that order. The last is returned, carrying the
+    others under "earlier" for whoever applies them in order (a "both" answer makes two listings, each
+    with its own kind). None if nothing was saved."""
+    current = [d for d in saved if not d.get("separate")][-1:]
+    separate = {}
+    for d in saved:
+        if d.get("separate"):
+            separate[d.get("kind")] = d
+    ordered = current + list(separate.values())
+    if not ordered:
+        return None
+    last = {**ordered[-1]}
+    if len(ordered) > 1:
+        last["earlier"] = ordered[:-1]
+    return last
+
+
 def profile_so_far(draft) -> str:
     """What's on the person's profile right now, for the agent to build on."""
     if not draft:
         return "The profile is empty so far."
-    parts = [f"kind: {draft.get('kind') or 'not set'}", f"intent_text: {draft.get('intent_text') or '(empty)'}"]
+    kind_field = next((f for f in draft.get("fields", []) if f.get("key") == "kind" and f.get("value")), None)
+    hidden_kind = " (hidden: keep it hidden by listing kind as hidden in fields)" if kind_field and \
+        kind_field.get("visibility") == HIDDEN else ""
+    parts = [f"kind: {draft.get('kind') or 'not set'}{hidden_kind}",
+             f"intent_text: {draft.get('intent_text') or '(empty)'}"]
     for f in draft.get("fields", []):
         value = f.get("value")
-        if f.get("enabled") and value not in (None, "", []) and f["key"] not in ("first_name", "age_band"):
+        if f.get("enabled") and value not in (None, "", []) and f["key"] not in ("first_name", "age_band", "kind"):
             shown = ", ".join(value) if isinstance(value, list) else value
             parts.append(f"{f['key']} ({f.get('visibility')}): {shown}")
     return "The profile so far (keep all of it when you save, unless they change something): " + "; ".join(parts) + "."
@@ -505,7 +601,7 @@ class ClaudeAgent:
     def _run(self, conversation: list, first_name: str, age_band: str, current=None) -> tuple:
         system = (SYSTEM_PROMPT + f"\nThe person you work for: first name {first_name}, age band {age_band}.\n"
                   + profile_so_far(current))
-        replies, draft, attempted = [], None, False
+        replies, draft, attempted, saved = [], None, False, []
         for _ in range(MAX_TOOL_ROUNDS):
             response = self._call(system, conversation)
             if response.stop_reason == "refusal":
@@ -529,9 +625,10 @@ class ClaudeAgent:
                                     "content": "Not saved. Fix these and call update_listing again:\n- " +
                                                "\n- ".join(problems)})
                 else:
-                    draft = new_draft
+                    saved.append(new_draft)
                     results.append({"type": "tool_result", "tool_use_id": block.id, "content": _summary(new_draft)})
             conversation.append({"role": "user", "content": results})
+            draft = turn_drafts(saved)
         reply = "\n\n".join(replies).strip() or ("I've drafted your listing. Take a look at your profile."
                                                   if draft else "Sorry, could you say that another way?")
         return honest(reply, attempted, draft is not None), draft

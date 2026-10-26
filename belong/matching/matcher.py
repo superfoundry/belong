@@ -9,8 +9,11 @@ Pluggable: anything with `match(board) -> MatchResult` is a Matchmaker.
     then a self-hosted model inside the enclave).
 
 How OfflineMatcher decides, in order:
-  1. Read each intent into structure (intent.py). Missing pieces become fixed-menu
-     follow-up questions.
+  1. Read what each listing asks for (understood, intent.read_listing): what the person's agent
+     recorded on it comes first (the shown kind of match and, for dating, the shown genders and
+     ages wanted), and the description and shown headline only for what that doesn't say.
+     Missing pieces become fixed-menu follow-up questions; until answered, something not said is
+     not a strict preference (no age range: one age band either side of your own).
   2. Narrow (narrow.py), top down: how they meet first (online only if both allow it, then
      place doesn't matter), then where (in person: cities within both people's travel
      distance), then what (the same structured kind, or a shared word in what one looks for
@@ -31,7 +34,7 @@ from dataclasses import replace
 
 from ..schema import AGE_BANDS, FOLLOWUP_MENU, HIDDEN, Listing
 from .contract import FollowUp, MatchResult, Matcher, Proposal  # noqa: F401 (re-exported)
-from .intent import GENDERS, ParsedIntent, default_age_range, parse_intent
+from .intent import GENDERS, ParsedIntent, default_age_range, parse_intent, read_listing  # noqa: F401
 from .marketboard import Marketboard
 from .narrow import ONLINE, ShownView, how_they_meet, shortlists, within_reach
 from .text import cosine
@@ -309,6 +312,13 @@ def effective_kind(parsed: ParsedIntent, view: ShownView) -> ParsedIntent:
     return parsed
 
 
+def understood(view: ShownView) -> ParsedIntent:
+    """What a listing asks for, as every decision and narrowing reads it: the shown kind, and for
+    dating the shown wants_gender / wants_age, first; its description only for what they don't say
+    (intent.read_listing). Shown fields only."""
+    return effective_kind(read_listing(view.intent_text, view.get), view)
+
+
 def intent_met(ap: ParsedIntent, av: ShownView, bp: ParsedIntent, bv: ShownView) -> bool:
     """Is A's intent met by B? Reads shown fields only (ShownView)."""
     if phrases_apply(ap, av, bp, bv):
@@ -494,9 +504,9 @@ class OfflineMatcher:
         listings' own load is left out."""
         listings = {l.person_id: l for l in board.listings() if l.active}  # paused listings aren't matched
         views = {pid: ShownView(l) for pid, l in listings.items()}
-        # Each listing's description and its shown headline (never a hidden field).
-        parsed = {pid: effective_kind(parse_intent(l.intent_text, str(views[pid].get("headline") or "")), views[pid])
-                  for pid, l in listings.items()}
+        # What each listing asks for: its shown kind and wants first, then its description and shown
+        # headline (never a hidden field). Narrowing groups by this same kind.
+        parsed = {pid: understood(views[pid]) for pid in listings}
 
         followups = []
         for pid, p in parsed.items():

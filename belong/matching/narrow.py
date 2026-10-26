@@ -12,7 +12,9 @@
      known there (or a listing that shows no country) is only in reach of a city of the same
      name. In the same country, someone who gives no city is open to anywhere in it.
   3. What, by meaning. Listings of a structured kind (dating, language, ...) are compared
-     with their own kind. Listings compared by their "looking for" / "you are" phrases are
+     with their own kind: the kind the listing shows, else the one read from its description
+     (matcher.understood, the same reading every decision uses). Listings compared by their
+     "looking for" / "you are" phrases are
      found through an inverted index of the words in their phrases, topics and what they show
      about themselves, inside the place groups of steps 1-2: a guitarist is never compared
      with a plumber, nor anyone with people they could never meet.
@@ -28,8 +30,8 @@ from __future__ import annotations
 
 from collections import defaultdict
 
-from ..schema import (CITY_COORDS, MAX_TRAVEL_KM, TRAVEL, TRAVEL_DEFAULT, Listing, km_between, meeting_format,
-                      plain_place, travel_choice, value_strings)
+from ..schema import (CITY_COORDS, MAX_TRAVEL_KM, TRAVEL, TRAVEL_DEFAULT, UNDERSTOOD_FIELDS, Listing, km_between,
+                      meeting_format, plain_place, travel_choice, value_strings)
 from .intent import ParsedIntent
 from .text import TfIdf, cosine
 
@@ -58,9 +60,13 @@ class ShownView:
         return self._shown.get(key)
 
     def profile_text(self) -> str:
+        """The description and shown values, as words for text similarity. What the person's agent
+        understood (UNDERSTOOD_FIELDS) is left out: it already decides who qualifies, and as words
+        ("dating", "other") it would only blur how alike two listings read."""
         parts = [self.intent_text]
-        for value in self._shown.values():
-            parts.extend(value_strings(value))
+        for key, value in self._shown.items():
+            if key not in UNDERSTOOD_FIELDS:
+                parts.extend(value_strings(value))
         return " ".join(parts)
 
 

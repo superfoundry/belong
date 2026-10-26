@@ -10,9 +10,17 @@ import hashlib
 import random
 from dataclasses import replace
 
-from .schema import (AGE_BAND_BOUNDS, AGE_BANDS, FIELD_REGISTRY, FORMATS, FREE_TEXT_MAX, HIDDEN, SHOWN, TRAVEL, Field,
-                     Listing, only_said, said)
-from .synth import Persona
+from .schema import (AGE_BAND_BOUNDS, AGE_BANDS, AGE_MAX, AGE_MIN, FIELD_REGISTRY, FORMATS, FREE_TEXT_MAX, GENDERS,
+                     HIDDEN, MATCH_KINDS, SHOWN, TRAVEL, Field, Listing, age_span, only_said, said)
+from .synth import Persona, ages_in_years
+
+
+def with_wants_age(fields: tuple, value: str) -> tuple:
+    """The listing's fields with "wants_age" set to `value` (years, "lo-hi"): an existing one keeps
+    the person's own choice of shown or hidden, a new one is shown, like any field by default."""
+    if any(f.key == "wants_age" for f in fields):
+        return tuple(replace(f, value=value) if f.key == "wants_age" else f for f in fields)
+    return tuple(fields) + (Field("wants_age", value, FIELD_REGISTRY["wants_age"].default, False),)
 
 
 def draft_listing(p: Persona, now: str) -> Listing:
@@ -37,7 +45,7 @@ def draft_listing(p: Persona, now: str) -> Listing:
 def answer_followup(p: Persona, listing: Listing, question_id: str, now: str, rng: random.Random,
                     phrase: str = "") -> Listing:
     """The person answers a fixed-menu question; the agent updates the listing."""
-    text, exactness = listing.intent_text, listing.exactness
+    text, exactness, fields = listing.intent_text, listing.exactness, listing.fields
     if question_id == "also_offer":
         # Synthetic people have exactly one role in their ground truth, so they honestly can't
         # take on another: they decline. Real people answer this on their phone (also_offer).
@@ -49,6 +57,7 @@ def answer_followup(p: Persona, listing: Listing, question_id: str, now: str, rn
             text = f"{text} Aged {lo_age} or older."
         else:
             text = f"{text} Aged {lo_age} to {AGE_BAND_BOUNDS[hi][1]}."
+        fields = with_wants_age(fields, ages_in_years(p.truth.age_range))  # and recorded as understood
         p.truth.omit_age = False
     elif question_id == "schedule":
         pass  # schedule is already a field; the person keeps their choice
@@ -58,7 +67,8 @@ def answer_followup(p: Persona, listing: Listing, question_id: str, now: str, rn
                            version=listing.version + 1)
         return listing
     p.intent_text = text
-    return replace(listing, intent_text=text, exactness=exactness, updated_at=now, version=listing.version + 1)
+    return replace(listing, intent_text=text, exactness=exactness, fields=fields, updated_at=now,
+                   version=listing.version + 1)
 
 
 def also_offer(listing: Listing, phrase: str, now: str, mirror: str = "", pay: str = "") -> Listing:
@@ -98,7 +108,9 @@ def reveal_consents(listing: Listing, rng: random.Random) -> set:
 import re as _re
 
 from . import synth as _vocab
-from .matching.intent import ages_text, default_age_range, own_gender, parse_intent as _parse_intent
+from .matching.intent import (_HOBBY, _KIND_PATTERNS, _MEETING, _ROMANTIC, _TASK_AFTER, _is_dating, _set_aside,
+                              ages_text, dating_wants as _dating_wants, default_age_range, own_gender,
+                              parse_intent as _parse_intent, read_listing, relative_years)
 
 ALL_MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August",
               "September", "October", "November", "December"]
@@ -114,12 +126,15 @@ LABELS = {
     "children": "Children", "neighborhood": "Neighborhood", "employer": "Employer",
     "income_band": "Income", "religion": "Religion", "politics": "Politics", "health": "Health",
     "kinks": "Intimacy preferences",
+    "kind": "Kind of match", "wants_gender": "Looking for", "wants_age": "Their age",
 }
 
 _COMMON = ["first_name", "country", "city", "travel", "age_band", "interests", "schedule", "diet", "smoking",
            "neighborhood", "employer", "income_band", "religion", "politics", "health"]
+# Only dating records who they'd like to meet and their ages.
+DATING_ONLY = ("wants_gender", "wants_age")
 _BY_KIND = {
-    "dating": ["gender", "children", "kinks"], "climbing": ["level"], "running": ["pace"],
+    "dating": ["gender", *DATING_ONLY, "children", "kinks"], "climbing": ["level"], "running": ["pace"],
     "language": ["native_language", "learning_language", "format"], "tutoring": ["role", "subject", "pay", "format"],
     "roommate": ["move_in", "pay"], "cofounder": ["role", "format"],
     "other": ["seeking", "offering", "pay", "format"],
@@ -130,6 +145,7 @@ _KIND_NAMES = {
     "roommate": "a roommate",
     "other": "something else",
 }
+assert tuple(_KIND_NAMES) == MATCH_KINDS  # the kinds an agent may choose are the ones the Warden accepts
 # Why dating needs your gender, and what hiding it means (hidden details never decide a match).
 GENDER_NOTE = ("Please set your gender below. It's needed so people looking for a woman or a man can find you. "
                "You can keep it hidden, but a hidden detail never decides a match, so then only people open to "
@@ -157,6 +173,7 @@ def field_options(kind, city=None) -> dict:
         "income_band": _vocab.INCOME[country] if country else ["lower income", "middle income", "higher income"],
         "religion": _vocab.RELIGION, "politics": _vocab.POLITICS, "health": _vocab.HEALTH,
         "kinks": _vocab.KINKS,
+        "kind": list(MATCH_KINDS), "wants_gender": list(GENDERS), "wants_age": [],
     }
 
 
@@ -169,14 +186,168 @@ def _find_language(pattern: str, low: str):
     return None
 
 
-def draft_from_message(message: str, first_name: str, age_band: str) -> dict:
+def wanted_ages(text: str, age_band) -> tuple:
+    """(ages in years as "lo-hi" or None, a note or None): the ages a dating description asks for,
+    absolute ("early 30s", "25 to 34") or relative to their own age band ("around my age": one band
+    either side of theirs). Belong. introduces adults only, so nobody under 18 is ever recorded."""
+    _, years = _dating_wants(text)
+    years = years or relative_years(text, age_band)
+    if years is None:
+        return None, None
+    lo, hi = years[0], min(years[1], AGE_MAX)
+    if hi < AGE_MIN:
+        return None, "Belong. only introduces adults, so I haven't added an age range. Who would you like to meet?"
+    note = None
+    if lo < AGE_MIN:
+        lo, note = AGE_MIN, f"Belong. only introduces adults, so the ages start at {AGE_MIN}."
+    value = f"{lo}-{hi}"
+    return (value, note) if age_span(value) else (None, None)
+
+
+# A partner for an activity, named: "a tennis partner", "a hiking buddy". Romantic words aren't an activity.
+_PARTNER_PHRASE = _re.compile(r"\b(?:a|an|some)\s+((?:[a-z]+\s+){0,2}?[a-z]+)\s+(?:partner|buddy|companion)s?\b")
+_NOT_AN_ACTIVITY = {"life", "long", "term", "long-term", "lifelong", "romantic", "serious", "loving", "committed",
+                    "steady", "new", "nice", "good", "kind", "great", "potential", "future", "real", "special",
+                    "perfect", "ideal", "business", "possible", "the", "my", "your", "our"}
+
+
+def activity_partner(text: str):
+    """The activity of a partner they name ("a tennis partner" -> "tennis"), or None."""
+    for m in _PARTNER_PHRASE.finditer(" ".join(text.lower().split())):
+        said = m.group(1).split()
+        if said[-1] not in _NOT_AN_ACTIVITY:  # "a long-term partner" names no activity
+            return " ".join(w for w in said if w not in _NOT_AN_ACTIVITY)
+    return None
+
+
+def wants_text(genders, ages) -> str:
+    """Who a dating listing would like to meet, in plain words: "a woman, 33 to 42", "anyone, 40 or older"."""
+    genders = [g for g in GENDERS if g in (genders or ())]
+    who = ("anyone" if set(genders) == set(GENDERS) else
+           " or ".join("a non-binary person" if g == "nonbinary" else f"a {g}" for g in genders))
+    span = age_span(ages)
+    when = (f"{span[0]} or older" if span[1] >= AGE_MAX else f"{span[0]} to {span[1]}") if span else ""
+    return ", ".join(p for p in (who, when) if p)
+
+
+# --- Asking when it's unclear ----------------------------------------------------------------
+# A message can mean more than one kind of match: wanting to meet a woman, and mentioning climbing
+# (a date, or a climbing partner?); or "a partner" with nothing to say whether it's romantic or for
+# an activity. Then the agent asks one short question instead of guessing, and "both" makes two
+# listings, each with its own kind. Read generally: the dating reader and an activity reader both
+# fire. Romantic words leave no doubt about wanting a date, so an activity they only say they enjoy
+# ("I love climbing") is a hobby; one they want to do with someone ("a climbing partner") still asks.
+_ASK_NAMES = {"dating": "a date", "climbing": "a climbing partner", "running": "a running buddy",
+              "language": "a language exchange", "cofounder": "a cofounder", "tutoring": "tutoring",
+              "roommate": "a roommate"}
+_PARTNER_ALONE = _re.compile(r"\b(?:a|an|my)\s+partner\b")
+ASK_HINT = "Just say which, or \"both\"."
+
+
+def _activities(text: str) -> list:
+    return [k for k, pat in _KIND_PATTERNS if _re.search(pat, text)]
+
+
+def kind_question(message: str):
+    """None when the kind of match is clear; otherwise {"text": one short question, "options": the
+    kinds it could be, each {"kind", "label", "activity"}}. An option with kind None is a partner for
+    an activity not named yet."""
+    low = " ".join(message.lower().split())
+    if not _is_dating(low):
+        return None
+    romantic = bool(_ROMANTIC.search(_set_aside(low)))
+    purpose = _HOBBY.sub(" ", low)  # without what they only say they enjoy
+    activities = _activities(purpose) if romantic else _activities(low)
+    partner_for = activity_partner(purpose if romantic else low)
+    if activities:
+        other = {"kind": activities[0], "label": _ASK_NAMES[activities[0]], "activity": None}
+    elif partner_for:
+        other = {"kind": "other", "label": f"{_article(partner_for)} {partner_for} partner", "activity": partner_for}
+    elif not romantic and _PARTNER_ALONE.search(low) and not _TASK_AFTER.search(low) and not _MEETING.search(
+            _PARTNER_ALONE.sub(" ", low)):
+        other = {"kind": None, "label": "a partner for an activity", "activity": None}  # "a partner", nothing more
+    else:
+        return None
+    options = [{"kind": "dating", "label": _ASK_NAMES["dating"], "activity": None}, other]
+    which = " (which one)" if other["kind"] is None else ""
+    return {"text": f"Are you looking for {options[0]['label']}, or {other['label']}{which}? Or both? I can make "
+                    f"two separate listings.", "options": options}
+
+
+_BOTH = _re.compile(r"\b(?:both|either|all of (?:them|those)|two listings|each)\b")
+_DATE_WORDS = r"\b(?:dat(?:e|es|ing)|romance|romantic|relationship|boyfriend|girlfriend|someone special)\b"
+_NEGATED = _re.compile(r"(?:\b(?:not|no|never|without)|n't)(?:\s+[a-z']+){0,2}\s*$")  # within the same phrase
+_CHOICE_FILLER = {"a", "an", "the", "i", "im", "m", "am", "looking", "for", "want", "just", "only", "please", "yes",
+                  "no", "not", "partner", "buddy", "someone", "to", "with", "and", "or", "both", "one", "s", "it",
+                  "thanks", "thank", "you", "would", "like", "go", "do", "play", "together", "activity", "in", "on",
+                  "at", "of", "some", "that", "this", "is", "be", "me", "my", "really", "actually", "oh", "ok", "okay"}
+
+
+def says_what_they_want(message: str) -> bool:
+    """Does this message ask for a kind of match on its own (a new request, not an answer)?"""
+    return _parse_intent(message).kind is not None or activity_partner(message) is not None
+
+
+def _chose(low: str, pattern: str) -> bool:
+    """The answer names this, at least once without "not" / "no" / "never" just before it."""
+    return any(not _NEGATED.search(low[:m.start()]) for m in _re.finditer(pattern, low))
+
+
+def chosen_kinds(answer: str, options: list):
+    """What the person chose, in answer to kind_question: a list of {"kind", "activity"} (in the
+    order asked), or None if the answer doesn't say. "Both" is every option; a negated choice ("not a
+    date") doesn't count. A partner for an activity not named yet takes the activity from the answer
+    ("tennis"); with "both" and no activity yet, its kind stays None, to be asked."""
+    low = " ".join((answer or "").lower().split())
+    both = bool(_BOTH.search(low))
+    dating = both or _chose(low, _DATE_WORDS)
+    out = []
+    for o in options:
+        if o["kind"] == "dating":
+            if dating:
+                out.append({"kind": "dating", "activity": None})
+        elif o["kind"] is None:  # which activity: the one they name now
+            named, partner_for = _activities(low), activity_partner(low)
+            places = {w for place in [*_vocab.CITIES, *COUNTRIES] for w in place.lower().split()}
+            content = [w for w in _re.findall(r"[a-z]+", _re.sub(_DATE_WORDS, " ", low))
+                       if w not in _CHOICE_FILLER and w not in places]  # a word or two: the activity
+            if named:
+                out.append({"kind": named[0], "activity": None})
+            elif partner_for:
+                out.append({"kind": "other", "activity": partner_for})
+            elif content and len(content) <= 3 and (both or not dating):
+                out.append({"kind": "other", "activity": " ".join(content)})
+            elif both:
+                out.append({"kind": None, "activity": None})
+        else:
+            words = [w for w in _re.findall(r"[a-z]+", o["label"]) if w not in ("a", "an", "partner", "buddy")]
+            pattern = dict(_KIND_PATTERNS).get(o["kind"]) or r"\b(?:" + "|".join(map(_re.escape, words)) + r")\b"
+            if both or _chose(low, pattern):
+                out.append({"kind": o["kind"], "activity": o.get("activity")})
+    return out or None
+
+
+def draft_from_message(message: str, first_name: str, age_band: str, kind=None, activity=None) -> dict:
     """Read the person's own words and suggest a listing. Returns a plain dict the
-    app shows for review; nothing is submitted until the person says so."""
+    app shows for review; nothing is submitted until the person says so.
+
+    kind: the kind of match the person chose when asked (kind_question), instead of the one their
+    words suggest. activity: for "other", the activity they want a partner for ("tennis")."""
     text = " ".join(message.split())[:500]
     low = text.lower()
     parsed = _parse_intent(text)
-    kind = parsed.kind
+    activity = activity or (activity_partner(text) if kind in (None, "other") and parsed.kind is None else None)
+    kind = kind or parsed.kind or ("other" if activity else None)
+    if kind != parsed.kind:
+        parsed = read_listing(text, {"kind": kind}.get)  # read as that kind of listing
     v = {"first_name": first_name, "age_band": age_band}
+    if kind:
+        v["kind"] = kind  # what the agent understood, recorded on the listing (shown)
+    if kind == "other" and activity:
+        phrase = f"{_article(activity)} {activity} partner"
+        v["seeking"] = v["offering"] = phrase
+        v["headline"] = f"Looking for {phrase}"[:60]
+        v["topics"] = (activity,)
     enabled_sensitive = set()
     notes = []
 
@@ -189,9 +360,10 @@ def draft_from_message(message: str, first_name: str, age_band: str) -> dict:
         if _re.search(pat, low):
             v["schedule"] = sched
             break
-    interests = [i for i in _vocab.INTERESTS if i in low]
+    # Interests: the usual ones, and anything they say they enjoy ("I enjoy rock climbing and tennis").
+    interests = list(dict.fromkeys([i for i in _vocab.INTERESTS if i in low] + quick_facts(text).get("interests", [])))
     if interests:
-        v["interests"] = interests
+        v["interests"] = interests[:8]
     level = next((l for l in _vocab.LEVELS if l in low), None)
     if kind == "climbing" and level:
         v["level"] = level
@@ -220,8 +392,18 @@ def draft_from_message(message: str, first_name: str, age_band: str) -> dict:
         month = next((m for m in ALL_MONTHS if m.lower() in low), None)
         if month:
             v["move_in"] = month
-    if kind == "dating" and (gender := own_gender(low)):
-        v["gender"] = gender
+    if kind == "dating":
+        if gender := own_gender(low):
+            v["gender"] = gender
+        # Who they'd like to meet, and the ages, as the agent understood them (shown, so matching uses
+        # them and the person can check them on their profile).
+        if parsed.seeking:
+            v["wants_gender"] = tuple(g for g in GENDERS if g in parsed.seeking)
+        ages, note = wanted_ages(text, age_band)
+        if ages:
+            v["wants_age"] = ages
+        if note:
+            notes.append(note)
     diet = next((d for d in _vocab.DIET if _re.search(r"\b" + d + r"\b", low)), None)
     if diet:
         v["diet"] = diet
@@ -259,14 +441,17 @@ def draft_from_message(message: str, first_name: str, age_band: str) -> dict:
                         "'a climbing partner' or 'a long-term relationship'?")
     if not city and not parsed.remote_ok:
         notes.append("Which city? I couldn't tell, so please pick one below.")
-    if kind == "dating" and parsed.age_range is None:
+    if kind == "dating" and "wants_gender" not in v:
+        notes.append("Who would you like to meet: a woman, a man, or anyone? Set it under \"Looking for\" below.")
+    if kind == "dating" and "wants_age" not in v:
         notes.append(f"You didn't say what ages you'd like, so for now you're open to "
-                     f"{ages_text(default_age_range(age_band))} (one age band either side of yours). Add an age "
-                     f"range to your description to change that.")
+                     f"{ages_text(default_age_range(age_band))} (one age band either side of yours). Tell me, or "
+                     f"set \"Their age\" below, to change that.")
     if kind == "dating" and "gender" not in v:
         notes.append(GENDER_NOTE)
 
-    keys = _COMMON + _BY_KIND.get(kind, [])
+    keys = (["kind"] if kind else []) + _COMMON + _BY_KIND.get(kind, [])
+    keys += [k for k in ("headline", "topics") if k in v]
     options = field_options(kind, v.get("city"))
     fields = []
     for key in keys:
@@ -280,8 +465,12 @@ def draft_from_message(message: str, first_name: str, age_band: str) -> dict:
         })
 
     understood = [f"Looking for {_KIND_NAMES[kind]}" if kind else "Kind of match: not sure yet"]
+    if kind == "other" and activity:
+        understood = [f"Looking for {v['seeking']}"]
     if city:
         understood.append(f"in {city}")
+    if kind == "dating" and (v.get("wants_gender") or v.get("wants_age")):
+        understood.append("with " + wants_text(v.get("wants_gender"), v.get("wants_age")))
     if v.get("format") == "Online":
         understood.append("(online only)")
     elif parsed.remote_ok:
@@ -462,19 +651,26 @@ def travel_from_text(low: str):
     return None
 
 
-def dating_ages(draft) -> dict | None:
-    """For the person's own dating draft: the ages its description asks for, read the way matching
-    reads it, or the ages they're open to until they say (one age band either side of their own).
-    Only ever shown on their own phone."""
+def dating_wants(draft) -> dict | None:
+    """For the person's own dating draft, read exactly the way matching reads it (read_listing, from
+    the details they show, then their description): who they'd like to meet (genders), those
+    people's ages in years [lo, hi] (None if not said), and the ages they're open to until they say
+    (one age band either side of their own). Only ever sent to their own phone."""
     if not draft or draft.get("kind") != "dating":
         return None
-    fields = {f.get("key"): f for f in draft.get("fields", []) if f.get("enabled", True)}
-    headline = fields.get("headline") or {}
-    parsed = _parse_intent(draft.get("intent_text") or "",
-                           str(headline.get("value") or "") if headline.get("visibility", SHOWN) == SHOWN else "")
-    band = (fields.get("age_band") or {}).get("value")
-    return {"stated": ages_text(parsed.age_range) if parsed.age_range else None,
-            "default": ages_text(default_age_range(band))}
+    shown = {}
+    for f in draft.get("fields", []):
+        value = f.get("value")
+        if f.get("enabled", True) and value not in (None, "", []) and f.get("visibility", SHOWN) == SHOWN:
+            shown[f.get("key")] = tuple(value) if isinstance(value, list) else value
+    shown.setdefault("kind", "dating")
+    parsed = read_listing(draft.get("intent_text") or "", shown.get)
+    span = age_span(shown.get("wants_age"))
+    if span is None and parsed.age_range:
+        span = (AGE_BAND_BOUNDS[parsed.age_range[0]][0], AGE_BAND_BOUNDS[parsed.age_range[1]][1])
+    lo, hi = default_age_range(shown.get("age_band"))
+    return {"genders": [g for g in GENDERS if g in parsed.seeking], "ages": list(span) if span else None,
+            "default": [AGE_BAND_BOUNDS[lo][0], AGE_BAND_BOUNDS[hi][1]]}
 
 
 def empty_draft(first_name: str, age_band: str) -> dict:
@@ -493,12 +689,16 @@ def empty_draft(first_name: str, age_band: str) -> dict:
 def fill_gaps(draft: dict, facts: dict) -> list:
     """Put facts into empty fields of a draft (never overwriting anything set). Returns the
     keys filled. Fields the draft doesn't have yet are added, except a format on a kind that has
-    none (has_format): a climbing listing isn't made online only by "online works for me"."""
+    none (has_format): a climbing listing isn't made online only by "online works for me". The kind
+    of match is the agent's to record, never carried over, and who someone would like to meet and
+    their ages belong only on a dating draft."""
     filled = []
     by_key = {f["key"]: f for f in draft["fields"]}
     for key, value in facts.items():
         spec = FIELD_REGISTRY.get(key)
-        if spec is None or spec.sensitive:
+        if spec is None or spec.sensitive or key == "kind":
+            continue
+        if key in DATING_ONLY and draft.get("kind") != "dating":
             continue
         f = by_key.get(key)
         if f is None and key == "format" and not has_format(draft.get("kind")):

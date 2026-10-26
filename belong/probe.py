@@ -216,6 +216,13 @@ def attack_suite(body: dict) -> dict:
             lambda: admit(me, fields=a_listing.fields + (Field("home_address", "1-2-3 Namba", SHOWN, False),)))
     attempt("entry", "Claim a different age than the ID check",
             lambda: admit(replace(me, age_band="18-24" if me.age_band != "18-24" else "50+")))
+    # What a person's agent understood goes on the listing in fixed forms only.
+    attempt("entry", "Give a kind of match outside the fixed choices",
+            lambda: admit(me, fields=_set_field(a_listing, Field("kind", "anything at all", SHOWN, False))))
+    attempt("entry", "Ask to meet people under 18",
+            lambda: admit(me, fields=_set_field(a_listing, Field("wants_age", "16-25", SHOWN, False))))
+    attempt("entry", "Ask for a gender outside the fixed choices",
+            lambda: admit(me, fields=_set_field(a_listing, Field("wants_gender", ("woman", "girls"), SHOWN, False))))
 
     def flood():
         scratch, pid = Marketboard(), "flooder"
@@ -292,23 +299,23 @@ def attack_suite(body: dict) -> dict:
         if intro is None:
             return None
         said = intro.a_view["reason"] + " " + intro.b_view["reason"]
-        return True if re.search(r"both in|near each other", said) else None
+        return True if re.search(r"both in|near one another", said) else None
     attempt("compromised matchmaker", "Cite where two people are to make far-apart cities sound close",
             far_apart_as_near, by="reason_text: worded from both shown cities and the distance between them")
 
     def sounds_close(x_place, y_place):
         """Introduce two people placed as given, citing where they are; does either reason say they're
-        in the same place or near each other? (None: the introduction itself was refused.)"""
+        in the same place or near one another? (None: the introduction itself was refused.)"""
         x = on_board(f"placed{next(fresh)}", fields=_placed(a_listing, *x_place))
         y = on_board(f"placed{next(fresh)}", fields=_placed(a_listing, *y_place))
         intro = warden.exit_introduction(P(person_a=x, person_b=y, reason_fields=("city",)), board)
         if intro is None:
             return None
-        return bool(re.search(r"both in|near each other", intro.a_view["reason"] + " " + intro.b_view["reason"]))
+        return bool(re.search(r"both in|near one another", intro.a_view["reason"] + " " + intro.b_view["reason"]))
 
     def same_name_as_near():
         # Two cities called Cambridge in different countries, and a Cambridge whose namesake is near a
-        # London in another country. Neither pair is in the same place or near each other.
+        # London in another country. Neither pair is in the same place or near one another.
         said = [sounds_close(("Cambridge", "United States"), ("Cambridge", "United Kingdom")),
                 sounds_close(("Cambridge", "United States"), ("London", "United Kingdom"))]
         return True if any(said) else None
@@ -317,7 +324,7 @@ def attack_suite(body: dict) -> dict:
 
     def hidden_country_as_near():
         # One person is in Cambridge and hides that it's in the United Kingdom; the other is in London,
-        # United Kingdom. "Near each other" would be true, but only a hidden detail could say so.
+        # United Kingdom. "Near one another" would be true, but only a hidden detail could say so.
         return True if sounds_close(("Cambridge", "United Kingdom", HIDDEN), ("London", "United Kingdom")) else None
     attempt("compromised matchmaker", "Word where two people are from a country one of them hides",
             hidden_country_as_near, by="reason_text: only countries both people show shape the wording")
@@ -375,6 +382,11 @@ def _placed(listing: Listing, city: str, country: str, country_visibility: str =
     """The listing's fields, moved to another city (shown) and travelling nowhere."""
     fields = [f for f in listing.fields if f.key not in ("city", "country", "travel")]
     return tuple(fields + [Field("city", city, SHOWN, False), Field("country", country, country_visibility, False)])
+
+
+def _set_field(listing: Listing, field: Field) -> tuple:
+    """The listing's fields with this one set (replacing any field with the same key)."""
+    return tuple([f for f in listing.fields if f.key != field.key] + [field])
 
 
 def _shared_reasons(board, a: str, b: str) -> tuple:

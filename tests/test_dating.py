@@ -256,21 +256,26 @@ class YourGender(unittest.TestCase):
 
     def test_the_model_agent_is_asked_for_gender_and_ages_and_hidden_stays_hidden(self):
         from belong.agent_llm import SYSTEM_PROMPT
-        self.assertIn("their own gender and the age range they want", SYSTEM_PROMPT)
+        for said in ("their own gender", '"wants_gender"', '"wants_age"', "around my age", "a hidden gender can't help "
+                     "others find them"):
+            self.assertIn(said, SYSTEM_PROMPT)
         args = {"kind": "dating", "exactness": 0.6,
                 "intent_text": "Looking to meet a man in Osaka, around early 30s, who's into photography and jazz.",
                 "fields": [{"key": "city", "values": ["Osaka"], "visibility": SHOWN}]}
         draft, problems, _ = build_draft(args, "Mika", "30-34")
         self.assertEqual(problems, [])
         self.assertTrue(any(m.startswith("their gender") for m in draft["missing"]))
-        self.assertFalse(any("age range" in m for m in draft["missing"]))  # "early 30s" is one
+        # Who and what ages are recorded by the agent, worked out from what she said ("early 30s").
+        self.assertTrue(any("wants_gender" in m for m in draft["missing"]))
+        self.assertTrue(any("wants_age" in m and "open to 25 to 39" in m for m in draft["missing"]))
+        args["fields"] += [{"key": "wants_gender", "values": ["man"], "visibility": SHOWN},
+                           {"key": "wants_age", "values": ["30-33"], "visibility": SHOWN}]
+        draft, problems, _ = build_draft(args, "Mika", "30-34")
+        self.assertFalse(any("wants_" in m for m in draft["missing"]))
         args["fields"].append({"key": "gender", "values": ["woman"], "visibility": HIDDEN})
         draft, problems, notes = build_draft(args, "Mika", "30-34")
         self.assertEqual(next(f["visibility"] for f in draft["fields"] if f["key"] == "gender"), HIDDEN)
         self.assertTrue(any("fewer matches" in n for n in notes))
-        args["intent_text"] = "Looking to meet a man in Osaka who's into jazz."
-        draft, _, _ = build_draft(args, "Mika", "30-34")
-        self.assertTrue(any("open to 25 to 39" in m for m in draft["missing"]))
 
 
 PAGE = (Path(__file__).resolve().parent.parent / "belong" / "web" / "demo.html").read_text()
@@ -298,9 +303,9 @@ class Checklist(unittest.TestCase):
         node = shutil.which("node")
         if not node:
             self.skipTest("node isn't installed")
-        code = "\n".join(_js(n) for n in ("const hasValue", "const CLIENT_WORDS", "const FILLER", "const words",
-                                          "function sides", "function draftValues", "function layoutFor",
-                                          "function checklist"))
+        code = "\n".join(_js(n) for n in ("const hasValue", "const spanOf", "const agesText", "const CLIENT_WORDS",
+                                          "const FILLER", "const words", "function sides", "function draftValues",
+                                          "function layoutFor", "function lookingFor", "function checklist"))
         code += f"\nconsole.log(JSON.stringify({json.dumps(cases)}.map(([c, l]) => checklist(c, l))));"
         with tempfile.NamedTemporaryFile("w", suffix=".js", delete=False) as f:
             f.write(code)
@@ -313,27 +318,32 @@ class Checklist(unittest.TestCase):
         for f in draft["fields"]:
             if f["key"] in change:
                 f["value"], f["visibility"] = change[f["key"]]
-        return [{"draft": draft}, {"ages": agent.dating_ages(draft)}]
+        return [{"draft": draft}, {"wants": agent.dating_wants(draft)}]
 
-    def test_dating_needs_your_gender_and_an_age_range_and_says_why(self):
+    def test_dating_needs_who_you_want_your_gender_and_their_age_and_says_why(self):
         no_gender = self.case("Looking to meet a man in Osaka, who's into jazz.")
         with_suggestions = self.case("Looking to meet a man in Osaka, who's into jazz.")
         with_suggestions[0]["draft"]["suggestions"] = [{"label": "Your interests", "ask": "I'm into "}]
         shown = self.case("Looking to meet a man in Osaka, early 30s. I'm a woman.")
         hidden = self.case("Looking to meet a man in Osaka, early 30s.", gender=("woman", HIDDEN))
-        lists = self.run_checklist([no_gender, with_suggestions, shown, hidden])
+        nobody = self.case("Looking for someone special in Osaka.")  # dating, but who isn't said
+        lists = self.run_checklist([no_gender, with_suggestions, shown, hidden, nobody])
         for items in lists[:2]:  # with or without the agent's own suggestions
             by = {i["label"]: i for i in items}
+            self.assertTrue(by["Who you'd like to meet"]["done"])
             self.assertFalse(by["Your gender"]["done"])
             self.assertIn("people looking for a woman or a man can find you", by["Your gender"]["why"])
-            self.assertFalse(by["An age range"]["done"])
-            self.assertIn("25 to 39", by["An age range"]["why"])
+            self.assertFalse(by["Their age"]["done"])
+            self.assertIn("25–39", by["Their age"]["why"])
         by = {i["label"]: i for i in lists[2]}
-        self.assertTrue(by["Your gender"]["done"] and by["An age range"]["done"])
+        self.assertTrue(by["Your gender"]["done"] and by["Their age"]["done"])  # "early 30s" is understood
         self.assertFalse(by["Your gender"].get("warn"))
         by = {i["label"]: i for i in lists[3]}
         self.assertTrue(by["Your gender"]["done"] and by["Your gender"]["warn"])  # hidden is allowed, and explained
         self.assertIn("fewer matches", by["Your gender"]["why"])
+        by = {i["label"]: i for i in lists[4]}
+        self.assertFalse(by["Who you'd like to meet"]["done"])
+        self.assertIn("a woman, a man, or anyone", by["Who you'd like to meet"]["why"])
 
 
 class TheReportedCase(unittest.TestCase):
@@ -359,7 +369,9 @@ class TheReportedCase(unittest.TestCase):
         s, others, no_ages = self.introduced(self.MESSAGE + " I'm a woman.")
         self.assertTrue(no_ages, others)
         self.assertIn("p003", no_ages)  # the reported listing: "I'd like to meet women in Osaka for someone to date."
-        self.assertEqual(s.phone_state("B")["listings"][0]["ages"], {"stated": "30 to 34", "default": "25 to 39"})
+        # Her phone shows what her agent understood: a man, "early 30s" in years, as matching reads it.
+        self.assertEqual(s.phone_state("B")["listings"][0]["wants"], {"genders": ["man"], "ages": [30, 33],
+                                                                      "default": [25, 39]})
         self.assertTrue(s.room_state()["leak_report"]["ok"])
 
     def test_without_her_gender_men_looking_for_women_cant_find_her(self):

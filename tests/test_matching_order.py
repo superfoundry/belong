@@ -243,7 +243,7 @@ class WhereInTheReason(unittest.TestCase):
 
     def test_reason_text_for_nearby_and_same_cities(self):
         japan = ("Japan", "Japan")
-        self.assertEqual(reason_text([("city", "Osaka", "Kyoto")], japan), "You're near each other: Osaka and Kyoto.")
+        self.assertEqual(reason_text([("city", "Osaka", "Kyoto")], japan), "You're near one another: Osaka and Kyoto.")
         self.assertEqual(reason_text([("city", "Osaka", "osaka")], japan), "You're both in osaka.")
         self.assertEqual(reason_text([("city", "Lisbon", "Lisboa")], ("Portugal", "portugal")), "You're both in Lisboa.")
         self.assertEqual(reason_text([("country", "Japan", "Japan")]), "You're both in Japan.")
@@ -265,12 +265,12 @@ class WhereInTheReason(unittest.TestCase):
             self.assertFalse(result()["blocked"])
 
     def test_same_name_cities_are_worded_by_the_shown_countries(self):
-        """"Both in" and "near each other" only when both people show the same country."""
+        """"Both in" and "near one another" only when both people show the same country."""
         us_uk, uk, us = ("United States", "United Kingdom"), ("United Kingdom",) * 2, ("United States",) * 2
         self.assertEqual(reason_text([("city", "Cambridge", "Cambridge")], us_uk), "You're in Cambridge; they're in Cambridge.")
         self.assertEqual(reason_text([("city", "Cambridge", "London")], us_uk), "You're in Cambridge; they're in London.")
-        self.assertEqual(reason_text([("city", "Cambridge", "London")], uk), "You're near each other: Cambridge and London.")
-        self.assertEqual(reason_text([("city", "Cambridge", "Boston")], us), "You're near each other: Cambridge and Boston.")
+        self.assertEqual(reason_text([("city", "Cambridge", "London")], uk), "You're near one another: Cambridge and London.")
+        self.assertEqual(reason_text([("city", "Cambridge", "Boston")], us), "You're near one another: Cambridge and Boston.")
         self.assertEqual(reason_text([("city", "Boston", "London")], uk), "You're in Boston; they're in London.")
         # Without both countries, nothing is claimed.
         self.assertEqual(reason_text([("city", "Cambridge", "London")]), "You're in Cambridge; they're in London.")
@@ -289,7 +289,7 @@ class WhereInTheReason(unittest.TestCase):
             (placed("pa", "Cambridge", "United States"), placed("pb", "Cambridge", "United Kingdom"),
              "You're in Cambridge; they're in Cambridge.", "You're in Cambridge; they're in Cambridge."),
             (placed("pa", "Cambridge", "United Kingdom"), placed("pb", "London", "United Kingdom"),
-             "You're near each other: Cambridge and London.", "You're near each other: London and Cambridge."),
+             "You're near one another: Cambridge and London.", "You're near one another: London and Cambridge."),
         ]
         for a, b, a_reads, b_reads in cases:
             w, board = board_of(a, b)
@@ -324,8 +324,8 @@ class WhereInTheReason(unittest.TestCase):
         self.assertIsNotNone(intro)
         self.assertEqual([r.check for r in w.receipts[start:] if r.result == "fail"], [])
         views = {intro.person_a: intro.a_view["reason"], intro.person_b: intro.b_view["reason"]}
-        self.assertIn("You're near each other: Osaka and Kyoto.", views["pa"])
-        self.assertIn("You're near each other: Kyoto and Osaka.", views["pb"])
+        self.assertIn("You're near one another: Osaka and Kyoto.", views["pa"])
+        self.assertIn("You're near one another: Kyoto and Osaka.", views["pb"])
         report = leak_report(board, [intro.to_dict()], [], [], [r.to_dict() for r in w.receipts], props, set(), {},
                              20, 15)
         self.assertTrue(report["ok"], report["findings"])

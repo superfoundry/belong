@@ -1,9 +1,15 @@
-"""Read a free-text intent into structure (OfflineMatcher only; SPEC §5, §8.3).
+"""Read what a listing asks for (OfflineMatcher only; SPEC §5, §8.3).
 
-This is the rules-based stand-in for an LLM reading the intent. It reads the listing's
-description and, after it, the listing's shown headline (the matcher passes shown fields
-only), and looks for the kind of match, who the person is looking for, and an age range.
-Anything it can't find is left as None, which can trigger a fixed-menu follow-up question.
+What the person's agent understood comes first: the listing's SHOWN "kind" of match and, for
+dating, the shown "wants_gender" and "wants_age" (read_listing). Only what those don't say is read
+from the free text, by the rules below: the listing's description and, after it, its shown headline
+(the matcher passes shown fields only). They look for the kind of match, who the person is looking
+for, and an age range. A hidden field is never read here, so it is as if it weren't there. Anything
+still unknown is left as None, which can trigger a fixed-menu follow-up question.
+
+The rules are a fallback, not understanding: the range of what people type is endless. They read
+a hobby the person mentions ("I enjoy climbing") as a hobby, not as the kind of match, whenever
+something else in the text says what they want.
 """
 from __future__ import annotations
 
@@ -11,7 +17,7 @@ import re
 from dataclasses import dataclass
 from typing import Optional
 
-from ..schema import AGE_BAND_BOUNDS, AGE_BANDS, said
+from ..schema import AGE_BAND_BOUNDS, AGE_BANDS, GENDERS, MATCH_KINDS, age_bands_for, age_span, said
 
 # Checked in order: functional kinds first, so "climbing partner" isn't read as dating.
 _KIND_PATTERNS = [
@@ -23,7 +29,14 @@ _KIND_PATTERNS = [
     ("roommate", r"roommate|flatmate|housemate"),
 ]
 
-GENDERS = ("man", "nonbinary", "woman")  # the gender field's values
+# Something the person says they enjoy ("I enjoy rock climbing and tennis", "who loves hiking", "my
+# hobbies are..."), up to the end of the sentence. A hobby is not what they want to meet someone for,
+# so the kind is read without these first, and from them only if nothing else says what they want.
+_HOBBY = re.compile(
+    r"\b(?:i|we|who|she|he|they)\s+(?:really\s+|also\s+|both\s+)?(?:enjoy|love|like|adore)s?\b[^.!?;]*"
+    r"|\b(?:i'?m|i am|who'?s|who is|we'?re|also)\s+(?:really\s+|also\s+|big\s+)?(?:into|a fan of|passionate about)\b"
+    r"[^.!?;]*"
+    r"|\bmy (?:hobbies|interests|passions) (?:are|include)\b[^.!?;]*|\bhobbies\b:?[^.!?;]*")
 
 # --- Dating ---------------------------------------------------------------------------
 # Said outright ("a date", "a relationship", "a girlfriend", "looking for love"), or as wanting to
@@ -72,13 +85,26 @@ _TRADE = re.compile(r"\b(?:sell|sells|selling|sold|for sale|buy|buys|buying|give
                     r"therapist|therapy|workshop|seminar)\b|[£€$¥]\s?\d")
 
 
+def _set_aside(low: str) -> str:
+    """The text without calendar dates and people the person already has."""
+    return _ALREADY_HAVE.sub(" ", _CALENDAR.sub(" ", low))
+
+
 def _is_dating(low: str) -> bool:
-    text = _ALREADY_HAVE.sub(" ", _CALENDAR.sub(" ", low))
+    text = _set_aside(low)
     if _TRADE.search(text):
         return False
     if _ROMANTIC.search(text):
         return True
     return bool(_MEETING.search(text)) and not _TASK_AFTER.search(text) and not _WORK.search(text)
+
+
+def _named_kind(text: str) -> Optional[str]:
+    """The first functional kind the text names, else dating if it reads as dating, else None."""
+    kind = next((k for k, pat in _KIND_PATTERNS if re.search(pat, text)), None)
+    if kind is None and _is_dating(text):
+        kind = "dating"
+    return kind
 
 
 # What a person says about themselves ("I'm a woman", "as a 34 year old gay man", "I'm non-binary") is
@@ -110,8 +136,9 @@ def own_gender(text: str) -> Optional[str]:
 
 # --- Ages ----------------------------------------------------------------------------------
 _N = r"(1[89]|[2-9]\d)"
-_SELF_AGE = re.compile(rf"\b(?:i'?m|i am|im)\s+(?:only\s+|just\s+)?{_N}\b|\bin my (?:early |mid |late )?"
-                       r"(?:[2-9]0['’]?s|(?:twent|thirt|fort|fift|sixt)ies)\b")
+# Their own age: "I'm 34", "I'm a 34 year old ...", "as a 34-year-old", "in my early 30s".
+_SELF_AGE = re.compile(rf"\b(?:i'?m|i am|im|as)\s+(?:only\s+|just\s+)?(?:an?\s+)?{_N}(?:[- ]?(?:years?[- ]old|yo|y/o))?\b"
+                       r"|\bin my (?:early |mid |late )?(?:[2-9]0['’]?s|(?:twent|thirt|fort|fift|sixt)ies)\b")
 _RANGE = re.compile(rf"\b{_N}\s*(?:-|–|to|and)\s*{_N}\b")
 _OLDER = re.compile(rf"\b{_N}\s*(?:\+|or older|or over|and older|and over|and up)|\b(?:over|older than|at least)\s+{_N}\b")
 _YOUNGER = re.compile(rf"\b(under|younger than|below|up to)\s+{_N}\b|\b{_N}\s*(?:or younger|or under|and under)\b")
@@ -120,6 +147,11 @@ _AROUND = re.compile(rf"\b(?:around|about|roughly|approximately|approx\.?|circa|
 _DECADE_WORDS = {"twent": 2, "thirt": 3, "fort": 4, "fift": 5, "sixt": 6}
 _PART_OF_DECADE = {"early": (0, 3), "mid": (4, 6), "late": (7, 9), None: (0, 9)}
 AROUND_YEARS = 3  # "around 30" means 27 to 33
+# Ages said relative to their own: around their age is one age band either side of theirs; a bit
+# younger is the band below and theirs; a bit older is theirs and the band above.
+_MY_AGE = re.compile(r"\b(?:my|our) (?:own )?age\b|\bsimilar(?:ly)?[- ]aged?\b|\bsame age\b|\bmy age group\b")
+_YOUNGER_THAN_ME = re.compile(r"\byounger\b")
+_OLDER_THAN_ME = re.compile(r"\bolder\b")
 
 
 def _decade(m) -> tuple:
@@ -153,21 +185,38 @@ def _ages_said(text: str, plain_numbers: bool) -> list:
     return spans
 
 
-def _bands(lo_age: int, hi_age: int) -> Optional[tuple]:
-    idx = [i for i, (lo, hi) in enumerate(AGE_BAND_BOUNDS) if hi >= lo_age and lo <= hi_age]
-    return (idx[0], idx[-1]) if idx else None
-
-
-def _age_range(wanted: str, whole: str = "") -> Optional[tuple]:
-    """The age bands someone asks for: read where they say what they want, or failing that anywhere
-    (but then only written as an age range, so "Single woman, 34, ..." isn't read as one). Their own
-    age ("I'm 34", "in my early 30s") never counts."""
+def _years(wanted: str, whole: str = "") -> Optional[tuple]:
+    """The ages, in years, someone asks for: read where they say what they want, or failing that
+    anywhere (but then only written as an age range, so "Single woman, 34, ..." isn't read as one).
+    Their own age ("I'm 34", "in my early 30s") never counts."""
     spans = _ages_said(_SELF_AGE.sub(" ", wanted), plain_numbers=True)
     if not spans and whole:
         spans = _ages_said(_SELF_AGE.sub(" ", whole), plain_numbers=False)
     if not spans:
         return None
-    return _bands(min(lo for lo, _ in spans), max(hi for _, hi in spans))
+    return min(lo for lo, _ in spans), max(hi for _, hi in spans)  # as said: below 18 is never a band
+
+
+def _relative_years(wanted: str, own_band) -> Optional[tuple]:
+    """Ages said relative to the person's own age band ("around my age", "a bit younger"), in years,
+    or None if they say none or their age band isn't known."""
+    if own_band not in AGE_BANDS:
+        return None
+    i, last = AGE_BANDS.index(own_band), len(AGE_BANDS) - 1
+    bands = []
+    if _MY_AGE.search(wanted):
+        bands += [max(0, i - 1), min(last, i + 1)]
+    if _YOUNGER_THAN_ME.search(wanted):
+        bands += [max(0, i - 1), i]
+    if _OLDER_THAN_ME.search(wanted):
+        bands += [i, min(last, i + 1)]
+    if not bands:
+        return None
+    return AGE_BAND_BOUNDS[min(bands)][0], AGE_BAND_BOUNDS[max(bands)][1]
+
+
+def _bands(lo_age: int, hi_age: int) -> Optional[tuple]:
+    return age_bands_for(lo_age, hi_age)
 
 
 def default_age_range(age_band) -> tuple:
@@ -197,11 +246,64 @@ class ParsedIntent:
     seeks_role: Optional[str] = None  # cofounder: technical/business; tutoring: tutor/student
 
 
+def _plain(text) -> str:
+    return " ".join(str(text or "").lower().split())
+
+
+def _wanted_part(desc: str, head: str) -> tuple:
+    """(where they say what they want, the whole text), without what they say about themselves."""
+    about_them = lambda t: _ALREADY_HAVE.sub(" ", _SELF_GENDER.sub(" ", t))
+    desc, head = about_them(desc), about_them(head)
+    start = _WANTS.search(desc)
+    wanted = (desc[start.start():] if start else desc) + (f". {head}" if head else "")
+    return wanted, (f"{desc}. {head}" if head else desc)
+
+
+def dating_wants(text: str, headline: str = "") -> tuple:
+    """(genders wanted, ages wanted in years or None), read from a dating description and its shown
+    headline, whatever kind the words alone would suggest."""
+    wanted, whole = _wanted_part(_plain(text), _plain(headline))
+    seeking = set(GENDERS) if _ANYONE.search(wanted) else {g for g, rx in _SEEKS.items() if rx.search(wanted)}
+    return tuple(sorted(seeking)), _years(wanted, whole)
+
+
+def relative_years(text: str, own_band, headline: str = "") -> Optional[tuple]:
+    """Ages a dating description asks for relative to the person's own age band ("around my age", "a
+    bit younger"), in years; None if it says none or the band isn't known."""
+    wanted, _ = _wanted_part(_plain(text), _plain(headline))
+    return _relative_years(_SELF_AGE.sub(" ", wanted), own_band)
+
+
+def _seeks_role(low: str, kind) -> Optional[str]:
+    if kind == "cofounder":
+        if re.search(r"(technical|engineering|cto)[\w-]*\s+co-?founder", low):
+            return "technical"
+        if re.search(r"(business|commercial|ceo|non-technical)[\w-]*\s+co-?founder", low):
+            return "business"
+    elif kind == "tutoring":
+        if re.search(r"\bi tutor\b|offering \w+ lessons|new students", low):
+            return "student"
+        if re.search(r"\w+ tutor\b|give me \w+ lessons", low):
+            return "tutor"
+    return None
+
+
+def _reading(low: str, kind, desc: str, head: str) -> ParsedIntent:
+    """The structure of a listing of this kind, read from its text."""
+    if kind == "dating":
+        seeking, years = dating_wants(desc, head)
+        return ParsedIntent(kind, seeking=seeking, age_range=_bands(*years) if years else None)
+    # Any kind of listing may meet online except dating, which is in person only. "Not online" or
+    # "no remote" says the opposite (schema.said).
+    remote = said(low, r"online|remote") is True
+    return ParsedIntent(kind, remote_ok=remote, seeks_role=_seeks_role(low, kind))
+
+
 _PARSED: dict = {}  # (description, headline) -> ParsedIntent, so each listing is read once
 
 
 def parse_intent(text: str, headline: str = "") -> ParsedIntent:
-    """`headline`: the listing's shown headline, read after the description."""
+    """Read the description alone (and the shown `headline`, read after it), by the rules above."""
     key = (text, headline or "")
     found = _PARSED.get(key)
     if found is None:
@@ -212,33 +314,57 @@ def parse_intent(text: str, headline: str = "") -> ParsedIntent:
 
 
 def _parse(text: str, headline: str) -> ParsedIntent:
-    desc, head = " ".join(text.lower().split()), " ".join(headline.lower().split())
+    desc, head = _plain(text), _plain(headline)
     low = f"{desc}. {head}" if head else desc
-    kind = next((k for k, pat in _KIND_PATTERNS if re.search(pat, low)), None)
-    if kind is None and _is_dating(low):
-        kind = "dating"
-    # Any kind of listing may meet online except dating, which is in person only. "Not online" or
-    # "no remote" says the opposite (schema.said).
-    remote = said(low, r"online|remote") is True and kind != "dating"
+    # What they want, before what they enjoy: "meet a woman ... I enjoy climbing" is dating.
+    kind = _named_kind(_HOBBY.sub(" ", low)) or _named_kind(low)
+    return _reading(low, kind, desc, head)
 
-    if kind == "dating":
-        about_them = lambda t: _ALREADY_HAVE.sub(" ", _SELF_GENDER.sub(" ", t))
-        desc, head = about_them(desc), about_them(head)
-        start = _WANTS.search(desc)
-        wanted = (desc[start.start():] if start else desc) + (f". {head}" if head else "")
-        seeking = set(GENDERS) if _ANYONE.search(wanted) else {g for g, rx in _SEEKS.items() if rx.search(wanted)}
-        return ParsedIntent(kind, seeking=tuple(sorted(seeking)),
-                            age_range=_age_range(wanted, f"{desc}. {head}" if head else desc))
 
-    seeks_role = None
-    if kind == "cofounder":
-        if re.search(r"(technical|engineering|cto)[\w-]*\s+co-?founder", low):
-            seeks_role = "technical"
-        elif re.search(r"(business|commercial|ceo|non-technical)[\w-]*\s+co-?founder", low):
-            seeks_role = "business"
-    elif kind == "tutoring":
-        if re.search(r"\bi tutor\b|offering \w+ lessons|new students", low):
-            seeks_role = "student"
-        elif re.search(r"\w+ tutor\b|give me \w+ lessons", low):
-            seeks_role = "tutor"
-    return ParsedIntent(kind, remote_ok=remote, seeks_role=seeks_role)
+_READ: dict = {}  # (description, shown headline, kind, wants_gender, wants_age, age band) -> ParsedIntent
+
+
+def read_listing(text: str, shown) -> ParsedIntent:
+    """What a listing asks for, as matching uses it. `shown(key)` returns one of the listing's SHOWN
+    fields (narrow.ShownView.get), never a hidden one.
+
+      kind     the shown "kind" if it is one of MATCH_KINDS, else read from the text;
+      dating   genders: the shown "wants_gender" if valid, else read from the text;
+               ages: the shown "wants_age" (years, onto the age bands it overlaps), else read from
+               the text, absolute ("early 30s") or relative to their shown age band ("around my
+               age"); still None if neither says (matching then uses default_age_range).
+
+    The text's activity words never change a kind the listing states."""
+    head, kind_f, genders, ages, band = (shown(k) for k in ("headline", "kind", "wants_gender", "wants_age",
+                                                            "age_band"))
+    key = (text, head, kind_f, genders, ages, band)
+    try:
+        found = _READ.get(key)
+    except TypeError:  # a value that can't be a key: work it out each time
+        return _read(text, head, kind_f, genders, ages, band)
+    if found is None:
+        if len(_READ) > 100_000:
+            _READ.clear()
+        found = _READ[key] = _read(text, head, kind_f, genders, ages, band)
+    return found
+
+
+def _read(text, head, kind_f, genders, ages, band) -> ParsedIntent:
+    headline = head if isinstance(head, str) else ""
+    wanted = tuple(sorted(set(genders))) if isinstance(genders, tuple) and genders and set(genders) <= set(GENDERS) \
+        else None
+    span = age_span(ages)
+    if kind_f not in MATCH_KINDS:
+        base = parse_intent(text, headline)  # no kind stated: the description says what it can
+    elif kind_f == "dating" and wanted and span:
+        return ParsedIntent("dating", seeking=wanted, age_range=_bands(*span))  # all stated: nothing to read
+    else:
+        desc, hd = _plain(text), _plain(headline)
+        base = _reading(f"{desc}. {hd}" if hd else desc, kind_f, desc, hd)  # read as the kind it states
+    if base.kind != "dating":
+        return base
+    age_range = _bands(*span) if span else base.age_range
+    if age_range is None:
+        years = relative_years(text, band, headline)
+        age_range = _bands(*years) if years else None
+    return ParsedIntent("dating", seeking=wanted or base.seeking, age_range=age_range)

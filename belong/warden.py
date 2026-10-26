@@ -26,9 +26,9 @@ from datetime import datetime, timedelta
 
 from .matching.marketboard import Marketboard
 from .matching.contract import FollowUp, Proposal
-from .schema import (AGE_BANDS, FIELD_REGISTRY, FOLLOWUP_MENU, FORMATS, FREE_TEXT_FIELDS, FREE_TEXT_MAX, HIDDEN,
-                     MAX_TRAVEL_KM, SHOWN, TRAVEL, Listing, Person, km_between, meeting_format, plain_place,
-                     value_strings, value_to_json)
+from .schema import (AGE_BANDS, AGE_MAX, AGE_MIN, FIELD_REGISTRY, FOLLOWUP_MENU, FORMATS, FREE_TEXT_FIELDS,
+                     FREE_TEXT_MAX, GENDERS, HIDDEN, MATCH_KINDS, MAX_TRAVEL_KM, SHOWN, TRAVEL, Listing, Person,
+                     age_span, km_between, meeting_format, plain_place, value_strings, value_to_json)
 
 _SEAL = object()  # private to this module; see tests/test_isolation.py
 
@@ -256,10 +256,13 @@ def _where_text(key: str, mine, theirs, countries=None) -> str:
     """Where they are, worded from both values so it is true whatever the Matchmaker cited.
 
     For a country: "both in" only for the same one. For two cities, `countries` is (my country,
-    their country), both *shown*, or None unless both people show one: "both in" and "near each
-    other" need the same shown country, then the same city, or two city centres (each read in
+    their country), both *shown*, or None unless both people show one: "both in" and "near one
+    another" need the same shown country, then the same city, or two city centres (each read in
     that country) within the longest travel distance anyone can choose. Otherwise, just where each
-    of them is: two cities called Cambridge in different countries are not "both in Cambridge"."""
+    of them is: two cities called Cambridge in different countries are not "both in Cambridge".
+
+    The fixed wording never uses a word that is also a fixed choice of some field ("other" is a
+    kind of match), so reason_refs_only_reason_fields can't mistake the template for a field value."""
     if key == "country":
         if plain_place(mine) == plain_place(theirs):
             return f"You're both in {theirs}."
@@ -272,7 +275,7 @@ def _where_text(key: str, mine, theirs, countries=None) -> str:
         if km is not None and km < 1:
             return f"You're both in {theirs}."  # two names for one city (Lisbon, Lisboa)
         if km is not None and km <= MAX_TRAVEL_KM:
-            return f"You're near each other: {mine} and {theirs}."
+            return f"You're near one another: {mine} and {theirs}."
     return f"You're in {mine}; they're in {theirs}."
 
 
@@ -435,6 +438,15 @@ class Warden:
                 out.append(f"'travel' must be one of: {', '.join(TRAVEL)}")
             elif f.key == "format" and f.value not in FORMATS:
                 out.append(f"'format' must be one of: {', '.join(FORMATS)}")
+            # What the person's agent understood: fixed formats only, so matching reads exactly what the
+            # person saw on their profile, and no listing can ask for anyone under 18.
+            elif f.key == "kind" and f.value not in MATCH_KINDS:
+                out.append(f"'kind' must be one of: {', '.join(MATCH_KINDS)}")
+            elif f.key == "wants_gender" and not (f.value and set(f.value) <= set(GENDERS)
+                                                  and len(set(f.value)) == len(f.value)):
+                out.append(f"'wants_gender' must be one or more of: {', '.join(GENDERS)}")
+            elif f.key == "wants_age" and age_span(f.value) is None:
+                out.append(f"'wants_age' must be an age range in years, written lo-hi, from {AGE_MIN} to {AGE_MAX}")
         age = listing.get("age_band")
         if age is not None and age.value != person.age_band:
             out.append("age_band must match the KYC age band")

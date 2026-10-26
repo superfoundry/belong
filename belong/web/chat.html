@@ -246,7 +246,9 @@ function introCard(id) {
   const i = owner && owner.intros.find(x => x.intro_id === id);
   if (!i) return "";
   const name = i.view.fields.first_name || "Someone";
-  const facts = Object.entries(i.view.fields).filter(([k]) => !["first_name", "seeking", "offering", "headline", "topics"].includes(k)).map(([, v]) => val(v));
+  // What their agent understood (the kind of match, who and what ages they'd like to meet) isn't a fact about them.
+  const facts = Object.entries(i.view.fields).filter(([k]) => !["first_name", "seeking", "offering", "headline", "topics",
+    "kind", "wants_gender", "wants_age"].includes(k)).map(([, v]) => val(v));
   const status = { pending: "", waiting: '<span class="badge plain">You said yes</span>', connected: '<span class="badge">Introduced</span>', closed: '<span class="badge plain">Not this time</span>' }[i.status] || "";
   return `<div class="card"><p class="for">For “${esc(cap(owner.title))}”</p><p class="title">${esc(name)}${status}</p><p class="sub">${esc(facts.slice(0, 5).join(" · "))}</p>
     <p class="quote">${esc(i.view.reason)}</p>
