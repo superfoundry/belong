@@ -1087,9 +1087,17 @@ function setVis(slot, i, v) {
     if (!confirm(`Show your ${f.label.toLowerCase()} to matches? Sensitive details are safest hidden: hidden, they can still improve a match.`)) return;
     f.confirmed = true;
   }
-  f.visibility = v; renderPhone(slot);
+  f.visibility = v; renderPhone(slot); pushVisibility(slot);
 }
-function enable(slot, i, on) { const f = cur(slot).draft.fields[i]; f.enabled = on; if (on) f.visibility = "hidden"; renderPhone(slot); }
+function enable(slot, i, on) { const f = cur(slot).draft.fields[i]; f.enabled = on; if (on) f.visibility = "hidden"; renderPhone(slot); pushVisibility(slot); }
+// A choice of shown or hidden goes to the server as soon as it's made, so nothing the agent writes meanwhile
+// (even while it's replying) can put it back: the server remembers it for this listing.
+async function pushVisibility(slot) {
+  const c = cur(slot), vis = visibilityChanges(c.draft, c.draftFrom);
+  if (!vis) return;
+  c.keepLocal = true;
+  try { await api("visibility", { slot, listing_id: curId(slot), ...vis }); } finally { c.keepLocal = false; }
+}
 async function refreshOptions(slot, city) {
   const d = cur(slot).draft;
   const opts = await (await fetch(`/api/options?kind=${encodeURIComponent(d.kind || "")}&city=${encodeURIComponent(city)}`)).json();

@@ -457,9 +457,10 @@ def build_draft(args: dict, first_name: str, age_band: str, current=None) -> tup
     carry_over(draft, current, (current or {}).get("choices"))
     by = {f["key"]: f for f in draft["fields"]}
     if kind != "dating":
-        # Matching needs both phrases to find the other person, topics spot related requests and the
-        # headline is the listing's title: on a listing that isn't dating, they're always shown.
-        for key in ("seeking", "offering", "topics", "headline"):
+        # Matching needs both phrases to find the other person, so on a listing that isn't dating they're
+        # always shown (the editor says so). The headline and topics are shown unless someone chose to
+        # hide them: the person's saved choice and the agent's explicit "hidden" both stand.
+        for key in ("seeking", "offering"):
             if key in by and by[key]["value"] not in (None, "", []):
                 by[key]["visibility"] = SHOWN
         if "topics" in by and isinstance(by["topics"]["value"], list):

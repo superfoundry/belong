@@ -1059,3 +1059,65 @@ console.log(JSON.stringify(out));"""
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class FinalReviewFixes(unittest.TestCase):
+    """The last review's findings, each pinned."""
+
+    @staticmethod
+    def tennis(fields):
+        return {"kind": "other", "exactness": 0.6, "suggestions": [], "separate_listing": False,
+                "intent_text": "Looking for a tennis partner in Kyoto.",
+                "fields": [{"key": "city", "values": ["Kyoto"], "visibility": SHOWN},
+                           {"key": "seeking", "values": ["a tennis partner"], "visibility": SHOWN},
+                           {"key": "offering", "values": ["a tennis partner"], "visibility": SHOWN}] + fields}
+
+    def test_a_hidden_headline_or_topics_stay_hidden_on_a_listing_that_isnt_dating(self):
+        hidden = [{"key": "headline", "values": ["Looking for a tennis partner"], "visibility": HIDDEN},
+                  {"key": "topics", "values": ["tennis"], "visibility": HIDDEN}]
+        draft, problems, _ = build_draft(self.tennis(hidden), "Mia", "30-34")
+        by = {f["key"]: f["visibility"] for f in draft["fields"]}
+        self.assertEqual((by["headline"], by["topics"]), (HIDDEN, HIDDEN))
+        self.assertEqual((by["seeking"], by["offering"]), (SHOWN, SHOWN))  # matching needs these shown
+        # The person hid them before, and a later save that rewrites them doesn't say: still hidden.
+        rewrite = [{"key": "headline", "values": ["Playing tennis in Kyoto"], "visibility": SHOWN}]
+        current = {**draft, "choices": {"headline": HIDDEN, "topics": HIDDEN}}
+        again, _, _ = build_draft(self.tennis(rewrite), "Mia", "30-34", current)
+        by = {f["key"]: f["visibility"] for f in again["fields"]}
+        self.assertEqual(by["topics"], HIDDEN)
+
+    def test_a_country_merely_mentioned_isnt_where_they_are(self):
+        for text in ("My parents came from Nigeria. Looking for a partner.", "I grew up in Ghana and love chess.",
+                     "Originally from Brazil, now looking for a tennis partner."):
+            self.assertNotIn("country", agent.quick_facts(text), text)
+        self.assertEqual(agent.quick_facts("Looking for a maths tutor in Germany.").get("country"), "Germany")
+        self.assertEqual(agent.quick_facts("i live in malaga, spain").get("country"), "Spain")
+
+    def draft_kind(self, *messages):
+        s = DemoSession(seed=7, agent=None)
+        s.verify("A", "Mia", 30)
+        for m in messages:
+            s.agent_message("A", m)
+        return s, (s.slots["A"].listing().draft or {}).get("kind")
+
+    def test_what_they_do_beside_a_romantic_request_is_a_hobby(self):
+        for text in ("I climb a lot. Looking for a girlfriend in Osaka.",
+                     "Looking for a relationship. I go running every morning, Osaka.",
+                     "Looking for a girlfriend in Osaka. I go climbing at weekends."):
+            self.assertEqual(self.draft_kind(text)[1], "dating", text)
+
+    def test_a_partner_named_only_by_a_sensitive_word_is_asked_and_the_answer_taken(self):
+        s, kind = self.draft_kind("Looking for a chemo buddy in Lisbon.")
+        self.assertIsNone(kind)
+        self.assertIn("What would you like a partner for?", s.slots["A"].listing().chat[-1]["text"])
+        s.agent_message("A", "tennis")
+        d = s.slots["A"].listing().draft
+        shown = {f["key"]: f["value"] for f in d["fields"] if f["visibility"] == SHOWN and f["value"] not in (None, "", [])}
+        self.assertEqual((d["kind"], shown.get("city"), shown.get("seeking")), ("other", "Lisbon", "a tennis partner"))
+        self.assertNotIn("chemo", str(shown).lower())
+
+    def test_the_phone_sends_a_shown_or_hidden_choice_as_soon_as_it_is_made(self):
+        from pathlib import Path
+        page = (Path(__file__).resolve().parent.parent / "belong" / "web" / "demo.html").read_text()
+        for fn in ("function setVis", "function enable"):
+            self.assertIn("pushVisibility(slot)", page[page.index(fn):page.index(fn) + 600], fn)
