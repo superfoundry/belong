@@ -1287,6 +1287,7 @@ class DemoSession:
                 "unsaved": self._unsaved(mine),
                 "active": self.board.listing(mine.id).active if listed else True,
                 "kind": (mine.draft or {}).get("kind"), "listed": listed, "draft": mine.draft, "chat": mine.chat,
+                "ages": agent.dating_ages(mine.draft),  # their own description, as matching reads its ages
                 "agent_busy": mine.agent_busy, "entry": mine.entry,
                 "intros": intros, "hidden_keys": hidden_keys, "prefs": mine.prefs,
                 "followups": [{"question_id": q["question_id"], "question_text": q["question_text"]}

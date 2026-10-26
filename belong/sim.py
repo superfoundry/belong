@@ -44,6 +44,9 @@ def run(n: int = 300, seed: int = 7, matcher=None, k_crowd: int = 20, approach_l
         listing = agent.draft_listing(p, clock.now())
         entry_log[pid] = warden.admit(p.person, listing, board)
     admitted = {pid for pid, r in entry_log.items() if r.accepted}
+    # Each description as it went live, which is what the live demo has: answers to this run's
+    # follow-up questions are added to it below, and the inspector marks them as such.
+    as_entered = {pid: board.listing(pid).intent_text for pid in admitted}
 
     # Day 1: follow-ups
     clock.advance(days=1)
@@ -97,7 +100,7 @@ def run(n: int = 300, seed: int = 7, matcher=None, k_crowd: int = 20, approach_l
                  "matcher": type(matcher).__name__},
         "leak_report": report,
         "metrics": metrics,
-        "people": [_person_row(p, board, entry_log[pid]) for pid, p in personas.items()],
+        "people": [_person_row(p, board, entry_log[pid], as_entered.get(pid)) for pid, p in personas.items()],
         "proposals_internal": [_proposal_row(pr, personas) for pr in round2.proposals],
         "introductions": [{**d, "a_said_yes": decisions.get((d["intro_id"], d["person_a"])),
                            "b_said_yes": decisions.get((d["intro_id"], d["person_b"]))} for d in intro_dicts],
@@ -125,16 +128,22 @@ def _count_rejections(entry_log) -> dict:
     return out
 
 
-def _person_row(p, board, entry) -> dict:
+def _person_row(p, board, entry, as_entered=None) -> dict:
     pid = p.person.id
     listing = board.listing(pid) if pid in board else None
+    text = listing.intent_text if listing else p.intent_text
+    # What this run's follow-up answers added to the description ("Aged 25 to 39."); the live demo's
+    # listing is the description as it went live, without them.
+    answered = text[len(as_entered):].strip() if as_entered and text != as_entered and text.startswith(as_entered) else ""
     return {
         "id": pid,
         "verified": p.person.verified,
         "admitted": entry.accepted,
         "entry_problems": entry.problems,
         "kind": p.truth.kind,
-        "intent_text": listing.intent_text if listing else p.intent_text,
+        "intent_text": text,  # as matching read it at the end of this run
+        "intent_as_entered": as_entered if as_entered is not None else text,  # as in the live demo
+        "answered_in_run": answered,
         "exactness": listing.exactness if listing else p.truth.exactness,
         "notify_close": bool(listing and listing.notify_close),
         "notify_questions": bool(listing and listing.notify_questions),

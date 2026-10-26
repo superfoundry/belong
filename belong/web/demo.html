@@ -99,6 +99,7 @@
   .progress { height: 4px; background: var(--surface-raised); border-radius: var(--radius-pill); overflow: hidden; margin-top: var(--space-2); }
   .progress span { display: block; height: 100%; background: var(--accent-default); transition: width var(--duration-slow) var(--ease-standard); }
   .suggest { margin-top: var(--space-3); }
+  .why { margin: var(--space-2) 0 0; }
   .back-bar { display: flex; align-items: center; gap: var(--space-2); margin: calc(-1 * var(--space-2)) 0 var(--space-3) calc(-1 * var(--space-3)); }
   .back-chev { width: 7px; height: 7px; border-left: 2px solid currentColor; border-bottom: 2px solid currentColor; transform: rotate(45deg); margin-right: 6px; }
   .list-head { display: flex; align-items: center; gap: var(--space-2); margin-bottom: var(--space-4); }
@@ -792,16 +793,28 @@ function sides(shown) {
   return { side: "both", main: shown.seeking, other: shown.offering };
 }
 
-function checklist(c) {
+function checklist(c, l) {
   const d = c.draft, { shown, hidden } = draftValues(c);
-  const missing = (d && d.missing) || [];
   const where = { done: !!(shown.city || shown.country), label: "Where", ask: "I'm based in " };
   const looking = { done: !!shown.seeking, label: "Who you're looking for", ask: "I'm looking for " };
   const hiddenItem = { done: hidden.length > 0, label: "A hidden detail", optional: true, ask: "Something private that could improve my matches: " };
+  // Dating also needs your own gender and the ages you want: it's how the right people find you.
+  // Gender may stay hidden, but a hidden detail never decides a match, so the person is told what that means.
+  const gender = (d ? d.fields : []).find(f => f.key === "gender" && f.enabled && hasValue(f.value));
+  const ages = l && l.ages;
+  const datingNeeds = [
+    gender && gender.visibility === "hidden"
+      ? { done: true, label: "Your gender", ask: "I'm a ", warn: true,
+          why: "Your gender is hidden, so it can't be used when someone looks for a woman or a man: hidden details never decide a match. You may get fewer matches." }
+      : { done: !!gender, label: "Your gender", ask: "I'm a ", why: "Your gender is needed so people looking for a woman or a man can find you." },
+    { done: !!(ages && ages.stated), label: "An age range", ask: "Ideally aged ",
+      why: ages ? `No age range yet, so you're open to people aged ${ages.default}.` : "" },
+  ];
   // What to add next is the agent's call, by common sense for this request (the problem for a
-  // repair, interests for dating). Only who and where are always needed, for matching.
+  // repair, interests for dating). Who and where are always needed, for matching, and for dating
+  // your gender and the ages you want.
   const essentials = d && d.kind === "dating"
-    ? [{ done: !!(d && d.intent_text), label: "Who you're looking for", ask: "I'm looking for " }, where]
+    ? [{ done: !!(d && d.intent_text), label: "Who you're looking for", ask: "I'm looking for " }, where, ...datingNeeds]
     : [shown.offering && !shown.seeking ? { ...looking, done: true } : looking, where];
   if (d && Array.isArray(d.suggestions)) return [...essentials, ...d.suggestions.map(x => ({ done: false, label: x.label, ask: x.ask }))];
   if (d && d.by === "quick") return essentials;  // the agent's suggestions arrive with its reply
@@ -815,9 +828,7 @@ function checklist(c) {
         { done: !!(shown.subject || shown.offering), label: offering ? "What you teach" : "Your level or needs", ask: offering ? "I teach " : "My level: " }];
     }
     case "dating":
-      return [{ done: !!(d && d.intent_text), label: "Who you're looking for", ask: "I'm looking for " }, where,
-        { done: !!shown.gender, label: "Your gender", ask: "I'm a " },
-        { done: !missing.some(m => m.includes("age range")), label: "An age range", ask: "Ideally aged " },
+      return [...essentials,
         { done: !!(shown.interests && shown.interests.length), label: "Your interests", ask: "I'm into " }, hiddenItem];
     default:
       return [looking, where,
@@ -828,7 +839,7 @@ function checklist(c) {
 
 function profileCard(slot, p, l, c) {
   const d = c.draft, { shown, hidden } = draftValues(c);
-  const layout = layoutFor(c), items = checklist(c);
+  const layout = layoutFor(c), items = checklist(c, l);
   // With the agent's suggestions, progress counts details filled in against what's still suggested.
   const filled = d ? d.fields.filter(f => f.enabled && hasValue(f.value) && !["first_name", "age_band"].includes(f.key)).length : 0;
   const required = items.filter(i => !i.optional);
@@ -839,6 +850,8 @@ function profileCard(slot, p, l, c) {
   const ready = d && ((items[0].done && items[1].done) || l.listed);
   const place = [shown.city, shown.country].filter(Boolean).join(", ");
   const missing = items.map((it, n) => ({ ...it, n })).filter(i => !i.done).slice(0, 4);
+  // Why an essential matters (dating: your gender, the ages you want), while it's missing or hidden.
+  const why = items.filter(i => i.why && (!i.done || i.warn));
   const entry = l.entry;
   const fact = (label, value, empty) => `<div class="profile-line"><span class="label tertiary">${label}</span>${value
     ? `<span class="body-s">${esc(value)}</span>` : `<span class="body-s tertiary">${empty || "Not added yet"}</span>`}</div>`;
@@ -896,6 +909,7 @@ function profileCard(slot, p, l, c) {
       <div class="progress-row"><span class="caption secondary">${done} of ${total} complete</span>
         <div class="progress" role="progressbar" aria-valuemin="0" aria-valuemax="${total}" aria-valuenow="${done}"><span style="width:${total ? Math.round(100 * done / total) : 0}%"></span></div></div>
       ${missing.length ? `<div class="suggest">${missing.map(i => `<button class="tag" onclick="suggest('${slot}', ${i.n})">Add ${esc(i.label.toLowerCase())}</button>`).join("")}</div>` : ""}
+      ${why.map(i => `<p class="caption secondary why">${esc(i.why)}</p>`).join("")}
       <div class="row" style="margin-top: var(--space-4)">
         ${d ? `<button class="btn secondary sm" onclick="toggleEdit('${slot}')">${c.editing ? "Done editing" : "Edit details"}</button>` : ""}
         <span class="grow"></span>
@@ -956,7 +970,7 @@ function toggleEdit(slot) {
   renderPhone(slot);
 }
 function suggest(slot, n) {
-  const c = cur(slot), ask = checklist(c)[n].ask;
+  const c = cur(slot), ask = checklist(c, curListing(slot))[n].ask;
   c.chatText = ask; c.chatMin = false; c.seenChat = curListing(slot).chat.length; renderPhone(slot);
   const box = $("chat-" + slot); box.focus(); box.setSelectionRange(ask.length, ask.length);
 }
