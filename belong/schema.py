@@ -1,10 +1,16 @@
 """Shared data model (SPEC §4).
 
 Plain, immutable dataclasses. Every module may import this one; it has no behaviour
-beyond small read helpers.
+beyond small read helpers. Some of those helpers read a value the same way everywhere it
+matters, so matching and the Warden can't disagree about it: a place name, how someone
+will meet (in person or online), how far they'll travel, and the distance between two
+cities (approximate city centres; SPEC §5 matching rules).
 """
 from __future__ import annotations
 
+import math
+import re
+import unicodedata
 from dataclasses import dataclass
 from typing import Optional, Union
 
@@ -66,7 +72,8 @@ FIELD_REGISTRY: dict[str, FieldSpec] = {
     "topics": FieldSpec(False, SHOWN, multi=True),
     # Paid or practical requests: shown so the other side knows the terms up front.
     "pay": FieldSpec(False, SHOWN),       # e.g. "¥4,000 per hour" (offered or charged), a rent budget
-    "format": FieldSpec(False, SHOWN),    # "In person", "Online", "In person or online"
+    "format": FieldSpec(False, SHOWN),    # "In person", "Online", "In person or online" (FORMATS)
+    "travel": FieldSpec(False, SHOWN),    # how far they'll go to meet in person: one of TRAVEL
     "diet": FieldSpec(False, SHOWN),
     "smoking": FieldSpec(False, SHOWN),
     "children": FieldSpec(False, HIDDEN),
@@ -78,6 +85,88 @@ FIELD_REGISTRY: dict[str, FieldSpec] = {
     "health": FieldSpec(True, HIDDEN),
     "kinks": FieldSpec(True, HIDDEN, multi=True),
 }
+
+# How two people can meet (the "format" field). Any wording is read into one of these by meeting_format().
+FORMATS = ("In person", "Online", "In person or online")
+
+# How far someone will go to meet in person (the "travel" field): fixed choices, in km. Someone who
+# doesn't say stays in their own city.
+TRAVEL = {"Same city": 0, "Up to 30 km": 30, "Up to 100 km": 100}
+TRAVEL_DEFAULT = "Same city"
+MAX_TRAVEL_KM = max(TRAVEL.values())
+
+# Approximate city centres (latitude, longitude), by plain name (see plain_place). A city that isn't
+# here is only ever "the same city" as itself. Data only: nothing here is about a person.
+CITY_COORDS = {
+    # Japan
+    "osaka": (34.694, 135.502), "kyoto": (35.012, 135.768), "kobe": (34.690, 135.196),
+    "nara": (34.685, 135.805), "tokyo": (35.676, 139.650), "yokohama": (35.444, 139.638),
+    "kawasaki": (35.531, 139.703), "saitama": (35.862, 139.646), "nagoya": (35.182, 136.907),
+    # Germany
+    "berlin": (52.520, 13.405), "potsdam": (52.391, 13.065), "hamburg": (53.551, 9.994),
+    "munich": (48.135, 11.582), "munchen": (48.135, 11.582), "frankfurt": (50.111, 8.682),
+    "cologne": (50.938, 6.960), "koln": (50.938, 6.960),
+    # United Kingdom
+    "london": (51.507, -0.128), "oxford": (51.752, -1.258), "cambridge": (52.205, 0.122),
+    "brighton": (50.823, -0.137), "manchester": (53.481, -2.243), "liverpool": (53.408, -2.992),
+    # Portugal
+    "lisbon": (38.722, -9.139), "lisboa": (38.722, -9.139), "sintra": (38.803, -9.382),
+    "cascais": (38.698, -9.422), "porto": (41.158, -8.629), "braga": (41.545, -8.427),
+}
+EARTH_RADIUS_KM = 6371.0
+
+
+def plain_place(value) -> Optional[str]:
+    """A place name compared ignoring case, spacing and accents ("Málaga" == "malaga ")."""
+    if not value:
+        return None
+    decomposed = "".join(c for c in unicodedata.normalize("NFKD", str(value)) if not unicodedata.combining(c))
+    return " ".join(decomposed.lower().split()) or None
+
+
+def km_between(city_a, city_b) -> Optional[float]:
+    """Great-circle distance between two cities: 0 for the same city (by plain name), None if
+    either city's centre isn't known."""
+    a, b = plain_place(city_a), plain_place(city_b)
+    if not a or not b:
+        return None
+    if a == b:
+        return 0.0
+    pa, pb = CITY_COORDS.get(a), CITY_COORDS.get(b)
+    if pa is None or pb is None:
+        return None
+    lat1, lon1, lat2, lon2 = (math.radians(x) for x in (*pa, *pb))
+    h = math.sin((lat2 - lat1) / 2) ** 2 + math.cos(lat1) * math.cos(lat2) * math.sin((lon2 - lon1) / 2) ** 2
+    return 2 * EARTH_RADIUS_KM * math.asin(min(1.0, math.sqrt(h)))
+
+
+_ONLINE = re.compile(r"on-?line|remote|video|virtual|zoom")
+_IN_PERSON = re.compile(r"in[- ]?person|face[- ]to[- ]face|offline|meet up|locally")
+_EITHER = re.compile(r"\b(either|both|hybrid)\b")
+
+
+def meeting_format(value) -> Optional[str]:
+    """A format in any wording, as one of FORMATS ("online only" -> "Online", "in-person" ->
+    "In person", "either" -> "In person or online"), or None if it says neither."""
+    if not isinstance(value, str):
+        return None
+    low = value.lower()
+    online, in_person = bool(_ONLINE.search(low)), bool(_IN_PERSON.search(low))
+    if _EITHER.search(low):
+        online = in_person = True
+    if online and in_person:
+        return "In person or online"
+    return "Online" if online else "In person" if in_person else None
+
+
+def travel_choice(value) -> Optional[str]:
+    """A travel distance as one of TRAVEL ("up to 30km" -> "Up to 30 km"), or None if it isn't one."""
+    if not isinstance(value, str):
+        return None
+    key = re.sub(r"[^a-z0-9]", "", value.lower())
+    key = {"30km": "upto30km", "100km": "upto100km"}.get(key, key)
+    return next((c for c in TRAVEL if re.sub(r"[^a-z0-9]", "", c.lower()) == key), None)
+
 
 # The only follow-up questions the Matchmaker may ask (SPEC §3, §7). It refers to
 # them by id; the Warden attaches the text at exit.

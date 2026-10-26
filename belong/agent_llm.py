@@ -25,8 +25,8 @@ import re
 
 from . import synth as vocab
 from .agent import _BY_KIND, _COMMON, _KIND_NAMES, _SENSITIVE_VOCAB, ALL_MONTHS, LABELS, field_options
-from .matching.intent import REMOTE_KINDS, parse_intent
-from .schema import HEADLINE_MAX, FIELD_REGISTRY, FREE_TEXT_MAX, HIDDEN, SHOWN
+from .matching.intent import parse_intent
+from .schema import HEADLINE_MAX, FIELD_REGISTRY, FREE_TEXT_MAX, HIDDEN, SHOWN, meeting_format, travel_choice
 from .warden import specific_person_problems
 
 MODEL = "claude-opus-5-5"
@@ -62,7 +62,10 @@ UPDATE_LISTING_TOOL = {
                     "properties": {
                         "key": {"type": "string", "enum": EDITABLE_KEYS},
                         "values": {"type": "array", "items": {"type": "string"},
-                                   "description": "One value, or several for interests / kinks."},
+                                   "description": "One value, or several for interests / kinks. Fields with "
+                                                  "allowed values (e.g. format: In person, Online, In person "
+                                                  "or online; travel: Same city, Up to 30 km, Up to 100 km) "
+                                                  "take one of them."},
                         "visibility": {"type": "string", "enum": [SHOWN, HIDDEN]},
                     },
                     "required": ["key", "values", "visibility"],
@@ -108,7 +111,11 @@ class AgentUnavailable(Exception):
 # Fields whose values must come from a fixed list (matching or the leak checks rely on
 # them). Everything else is short free text.
 STRICT_KEYS = {"gender", "schedule", "level", "pace", "native_language", "learning_language", "role",
-               "move_in", "diet", "smoking", "children", "income_band", "religion", "politics", "health", "kinks"}
+               "move_in", "diet", "smoking", "children", "income_band", "religion", "politics", "health", "kinks",
+               "format", "travel"}
+# Fixed-choice fields matching reads in its own words: other wordings ("online only", "up to 30km")
+# are put into the fixed wording before they're checked.
+_NORMALISE = {"format": meeting_format, "travel": travel_choice}
 ROLE_OPTIONS = ["technical", "business", "tutor", "student"]
 GENERIC_INCOME = ["lower income", "middle income", "higher income"]
 
@@ -184,9 +191,15 @@ is kind "other".
 - Location: Belong. works anywhere in the world. Set "country" (in English, e.g. "Ireland") and, \
 if they have one, "city" (e.g. "Galway"). If they're happy anywhere in a country or region, set \
 only the country. Never list example cities or suggest they're limited to certain places.
+- How they meet: for every kind except dating, set "format": "In person", "Online" or "In person or \
+online". Two people are matched online only if both are happy online; then where they live doesn't \
+matter. Dating is always in person. For anything in person, set "travel" when they say how far \
+they'd go to meet: "Same city" (the default when they don't say), "Up to 30 km" or "Up to 100 km" \
+(pick the furthest that isn't further than they said). Two people in different cities meet only if \
+both would travel that far.
 - Fit the questions to the request. For paid or practical help (a tutor, a job, lessons, a \
-service, a room), set "pay" with what they offer or charge (e.g. "¥4,000 per hour") and "format" \
-("In person", "Online" or "In person or online"), and ask about those, the subject or skill, and \
+service, a room), set "pay" with what they offer or charge (e.g. "¥4,000 per hour") and "format", \
+and ask about those, the subject or skill, and \
 when; don't ask about hobbies or interests. Ask about interests only for social requests \
 (dating, friends, activity partners).
 - Ask at most one or two questions at a time, and only about things you really need. When they \
@@ -251,6 +264,8 @@ def _clean_value(key: str, values: list, city) -> tuple:
     if not values:
         return None, None
     if key in STRICT_KEYS:
+        if key in _NORMALISE:
+            values = [_NORMALISE[key](v) or v for v in values]
         options = ROLE_OPTIONS if key == "role" else ALL_MONTHS if key == "move_in" else \
             field_options(None, None).get(key) or []
         if key == "income_band":
@@ -368,9 +383,12 @@ def build_draft(args: dict, first_name: str, age_band: str) -> tuple:
     if "country" not in values and known:
         values["country"] = vocab.COUNTRY_NAMES[vocab.CITIES[known][0]]  # a city we know: fill in its country
         visibility["country"] = SHOWN
-    if kind not in REMOTE_KINDS or not parsed.remote_ok:
-        if "country" not in values:
-            missing.append("where they are: country, and city if they have one")
+    # A listing that can meet online can be matched without a place; one that only meets in person
+    # can't. Dating is always in person. Without a format, the description decides (as in matching).
+    fmt = meeting_format(values.get("format"))
+    online = kind != "dating" and (fmt in ("Online", "In person or online") or (fmt is None and parsed.remote_ok))
+    if not online and "country" not in values:
+        missing.append("where they are: country, and city if they have one")
 
     for text in [intent] + [values[k] for k in ("seeking", "offering") if k in values]:
         for problem in specific_person_problems(text):

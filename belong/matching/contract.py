@@ -53,4 +53,6 @@ class MatchResult:
 class Matcher(Protocol):
     """Anything with this method can be the Matchmaker."""
 
-    def match(self, board, focus=None) -> MatchResult: ...
+    # focus: only these listings' matches; load: {listing id: introductions in the last 24 hours},
+    # which may only change the order of pairs that qualify.
+    def match(self, board, focus=None, load=None) -> MatchResult: ...

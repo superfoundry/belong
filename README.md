@@ -12,9 +12,10 @@ their region, and plain Python; secure hardware comes in Step 3.
   a short "looking for" phrase and a "you are" phrase, written by the agent ("a fishing
   teacher" / "a fishing student", "a ska guitarist" / "a ska band"). Two people are
   introduced only when each one's "looking for" fits the other's "you are".
-- **Anywhere in the world.** Location is a country plus an optional city; two people
-  match on location when they share a city, or a country if one of them is open to
-  anywhere in it.
+- **Anywhere in the world, in person or online.** Location is a country plus an optional
+  city, and each listing says how it meets (in person, online, or either) and how far its
+  person will travel to meet in person (same city, up to 30 km, up to 100 km). See "How
+  matching works" below.
 - **Several listings per person.** One person can be looking for a tutor in one listing
   and a date in another. Each listing has its own profile, agent chat and matches, and
   a person is never matched with their own other listing. (SPEC.md assumes one listing
@@ -43,6 +44,33 @@ their region, and plain Python; secure hardware comes in Step 3.
 - **[TRUST.md](TRUST.md)** lists every privacy promise with the code that enforces it,
   the test that proves it, and what isn't guaranteed yet. Start there.
 - **[SPEC.md](SPEC.md)** is the product spec.
+
+## How matching works
+
+The Matchmaker ([matcher.py](belong/matching/matcher.py), [narrow.py](belong/matching/narrow.py))
+looks at every listing in the same order, using only what people show:
+
+1. **How you'd meet.** If both listings are happy to meet online, they can be matched wherever
+   they are. If either one only meets in person, both must meet in person, and step 2 decides.
+   A listing that doesn't say reads its description ("online is fine" means either). Dating is
+   always in person.
+2. **Where, by travel distance.** Two people in the same city can meet. Two people in different
+   cities can meet only if the distance between them is within what *both* said they'd travel:
+   Osaka and Kobe (about 28 km) need "up to 30 km" from both; Osaka and Kyoto (about 43 km) need
+   "up to 100 km". Someone who doesn't say stays in their own city. Distances come from a short
+   list of approximate city centres; any other city only matches itself. Someone who gives a
+   country but no city is open to anywhere in it.
+3. **What, by meaning.** Named kinds (dating, language exchange, tutoring...) are compared with
+   their own kind. Everything else is compared by its "looking for" and "you are" phrases, but only
+   with listings that share a word (or the start of one, so "repair" meets "repairman") between
+   what one looks for and what the other is, shows about themselves or lists as topics. This never
+   drops a pair the rules below could accept; `python3 tools/compare_narrowing.py` checks it on
+   3,000 people.
+4. **Unchanged rules.** Both must be looking for what the other offers; hidden details are never
+   the only reason and only count when at least 20 people share them.
+5. **Fair ranking.** Among pairs that qualify, a listing that already had introductions today
+   ranks a little lower, and one updated in the last day a little higher, so new and quiet
+   listings get seen. This only changes the order; it never lets a pair skip a rule.
 
 ## Run it
 
@@ -125,7 +153,8 @@ belong/                                    [open] = published as open source
     marketboard.py [open] stores listings
     matcher.py     [open] OfflineMatcher (rules), LLMMatcher (planned)  §8.3
     intent.py      [open] reads free-text intents into structure
-    narrow.py      [open] hard filters + text similarity -> shortlists  §8.2
+    narrow.py      [open] how, where (travel), what (word index)       §8.2
+                          -> shortlists
     text.py        [open] small TF-IDF embedding
   agent.py         personal agent: drafts listings, relays answers     §3
                    (rule-based fallback)
@@ -133,7 +162,8 @@ belong/                                    [open] = published as open source
                    and draft checks shared by every model-powered agent
   agent_openai.py  personal agent powered by OpenAI (standard library only)
   synth.py         synthetic people (regional names) + ground truth §8.1
-  evaluate.py      match quality vs ground truth
+  evaluate.py      match quality vs ground truth; narrowing's word index
+                   vs the catch-all group it replaced
   sim.py           one simulated week, end to end                      §8.5
   demo.py          two-person demo session + boundary log, and phones for
                    synthetic people taken over from the inspector
@@ -142,5 +172,6 @@ belong/                                    [open] = published as open source
   web/             demo.html, trust.html, index.html (inspector), nav.js (menu)
     ds/            the Belong. design system: tokens.css (generated by
                    tools/make_tokens_css.py), belong.css (components), fonts
-tests/             privacy, entry, isolation, matching, demo, trust
+tests/             privacy, entry, isolation, matching (and its order), demo, trust
+tools/             compare_narrowing.py, make_tokens_css.py
 ```
