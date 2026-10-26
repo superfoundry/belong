@@ -11,13 +11,18 @@ Pluggable: anything with `match(board) -> MatchResult` is a Matchmaker.
 How OfflineMatcher decides, in order:
   1. Read each intent into structure (intent.py). Missing pieces become fixed-menu
      follow-up questions.
-  2. Narrow: shortlist candidates per person (narrow.py).
+  2. Narrow (narrow.py), top down: how they meet first (online only if both allow it, then
+     place doesn't matter), then where (in person: cities within both people's travel
+     distance), then what (the same structured kind, or a shared word in what one looks for
+     and the other is). Each listing gets a shortlist.
   3. Both must be looking: keep a pair only if A's intent is met by B *and* B's by A,
      judged from shown fields only.
   4. Never the only reason: the pair needs at least one reason field shown by both,
      and a shown-only score above the threshold.
   5. Hidden fields may only raise the score, and only values at least k people share.
-  6. Pick the best pairs, at most `max_per_person` each.
+  6. Pick the best pairs, at most `max_per_person` each, fairly: a little lower for a listing
+     that already had introductions in the last day, a little higher for one updated in the
+     last day. Ranking only: no pair skips a check above.
 """
 from __future__ import annotations
 
@@ -28,7 +33,7 @@ from ..schema import AGE_BANDS, FOLLOWUP_MENU, HIDDEN, Listing
 from .contract import FollowUp, MatchResult, Matcher, Proposal  # noqa: F401 (re-exported)
 from .intent import ParsedIntent, parse_intent
 from .marketboard import Marketboard
-from .narrow import ShownView, same_place, shortlists
+from .narrow import ONLINE, ShownView, how_they_meet, shortlists, within_reach
 from .text import cosine
 
 LEVEL_SCALES = {"level": ["beginner", "intermediate", "advanced"], "pace": ["easy", "moderate", "fast"]}
@@ -237,6 +242,59 @@ def has_phrases(view) -> bool:
     return view.get("seeking") is not None and view.get("offering") is not None
 
 
+def _index_keys(tokens) -> set:
+    """Narrowing's keys for some words: each word's first four letters (a shorter word whole). Two
+    words that are the same, or the same stem by _related (one starts with the other, or both
+    share their first five letters), always share a key."""
+    return {t[:4] for t in tokens}
+
+
+def index_words(view) -> tuple:
+    """What narrowing indexes a listing under (narrow.shortlists, step 3), read with the same
+    tokenisation the decisions below use, so any two listings that intent_met or nearly() could
+    accept share at least one key:
+      want: the words of each option in what it's looking for ("seeking"), and its topics;
+      have: the words of what it is ("offering"), its topics, and what it shows about itself (about()).
+    Two listings meet when one's want shares a key with the other's have.
+
+    Why that is enough: phrase_satisfies needs a wanted word in the offered phrase, or (wide net)
+    in the offered phrase or what they show about themselves; nearly() needs a word or stem in
+    common between want and topics on one side and offer and topics on the other. Role words
+    (teacher, student, partner) are left out of `want` unless an option is at least half role
+    words: only then can shared role words alone make up the share phrase_satisfies asks for.
+    The one way to be met without any shared word is an option with nothing but social words
+    besides its role ("a hangout partner", wide net), so such a listing says so (`open`) and is
+    compared with every phrase listing in reach."""
+    topics = view.get("topics")
+    key = (view.get("seeking"), view.get("offering"), topics if isinstance(topics, (str, tuple)) else None,
+           tuple(map(str, about(view))))
+    out = _INDEX_WORDS.get(key)
+    if out is None:  # many listings share their wording, and the board is read again every run
+        if len(_INDEX_WORDS) > 50_000:
+            _INDEX_WORDS.clear()
+        out = _INDEX_WORDS[key] = _index_words(view)
+    return out
+
+
+_INDEX_WORDS: dict = {}  # shown wording -> index_words(), so each wording is read once
+
+
+def _index_words(view) -> tuple:
+    want, is_open = set(_topic_words(view.get("topics"))), False
+    for option in alternatives(str(view.get("seeking") or "")):
+        roles = [t for t in option if t in ROLE_WORDS]
+        rest = [t for t in option if t not in ROLE_WORDS]
+        want.update(rest)
+        if len(roles) >= len(rest):
+            want.update(roles)
+        if roles and all(t in SOCIAL_WORDS for t in rest):
+            is_open = True
+    have = set(phrase_tokens(str(view.get("offering") or ""))) | _topic_words(view.get("topics"))
+    have |= {t for text in about(view) for t in phrase_tokens(str(text))
+             if t not in ROLE_WORDS and t not in SOCIAL_WORDS}
+    return _index_keys(want), _index_keys(have), is_open
+
+
 def phrases_apply(ap: ParsedIntent, av, bp: ParsedIntent, bv) -> bool:
     """Any two non-dating listings that both carry "looking for" / "you are" phrases can be
     compared by those phrases, whatever kind each was filed under."""
@@ -298,12 +356,15 @@ def intent_met(ap: ParsedIntent, av: ShownView, bp: ParsedIntent, bv: ShownView)
     return False
 
 
-def reason_fields(kind: str, av: ShownView, bv: ShownView) -> tuple:
-    """Fields shown by both people that genuinely connect them."""
+def reason_fields(kind: str, av: ShownView, bv: ShownView, online: bool = False) -> tuple:
+    """Fields shown by both people that genuinely connect them. `online`: they meet online, so if
+    they aren't near each other, how they meet is the reason ("format")."""
     keys = []
-    place = same_place(av, bv)
+    place = within_reach(av, bv)
     if place:
         keys.append(place)
+    elif online and av.get("format") is not None and bv.get("format") is not None:
+        keys.append("format")
     if schedules_overlap(av.get("schedule"), bv.get("schedule")):
         keys.append("schedule")
     a_int, b_int = av.get("interests"), bv.get("interests")
@@ -333,14 +394,63 @@ def shown_threshold(ex_a: float, ex_b: float) -> float:
     return 0.05 + 0.15 * max(ex_a, ex_b)
 
 
+# Fair ranking (step 6). Small next to the differences between good and poor matches, so they only
+# break near-ties: a listing introduced to many people today gives way to one nobody has seen yet,
+# and a listing someone just updated is looked at first.
+LOAD_PENALTY = 0.01  # per introduction either listing had in the last 24 hours
+FRESH_BOOST = 0.02  # per listing updated within a day of the newest update on the board
+
+_STAMP = re.compile(r"(\d{4})-(\d{2})-(\d{2})(?:[T ](\d{2}):(\d{2})(?::(\d{2}))?)?")
+
+
+def _minutes(stamp):
+    """Minutes since 1970 for an ISO time ("2026-10-12T09:00:00Z"; treated as UTC), or None. Plain
+    arithmetic: matching has no clock and needs none."""
+    m = _STAMP.match(str(stamp or ""))
+    if not m:
+        return None
+    y, mo, d, h, mi, s = (int(x or 0) for x in m.groups())
+    if not (1 <= mo <= 12 and 1 <= d <= 31):
+        return None
+    y -= mo <= 2  # days from the civil calendar (March-based years)
+    era, yoe = divmod(y, 400)
+    doy = (153 * (mo + (-3 if mo > 2 else 9)) + 2) // 5 + d - 1
+    days = era * 146097 + yoe * 365 + yoe // 4 - yoe // 100 + doy - 719468
+    return days * 1440 + h * 60 + mi + s / 60
+
+
+_TIMES: dict = {}  # time text -> minutes (most listings share a few update times)
+
+
+def recently_updated(listings) -> set:
+    """Listings updated within a day of the newest update on the board (no wall clock)."""
+    times = {}
+    for l in listings:
+        stamp = str(l.updated_at)
+        t = _TIMES.get(stamp, _TIMES)
+        if t is _TIMES:
+            if len(_TIMES) > 100_000:
+                _TIMES.clear()
+            t = _TIMES[stamp] = _minutes(stamp)
+        times[l.person_id] = t
+    known = [t for t in times.values() if t is not None]
+    if not known:
+        return set()
+    newest = max(known)
+    return {pid for pid, t in times.items() if t is not None and newest - t < 24 * 60}
+
+
 class OfflineMatcher:
     def __init__(self, k_crowd: int = 20, max_per_person: int = 3, shortlist_size: int = 40,
-                 hidden_bonus: float = 0.04, hidden_cap: float = 0.12):
+                 hidden_bonus: float = 0.04, hidden_cap: float = 0.12, word_index: bool = True):
         self.k_crowd = k_crowd
         self.max_per_person = max_per_person
         self.shortlist_size = shortlist_size
         self.hidden_bonus = hidden_bonus
         self.hidden_cap = hidden_cap
+        # Narrow phrase listings by the words they share (step 3). False: one catch-all group, as
+        # before the index, kept so the two can be compared (tools/compare_narrowing.py).
+        self.word_index = word_index
 
     # -- scoring ---------------------------------------------------------------
 
@@ -371,9 +481,11 @@ class OfflineMatcher:
 
     # -- main ------------------------------------------------------------------
 
-    def match(self, board: Marketboard, focus=None) -> MatchResult:
+    def match(self, board: Marketboard, focus=None, load=None) -> MatchResult:
         """focus: only find matches and questions for these listings (against everyone), e.g. the
-        demo's two phones, instead of for every listing on the board."""
+        demo's two phones, instead of for every listing on the board.
+        load: {listing id: introductions it got in the last 24 hours}, for fair ranking (step 6).
+        It only changes the order of pairs that already qualify."""
         listings = {l.person_id: l for l in board.listings() if l.active}  # paused listings aren't matched
         views = {pid: ShownView(l) for pid, l in listings.items()}
         parsed = {pid: effective_kind(parse_intent(l.intent_text), views[pid]) for pid, l in listings.items()}
@@ -390,7 +502,8 @@ class OfflineMatcher:
             elif p.kind in ("climbing", "running") and v.exactness >= 0.8 and v.get("schedule") is None:
                 followups.append(FollowUp(pid, "schedule"))
 
-        lists, index = shortlists(parsed, views, self.shortlist_size, focus)
+        lists, index = shortlists(parsed, views, self.shortlist_size, focus,
+                                  words=index_words if self.word_index else None)
         # A person's own listings are never paired with each other.
         pairs = {tuple(sorted((a, b))) for a, cands in lists.items() for b in cands
                  if listings[a].owner != listings[b].owner}
@@ -424,7 +537,8 @@ class OfflineMatcher:
                     la, lb = listings[a], listings[b]
                     # Cheap checks first: someone must be open to a question about the other.
                     possible = (la.notify_questions and lb.notify_close) or (lb.notify_questions and la.notify_close)
-                    near = possible and has_phrases(av_) and has_phrases(bv_) and same_place(av_, bv_) and (
+                    near = possible and has_phrases(av_) and has_phrases(bv_) and how_they_meet(
+                        parsed[a], av_, parsed[b], bv_) and (
                         nearly(av_.get("seeking"), bv_.get("offering"), av_.get("topics"), bv_.get("topics"))
                         or nearly(bv_.get("seeking"), av_.get("offering"), bv_.get("topics"), av_.get("topics")))
                     if near:
@@ -440,7 +554,7 @@ class OfflineMatcher:
                             if len(allowed) > 1:
                                 also_offer.setdefault(other, FollowUp(other, "also_offer", about=first, after=first))
                     continue  # both must be looking
-            reasons = reason_fields(parsed[a].kind, av, bv)
+            reasons = reason_fields(parsed[a].kind, av, bv, how_they_meet(parsed[a], av, parsed[b], bv) == ONLINE)
             if not reasons:
                 continue  # never the only reason: needs a shown reason
             s = self.shown_score(index, av, bv)
@@ -467,10 +581,19 @@ class OfflineMatcher:
 
         # Exact matches first; a close match only fills a spare slot, at most one per listing.
         # Close matches are ranked on shown details alone, so a hidden detail never decides which
-        # close match someone hears about.
+        # close match someone hears about. Fair ranking (only among pairs that passed every check
+        # above): a little lower for each introduction either listing had in the last day, a little
+        # higher for a listing updated in the last day.
+        fresh = recently_updated(board.listings())
+        load = load or {}
+
+        def rank(p: Proposal) -> float:
+            base = p.shown_score if p.close else p.score
+            return (base - LOAD_PENALTY * (load.get(p.person_a, 0) + load.get(p.person_b, 0))
+                    + FRESH_BOOST * ((p.person_a in fresh) + (p.person_b in fresh)))
+
         chosen, count, close_sent = [], {}, set()
-        for prop in sorted(candidates, key=lambda p: (bool(p.close), -(p.shown_score if p.close else p.score),
-                                                      p.person_a, p.person_b)):
+        for prop in sorted(candidates, key=lambda p: (bool(p.close), -rank(p), p.person_a, p.person_b)):
             if prop.close and prop.close in close_sent:
                 continue
             if count.get(prop.person_a, 0) < self.max_per_person and count.get(prop.person_b, 0) < self.max_per_person:
@@ -493,5 +616,5 @@ class LLMMatcher:
     return only Proposal/FollowUp objects, so the Warden's exit checks are unchanged.
     """
 
-    def match(self, board: Marketboard) -> MatchResult:
+    def match(self, board: Marketboard, focus=None, load=None) -> MatchResult:
         raise NotImplementedError("LLMMatcher is planned; use OfflineMatcher for now.")

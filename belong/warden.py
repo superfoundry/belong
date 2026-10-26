@@ -26,8 +26,9 @@ from datetime import datetime, timedelta
 
 from .matching.marketboard import Marketboard
 from .matching.contract import FollowUp, Proposal
-from .schema import (AGE_BANDS, FIELD_REGISTRY, FOLLOWUP_MENU, FREE_TEXT_FIELDS, FREE_TEXT_MAX, HIDDEN, SHOWN,
-                     Listing, Person, value_strings, value_to_json)
+from .schema import (AGE_BANDS, FIELD_REGISTRY, FOLLOWUP_MENU, FREE_TEXT_FIELDS, FREE_TEXT_MAX, HIDDEN,
+                     MAX_TRAVEL_KM, SHOWN, TRAVEL, Listing, Person, km_between, meeting_format, plain_place,
+                     value_strings, value_to_json)
 
 _SEAL = object()  # private to this module; see tests/test_isolation.py
 
@@ -251,6 +252,30 @@ def quoted_phrase(shown: dict) -> str:
     return f"looking for {shown.get('seeking')}"
 
 
+def _where_text(key: str, mine, theirs) -> str:
+    """Where they are, worded from both values so it is true whatever the Matchmaker cited: "both in"
+    only for the same place, "near each other" only for two cities whose centres are within the
+    longest travel distance anyone can choose, otherwise just where each of them is."""
+    if plain_place(mine) == plain_place(theirs):
+        return f"You're both in {theirs}."
+    km = km_between(mine, theirs) if key == "city" else None
+    if km is not None and km < 1:
+        return f"You're both in {theirs}."  # two names for one city (Lisbon, Lisboa)
+    if km is not None and km <= MAX_TRAVEL_KM:
+        return f"You're near each other: {mine} and {theirs}."
+    return f"You're in {mine}; they're in {theirs}."
+
+
+def _format_text(mine, theirs) -> str:
+    """How they can meet, worded from both formats so it is true whatever the Matchmaker cited."""
+    m, t = meeting_format(mine), meeting_format(theirs)
+    if m and t and "online" in m.lower() and "online" in t.lower():
+        return "You can both meet online."
+    if m and t and "In person" in m and "In person" in t:
+        return "You can both meet in person."
+    return f"You'd meet {str(mine).lower()}; they'd meet {str(theirs).lower()}."
+
+
 def reason_text(key_values: list[tuple[str, object, object]]) -> str:
     """key_values: (key, my_value, their_value) for each reason field, from the
     recipient's point of view. Uses nothing else."""
@@ -261,7 +286,9 @@ def reason_text(key_values: list[tuple[str, object, object]]) -> str:
     has_headline = any(key == "headline" for key, _, _ in key_values)
     for key, mine, theirs in key_values:
         if key in ("city", "country"):
-            parts.append(f"You're both in {theirs}.")
+            parts.append(_where_text(key, mine, theirs))
+        elif key == "format":
+            parts.append(_format_text(mine, theirs))
         elif key == "schedule":
             when = mine if theirs == "flexible" else theirs
             parts.append("You're both flexible on timing." if when == "flexible" else f"You're both free {when}.")
@@ -392,6 +419,8 @@ class Warden:
                 out.append(f"bad value type on {f.key!r}")
             elif f.key in FREE_TEXT_FIELDS and not 0 < len(f.value) <= FREE_TEXT_MAX:
                 out.append(f"{f.key!r} must be 1-{FREE_TEXT_MAX} characters")
+            elif f.key == "travel" and f.value not in TRAVEL:
+                out.append(f"'travel' must be one of: {', '.join(TRAVEL)}")
         age = listing.get("age_band")
         if age is not None and age.value != person.age_band:
             out.append("age_band must match the KYC age band")

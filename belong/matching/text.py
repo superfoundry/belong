@@ -12,8 +12,14 @@ _STOP = set("""a an and the in on at for of to with i i'm i'd me my is are be or
 that this it as by around want looking need someone wanted ideally hoping find like""".split())
 
 
-def tokenize(text: str) -> list[str]:
-    out = []
+_TOKENS: dict = {}  # text -> its tokens: the board is read again every run, and most of it hasn't changed
+
+
+def tokenize(text: str) -> tuple:
+    out = _TOKENS.get(text)
+    if out is not None:
+        return out
+    words = []
     for w in re.findall(r"[a-zà-ÿ]+", text.lower()):
         if w in _STOP or len(w) < 2:
             continue
@@ -21,7 +27,10 @@ def tokenize(text: str) -> list[str]:
             if len(w) > len(suffix) + 3 and w.endswith(suffix):
                 w = w[: -len(suffix)]
                 break
-        out.append(w)
+        words.append(w)
+    if len(_TOKENS) > 50_000:
+        _TOKENS.clear()
+    out = _TOKENS[text] = tuple(words)
     return out
 
 

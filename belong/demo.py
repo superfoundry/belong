@@ -652,7 +652,8 @@ class DemoSession:
         events_before, sent_before = len(self.events), (len(self.intros), len(self.outputs["followups"]))
         self.clock.advance(minutes=10) if quiet else self.clock.advance(hours=1)
         self.last_run = self.clock.now()
-        result = self.matcher.match(self.board, focus=demo_ids)  # only the phones' matches, not everyone's
+        # Only the phones' matches, not everyone's; listings introduced a lot today rank a little lower.
+        result = self.matcher.match(self.board, focus=demo_ids, load=self._introductions_today())
         mine = [p for p in result.proposals if {p.person_a, p.person_b} & demo_ids]
         self.last_proposals = mine
         # New pairs only, a few per listing at a time, in the Matchmaker's own order.
@@ -756,6 +757,18 @@ class DemoSession:
         from datetime import datetime, timedelta
         now = datetime.fromisoformat(self.clock.now().rstrip("Z"))
         return now - datetime.fromisoformat(when.rstrip("Z")) < timedelta(hours=1)
+
+    def _introductions_today(self) -> dict:
+        """{listing id: introductions it got in the last 24 hours of demo time}, from the Warden's own
+        send times, so the Matchmaker can rank busy listings a little lower (fair ranking)."""
+        from datetime import datetime, timedelta
+        now = datetime.fromisoformat(self.clock.now().rstrip("Z"))
+        load = {}
+        for intro in self.intros.values():
+            if intro.sent_at and now - datetime.fromisoformat(intro.sent_at.rstrip("Z")) < timedelta(days=1):
+                for pid in (intro.person_a, intro.person_b):
+                    load[pid] = load.get(pid, 0) + 1
+        return load
 
     @staticmethod
     def _tell(listing: _Listing, text: str) -> None:
