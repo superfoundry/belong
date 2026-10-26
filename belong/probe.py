@@ -15,6 +15,7 @@ from __future__ import annotations
 import hashlib
 import json
 import random
+import re
 import secrets
 from dataclasses import replace
 
@@ -184,12 +185,13 @@ def attack_suite(body: dict) -> dict:
     a_listing = board.listing(a)
     results = []
 
-    def attempt(category: str, name: str, fn) -> None:
+    def attempt(category: str, name: str, fn, by=None) -> None:
+        """by: what stops it when no check fails (the Warden's own wording, say)."""
         start = len(warden.receipts)
         try:
             out = fn()
             blocked = out is None or out is False or out == [] or getattr(out, "accepted", True) is False
-            how = next((r.check for r in warden.receipts[start:] if r.result == "fail"), None)
+            how = next((r.check for r in warden.receipts[start:] if r.result == "fail"), by if blocked else None)
         except PermissionError as e:
             blocked, how = True, f"refused: {e}"
         results.append({"category": category, "attack": name, "blocked": blocked, "stopped_by": how})
@@ -281,6 +283,19 @@ def attack_suite(body: dict) -> dict:
     attempt("compromised matchmaker", "Attach another person's listing to an ordinary question",
             lambda: warden.exit_followup(FollowUp(keen, "age_range", about=b), board))
 
+    def far_apart_as_near():
+        # Two people in cities far apart, and the Matchmaker cites where they are as the reason. The
+        # introduction may go out (nothing private in it), but its reason must not say they're close.
+        x = on_board("faraway1", fields=_placed(a_listing, "London", "United Kingdom"))
+        y = on_board("faraway2", fields=_placed(a_listing, "Osaka", "Japan"))
+        intro = warden.exit_introduction(P(person_a=x, person_b=y, reason_fields=("city",)), board)
+        if intro is None:
+            return None
+        said = intro.a_view["reason"] + " " + intro.b_view["reason"]
+        return True if re.search(r"both in|near each other", said) else None
+    attempt("compromised matchmaker", "Cite where two people are to make far-apart cities sound close",
+            far_apart_as_near, by="reason_text: worded from both shown cities and the distance between them")
+
     # "Want to include close matches?" needs no opt-in (it is the opt-in), so it has its own limits.
     def broaden_twice():
         pid = on_board("unasked", notify_questions=False, notify_close=False)
@@ -328,6 +343,12 @@ def attack_suite(body: dict) -> dict:
     blocked = sum(r["blocked"] for r in results)
     return {"ok": blocked == len(results), "sandbox_seed": seed, "attempts": len(results), "blocked": blocked,
             "results": results, "your_intents": custom}
+
+
+def _placed(listing: Listing, city: str, country: str) -> tuple:
+    """The listing's fields, moved to another city (shown) and travelling nowhere."""
+    fields = [f for f in listing.fields if f.key not in ("city", "country", "travel")]
+    return tuple(fields + [Field("city", city, SHOWN, False), Field("country", country, SHOWN, False)])
 
 
 def _shared_reasons(board, a: str, b: str) -> tuple:

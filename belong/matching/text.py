@@ -1,4 +1,5 @@
-"""Tiny TF-IDF text embedding, so the prototype needs no model download or API key.
+"""Tiny TF-IDF text embedding (SPEC §8.2: the embeddings narrowing ranks by), so the prototype
+needs no model download or API key.
 
 Vectors are sparse dicts {term: weight}, L2-normalised; cosine is a dot product.
 """
