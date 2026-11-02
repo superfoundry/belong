@@ -1033,8 +1033,7 @@ function chatHtml(slot, l, c) {
   const lastAgent = [...l.chat].reverse().find(m => m.from === "agent");
   const head = `<button class="sheet-head" aria-expanded="${!c.chatMin}" aria-label="Your agent: drag to resize, or press to ${c.chatMin ? "open" : "minimize"}"
       onpointerdown="sheetDown(event,'${slot}')" onkeydown="sheetKey(event,'${slot}')"><span class="handle" aria-hidden="true"></span>
-      <span class="eyebrow">Your agent</span>
-      <span class="caption tertiary">${c.chatMin ? "Open" : "Minimize"}</span><span class="chevron" aria-hidden="true"></span></button>`;
+      <span class="eyebrow">Your agent</span><span class="chevron" aria-hidden="true"></span></button>`;
   if (c.chatMin) {
     // Minimised: just the agent's latest message (or that it's replying), so the profile has the screen.
     const peek = busy ? `<div class="bubble agent typing" aria-label="Your agent is replying"><span></span><span></span><span></span></div>`
