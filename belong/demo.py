@@ -714,7 +714,7 @@ class DemoSession:
         reply = f"Here's what I understood: {draft['understood']}. I've drafted your listing"
         reply += f", with {hidden} detail(s) hidden." if hidden else "."
         reply += " Review it: you decide what's shown and what stays hidden."
-        listing.chat.append({"from": "agent", "text": reply})
+        listing.chat.append({"from": "agent", "text": reply, "draft_updated": True})
         for note in draft["notes"]:
             listing.chat.append({"from": "agent", "text": note})
 

@@ -68,17 +68,27 @@
   .phone .tabs .dot { position: absolute; top: 9px; right: -8px; width: 6px; height: 6px; border-radius: 50%; background: var(--notify); }
   .stack > * + * { margin-top: var(--space-4); }
   .screen.split { padding: 0; position: relative; overflow: hidden; }
-  /* Base layer: the profile, full screen. Bottom padding keeps it scrollable clear of the sheet. */
-  .profile-pane { position: absolute; inset: 0; overflow-y: auto; padding: var(--space-4) var(--space-4) calc(62% + var(--space-4)); }
-  .profile-pane.chat-min { padding-bottom: calc(56px + var(--space-4)); }
-  /* Top layer: the agent chat as a sheet. Its header minimises it to a bar. */
-  .chat-sheet { position: absolute; left: 0; right: 0; bottom: 0; height: 62%; display: flex; flex-direction: column;
+  /* Base layer: the profile, full screen. Its bottom padding follows the sheet's height (set after each
+     draw), so the whole profile scrolls clear of the chat. */
+  .profile-pane { position: absolute; inset: 0; overflow-y: auto; padding: var(--space-4) var(--space-4) var(--space-16); }
+  /* Top layer: the agent chat as a sheet. Drag its top edge to any height; minimised, it keeps the agent's
+     last message so the profile has the screen. */
+  .chat-sheet { position: absolute; left: 0; right: 0; bottom: 0; height: 62%; max-height: calc(100% - var(--space-12));
+                display: flex; flex-direction: column;
                 background: var(--surface-card); border-top: 1px solid var(--border-default);
                 border-radius: var(--radius-lg) var(--radius-lg) 0 0; box-shadow: var(--shadow-lg);
                 transition: height var(--duration-slow) var(--ease-standard); }
-  .chat-sheet.min { height: 52px; }
+  .chat-sheet.min { height: auto; }
+  .chat-sheet.dragging { transition: none; user-select: none; }
   .sheet-head { all: unset; box-sizing: border-box; display: flex; align-items: center; gap: var(--space-2); width: 100%;
-                padding: var(--space-3) var(--space-4); cursor: pointer; flex-shrink: 0; border-bottom: 1px solid var(--border-subtle); }
+                padding: var(--space-4) var(--space-4) var(--space-3); cursor: grab; flex-shrink: 0; touch-action: none;
+                border-bottom: 1px solid var(--border-subtle); }
+  .chat-sheet.dragging .sheet-head { cursor: grabbing; }
+  /* Minimised: the agent's latest message, up to three lines; tapping it opens the chat. */
+  .peek { all: unset; box-sizing: border-box; display: block; width: 100%; padding: 0 var(--space-4) var(--space-3); cursor: pointer; }
+  .peek .bubble { margin: 0; }
+  .peek .clamp { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+  .peek:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: -2px; }
   .sheet-head:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: -2px; }
   .sheet-head .eyebrow { flex: 1; }
   .sheet-head .handle { width: 32px; height: 4px; border-radius: var(--radius-pill); background: var(--border-strong);
@@ -88,7 +98,6 @@
   .chat-sheet.min .chevron { transform: rotate(-135deg); margin-top: 4px; }
   .chat-sheet.min .chat-pane, .chat-sheet.min .composer-bar { display: none; }
   .chat-sheet.min .sheet-head { border-bottom: 0; }
-  .sheet-head .unread { width: 8px; height: 8px; border-radius: 50%; background: var(--notify); }
   .profile-card { background: var(--surface-card); border: 1px solid var(--border-default); border-radius: var(--radius-md);
                   padding: var(--space-4); box-shadow: var(--shadow-sm); }
   .monogram { width: 40px; height: 40px; flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center;
@@ -321,6 +330,14 @@
   /* A taken-over person's phone opens in a small window, so the phone fits it. */
   body.taken .stage { padding: var(--space-3) var(--space-3) var(--space-4); }
   body.taken .phone { height: calc(100vh - 76px); min-height: 520px; max-height: 800px; }
+  /* On a phone's own screen, one phone is the whole app: no frame, no label, filling the screen (single-phone
+     pages have no site menu, see nav.js), so the agent chat sits at the real bottom of the screen. */
+  @media (max-width: 520px) {
+    body.single .stage { padding: 0; gap: 0; }
+    body.single .phone-wrap > .eyebrow, body.single .wrap-head { display: none; }
+    body.single .phone { border-width: 0; border-radius: 0; box-shadow: none; min-height: 480px; max-height: none;
+                         height: 100vh; height: 100dvh; }
+  }
   .wrap-head { display: flex; align-items: center; gap: var(--space-2); margin: 0 0 var(--space-2) var(--space-2); }
   .wrap-head .eyebrow { flex: 1; color: var(--text-tertiary); }
   .phone-wrap.gone .wrap-head .btn { display: none; }
@@ -550,6 +567,9 @@ function renderPhone(slot) {
     <div class="screen${split ? " split" : ""}" id="screen-${slot}">${SCREENS[screen](slot, p, L)}</div>${tabs}`;
   if (screen === "thread") renderThreadScroll(slot);
   if (split) {
+    const c = cur(slot), sheet = document.querySelector(`#phone-${slot} .chat-sheet`);
+    if (sheet && !c.chatMin && c.chatH) sheet.style.height = Math.min(c.chatH, sheetBounds(slot).max) + "px";
+    fitPane(slot);
     const chat = document.querySelector(`#phone-${slot} .chat-pane`); if (chat) chat.scrollTop = chat.scrollHeight;
     const pane = document.querySelector(`#phone-${slot} .profile-pane`); if (pane) pane.scrollTop = paneScroll;
   }
@@ -650,9 +670,10 @@ const SCREENS = {
     // Top layer: your agent's chat for this listing, which minimises when you tap its header.
     const l = curListing(slot), c = cur(slot);
     if (!l) return "";
+    stepAsideAfterUpdate(slot, l, c);
     const unsaved = l.unsaved ? `<div class="notice warn"><div class="grow"><b>Your changes aren't live yet.</b> Matching still sees your last saved listing.</div>
         <button class="btn sm" onclick="submit('${slot}')">Save changes</button></div>` : "";
-    return `<div class="profile-pane${c.chatMin ? " chat-min" : ""}">${backBar(slot, "belong", "Belong.")}${unsaved}${profileCard(slot, p, l, c)}${c.editing && c.draft ? editorHtml(slot, c) : ""}</div>
+    return `<div class="profile-pane">${backBar(slot, "belong", "Belong.")}${unsaved}${profileCard(slot, p, l, c)}${c.editing && c.draft ? editorHtml(slot, c) : ""}</div>
       ${chatHtml(slot, l, c)}`;
   },
 
@@ -1006,14 +1027,21 @@ function chatHtml(slot, l, c) {
   const lastMine = [...l.chat].reverse().find(m => m.from === "me");
   const pending = c.sending && !(l.agent_busy && lastMine && lastMine.text === c.sending) ? `<div class="bubble me">${esc(c.sending)}</div>` : "";
   const busy = c.sending || l.agent_busy;
-  const unread = c.chatMin && l.chat.length && l.chat[l.chat.length - 1].from === "agent" && l.chat.length !== c.seenChat;
   // "Save changes" only applies to updates made after the listing last went live.
   const liveAt = l.chat.map(m => !!m.live).lastIndexOf(true);
   const lastUpdate = l.chat.map(m => !!m.draft_updated).lastIndexOf(true);
-  return `<div class="chat-sheet${c.chatMin ? " min" : ""}">
-    <button class="sheet-head" aria-expanded="${!c.chatMin}" onclick="toggleChat('${slot}')"><span class="handle" aria-hidden="true"></span>
-      <span class="eyebrow">Your agent</span>${unread ? '<span class="unread" aria-label="New message"></span>' : ""}
-      <span class="caption tertiary">${c.chatMin ? "Open" : "Minimize"}</span><span class="chevron" aria-hidden="true"></span></button>
+  const lastAgent = [...l.chat].reverse().find(m => m.from === "agent");
+  const head = `<button class="sheet-head" aria-expanded="${!c.chatMin}" aria-label="Your agent: drag to resize, or press to ${c.chatMin ? "open" : "minimize"}"
+      onpointerdown="sheetDown(event,'${slot}')" onkeydown="sheetKey(event,'${slot}')"><span class="handle" aria-hidden="true"></span>
+      <span class="eyebrow">Your agent</span>
+      <span class="caption tertiary">${c.chatMin ? "Open" : "Minimize"}</span><span class="chevron" aria-hidden="true"></span></button>`;
+  if (c.chatMin) {
+    // Minimised: just the agent's latest message (or that it's replying), so the profile has the screen.
+    const peek = busy ? `<div class="bubble agent typing" aria-label="Your agent is replying"><span></span><span></span><span></span></div>`
+      : lastAgent ? `<div class="bubble agent"><span class="clamp">${esc(lastAgent.text)}</span></div>` : "";
+    return `<div class="chat-sheet min">${head}${peek ? `<button class="peek" onclick="toggleChat('${slot}')" aria-label="Open the chat with your agent">${peek}</button>` : ""}</div>`;
+  }
+  return `<div class="chat-sheet">${head}
     <div class="chat-pane">
       ${l.chat.map((m, n) => `<div class="bubble ${m.from}">${esc(m.text)}</div>` +
         (m.draft_updated && l.unsaved && n === lastUpdate && canSave(c, l) ? `<div class="bubble-note">${badge("ai", "Profile updated")} <button class="btn sm" onclick="submit('${slot}')">Save changes</button></div>` :
@@ -1029,6 +1057,69 @@ function toggleChat(slot) {
   const c = cur(slot); c.chatMin = !c.chatMin;
   if (!c.chatMin) c.seenChat = curListing(slot).chat.length;
   renderPhone(slot);
+}
+// The sheet's height: dragged by its top edge (touch or mouse), nudged with the arrow keys, remembered per
+// listing. A tap (no real movement) opens or minimises it. Dragged low enough, it minimises.
+const SHEET_MIN_OPEN = 180;  // px: dragged below this, the chat minimises to its last message
+function sheetBounds(slot) {
+  const screen = document.querySelector(`#phone-${slot} .screen.split`);
+  return { max: screen ? screen.clientHeight - 48 : 600 };
+}
+function sheetDown(e, slot) {
+  if (e.button !== undefined && e.button !== 0) return;
+  const sheet = e.currentTarget.closest(".chat-sheet"), c = cur(slot), L = local[slot];
+  const start = { y: e.clientY, h: sheet.offsetHeight, moved: false };
+  e.currentTarget.setPointerCapture?.(e.pointerId);
+  L.dragging = true;
+  const move = ev => {
+    const dy = start.y - ev.clientY;
+    if (!start.moved && Math.abs(dy) < 6) return;
+    start.moved = true; sheet.classList.add("dragging");
+    const h = Math.max(96, Math.min(sheetBounds(slot).max, start.h + dy));
+    sheet.style.height = h + "px"; fitPane(slot);
+  };
+  const up = ev => {
+    window.removeEventListener("pointermove", move); window.removeEventListener("pointerup", up);
+    window.removeEventListener("pointercancel", up);
+    L.dragging = false;
+    if (!start.moved) { toggleChat(slot); return; }
+    const h = sheet.offsetHeight;
+    if (h < SHEET_MIN_OPEN) c.chatMin = true;
+    else { c.chatMin = false; c.chatH = h; c.seenChat = curListing(slot).chat.length; }
+    renderPhone(slot);
+  };
+  window.addEventListener("pointermove", move); window.addEventListener("pointerup", up);
+  window.addEventListener("pointercancel", up);
+}
+function sheetKey(e, slot) {
+  const c = cur(slot);
+  if (e.key === "Enter" || e.key === " ") {
+    e.preventDefault(); toggleChat(slot);
+    document.querySelector(`#phone-${slot} .sheet-head`)?.focus();  // keyboard focus stays on the sheet's edge
+    return;
+  }
+  if (e.key !== "ArrowUp" && e.key !== "ArrowDown") return;
+  e.preventDefault();
+  const sheet = e.currentTarget.closest(".chat-sheet"), step = e.key === "ArrowUp" ? 60 : -60;
+  const h = Math.max(0, Math.min(sheetBounds(slot).max, sheet.offsetHeight + step));
+  if (h < SHEET_MIN_OPEN) c.chatMin = true; else { c.chatMin = false; c.chatH = h; }
+  renderPhone(slot);
+  document.querySelector(`#phone-${slot} .sheet-head`)?.focus();
+}
+// The profile scrolls clear of the sheet, whatever its height.
+function fitPane(slot) {
+  const sheet = document.querySelector(`#phone-${slot} .chat-sheet`), pane = document.querySelector(`#phone-${slot} .profile-pane`);
+  if (sheet && pane) pane.style.paddingBottom = `calc(${sheet.offsetHeight}px + var(--space-4))`;
+}
+// After the agent updates the profile, the chat steps aside to its last message (still shown, notes included)
+// so the profile can be seen; not while the person is typing. A question with no update keeps it open.
+function stepAsideAfterUpdate(slot, l, c) {
+  const latest = l.chat.map(m => !!m.draft_updated).lastIndexOf(true);
+  if (c.stepAsideAt === undefined) { c.stepAsideAt = latest; return; }  // updates from before this view: leave as is
+  if (latest <= c.stepAsideAt) return;
+  c.stepAsideAt = latest;
+  if (document.activeElement && document.activeElement.id === "chat-" + slot && (c.chatText || "").trim()) return;
+  c.chatMin = true; c.seenChat = l.chat.length;
 }
 function toggleEdit(slot) {
   const c = cur(slot); c.editing = !c.editing;
@@ -1363,6 +1454,7 @@ async function fastForward() {
 const last = { room: null };
 function render(force = []) {
   for (const slot of VIEW) {
+    if (local[slot] && local[slot].dragging) continue;  // mid-drag: redraw when it ends
     const snap = JSON.stringify(S.phones[slot] ?? null);
     if (force.includes(slot) || snap !== last[slot]) { last[slot] = snap; renderPhone(slot); }
   }
