@@ -41,13 +41,31 @@ their region, and plain Python; secure hardware comes in Step 3.
   **Take over** on a person opens their phone in a small window, so you can answer as them in the live
   demo: their listing is matched like a phone's, what the Warden sends them arrives there, and nothing
   is decided for them until you **Hand back** (above their phone). The presenter panel lists who's taken over.
+  Each description is shown as it went live, as in the live demo; anything the batch run's follow-up
+  answers added ("Aged 25 to 39.") is marked **Batch-run answer**, because the live demo doesn't have it.
 - **[TRUST.md](TRUST.md)** lists every privacy promise with the code that enforces it,
   the test that proves it, and what isn't guaranteed yet. Start there.
 - **[SPEC.md](SPEC.md)** is the product spec.
 
 ## How matching works
 
-The Matchmaker ([matcher.py](belong/matching/matcher.py), [narrow.py](belong/matching/narrow.py))
+**First, what you want, in your agent's words and yours.** Your personal agent writes down what it
+understood as details on your listing, where you can see and change them: the kind of match (what
+you want to meet someone *for*: "I enjoy climbing" in a dating request is a hobby, not a search for
+a climbing partner) and, for dating, who you'd like to meet and their ages ("Looking for: a woman,
+30–49"). It works the ages out from what you said: "early 30s", "late 20s to mid 30s", "around my
+age" (one age band either side of yours). When your words could mean two things (meeting a woman,
+and climbing; or just "a partner"), it should ask you one short question before saving, and "both"
+makes two listings, each with its own kind. The Claude or OpenAI agent is told to ask (an
+instruction, not something the code can check); the rule-based agent asks when its own readers
+see two readings, and never records a kind or an age range it only guessed. It also writes only words it
+recognises into anything shown (a known activity, place or fixed choice): the rest of what you type stays in your
+description, and it asks when it doesn't recognise what you want ("What would you like a partner for?"). The Warden lets these details in only as fixed
+choices (no listing can ask for anyone under 18), and matching uses them first. Your description is
+read only for what they don't say, and it's never shown to anyone. A detail you hide never decides a
+match: matching then reads your description as if the detail weren't there.
+
+**Then the Matchmaker** ([matcher.py](belong/matching/matcher.py), [narrow.py](belong/matching/narrow.py))
 looks at every listing in the same order, using only what people show:
 
 1. **How you'd meet.** If both listings are happy to meet online, they can be matched wherever
@@ -64,17 +82,38 @@ looks at every listing in the same order, using only what people show:
    other city, or a city shown without a country, only matches a city of the same name. Someone
    who gives a country but no city is open to anywhere in it.
 3. **What, by meaning.** Named kinds (dating, language exchange, tutoring...) are compared with
-   their own kind. Everything else is compared by its "looking for" and "you are" phrases, but only
-   with listings that share a word (or the start of one, so "repair" meets "repairman") between
-   what one looks for and what the other is, shows about themselves or lists as topics. This never
-   drops a pair the rules below could accept; `python3 tools/compare_narrowing.py` checks it on
-   3,000 people.
-4. **Unchanged rules.** Both must be looking for what the other offers; hidden details are never
-   the only reason and only count when at least 20 people share them.
-5. **Fair ranking.** Among pairs that qualify, a listing that already had introductions today
+   their own kind: the kind on the listing. Everything else is compared by its "looking for" and
+   "you are" phrases, but only with listings that share a word (or the start of one, so "repair"
+   meets "repairman") between what one looks for and what the other is, shows about themselves or
+   lists as topics. This never drops a pair the rules below could accept;
+   `python3 tools/compare_narrowing.py` checks it on 3,000 people.
+4. **Both must be looking.** Two people are introduced only when each is what the other asked for,
+   judged from shown details only. For dating: the gender each would like to meet, and an age in
+   the other's range.
+5. **Never the only reason.** A pair must also share something both show (the same city, an
+   interest, when they're free) and score well enough on shown details alone. Hidden details can
+   only raise the score of a pair that already qualifies, and only when at least 20 people share them.
+6. **Fair ranking.** Among pairs that qualify, a listing that already had introductions today
    ranks a little lower, and one updated in the last day a little higher, so new and quiet
    listings get seen. This only changes the order; it never lets a pair skip a rule. When only the
    demo's phones are matched, their own introductions don't count against meeting each other.
+
+**For dating, a few things worth knowing:**
+
+- **What you didn't say isn't a strict preference.** No climbing level: any level will do. No ages:
+  people within one age band of your own (25 to 39 if you're 30 to 34). If you've turned on
+  questions, Belong. may ask what ages you'd like, to narrow it.
+- **Your gender** is how people looking for a woman or a man find you, so the profile asks for it
+  and says why. You can keep it hidden, but a hidden detail never decides a match, so then only
+  people open to anyone can match you, and you may get fewer matches. Without knowing who you'd
+  like to meet, Belong. can't match a dating listing at all.
+- **When a listing records nothing,** for instance an older one, the description is read by simple
+  rules: wanting to meet a man or a woman, a boyfriend or a girlfriend, or looking for love is
+  dating; "a man with a van" or "a woman to clean my flat" isn't, and nor is selling, buying or
+  giving something away. Ages work in your own words ("aged 25 to 34", "early 30s", "in their
+  thirties", "around 30"), and what you say about your own age ("I'm 34") isn't read as the age you
+  want. These rules are a fallback: what people type has no end, which is why your agent records
+  what it understood instead.
 
 ## Run it
 

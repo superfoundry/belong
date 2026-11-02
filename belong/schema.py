@@ -3,8 +3,8 @@
 Plain, immutable dataclasses. Every module may import this one; it has no behaviour
 beyond small read helpers. Some of those helpers read a value the same way everywhere it
 matters, so matching and the Warden can't disagree about it: a place name, how someone
-will meet (in person or online), how far they'll travel, and the distance between two
-cities (approximate city centres; SPEC §5 matching rules).
+will meet (in person or online), how far they'll travel, the ages a dating listing asks for,
+and the distance between two cities (approximate city centres; SPEC §5 matching rules).
 """
 from __future__ import annotations
 
@@ -70,6 +70,14 @@ FIELD_REGISTRY: dict[str, FieldSpec] = {
     # A few broader areas the listing is about, written by the person's agent, so related
     # requests can be recognised without a built-in list of activities.
     "topics": FieldSpec(False, SHOWN, multi=True),
+    # What the person's agent understood they want, recorded on the listing so matching uses it
+    # instead of guessing from the description: the kind of match (one of MATCH_KINDS) and, for
+    # dating, who they'd like to meet (GENDERS) and those people's ages in years ("30-39", read by
+    # age_span). Fixed formats, checked at entry. Shown by default, so the person sees exactly what
+    # matching will use; a hidden one is ignored like any hidden field.
+    "kind": FieldSpec(False, SHOWN),
+    "wants_gender": FieldSpec(False, SHOWN, multi=True),
+    "wants_age": FieldSpec(False, SHOWN),
     # Paid or practical requests: shown so the other side knows the terms up front.
     "pay": FieldSpec(False, SHOWN),       # e.g. "¥4,000 per hour" (offered or charged), a rent budget
     "format": FieldSpec(False, SHOWN),    # "In person", "Online", "In person or online" (FORMATS)
@@ -85,6 +93,50 @@ FIELD_REGISTRY: dict[str, FieldSpec] = {
     "health": FieldSpec(True, HIDDEN),
     "kinks": FieldSpec(True, HIDDEN, multi=True),
 }
+
+# The kinds of match (the "kind" field). Every named kind has a rule of its own in matching; anything
+# else is "other" and is matched by its "looking for" / "you are" phrases.
+MATCH_KINDS = ("dating", "climbing", "running", "language", "cofounder", "tutoring", "roommate", "other")
+# The fields that record what the person's agent understood. They decide who qualifies, so they are
+# rules, not words: matching never reads them as text (narrow.ShownView.profile_text).
+UNDERSTOOD_FIELDS = ("kind", "wants_gender", "wants_age")
+# The gender field's values, and the only values of "wants_gender" (all three: open to anyone).
+GENDERS = ("woman", "man", "nonbinary")
+# Ages a listing may ask for ("wants_age"), in years.
+AGE_MIN, AGE_MAX = 18, 99
+# The one accepted form: ASCII digits, no leading zero, one hyphen ("30-39"). Anything else that
+# means the same ("030-039", "３０-３９", "30 to 39") is put into this form by age_span_choice first.
+_AGE_SPAN = re.compile(r"([1-9][0-9])-([1-9][0-9])")
+_AGE_WORDING = re.compile(r"\s*(\d{1,3})\s*(?:-|–|—|to)\s*(\d{1,3})\s*", re.I)
+
+
+def age_span(value) -> Optional[tuple]:
+    """A "wants_age" value as (lo, hi) years, or None unless it is exactly "lo-hi" in ASCII digits
+    with no leading zero and AGE_MIN <= lo <= hi <= AGE_MAX. The Warden and matching read it with
+    this one function, so they can't disagree about what a value means."""
+    m = _AGE_SPAN.fullmatch(value) if isinstance(value, str) else None
+    if not m:
+        return None
+    lo, hi = int(m.group(1)), int(m.group(2))
+    return (lo, hi) if AGE_MIN <= lo <= hi <= AGE_MAX else None
+
+
+def age_span_choice(value) -> Optional[str]:
+    """Other ways of writing an age range in years ("33 to 42", "33–42", "033-042", full-width or
+    other digits) put into the fixed "lo-hi" form, or None if it isn't one within AGE_MIN..AGE_MAX.
+    Relative wording ("early 30s", "around my age") is for the person's agent to work out, not this."""
+    m = _AGE_WORDING.fullmatch(unicodedata.normalize("NFKC", value)) if isinstance(value, str) else None
+    if not m:
+        return None
+    text = f"{int(m.group(1))}-{int(m.group(2))}"
+    return text if age_span(text) else None
+
+
+def age_bands_for(lo: int, hi: int) -> Optional[tuple]:
+    """The age bands an age range in years overlaps, as (first, last) indices into AGE_BANDS."""
+    idx = [i for i, (b_lo, b_hi) in enumerate(AGE_BAND_BOUNDS) if b_hi >= lo and b_lo <= hi]
+    return (idx[0], idx[-1]) if idx else None
+
 
 # How two people can meet (the "format" field). Any wording is read into one of these by meeting_format().
 FORMATS = ("In person", "Online", "In person or online")

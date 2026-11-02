@@ -104,6 +104,13 @@ function show(id) {
 function fieldPills(fields) {
   return fields.map(f => `<span class="pill ${f.visibility === "hidden" ? "hidden" : ""}" title="${f.visibility}${f.sensitive ? ", sensitive" : ""}">${f.visibility === "hidden" ? "Hidden · " : ""}${esc(f.key)}: ${esc(val(f.value))}</span>`).join("");
 }
+// A description as it went live (as in the live demo), with anything this run's follow-up answers added marked.
+function intentCell(p) {
+  const entered = p.intent_as_entered ?? p.intent_text, answered = p.answered_in_run || "";
+  if (answered) return `${esc(entered)} <span class="pill" title="Added in this batch run, after a follow-up question">Batch-run answer</span> ${esc(answered)}`;
+  if (entered !== p.intent_text) return `${esc(p.intent_text)}<div class="note">Changed in this run. In the live demo: ${esc(entered)}</div>`;
+  return esc(entered);
+}
 function filterable(sectionId, rowsHtml, headHtml, placeholder) {
   const s = $(sectionId);
   s.insertAdjacentHTML("beforeend", `<input type="search" placeholder="${placeholder}"><div class="card scroll"><table><thead>${headHtml}</thead><tbody>${rowsHtml}</tbody></table></div>`);
@@ -148,13 +155,14 @@ function render(d) {
 
   // People
   $("people").innerHTML = `<p class="note">Everything each person put in their listing. Details marked Hidden are used for matching, never shown.</p>
+    <p class="note">Descriptions are as they went live, as in the live demo. A part marked Batch-run answer was added in this run, when the person answered a follow-up question; the live demo's listing doesn't have it.</p>
     <p class="note">${canTake ? "These are synthetic people. Take over opens a person's phone in the live demo, so you can answer as them."
       : DEMO ? `Take over is off: this run (seed ${d.meta.seed}, ${d.meta.n} people) doesn't show the live demo's people (seed ${DEMO.seed}, ${DEMO.people}).` : "These are synthetic people."}</p>
     <p class="note" id="take-msg" role="status"></p>`;
   filterable("people", d.people.map(p => `<tr>
       <td>${name(p.id)}${p.admitted && canTake ? `<div><button class="take" data-take="${esc(p.id)}" aria-label="Take over ${esc((p.fields.find(f => f.key === "first_name") || {}).value || p.id)} in the live demo">Take over</button></div>` : ""}</td><td>${p.kind}</td>
       <td>${p.admitted ? '<span class="pill ok">admitted</span>' : `<span class="pill bad">rejected</span><div class="note">${p.entry_problems.map(esc).join("<br>")}</div>`}</td>
-      <td>${esc(p.intent_text)}<div class="note">exactness ${p.exactness}</div></td>
+      <td>${intentCell(p)}<div class="note">exactness ${p.exactness}</div></td>
       <td>${fieldPills(p.fields)}</td></tr>`).join(""),
     "<tr><th>Person</th><th>Kind</th><th>Entry</th><th>Intent</th><th>Listing</th></tr>", "Filter people…");
 

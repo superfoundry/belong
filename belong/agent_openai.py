@@ -22,7 +22,7 @@ import urllib.error
 import urllib.request
 
 from .agent_llm import (MAX_TOOL_ROUNDS, SYSTEM_PROMPT, UPDATE_LISTING_TOOL, AgentUnavailable, _summary,
-                        build_draft, honest, profile_so_far)
+                        build_draft, builds_on, honest, profile_so_far, turn_drafts)
 
 API_URL = "https://api.openai.com/v1/chat/completions"
 DEFAULT_MODEL = "gpt-5"
@@ -71,7 +71,7 @@ class OpenAIAgent:
     def _run(self, conversation: list, first_name: str, age_band: str, current=None) -> tuple:
         system = (SYSTEM_PROMPT + f"\nThe person you work for: first name {first_name}, age band {age_band}.\n"
                   + profile_so_far(current))
-        replies, draft, attempted = [], None, False
+        replies, draft, attempted, saved = [], None, False, []
         for _ in range(MAX_TOOL_ROUNDS):
             choice = self._call(system, conversation)["choices"][0]
             message = choice.get("message") or {}
@@ -100,14 +100,16 @@ class OpenAIAgent:
                     if not isinstance(args, dict):
                         result = "ERROR: the arguments weren't valid JSON. Call update_listing again."
                     else:
-                        new_draft, problems, _ = build_draft(args, first_name, age_band)
+                        new_draft, problems, _ = build_draft(args, first_name, age_band,
+                                                             builds_on(args, saved, current))
                         if problems:
                             result = ("ERROR: Not saved. Fix these and call update_listing again:\n- "
                                       + "\n- ".join(problems))
                         else:
-                            draft = new_draft
+                            saved.append(new_draft)
                             result = _summary(new_draft)
                 conversation.append({"role": "tool", "tool_call_id": call.get("id"), "content": result})
+            draft = turn_drafts(saved)
         reply = "\n\n".join(replies).strip() or ("I've drafted your listing. Take a look at your profile."
                                                   if draft else "Sorry, could you say that another way?")
         return honest(reply, attempted, draft is not None), draft

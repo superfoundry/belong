@@ -41,8 +41,10 @@ from .agent_openai import OpenAIAgent
 from .leaks import leak_report
 from .matching.marketboard import Marketboard
 from .matching.contract import FollowUp, Proposal
+from .matching.intent import parse_intent
 from .matching.matcher import OfflineMatcher
-from .schema import AGE_BANDS, FIELD_REGISTRY, FOLLOWUP_MENU, HIDDEN, SHOWN, Field, Listing, Person, age_band_index, value_to_json
+from .schema import (AGE_BANDS, FIELD_REGISTRY, FOLLOWUP_MENU, HIDDEN, SHOWN, Field, Listing, Person, age_band_index,
+                     age_span_choice, value_to_json)
 from .synth import generate
 from .warden import Clock, Warden
 
@@ -50,6 +52,7 @@ SLOTS = ("A", "B")  # the two demo phones; a synthetic person taken over gets a 
 SLOT_ID = re.compile(r"[A-Za-z0-9]{1,16}")  # a taken-over phone's id: their person id, safe in URLs and HTML
 K_CROWD = 20
 APPROACH_LIMIT = 15  # introductions per listing per day (the Warden's limit)
+GUESSED_PLACES = {"city", "country"}  # see _Listing.provisional
 PER_RUN = 3  # at most this many new introductions per listing in one Matchmaker run, so nobody gets them all at once
 LOOK_PAST = 1000  # how far down each listing's ranking the Matchmaker looks, past people already introduced
 SHORTLIST = 400  # candidates per phone listing; only the two phones are matched each run, so it can be generous
@@ -94,6 +97,16 @@ class _Listing:
         # Both off until the person says yes to "Want to include close matches?" (or uses the gear).
         self.prefs = {"notify_close": False, "notify_questions": False}
         self.asked = set()  # (question_id, about) already answered: never asked again
+        # The rule-based agent asked which kind of match this is: {"text": their message, "options": [...]}
+        self.pending_kind = None
+        # Where they are, as the instant first draft guessed it from keywords, until an agent decides. Places
+        # are the guesses that can say something about someone (an origin or a family's country), so a model
+        # agent isn't handed them: it reads their words itself, and they're dropped unless its draft has them.
+        self.provisional = set()
+        # The person's own choices of shown or hidden for this listing's details, key -> visibility: what they
+        # saved (_sync_draft) and what they set in the editor (set_visibility). Every agent draft keeps them
+        # unless its agent chose otherwise on purpose (agent.keep_visibility), so hidden stays hidden.
+        self.choices = {}
 
 
 def _current(attr):
@@ -263,7 +276,7 @@ class DemoSession:
     @classmethod
     def _live_title(cls, listing) -> str:
         """The title of what is actually live (what matching reads), not of a draft."""
-        draft = {"kind": None, "intent_text": listing.intent_text,
+        draft = {"kind": listing.get("kind").value if listing.get("kind") else None, "intent_text": listing.intent_text,
                  "fields": [{"key": f.key, "value": value_to_json(f.value)} for f in listing.fields]}
         return cls._title(draft, listing)
 
@@ -283,6 +296,7 @@ class DemoSession:
     @staticmethod
     def _sync_draft(mine, listing) -> None:
         """After a save, the draft is exactly what went live (including edits made by hand)."""
+        mine.provisional = set()  # what went live is theirs now, guesses included
         if not mine.draft:  # a listing made without the agent: start its draft from what's live
             mine.draft = {"intent_text": "", "exactness": listing.exactness, "kind": None, "fields": [], "understood": "",
                           "notes": [], "missing": [], "complete": False, "by": "sync"}
@@ -305,6 +319,9 @@ class DemoSession:
                                "enabled": True, "locked": key == "age_band", "options": [],
                                **({"confirmed": True} if key in confirmed else {})})
         mine.draft = {**mine.draft, "intent_text": listing.intent_text, "exactness": listing.exactness, "fields": fields}
+        mine.choices.update({f.key: f.visibility for f in listing.fields})  # what they saved is their choice
+        if live.get("kind") is not None:
+            mine.draft["kind"] = live["kind"].value  # the kind of match that went live (it may have been edited)
 
     def _unsaved(self, mine) -> bool:
         """A live listing whose draft has changes that aren't live yet."""
@@ -496,7 +513,8 @@ class DemoSession:
         mine.followups = [q for q in mine.followups if still_applies(q)]
 
     def _untouched(self, listing: _Listing) -> bool:
-        return listing.draft is None and listing.id not in self.board and not any(m["from"] == "me" for m in listing.chat)
+        return (listing.draft is None and listing.id not in self.board and listing.pending_kind is None
+                and not any(m["from"] == "me" for m in listing.chat))
 
     def _listing_for(self, st: _Slot, listing_id=None) -> _Listing:
         """The listing a message is about; the first message creates one if there is none yet."""
@@ -516,13 +534,19 @@ class DemoSession:
         st = self._verified(slot)
         listing = self._listing_for(st, listing_id)
         facts = agent.quick_facts((text or "")[:2000])
+        if self.llm is not None:
+            # A model agent reads where they are itself; a keyword guess of a place is never put up first.
+            facts = {k: v for k, v in facts.items() if k not in GUESSED_PLACES}
         if not facts:
             return
         if listing.draft is None:
             listing.draft = agent.empty_draft(st.name, st.person.age_band)
         else:
             listing.draft = copy.deepcopy(listing.draft)
-        agent.fill_gaps(listing.draft, facts)
+        had = {f["key"] for f in listing.draft["fields"] if f.get("value") not in (None, "", [])}
+        agent.fill_gaps(listing.draft, facts, listing.choices)  # a detail they hid stays hidden
+        listing.provisional |= {f["key"] for f in listing.draft["fields"] if f["key"] in GUESSED_PLACES
+                                and f.get("value") not in (None, "", []) and f["key"] not in had}
         if not listing.draft.get("intent_text"):
             # Until the agent writes one, their own words describe what they want (never shown).
             listing.draft["intent_text"] = " ".join((text or "").split())[:500]
@@ -542,7 +566,11 @@ class DemoSession:
             listing.agent_busy = True
             generation, llm = self.generation, self.llm
             name, band, conversation = st.name, st.person.age_band, listing.agent_conversation
-            current = copy.deepcopy(listing.draft)
+            # The profile as it stands, with the person's choices of shown or hidden, for the agent to build on.
+            # What the instant first draft only guessed is left out: the model reads their words itself.
+            current = ({**self._without_guesses(listing), "choices": dict(listing.choices)}
+                       if listing.draft or listing.choices else None)
+            chosen_before = dict(listing.choices)
 
         reply = draft = None
         if llm is not None:
@@ -559,34 +587,128 @@ class DemoSession:
             listing.agent_busy = False
             if reply is None:
                 self._rules_reply(st, listing, text)
+                if listing.pending_kind is None:
+                    listing.provisional = set()  # the offline agent drafted from the same words
                 return
-            if draft and draft.get("separate") and (listing.id in self.board or listing.draft):
-                # The agent started a separate search: a new listing. The current one stays as it
-                # was, and the conversation carries on in the new one.
-                try:
-                    new = st.listing(self.new_listing(slot))
-                except DemoError as e:
-                    listing.chat.append({"from": "agent", "text": f"I couldn't start another listing: {e}"})
-                    return
-                new.agent_conversation = list(conversation)
-                new.chat = [{"from": "me", "text": text}, {"from": "agent", "text": reply, "draft_updated": True}]
-                new.draft = draft
-                listing.chat.append({"from": "agent", "text": "I've started a separate listing for that, so this one "
-                                                              "stays as it is.", "moved_to": new.id})
-                return
-            if draft:
-                # Keep anything already on the profile that the agent's draft left empty.
-                if listing.draft:
-                    agent.fill_gaps(draft, {f["key"]: f["value"] for f in listing.draft["fields"]
-                                            if f.get("enabled") and f["value"] not in (None, "", [])
-                                            and not f.get("sensitive") and f["key"] not in ("first_name", "age_band")})
-                listing.draft = draft
+            # Everything the agent saved this turn, in order: usually one draft; two when the person
+            # said "both" to "a date, or a partner for that activity?" (one listing for each kind).
+            drafts = [*(draft or {}).get("earlier", []), draft] if draft else []
+            updated, moved = False, []
+            for d in drafts:
+                d = {k: v for k, v in d.items() if k != "earlier"}
+                if d.get("separate") and (listing.id in self.board or listing.draft):
+                    # The agent started a separate search: a new listing. The current one stays as it
+                    # was, and the conversation carries on in the new one.
+                    try:
+                        new = st.listing(self.new_listing(slot))
+                    except DemoError as e:
+                        listing.chat.append({"from": "agent", "text": f"I couldn't start another listing: {e}"})
+                        continue
+                    new.agent_conversation = list(conversation)
+                    new.chat = [{"from": "me", "text": text}, {"from": "agent", "text": reply, "draft_updated": True}]
+                    new.draft = d
+                    moved.append(new.id)
+                    continue
+                # Keep anything already on the profile that the agent's draft left empty, and the person's
+                # own choice of shown or hidden for every detail the agent didn't set on purpose (build_draft
+                # does this already; this also covers any agent that hands back a draft of its own).
+                agent.carry_over(d, self._without_guesses(listing), listing.choices)
+                # A choice of shown or hidden the person made while the agent was replying wins over the
+                # agent's draft: hidden always, shown only for a detail that isn't sensitive.
+                for key, vis in listing.choices.items():
+                    if chosen_before.get(key) != vis:
+                        for f in d.get("fields", []):
+                            if f["key"] == key and (vis == HIDDEN or not f.get("sensitive")):
+                                f["visibility"] = vis
+                listing.draft = d
+                updated = True
+            if updated:
+                listing.provisional = set()  # the agent has decided them (kept or dropped)
+            if moved and updated:
+                st.current = listing.id  # both: the person stays on this listing, and the other is waiting
             # The tick on the phone comes from what actually happened, not from what the agent says.
-            listing.chat.append({"from": "agent", "text": reply, "draft_updated": bool(draft)})
+            if updated or not moved:
+                listing.chat.append({"from": "agent", "text": reply, "draft_updated": updated})
+            for new_id in moved:
+                listing.chat.append({"from": "agent", "text": "I've started a separate listing for that, so this one "
+                                                              "stays as it is." if not updated else
+                                     "I've started a separate listing for the other one, with its own details.",
+                                     "moved_to": new_id})
+
+    @staticmethod
+    def _without_guesses(listing) -> dict:
+        """The listing's draft without what the instant first draft guessed and no agent has confirmed."""
+        draft = copy.deepcopy(listing.draft or {"fields": []})
+        for f in draft.get("fields", []):
+            if f["key"] in listing.provisional:
+                f["value"] = [] if f.get("multi") else None
+        return draft
 
     def _rules_reply(self, st: _Slot, listing: _Listing, text: str) -> None:
-        """The offline, rule-based agent: drafts from this one message."""
-        draft = agent.draft_from_message(text, st.name, st.person.age_band)
+        """The offline, rule-based agent: drafts from this one message. When the message could mean
+        more than one kind of match, it asks one short question first (agent.kind_question) and drafts
+        from the person's answer: one listing per kind they choose ("both" makes two)."""
+        pending = listing.pending_kind
+        if pending is None:
+            question = agent.kind_question(text)
+            if question:
+                listing.pending_kind = {"text": text, "options": question["options"], "question": question["text"]}
+                listing.chat.append({"from": "agent", "text": question["text"]})
+                return
+            self._rules_draft(st, listing, text)
+            return
+        chosen = agent.chosen_kinds(text, pending["options"])
+        if chosen is None and agent.says_what_they_want(text):
+            # A kind that wasn't offered: a new request instead of an answer, so start from it.
+            listing.pending_kind = None
+            self._rules_reply(st, listing, text)
+            return
+        if chosen is None:  # not an answer: ask again, briefly
+            if len(pending["options"]) > 1:
+                which = " or ".join(o["label"] for o in pending["options"])
+                again = f"{which[:1].upper()}{which[1:]}? {agent.ASK_HINT}"
+            else:
+                again = pending.get("question") or "What would you like to meet someone for?"
+            if any(o["kind"] is None for o in pending["options"]) and agent.ACTIVITY_HINT not in again:
+                again += " " + agent.ACTIVITY_HINT  # only an activity it knows can go on the listing
+            listing.chat.append({"from": "agent", "text": f"Sorry, I didn't catch that. {again}"})
+            return
+        listing.pending_kind = None
+        # Their first message, plus everything the answer says besides the choice ("a date, I'm a man, 30
+        # to 40" adds "I'm a man, 30 to 40"). The kind they chose is passed on its own.
+        details = agent.answer_details(text, pending["options"], chosen)
+        message = f"{pending['text']} {details}" if details else pending["text"]
+        for n, choice in enumerate(chosen):
+            if choice["kind"] is None:  # "both", and the activity isn't named yet: ask, on its own listing
+                target = self._another_listing(st, listing)
+                if target is None:
+                    return
+                target.pending_kind = {"text": message, "options": [o for o in pending["options"] if o["kind"] is None],
+                                       "question": agent.WHICH_ACTIVITY}
+                target.chat.append({"from": "agent", "text": f"{agent.WHICH_ACTIVITY} I'll keep it as its own listing."})
+                continue
+            target = listing if n == 0 else self._another_listing(st, listing)
+            if target is None:
+                return
+            self._rules_draft(st, target, message, kind=choice["kind"], activity=choice["activity"])
+        st.current = listing.id
+
+    def _another_listing(self, st: _Slot, listing: _Listing):
+        """A new listing for the person's second choice (the first stays on this one), or None if they
+        already have as many as they can."""
+        try:
+            new = st.listing(self.new_listing(st.slot))
+        except DemoError as e:
+            listing.chat.append({"from": "agent", "text": f"I couldn't start another listing: {e}"})
+            return None
+        new.chat = [{"from": "agent", "text": "You said both, so this is your second listing, with its own details."}]
+        listing.chat.append({"from": "agent", "text": "I've started a separate listing for the other one.",
+                             "moved_to": new.id})
+        return new
+
+    def _rules_draft(self, st: _Slot, listing: _Listing, text: str, kind=None, activity=None) -> None:
+        draft = agent.draft_from_message(text, st.name, st.person.age_band, kind=kind, activity=activity)
+        agent.keep_visibility(draft, listing.draft, listing.choices)  # a detail they hid stays hidden
         listing.draft = draft
         hidden = sum(1 for f in draft["fields"] if f["value"] and f["enabled"] and f["visibility"] == HIDDEN)
         reply = f"Here's what I understood: {draft['understood']}. I've drafted your listing"
@@ -596,8 +718,38 @@ class DemoSession:
         for note in draft["notes"]:
             listing.chat.append({"from": "agent", "text": note})
 
+    def set_visibility(self, slot: str, listing_id, visibility, confirmed=None) -> None:
+        """Shown or hidden, chosen in the editor before the person saves: remembered for this listing and put
+        on its draft now, so the agent's next draft keeps it (the phone sends these before each message to the
+        agent). A sensitive detail is made shown only with the confirmation the editor asks for; a hidden
+        choice always counts."""
+        st = self._verified(slot)
+        mine = st.listing(listing_id)
+        if not isinstance(visibility, dict):
+            raise DemoError("Nothing to change.")
+        confirmed = set(confirmed) if isinstance(confirmed, list) else set()
+        if mine.draft:
+            mine.draft = copy.deepcopy(mine.draft)
+        fields = {f["key"]: f for f in (mine.draft or {}).get("fields", [])}
+        for key, vis in visibility.items():
+            spec = FIELD_REGISTRY.get(key) if isinstance(key, str) else None
+            if spec is None or vis not in (SHOWN, HIDDEN) or key in ("first_name", "age_band"):
+                continue
+            if spec.sensitive and vis == SHOWN and key not in confirmed:
+                continue
+            mine.choices[key] = vis
+            if key in fields:
+                fields[key]["visibility"] = vis
+                if spec.sensitive and vis == SHOWN:
+                    fields[key]["confirmed"] = True
+
     def options(self, slot: str, kind, city) -> dict:
         return agent.field_options(kind, city)
+
+    @staticmethod
+    def layout(kind, city) -> dict:
+        """The profile's rows for a kind of match, for the editor when the person changes the kind."""
+        return agent.kind_layout(kind, city)
 
     # -- 3. entering the room -----------------------------------------------------
 
@@ -642,15 +794,23 @@ class DemoSession:
                 value = tuple(str(x) for x in (value if isinstance(value, list) else [value]))
             elif not isinstance(value, str):
                 value = str(value)
+            if key == "wants_age":
+                value = age_span_choice(value) or value  # "33 to 42" typed by hand; the Warden checks the form
             if spec.sensitive and vis == SHOWN and f.get("confirmed"):
                 confirmed.append(key)
             fields.append(Field(key=key, value=value, visibility=vis, sensitive=spec.sensitive))
+        # Only dating records who they'd like to meet and their ages (the same rule as build_draft): the
+        # kind on the listing, or with none, the kind its description reads as.
+        intent = str(body.get("intent_text", ""))
+        kind = next((f.value for f in fields if f.key == "kind"), None) or parse_intent(intent).kind
+        if kind != "dating":
+            fields = [f for f in fields if f.key not in agent.DATING_ONLY]
         version = self.board.listing(mine.id).version + 1 if mine.id in self.board else 1
         try:
             exactness = float(body.get("exactness", 0.6))
         except (TypeError, ValueError):
             exactness = -1.0  # the Warden's schema check will refuse it
-        return Listing(person_id=mine.id, intent_text=str(body.get("intent_text", "")),
+        return Listing(person_id=mine.id, intent_text=intent,
                        exactness=exactness, fields=tuple(fields), updated_at=self.clock.now(),
                        version=version, confirmed_shown=tuple(confirmed), owner_id=st.person_id,
                        notify_close=mine.prefs["notify_close"], notify_questions=mine.prefs["notify_questions"],
@@ -832,6 +992,7 @@ class DemoSession:
             if not 18 <= lo <= hi <= 99:
                 raise DemoError("Pick an age range from 18 up.")
             text += f" Aged {lo} or older." if hi >= 99 else f" Aged {lo} to {hi}."
+            fields = list(agent.with_wants_age(tuple(fields), f"{lo}-{hi}"))  # recorded on the listing too
         elif question_id == "schedule":
             sched = answer.get("schedule")
             fields = [f for f in fields if f.key != "schedule"]
@@ -886,7 +1047,8 @@ class DemoSession:
             mine = st.listing(listing_id)
             name, band, conversation = st.name, st.person.age_band, mine.agent_conversation
             self._sync_draft(mine, updated)  # the agent sees the listing as it will be
-            current = copy.deepcopy(mine.draft)
+            current = {**copy.deepcopy(mine.draft or {"fields": []}), "choices": dict(mine.choices)}
+            headline_vis = mine.choices.get("headline", SHOWN)  # a headline they hid stays hidden
         ask = (f'Belong. asked me: "{question_text}" and I said yes. Update my listing so its headline and '
                "description describe what I agreed to now. Keep everything else as it is, and keep "
                "separate_listing false.")
@@ -904,7 +1066,7 @@ class DemoSession:
                 fields = tuple(replace(f, value=words["headline"]) if f.key == "headline" and words.get("headline") else f
                                for f in updated.fields)
                 if words.get("headline") and not updated.get("headline"):
-                    fields += (Field("headline", words["headline"], SHOWN, False),)
+                    fields += (Field("headline", words["headline"], headline_vis, False),)
                 updated = replace(updated, fields=fields, intent_text=draft.get("intent_text") or updated.intent_text)
                 if updated.get("headline"):
                     note += f" It now reads “{updated.get('headline').value}”."
@@ -1178,7 +1340,8 @@ class DemoSession:
         mine.entry = {"accepted": True, "problems": []}
         # Their profile, from what's live: every detail they have, hidden ones in their hidden well
         # (on their own phone only), and the sensitive ones they never turned on, still off.
-        mine.draft = {**agent.empty_draft(st.name, persona.person.age_band), "kind": persona.truth.kind, "by": "sync"}
+        kind = live.get("kind").value if live.get("kind") else persona.truth.kind  # as recorded on their listing
+        mine.draft = {**agent.empty_draft(st.name, persona.person.age_band), "kind": kind, "by": "sync"}
         self._sync_draft(mine, live)
         mine.chat = [{"from": "agent", "text": f"Hi {st.name}, I'm your agent. Your listing is live: "
                                               f"“{self._live_title(live)}”. I'll tell you when Belong. finds "
@@ -1287,6 +1450,8 @@ class DemoSession:
                 "unsaved": self._unsaved(mine),
                 "active": self.board.listing(mine.id).active if listed else True,
                 "kind": (mine.draft or {}).get("kind"), "listed": listed, "draft": mine.draft, "chat": mine.chat,
+                # Their own dating draft, as matching reads it: who and what ages it looks for.
+                "wants": agent.dating_wants(mine.draft),
                 "agent_busy": mine.agent_busy, "entry": mine.entry,
                 "intros": intros, "hidden_keys": hidden_keys, "prefs": mine.prefs,
                 "followups": [{"question_id": q["question_id"], "question_text": q["question_text"]}
