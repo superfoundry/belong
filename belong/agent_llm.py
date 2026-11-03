@@ -8,7 +8,7 @@ tool call is checked here before it touches the draft:
   - it must not target a specific person (the Warden's own rule, checked early),
   - sensitive details must not be written into the free-text description,
   - every value must come from the allowed options, and sensitive fields stay hidden
-    (only the person can choose to show one, in the listing editor),
+    (only the person can choose to show one, on their profile),
   - what the agent understood is recorded on the listing as shown details the person can check:
     the kind of match it chose ("kind") and, for dating, who they'd like to meet and those people's
     ages in years ("wants_gender", "wants_age"), in the fixed forms the Warden accepts. Matching uses
@@ -30,8 +30,8 @@ from __future__ import annotations
 import re
 
 from . import synth as vocab
-from .agent import (_BY_KIND, _COMMON, _KIND_NAMES, _SENSITIVE_VOCAB, ALL_MONTHS, DATING_ONLY, LABELS, carry_over,
-                    field_options, fill_gaps, mentions_sensitive, wants_text)
+from .agent import (_BY_KIND, _COMMON, _KIND_NAMES, _SENSITIVE_VOCAB, ALL_MONTHS, DATING_ONLY, LABELS, carries,
+                    carry_over, field_options, fill_gaps, mentions_sensitive, wants_text)
 from .matching.intent import ages_text, default_age_range, parse_intent
 from .schema import (AGE_MAX, AGE_MIN, GENDERS, HEADLINE_MAX, FIELD_REGISTRY, FREE_TEXT_MAX, HIDDEN, SHOWN,
                      age_span_choice, meeting_format, travel_choice)
@@ -136,6 +136,11 @@ GENERIC_INCOME = ["lower income", "middle income", "higher income"]
 def _options_catalogue() -> str:
     lines = []
     generic = field_options(None, None)
+
+    def only(key):  # a detail only some kinds have (agent.carries): said, so it's never set on another kind
+        kinds, others = [k for k in _BY_KIND if carries(k, key)], [k for k in _BY_KIND if not carries(k, key)]
+        return "" if not others else f", only for {' or '.join(kinds)} listings" if len(kinds) <= len(others) \
+            else f", not for {' or '.join(others)} listings"
     for key in EDITABLE_KEYS:
         spec = FIELD_REGISTRY[key]
         tag = "sensitive, always hidden unless the person shows it themselves" if spec.sensitive else \
@@ -146,14 +151,17 @@ def _options_catalogue() -> str:
         elif key == "wants_age":
             lines.append(f"- wants_age ({tag}, dating only): an age range in years, written lo-hi, from {AGE_MIN} "
                          f"to {AGE_MAX}, e.g. 30-39")
+        elif key == "role":  # each kind that has a role has its own choices
+            lines.append(f"- role ({tag}{only(key)}): " + "; ".join(
+                f"{k}: {', '.join(field_options(k, None)['role'])}" for k in _BY_KIND if field_options(k, None).get("role")))
         elif key in STRICT_KEYS:
-            opts = ROLE_OPTIONS if key == "role" else ALL_MONTHS if key == "move_in" else generic.get(key) or []
+            opts = ALL_MONTHS if key == "move_in" else generic.get(key) or []
             if key == "income_band":
                 opts = sorted({b for bands in vocab.INCOME.values() for b in bands}) + GENERIC_INCOME
-            lines.append(f"- {key} ({tag}): {', '.join(opts)}")
+            lines.append(f"- {key} ({tag}{only(key)}): {', '.join(opts)}")
         else:
             examples = {"interests": "e.g. fishing, jazz, hiking", "subject": "e.g. maths, guitar"}.get(key, "")
-            lines.append(f"- {key} ({tag}): free text{(', ' + examples) if examples else ''}")
+            lines.append(f"- {key} ({tag}{only(key)}): free text{(', ' + examples) if examples else ''}")
     return "\n".join(lines)
 
 
@@ -236,8 +244,11 @@ when; don't ask about hobbies or interests. Ask about interests only for social 
 (dating, friends, activity partners).
 - Ask at most one or two questions at a time, and only about things you really need. When they \
 answer "either", "both" or "not sure", treat every option as fine and move on; never ask them to \
-pick between options they've said they're open to. You need \
-the kind of match and where (country, and city if relevant) before drafting. For dating, always \
+pick between options they've said they're open to. Matching needs \
+the kind of match, and where (country, and city if relevant) only if they'll meet in person only: anyone \
+who can meet online is matched with others online wherever they live (a place still helps them meet \
+people nearby). Never wait for these to save: save what you know, then ask for whichever is missing. \
+For dating, always \
 record three things: their own gender ("gender"), who they'd like to meet ("wants_gender": woman, man \
 and/or nonbinary; all three for anyone) and those people's ages in years ("wants_age", written lo-hi, \
 e.g. "30-39"). Work the ages out from whatever they said, using their age band (below): "around my \
@@ -268,7 +279,9 @@ listing and the current one stays as it is. Otherwise keep separate_listing fals
 - With each save, suggest the two to four things that would most help this particular person find \
 the right match, using common sense for what they asked: for a repair, the problem and when; for \
 dating, interests; for a band, the music they play. Don't suggest what doesn't fit the request \
-(no interests for a plumber), and drop a suggestion once it's on the profile.
+(no interests for a plumber), and drop a suggestion once it's on the profile. These are what their \
+profile asks them for, so put first anything matching still needs that they haven't given (see above), and \
+never suggest something they've already told you.
 - Write intent_text in plain first-person words that name the kind of match, e.g. "Looking for a \
 climbing partner in Osaka on weekends", "Looking for a long-term relationship with a woman in \
 Lisbon, aged 30 to 39", "I tutor maths in Kyoto and I'm looking for new students", "Need a \
@@ -279,8 +292,8 @@ for a roommate in London, moving in November", "Running buddy in Tokyo for easy 
 gender identity) into intent_text, or into any detail that is shown (seeking, offering, headline, \
 topics, interests, or a place): "a Muslim partner" is not an activity. If they mention one, offer to \
 add it as a hidden detail instead, and explain it can improve matches but is never shown.
-- Sensitive details always start hidden. If they want to show one, tell them they can switch it \
-in the listing editor themselves.
+- Sensitive details always start hidden. If they want to show one, tell them they can tap it on \
+their profile and choose shown themselves.
 - Belong. never helps find a specific person (names, handles, someone's workplace or looks). If \
 asked, explain kindly that Belong. only introduces people who are also looking.
 - Where a field lists allowed values below, use one of them; fields marked "free text" take any \
@@ -301,7 +314,7 @@ Allowed values:
 """
 
 
-def _clean_value(key: str, values: list, city) -> tuple:
+def _clean_value(key: str, values: list, city, kind=None) -> tuple:
     """Return (value or None, error or None) for one field."""
     spec = FIELD_REGISTRY[key]
     values = [" ".join(str(v).split()) for v in values if str(v).strip()]
@@ -319,8 +332,8 @@ def _clean_value(key: str, values: list, city) -> tuple:
     if key in STRICT_KEYS:
         if key in _NORMALISE:
             values = [_NORMALISE[key](v) or v for v in values]
-        options = ROLE_OPTIONS if key == "role" else ALL_MONTHS if key == "move_in" else \
-            field_options(None, None).get(key) or []
+        options = (field_options(kind, city).get("role") or ROLE_OPTIONS) if key == "role" else \
+            ALL_MONTHS if key == "move_in" else field_options(None, None).get(key) or []
         if key == "income_band":
             options = sorted({b for bands in vocab.INCOME.values() for b in bands}) + GENERIC_INCOME
         lookup = {o.lower(): o for o in options}
@@ -395,7 +408,7 @@ def build_draft(args: dict, first_name: str, age_band: str, current=None) -> tup
             if key in chose:
                 visibility["kind"] = f["visibility"]
             continue
-        value, err = _clean_value(key, f.get("values") or [], city)
+        value, err = _clean_value(key, f.get("values") or [], city, kind)
         if err:
             problems.append(err)
         elif value is not None:
@@ -409,11 +422,11 @@ def build_draft(args: dict, first_name: str, age_band: str, current=None) -> tup
     # The kind the agent chose is what it understood: it goes on the listing as the "kind" detail (shown
     # unless the person chose hidden), and matching uses it before anything in the description.
     values["kind"] = kind
-    if kind != "dating":
-        for key in DATING_ONLY:
-            if values.pop(key, None) is not None:
-                visibility.pop(key, None)
-                notes.append(f"{key} was left out: it's only used for dating.")
+    for key in [k for k in values if not carries(kind, k)]:  # a detail only another kind has (agent.carries)
+        values.pop(key)
+        visibility.pop(key, None)
+        notes.append(f"{key} was left out: it's only used for dating." if key in DATING_ONLY
+                     else f"{key} was left out: a {kind} listing doesn't have it.")
     # The details the agent chose shown or hidden for on purpose: a value it kept, with a visibility of its
     # own (the tool always sends one, even with no value: that chooses nothing). Every other visibility below
     # is a default, and a default never overrides the person's own choice (carry_over).
@@ -547,8 +560,17 @@ def build_draft(args: dict, first_name: str, age_band: str, current=None) -> tup
     return draft, [], notes
 
 
-UNSAVED_NOTE = ("(I wasn't able to save that change to your listing. Could you say it another way, or edit it "
-                "yourself with Edit details?)")
+# A turn that ends without the model trying to save: it's asked once more, because the profile on the person's
+# screen changes only when it saves, and its instructions say to save before replying whenever it learns anything.
+# It decides; "nothing to save" (a greeting, or the kind of match is the open question) leaves no trace.
+NO_SAVE = "NO_SAVE"
+SAVE_CHECK = ("(A check from the app, not from the person.) You replied without calling update_listing, and the "
+              "profile on their screen changes only when you save. If anything they've said tells you what they're "
+              "looking for or offering, and the kind of match isn't the open question, call update_listing now with "
+              "everything you're sure of, and write nothing else. If not, answer with just " + NO_SAVE + ".")
+
+UNSAVED_NOTE = ("(I wasn't able to save that change to your listing. Could you say it another way, or change it "
+                "yourself by tapping it on your profile?)")
 
 
 def honest(reply: str, attempted: bool, saved: bool) -> str:
@@ -616,7 +638,7 @@ def _summary(draft: dict) -> str:
     out = (f"Draft saved. A match will see only these details: {', '.join(shown) or 'nothing'}. "
            f"Hidden (never shown): {', '.join(hidden) or 'nothing'}. The description itself is never shown "
            f"to anyone, including matches. If their listing is already live, the change goes live once they tap "
-           f"'Review changes' and save.")
+           f"'Save changes'.")
     if draft["notes"]:
         out += " Notes: " + " ".join(draft["notes"])
     if draft.get("missing"):
@@ -652,17 +674,24 @@ class ClaudeAgent:
     def _run(self, conversation: list, first_name: str, age_band: str, current=None) -> tuple:
         system = (SYSTEM_PROMPT + f"\nThe person you work for: first name {first_name}, age band {age_band}.\n"
                   + profile_so_far(current))
-        replies, draft, attempted, saved = [], None, False, []
-        for _ in range(MAX_TOOL_ROUNDS):
+        replies, draft, attempted, saved, checked = [], None, False, [], None
+        rounds = 0
+        while rounds < MAX_TOOL_ROUNDS + (checked is not None):  # the save check is one round more
+            rounds += 1
             response = self._call(system, conversation)
             if response.stop_reason == "refusal":
                 conversation.append({"role": "assistant", "content": "I can't help with that one."})
                 return "Sorry, I can't help with that. Tell me about the kind of person you'd like to meet?", draft
             conversation.append({"role": "assistant", "content": response.content})
-            replies += [b.text for b in response.content if b.type == "text" and b.text.strip()]
+            if checked is None:  # after the save check, only its save counts: the reply was already written
+                replies += [b.text for b in response.content if b.type == "text" and b.text.strip()]
             tool_uses = [b for b in response.content if b.type == "tool_use"]
             if response.stop_reason != "tool_use" or not tool_uses:
-                break
+                if attempted or checked is not None:
+                    break
+                checked = len(conversation)
+                conversation.append({"role": "user", "content": SAVE_CHECK})
+                continue
             results = []
             for block in tool_uses:
                 if block.name != "update_listing":
@@ -681,6 +710,8 @@ class ClaudeAgent:
                     results.append({"type": "tool_result", "tool_use_id": block.id, "content": _summary(new_draft)})
             conversation.append({"role": "user", "content": results})
             draft = turn_drafts(saved)
+        if checked is not None and not attempted:
+            del conversation[checked:]  # nothing to save: the check leaves no trace
         reply = "\n\n".join(replies).strip() or ("I've drafted your listing. Take a look at your profile."
                                                   if draft else "Sorry, could you say that another way?")
         return honest(reply, attempted, draft is not None), draft

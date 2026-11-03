@@ -229,10 +229,13 @@ const liveListings = () => ME.verified ? ME.listings.filter(l => l.listed) : [];
 function listingCard(l = listing()) {
   if (!l || !l.draft || !(l.draft.intent_text || Object.keys(shownOf(l)).some(k => !["first_name", "age_band"].includes(k)))) return "";
   const s = shownOf(l), live = l.listed && !l.unsaved, paused = l.listed && l.active === false;
-  // The same rule as the phone: who you're looking for, and where, before it can go live.
-  const ready = !!(s.seeking || (l.draft.kind === "dating" && l.draft.intent_text)) && !!(s.city || s.country);
-  const meta = [["Where", [s.city, s.country].filter(Boolean).join(", ")], ["Travel", s.travel], ["When", s.schedule], ["Pay", s.pay], ["Format", s.format], ["Level", s.level]]
-    .filter(([, v]) => v);
+  // Whether it can go live is the server's (the phone's rule), not a copy kept here.
+  const ready = !!l.ready;
+  // Every shown detail, with the server's label: where first, then the rest, minus what the title and the
+  // matching phrases already say (as on the phone).
+  const skip = ["first_name", "age_band", "city", "country", "seeking", "offering", "headline", "kind", "wants_gender", "wants_age"];
+  const meta = [["Where", [s.city, s.country].filter(Boolean).join(", ")],
+    ...l.draft.fields.filter(f => !skip.includes(f.key) && f.key in s).map(f => [f.label, s[f.key]])].filter(([, v]) => v);
   const badge = paused ? '<span class="badge plain">Paused</span>' : live ? '<span class="badge">Live</span>' : '<span class="badge plain">Draft</span>';
   return `<div class="card"><p class="title">${esc(cap(s.headline || l.title))}${badge}</p>
     <p class="sub">Shown to people you're introduced to. Hidden details are never shown.</p>
@@ -258,9 +261,28 @@ function introCard(id) {
 function questionCard(qid, lid) {
   const l = ME.listings.find(x => x.id === lid), q = l && l.followups.find(x => x.question_id === qid);
   if (!q) return `<div class="card"><p class="title">Question from Belong.<span class="badge plain">Answered</span></p></div>`;
+  // Each question takes the answer its type says (from the server): a yes or no never stands in for a value.
+  const a = q.answer || { type: "yes_no" }, k = `${lid}-${qid}`, [lo, hi] = (l.wants && l.wants.default) || ["", ""];
+  const controls = a.type === "age_range"
+    ? `<input class="i" id="qa-min-${k}" type="number" min="18" max="99" value="${lo}" aria-label="From age"> to
+       <input class="i" id="qa-max-${k}" type="number" min="18" max="99" value="${hi}" aria-label="To age">
+       <button class="btn primary" onclick="answerAges('${lid}','${qid}')">Answer</button>`
+    : a.type === "choice"
+    ? `<select class="i" id="qa-c-${k}" aria-label="${esc(q.question_text)}">${a.options.map(o => `<option>${esc(o)}</option>`).join("")}</select>
+       <button class="btn primary" onclick="answerChoice('${lid}','${qid}')">Answer</button>`
+    : `<button class="btn primary" onclick="ask('answer_yes','${lid}:${qid}')">Yes</button>
+       <button class="btn secondary" onclick="ask('answer_no','${lid}:${qid}')">No</button>`;
   return `<div class="card"><p class="for">For “${esc(cap(l.title))}”</p><p class="title">Question from Belong.</p><p class="sub">${esc(q.question_text)}</p>
-    <div class="actions"><button class="btn primary" onclick="ask('answer_yes','${lid}:${qid}')">Yes</button>
-      <button class="btn secondary" onclick="ask('answer_no','${lid}:${qid}')">No</button></div></div>`;
+    <div class="actions">${controls}</div></div>`;
+}
+function answerAges(lid, qid) {
+  const k = `${lid}-${qid}`, min = parseInt($(`qa-min-${k}`).value, 10), max = parseInt($(`qa-max-${k}`).value, 10);
+  if (!(min >= 18 && max >= min && max <= 99)) return toast("Pick an age range from 18 up.");
+  ask("answer_value", { lid, qid, answer: { min, max }, said: max >= 99 ? `${min} or older` : `${min} to ${max}` });
+}
+function answerChoice(lid, qid) {
+  const v = $(`qa-c-${lid}-${qid}`).value;
+  ask("answer_value", { lid, qid, answer: { [qid]: v }, said: v });
 }
 // Once live, the listing card is also the live matching card: while the chat is open it keeps
 // checking with Belong. (a widget can call the app's tools itself) and offers to show what's new.
@@ -408,6 +430,7 @@ const ACTIONS = {
   not_now: { tool: "not_now", ask: id => `Pass on ${nameOf(id)} for now?`, args: id => ({ introduction: nameOf(id) }) },
   answer_yes: { tool: "answer_question", ask: a => a.endsWith(":broaden") ? "Include close matches for this listing?" : `Answer “Yes” to the question from Belong.?`, args: () => ({ answer: "yes" }) },
   answer_no: { tool: "answer_question", ask: a => a.endsWith(":broaden") ? "Keep to exact matches for this listing?" : `Answer “No” to the question from Belong.?`, args: () => ({ answer: "no" }) },
+  answer_value: { tool: "answer_question", ask: a => `Answer “${a.said}” to the question from Belong.?`, args: a => ({ answer: a.said }) },
 };
 const byId = id => ME.listings.find(l => l.id === id) || listing();
 const nameOf = id => (ME.listings.flatMap(l => l.intros).find(x => x.intro_id === id) || { view: { fields: {} } }).view.fields.first_name || "this person";
@@ -446,6 +469,9 @@ async function run(kind, arg) {
     if (kind === "say_yes") L.log.push({ bot: i && i.status === "connected"
       ? `${nameOf(arg)} said yes too, so you're introduced. Message them in the Belong. app.`
       : `Done. I'll let you know if ${nameOf(arg)} says yes too; ask me any time.` });
+  } else if (kind === "answer_value") {
+    if (await api("answer", { listing_id: arg.lid, question_id: arg.qid, answer: arg.answer }))
+      L.log.push({ bot: "Thanks, I've updated your listing. Ask me for matches again in a bit." });
   } else {
     const [lid, qid] = arg.split(":");
     await api("answer", { listing_id: lid, question_id: qid, answer: { yes: kind === "answer_yes" } });

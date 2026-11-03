@@ -17,6 +17,11 @@ and tested) before changing code.
   mirror the case; prefer letting the person's agent supply meaning (fields like `topics`) over lists
   in matching code. Then check the fix on new, unrelated examples, and keep prompt examples
   different from the reported ones.
+- **Demo examples never define the product.** The early examples (climbing, running, the demo's cities,
+  the synthetic vocabularies in `synth.py`) are never a detail's label, its allowed values, an allow-list
+  or a matching rule. A label, a Warden sentence or a question's answer must be true for any listing that
+  can carry it; a detail goes only on the kinds it belongs to (`agent.carries`). `tests/test_neutral.py`
+  guards this.
 
 ## Rules that must never break
 
@@ -80,7 +85,10 @@ focus ring, selected border) uses the deeper `border-accent`. Periwinkle (`accen
 and every hidden field; mint (`accent-olive`) is live status, at most once per screen. The phone's top bar carries no status pill (the user's choice). Hidden fields use the fixed look: sunken well, periwinkle hairline, "Hidden" badge, "Used for
 matching, never shown". Sentence case, no emoji, no lock/shield/eye imagery; say "shown" and
 "hidden", never synonyms. Exception, by the user's choice: after a match say "See what else you
-have in common" / "Compare", not the design system's "Reveal to each other". Also by the user's choice: no "A SuperFoundry company" family mark in the footer. And notification dots on the phone are pure red (`--notify: #ff0000`), outside the token palette. And message reactions use a fixed few emoji (`REACTIONS` in demo.py), the one place emoji appear. And chat bubbles are rounder (18px) than the system's radii.
+have in common" / "Compare", not the design system's "Reveal to each other". Also by the user's choice: no "A SuperFoundry company" family mark in the footer. And notification dots on the phone are pure red (`--notify: #ff0000`), outside the token palette. And message reactions use a fixed few emoji (`REACTIONS` in demo.py), the one place emoji appear. And chat bubbles are rounder (18px) than the system's radii. And on the phone's profile, hidden
+details sit in a red band of their own (`--accent-error-muted` over white), between the shown details and
+what's left to do, there only when something is hidden; it keeps the Hidden badge and "Used for matching,
+never shown".
 
 ## Documentation
 

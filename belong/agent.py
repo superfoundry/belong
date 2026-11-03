@@ -119,7 +119,7 @@ ALL_MONTHS = ["January", "February", "March", "April", "May", "June", "July", "A
 LABELS = {
     "first_name": "First name", "city": "City", "country": "Country", "age_band": "Age band (from ID check)",
     "gender": "Gender",
-    "interests": "Interests", "schedule": "Free time", "level": "Climbing level", "pace": "Running pace",
+    "interests": "Interests", "schedule": "Free time", "level": "Level", "pace": "Pace",
     "native_language": "Native language", "learning_language": "Learning", "role": "Your role",
     "subject": "Subject", "move_in": "Moving in", "seeking": "Looking for", "offering": "You are (to them)", "topics": "Related topics", "headline": "Headline", "pay": "Pay", "format": "Format",
     "travel": "How far you'll travel",
@@ -148,7 +148,7 @@ _KIND_NAMES = {
 }
 assert tuple(_KIND_NAMES) == MATCH_KINDS  # the kinds an agent may choose are the ones the Warden accepts
 # Why dating needs your gender, and what hiding it means (hidden details never decide a match).
-GENDER_NOTE = ("Please set your gender below. It's needed so people looking for a woman or a man can find you. "
+GENDER_NOTE = ("Please tell me your gender. It's needed so people looking for a woman or a man can find you. "
                "You can keep it hidden, but a hidden detail never decides a match, so then only people open to "
                "anyone can match you, and you may get fewer matches.")
 _SENSITIVE_VOCAB = {
@@ -199,7 +199,7 @@ def wanted_ages(text: str, age_band) -> tuple:
             return None, None
         return None, (f"I wasn't sure which ages you meant, so I haven't set them yet: for now you're open to "
                       f"{ages_text(default_age_range(age_band))} (one age band either side of yours). Tell me a "
-                      f"range, e.g. \"30 to 39\", or set \"Their age\" below.")
+                      f"range, e.g. \"30 to 39\".")
     lo, hi = years[0], min(years[1], AGE_MAX)
     if hi < AGE_MIN:
         return None, "Belong. only introduces adults, so I haven't added an age range. Who would you like to meet?"
@@ -739,16 +739,16 @@ def draft_from_message(message: str, first_name: str, age_band: str, kind=None, 
     elif kind is None and unknown_partner(without_hobbies(low)):
         notes.insert(0, f"{WHICH_ACTIVITY} {ACTIVITY_HINT}")
     elif kind is None:
-        notes.insert(0, "I couldn't tell what kind of match you want. Could you say a bit more, e.g. "
-                        "'a climbing partner' or 'a long-term relationship'?")
+        notes.insert(0, "I couldn't tell what kind of match you want. Could you say a bit more about what you'd "
+                        "like to meet someone for?")
     if not city and not parsed.remote_ok:
-        notes.append("Which city? I couldn't tell, so please pick one below.")
+        notes.append("Which city? I couldn't tell, so please tell me where you are.")
     if kind == "dating" and "wants_gender" not in v:
-        notes.append("Who would you like to meet: a woman, a man, or anyone? Set it under \"Looking for\" below.")
+        notes.append("Who would you like to meet: a woman, a man, or anyone?")
     if kind == "dating" and "wants_age" not in v and not note:
         notes.append(f"You didn't say what ages you'd like, so for now you're open to "
-                     f"{ages_text(default_age_range(age_band))} (one age band either side of yours). Tell me, or "
-                     f"set \"Their age\" below, to change that.")
+                     f"{ages_text(default_age_range(age_band))} (one age band either side of yours). Tell me "
+                     f"if you'd like different ages.")
     if kind == "dating" and "gender" not in v:
         notes.append(GENDER_NOTE)
 
@@ -1096,16 +1096,14 @@ def fill_gaps(draft: dict, facts: dict, visibilities=None) -> list:
     """Put facts into empty fields of a draft (never overwriting anything set). Returns the
     keys filled. Fields the draft doesn't have yet are added, except a format on a kind that has
     none (has_format): a climbing listing isn't made online only by "online works for me". The kind
-    of match is the agent's to record, never carried over, and who someone would like to meet and
-    their ages belong only on a dating draft. visibilities: the shown or hidden each filled detail
+    of match is the agent's to record, never carried over, and a detail only another kind has (carries)
+    never goes on: who someone would like to meet only on a dating draft, a level only where it means one. visibilities: the shown or hidden each filled detail
     takes, where known (the person's choice, or the one it had on the draft it came from)."""
     filled = []
     by_key = {f["key"]: f for f in draft["fields"]}
     for key, value in facts.items():
         spec = FIELD_REGISTRY.get(key)
-        if spec is None or spec.sensitive or key == "kind":
-            continue
-        if key in DATING_ONLY and draft.get("kind") != "dating":
+        if spec is None or spec.sensitive or key == "kind" or not carries(draft.get("kind"), key):
             continue
         f = by_key.get(key)
         if f is None and key == "format" and not has_format(draft.get("kind")):
@@ -1154,13 +1152,18 @@ def keep_visibility(new: dict, old, choices=None) -> None:
 
 def carry_over(new: dict, old, choices=None) -> list:
     """Keep what's already on the profile when a new agent draft replaces it: anything the new draft
-    left empty (fill_gaps, never a sensitive detail or the kind), each with the shown or hidden it had,
+    left empty (fill_gaps, never a sensitive detail or the kind, and after a change of kind only what's
+    about the person), each with the shown or hidden it had,
     then the person's choices of shown or hidden for the rest (keep_visibility). Returns the keys filled."""
     if not old and not choices:
         return []
+    # A change of kind is a new request: only what's about the person carries over (where they are, when they're
+    # free, their interests), never the old request's own details (a level, a role, its phrases, its pay).
+    changed = bool((old or {}).get("kind") and new.get("kind") and old.get("kind") != new.get("kind"))
     filled = fill_gaps(new, {f["key"]: f["value"] for f in (old or {}).get("fields", [])
                              if f.get("enabled") and f.get("value") not in (None, "", [])
-                             and not f.get("sensitive") and f["key"] not in ("first_name", "age_band")},
+                             and not f.get("sensitive") and f["key"] not in ("first_name", "age_band")
+                             and not (changed and f["key"] in _KIND_SPECIFIC)},
                        _prior_visibility(old, choices))
     keep_visibility(new, old, choices)
     return filled
@@ -1171,6 +1174,8 @@ def carry_over(new: dict, old, choices=None) -> list:
 # what ages instead. Everything in _COMMON belongs to every kind.
 _PHRASES = ("headline", "seeking", "offering", "topics")
 _KIND_SPECIFIC = sorted({k for keys in _BY_KIND.values() for k in keys} | set(_PHRASES))
+# Details whose choices differ from one kind to another (worked out from field_options, not listed by hand).
+_PER_KIND = {k for k in FIELD_REGISTRY if len({tuple(field_options(kind, None).get(k) or ()) for kind in _BY_KIND}) > 1}
 
 
 def kind_keys(kind) -> list:
@@ -1178,6 +1183,19 @@ def kind_keys(kind) -> list:
     own = [k for k in _BY_KIND.get(kind, []) if k not in _COMMON]
     phrases = [] if kind in (None, "dating") else [k for k in _PHRASES if k not in own]
     return ["kind"] + _COMMON + own + phrases
+
+
+def carries(kind, key) -> bool:
+    """Can a listing of this kind have this detail? One rule for every way a draft is built or merged (an
+    agent's save, details carried over, the instant draft, a save from the phone). Most details mean the same
+    on any listing, so an agent sets them wherever they apply (a level, a native language). Who someone would
+    like to meet and their ages are only for dating, and a detail whose choices belong to a kind (_PER_KIND:
+    a role is tutor or student, or technical or business) is only for the kinds that have those choices."""
+    if key in DATING_ONLY:
+        return kind == "dating"
+    if key in _PER_KIND:
+        return bool(field_options(kind, None).get(key))
+    return True
 
 
 def kind_layout(kind, city=None) -> dict:

@@ -88,6 +88,8 @@
   .peek { all: unset; box-sizing: border-box; display: block; width: 100%; padding: 0 var(--space-4) var(--space-3); cursor: pointer; }
   .peek .bubble { margin: 0; }
   .peek .clamp { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+  .peek .working { display: inline-flex; align-items: center; gap: var(--space-2); color: var(--text-ai); }
+  .peek .working .typing { padding: 0; }
   .peek:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: -2px; }
   .sheet-head:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: -2px; }
   .sheet-head .eyebrow { flex: 1; }
@@ -98,14 +100,61 @@
   .chat-sheet.min .chevron { transform: rotate(-135deg); margin-top: 4px; }
   .chat-sheet.min .chat-pane, .chat-sheet.min .composer-bar { display: none; }
   .chat-sheet.min .sheet-head { border-bottom: 0; }
-  .profile-card { background: var(--surface-card); border: 1px solid var(--border-default); border-radius: var(--radius-md);
-                  padding: var(--space-4); box-shadow: var(--shadow-sm); }
+  /* The profile in two tones: on white, hello in the person's own words, each detail a part to tap
+     and change; below, on paper, the other details, the hidden well, what's left to add and the editor. */
+  .profile-pane { background: var(--surface-raised); }
+  .profile-pane.blank { background: var(--surface-card); }  /* nothing to show below the hello yet */
+  .profile-top { background: var(--surface-card); margin: calc(-1 * var(--space-4)) calc(-1 * var(--space-4)) 0;
+                 padding: var(--space-4) var(--space-4) 0; }
+  .hello { padding: var(--space-2) 0 var(--space-5); }
+  .profile-details { padding-top: var(--space-4); }
+  /* A third tone, by the user's choice: hidden details in a red band of their own, between what's shown and
+     what's left to do, there only when something is hidden. It keeps the Hidden badge and its line. */
+  .hidden-band { margin: 0 calc(-1 * var(--space-4)); padding: var(--space-4);
+                 background: linear-gradient(var(--accent-error-muted), var(--accent-error-muted)), var(--surface-card); }
+  .profile-details > :first-child { margin-top: 0; }
+  .hello-head { display: flex; align-items: center; gap: var(--space-3); }
+  .monogram.lg { width: 56px; height: 56px; font-size: 26px; }
+  .hello-name { margin: 0; font-family: var(--font-display); font-weight: 600; font-size: 28px; line-height: 1.15; letter-spacing: var(--tracking-tight); }
+  .hello-name .drop { text-shadow: var(--shadow-text-ember); }
+  .in-words { margin: var(--space-4) 0 0; font-family: var(--font-display); font-weight: 500; font-size: 19px; line-height: 1.65;
+              letter-spacing: var(--tracking-tight); overflow-wrap: anywhere; }
+  /* A part flows like the words around it: it wraps mid-part, its highlight carried onto each line. */
+  .word { display: inline; -webkit-box-decoration-break: clone; box-decoration-break: clone; color: var(--text-primary);
+          background: var(--surface-sunken); border-bottom: 2px solid var(--border-strong); border-radius: var(--radius-sm);
+          padding: 1px 5px; cursor: pointer; transition: border-color var(--duration-fast) var(--ease-standard); }
+  .word:hover, .word.on { border-bottom-color: var(--border-accent); }
+  .word:focus-visible, .fact:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 1px; }
+  .word.blank { background: transparent; border: 1px dashed var(--border-strong); color: var(--text-tertiary); }
+  .word.blank:hover { border-color: var(--border-accent); color: var(--text-primary); }
+  .facts { display: flex; flex-direction: column; gap: var(--space-2); margin-bottom: var(--space-4); }
+  .fact-row { display: grid; grid-template-columns: 112px 1fr; gap: var(--space-2); align-items: baseline; }
+  .fact { font: var(--text-body-s); color: var(--text-primary); background: transparent; border: 0; border-bottom: 1px dashed var(--border-strong);
+          padding: 0; cursor: pointer; text-align: left; overflow-wrap: anywhere; }
+  .fact:hover, .fact.on { border-bottom-color: var(--border-accent); }
+  /* One detail at a time: a tapped part of the profile opens just that detail, its shown or hidden choice
+     included, in a sheet over the dimmed phone. */
+  .phone { position: relative; }
+  .scrim { position: absolute; inset: 0; z-index: 10; background: var(--surface-overlay); }
+  .detail-sheet { position: absolute; left: 0; right: 0; bottom: 0; z-index: 11; max-height: calc(100% - var(--space-16)); overflow-y: auto;
+                  box-sizing: border-box; padding: var(--space-6) var(--space-4) var(--space-5); background: var(--surface-card);
+                  border-radius: var(--radius-lg) var(--radius-lg) 0 0; box-shadow: var(--shadow-lg); }
+  .detail-sheet:focus { outline: none; }
+  .detail-sheet .field .head .label { color: var(--text-primary); }
+  .detail-sheet .note { margin: var(--space-4) 0 0; }
+  .detail-sheet .actions { margin-top: var(--space-5); }
+  .scrim.rise { animation: fade-in var(--duration-slow) var(--ease-standard); }
+  .detail-sheet.rise { animation: rise var(--duration-slow) var(--ease-standard); }
+  @keyframes fade-in { from { opacity: 0; } }
+  @keyframes rise { from { transform: translateY(100%); } }
+  @media (prefers-reduced-motion: reduce) { .scrim.rise, .detail-sheet.rise { animation: none; } .chat-sheet { transition: none; }
+    .typing span { animation: none; opacity: .6; } }
   .monogram { width: 40px; height: 40px; flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center;
               border-radius: var(--radius-md); background: var(--surface-sunken); color: var(--text-secondary);
               font-family: var(--font-display); font-weight: 700; font-size: 18px; }
   .profile-line { display: grid; grid-template-columns: 84px 1fr; gap: var(--space-2); margin-top: var(--space-3); align-items: baseline; }
   .progress-row { margin-top: var(--space-4); }
-  .progress { height: 4px; background: var(--surface-raised); border-radius: var(--radius-pill); overflow: hidden; margin-top: var(--space-2); }
+  .progress { height: 4px; background: var(--surface-sunken); border-radius: var(--radius-pill); overflow: hidden; margin-top: var(--space-2); }
   .progress span { display: block; height: 100%; background: var(--accent-default); transition: width var(--duration-slow) var(--ease-standard); }
   .suggest { margin-top: var(--space-3); }
   .why { margin: var(--space-2) 0 0; }
@@ -211,11 +260,9 @@
      deeper cream questions, with coral for status and the matches heading. */
   .card.intro.question { background: var(--sf-paper-400) !important; }
   .card.intro { box-shadow: none; background: var(--surface-raised); border-color: transparent; }
-  .profile-card .posted { margin-top: var(--space-4); padding-top: var(--space-4); border-top: 1px solid var(--border-subtle); }
-  .profile-card .posted .monogram { width: 32px; height: 32px; font-size: 15px; }
-  .profile-card .posted .heading-m { font: var(--text-body-s); font-weight: 600; }
   .suggest .tag { cursor: pointer; }
   .suggest .tag:hover { border-color: var(--border-accent); color: var(--text-primary); }
+  .suggest .tag.add { border-style: dashed; border-color: var(--border-strong); background: var(--surface-card); }
   .editor { margin-top: var(--space-5); }
   .chat-pane { flex: 1; overflow-y: auto; padding: var(--space-3) var(--space-4); }
   .composer-bar { display: flex; gap: var(--space-2); align-items: flex-end; padding: var(--space-3) var(--space-4);
@@ -411,6 +458,7 @@ const local = Object.fromEntries(VIEW.map(s => [s, fresh()]));
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const val = v => Array.isArray(v) ? v.join(", ") : v;
 const $ = id => document.getElementById(id);
+const composing = e => e.isComposing || e.keyCode === 229;  // an Enter that picks a word in an input method
 const badge = (tone, text) => `<span class="badge ${tone}">${esc(text)}</span>`;
 const tags = values => values.map(v => `<span class="tag">${esc(v)}</span>`).join("");
 const cap = t => t ? t.charAt(0).toUpperCase() + t.slice(1) : t;
@@ -419,6 +467,9 @@ const hasValue = v => Array.isArray(v) ? v.length > 0 : v !== null && v !== unde
 // they'd like to meet and those people's ages. Worded the same on your profile and on a match's card.
 const KIND_LABELS = { dating: "Dating", climbing: "Climbing partner", running: "Running buddy", language: "Language exchange",
   cofounder: "Cofounder", tutoring: "Tutoring", roommate: "Roommate", other: "Something else" };
+// The same kinds inside a sentence ("I'm looking for a climbing partner"), as the agent names them.
+const KIND_WORDS = { dating: "a relationship or date", climbing: "a climbing partner", running: "a running buddy",
+  language: "a language exchange", cofounder: "a cofounder", tutoring: "tutoring", roommate: "a roommate", other: "something else" };
 const UNDERSTOOD = ["kind", "wants_gender", "wants_age"];
 const GENDER_WORDS = { woman: "a woman", man: "a man", nonbinary: "a non-binary person" };
 const spanOf = v => { const m = /^(\d+)-(\d+)$/.exec(v || ""); return m ? [+m[1], +m[2]] : null; };
@@ -485,10 +536,12 @@ function syncDraft(slot) {
       });
       if (ours) return;
       c.draft = JSON.parse(c.draftFrom);
+      c.stash = {};  // what this copy set aside goes with it: it never brings back an older shown or hidden
       if (mine) for (const f of c.draft.fields) if (f.key in mine.visibility) f.visibility = mine.visibility[f.key];
       return;
     }
     c.draft = JSON.parse(c.draftFrom);
+    c.stash = {};  // what the old copy set aside goes with it
     const sc = SCENARIOS[scenario]?.[slot];
     if (sc && c.applyScenario) { applyScenario(c.draft, sc); c.applyScenario = false; }
   }
@@ -557,19 +610,38 @@ function renderPhone(slot) {
       <button role="menuitem" class="sep" onclick="signOut('${slot}')">Log out</button></div>` : ""}` : "";
   // The top bar carries no status pill; each listing shows its own.
   const status = "";
+  // The agent chat's height before this redraw, so it can slide to its new one (slideSheet).
+  const oldChat = document.querySelector(`#phone-${slot} .chat-sheet`);
+  const chatFrom = oldChat && !L.dragging ? { h: oldChat.offsetHeight, id: curId(slot) } : null;
   // Keep the profile pane's scroll position across redraws (editing, agent updates).
   const oldPane = document.querySelector(`#phone-${slot} .profile-pane`);
   const paneScroll = oldPane ? oldPane.scrollTop : 0;
+  // And focus in an open detail sheet, by what has it (a detail's control, an action, the sheet itself):
+  // choosing a chip, or shown or hidden, redraws it. Typed text too, which a list box redraws tidied.
+  const focused = document.activeElement, oldSheet = document.querySelector(`#phone-${slot} .detail-sheet`);
+  const was = oldSheet && oldSheet.contains(focused) ? { key: focused.closest(".field")?.dataset.key, tag: focused.tagName,
+    text: focused.tagName === "BUTTON" ? focused.textContent : "", typed: focused.value, caret: [focused.selectionStart, focused.selectionEnd] } : null;
+  const lost = oldSheet && (!focused || focused === document.body);  // a click that focused nothing (Safari's buttons)
+  const sheetScroll = oldSheet ? oldSheet.scrollTop : 0;
   const split = screen === "profile";
+  // A sheet is for the profile on screen: leaving it closes the sheet, so it never comes back unasked.
+  if (!split) for (const x of Object.values(L.ls)) x.detail = null;
+  // One detail open in a sheet: the rest of the phone is dimmed and out of reach until it's done.
+  const sheet = split ? detailSheet(slot, curListing(slot), cur(slot)) : "", inert = sheet ? " inert" : "";
   $("phone-" + slot).innerHTML = screen === "thread" ? SCREENS.thread(slot, p, L)
     : screen === "verify" ? `<div class="screen" id="screen-${slot}">${SCREENS.verify(slot, p, L)}</div>`
-    : `<div class="top"><span class="wordmark">Belong.</span>${status}${menu}</div>
-    <div class="screen${split ? " split" : ""}" id="screen-${slot}">${SCREENS[screen](slot, p, L)}</div>${tabs}`;
+    : `<div class="top"${inert}><span class="wordmark">Belong.</span>${status}${menu}</div>
+    <div class="screen${split ? " split" : ""}" id="screen-${slot}"${inert}>${SCREENS[screen](slot, p, L)}</div>${tabs}${sheet}`;
+  const newSheet = document.querySelector(`#phone-${slot} .detail-sheet`);
+  if (newSheet) {
+    newSheet.scrollTop = sheetScroll;
+    if (was || lost) refocusSheet(newSheet, was);
+  } else if (was) focusBack(slot, was.key);  // the detail went (the agent's draft dropped it) with focus in its sheet
   if (screen === "thread") renderThreadScroll(slot);
   if (split) {
-    const c = cur(slot), sheet = document.querySelector(`#phone-${slot} .chat-sheet`);
-    if (sheet && !c.chatMin && c.chatH) sheet.style.height = Math.min(c.chatH, sheetBounds(slot).max) + "px";
+    const sheet = document.querySelector(`#phone-${slot} .chat-sheet`);
     fitPane(slot);
+    if (sheet && chatFrom && chatFrom.id === curId(slot)) slideSheet(slot, sheet, chatFrom.h);
     const chat = document.querySelector(`#phone-${slot} .chat-pane`); if (chat) chat.scrollTop = chat.scrollHeight;
     const pane = document.querySelector(`#phone-${slot} .profile-pane`); if (pane) pane.scrollTop = paneScroll;
   }
@@ -673,7 +745,7 @@ const SCREENS = {
     stepAsideAfterUpdate(slot, l, c);
     const unsaved = l.unsaved ? `<div class="notice warn"><div class="grow"><b>Your changes aren't live yet.</b> Matching still sees your last saved listing.</div>
         <button class="btn sm" onclick="submit('${slot}')">Save changes</button></div>` : "";
-    return `<div class="profile-pane">${backBar(slot, "belong", "Belong.")}${unsaved}${profileCard(slot, p, l, c)}${c.editing && c.draft ? editorHtml(slot, c) : ""}</div>
+    return `<div class="profile-pane${started(c) ? "" : " blank"}">${profileCard(slot, p, l, c, backBar(slot, "belong", "Belong.") + unsaved)}${c.editing && c.draft ? editorHtml(slot, c) : ""}</div>
       ${chatHtml(slot, l, c)}`;
   },
 
@@ -731,7 +803,7 @@ const SCREENS = {
           <div class="msg-col"><div class="bubble them typing" aria-label="${esc(name)} is typing"><span></span><span></span><span></span></div></div></div>` : ""}</div>
       <div class="composer-bar"><textarea class="textarea" id="msg-${slot}" aria-label="Message to ${esc(name)}" placeholder="Message ${esc(name)}"
           oninput="local['${slot}'].msg['${i.intro_id}']=this.value"
-          onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendMessage('${slot}','${i.intro_id}')}">${esc(text)}</textarea>
+          onkeydown="if(event.key==='Enter'&&!event.shiftKey&&!composing(event)){event.preventDefault();sendMessage('${slot}','${i.intro_id}')}">${esc(text)}</textarea>
         <button class="btn" onclick="sendMessage('${slot}','${i.intro_id}')">Send</button></div></div>`;
   },
 
@@ -743,7 +815,7 @@ const SCREENS = {
         <div class="form-row" style="margin-top: var(--space-5)"><label class="field-label" for="pname-${slot}">First name</label>
           <input class="input" id="pname-${slot}" value="${esc(L.pname ?? p.name)}" maxlength="30"
             oninput="local['${slot}'].pname=this.value; $('save-name-${slot}').disabled = !this.value.trim() || this.value.trim() === S.phones['${slot}'].name"
-            onkeydown="if(event.key==='Enter' && !$('save-name-${slot}').disabled) saveProfile('${slot}')"></div>
+            onkeydown="if(event.key==='Enter' && !composing(event) && !$('save-name-${slot}').disabled) saveProfile('${slot}')"></div>
         <p class="caption secondary" style="margin: var(--space-2) 0 0">Shown on all your listings. Your age band comes from your ID check and can't be changed.</p>
         <div class="row" style="margin-top: var(--space-4)"><span class="grow"></span>
           <button class="btn sm" id="save-name-${slot}" ${!(L.pname ?? p.name).trim() || (L.pname ?? p.name).trim() === p.name ? "disabled" : ""} onclick="saveProfile('${slot}')">Save</button></div></div>
@@ -876,8 +948,13 @@ function canSave(c, l) {
 
 function checklist(c, l) {
   const d = c.draft, { shown, hidden } = draftValues(c);
-  const where = { done: !!(shown.city || shown.country), label: "Where", ask: "I'm based in " };
-  const looking = { done: !!shown.seeking, label: "Who you're looking for", ask: "I'm looking for " };
+  // A listing that can meet online can be matched without a place (two people who both meet online are matched
+  // wherever they live), as the agent's save counts it (build_draft); one that only meets in person can't.
+  const online = ["Online", "In person or online"].includes(shown.format);
+  // need: what matching needs, the only items progress counts (progressOf).
+  const where = { done: !!(shown.city || shown.country) || online, label: "Where", ask: "I'm based in ", need: true };
+  // A kind of match names who you're looking for too (a climbing partner, a roommate); "something else" doesn't.
+  const looking = { done: !!shown.seeking || (!!shown.kind && shown.kind !== "other"), label: "Who you're looking for", ask: "I'm looking for ", need: true };
   const hiddenItem = { done: hidden.length > 0, label: "A hidden detail", optional: true, ask: "Something private that could improve my matches: " };
   // Dating needs who you'd like to meet, your own gender and their ages: it's how the right people find
   // you. Gender may stay hidden, but a hidden detail never decides a match, so the person is told what that means.
@@ -885,21 +962,24 @@ function checklist(c, l) {
   const lf = lookingFor(c, l);
   const datingNeeds = [
     gender && gender.visibility === "hidden"
-      ? { done: true, label: "Your gender", ask: "I'm a ", warn: true,
+      ? { done: true, label: "Your gender", ask: "I'm a ", warn: true, need: true,
           why: "Your gender is hidden, so it can't help people looking for a woman or a man find you: hidden details never decide a match. You may get fewer matches." }
-      : { done: !!gender, label: "Your gender", ask: "I'm a ", why: "Your gender is needed so people looking for a woman or a man can find you." },
-    { done: !!lf.ages, label: "Their age", ask: "Ideally aged ",
+      : { done: !!gender, label: "Your gender", ask: "I'm a ", need: true, why: "Your gender is needed so people looking for a woman or a man can find you." },
+    { done: !!lf.ages, label: "Their age", ask: "Ideally aged ", need: true,
       why: lf.def ? `No ages yet, so you're open to people aged ${agesText(lf.def)}, one age band either side of yours.` : "" },
   ];
   // What to add next is the agent's call, by common sense for this request (the problem for a
   // repair, interests for dating). Who and where are always needed, for matching, and for dating
   // your gender and the ages you want.
   const essentials = d && d.kind === "dating"
-    ? [{ done: lf.genders.length > 0, label: "Who you'd like to meet", ask: "I'd like to meet ",
+    ? [{ done: lf.genders.length > 0, label: "Who you'd like to meet", ask: "I'd like to meet ", need: true,
          why: "Who you'd like to meet (a woman, a man, or anyone): you're only introduced to people you'd like to meet who'd also like to meet you." },
        where, ...datingNeeds]
     : [shown.offering && !shown.seeking ? { ...looking, done: true } : looking, where];
-  if (d && Array.isArray(d.suggestions)) return [...essentials, ...d.suggestions.map(x => ({ done: false, label: x.label, ask: x.ask }))];
+  // A model agent says what to ask for this request, what matching still needs first (its suggestions): the
+  // essentials still count towards saving and progress, but they're asked only through it.
+  if (d && Array.isArray(d.suggestions)) return [...essentials.map(i => ({ ...i, quiet: true })),
+                                                 ...d.suggestions.map(x => ({ done: false, label: x.label, ask: x.ask }))];
   if (d && d.by === "quick") return essentials;  // the agent's suggestions arrive with its reply
   switch (layoutFor(c)) {
     case "offer": {
@@ -920,88 +1000,157 @@ function checklist(c, l) {
   }
 }
 
-function profileCard(slot, p, l, c) {
-  const d = c.draft, { shown, hidden } = draftValues(c);
-  const layout = layoutFor(c), items = checklist(c, l);
-  // With the agent's suggestions, progress counts details filled in against what's still suggested.
-  const filled = d ? d.fields.filter(f => f.enabled && hasValue(f.value) && !["first_name", "age_band"].includes(f.key)).length : 0;
-  const required = items.filter(i => !i.optional);
-  let done = required.filter(i => i.done).length, total = required.length;
-  if (d && Array.isArray(d.suggestions)) { total = filled + required.filter(i => !i.done).length; done = filled; }
-  const ready = canSave(c, l);
+// The profile in the person's own words: a few short sentences in the first person ("I'm free on
+// weekends"), led by their headline when it's shown, each detail a part they can tap to change, and the details that don't read as a sentence
+// as labelled facts. Only shown details (hidden ones keep their own well), and for dating, who they'd
+// like to meet as matching reads it (lookingFor). A detail that's needed and missing is a blank to fill
+// in with the agent. Wording that depends on a side (teach or learn, rate or budget) is used only when
+// the shown details say which side they're on; otherwise the detail is a labelled fact.
+// Each entry: the field, the words before it (null: no sentence, a fact) and after it, and lowercase for a
+// choice word (In person, Online) inside a sentence. Every value makes a plain sentence, as a person says it.
+const IN_WORDS = [
+  { key: "gender", say: () => "I'm", text: v => GENDER_WORDS[v] || v },
+  { key: "interests", say: () => "I'm into" },
+  { key: "subject", say: o => o.offering ? "I teach" : o.seeking ? "I'd like to learn" : null },
+  // One way to meet is a preference; both ways means they're open to either.
+  { key: "format", say: (o, v) => v === "In person or online" ? "I'm happy to meet" : "I'd prefer to meet", lower: true },
+  // When is one of a few fixed choices: a time of the week ("on weekends"), or any time, worded as the
+  // Warden words it ("flexible on timing").
+  { key: "schedule", say: (o, v) => v === "flexible" ? "I'm" : o.offer ? "I'm available on" : "I'm free on",
+    after: v => v === "flexible" ? " on timing" : "" },
+  // Pay is in their own words (an amount, a range, "negotiable"), so it follows "is".
+  { key: "pay", say: o => o.offering ? "My rate is" : o.seeking ? "My budget is" : null },
+];
+const andList = v => { const a = [].concat(v).map(String); return a.length > 1 ? `${a.slice(0, -1).join(", ")} and ${a.at(-1)}` : a[0] || ""; };
+function profileWords(c, l) {
+  const d = c.draft, { shown } = draftValues(c), layout = layoutFor(c), items = checklist(c, l);
+  const fields = d ? d.fields : [];
+  const labelOf = k => ((fields.find(f => f.key === k) || {}).label || k).replace(" (from ID check)", "");
+  const ask = label => items.findIndex(i => i.label === label);
+  const word = (key, text) => ({ key, text, label: labelOf(key) });
+  // A detail that's needed and missing is a blank to fill in, unless a model agent drafted this: then it says
+  // what to ask (its suggestions), and the sentence says only what's known.
+  const asks = !(d && (Array.isArray(d.suggestions) || d.by === "quick"));
+  const blank = (label, text) => asks ? { blank: true, text, label, n: ask(label) } : null;
   const place = [shown.city, shown.country].filter(Boolean).join(", ");
-  const missing = items.map((it, n) => ({ ...it, n })).filter(i => !i.done).slice(0, 4);
+  const where = place ? word(shown.city ? "city" : "country", place) : blank("Where", "add a place");
+  const at = where ? [" in ", where] : [], based = where ? [["I'm based in ", where]] : [];
+  // Which side they're on, from shown details only: offering (a tutor), seeking (a student, or a shown
+  // "looking for"), or not known (a role that isn't shown yet, or hidden: a hidden value never chooses words).
+  const sd = sides(shown), offering = shown.role === "tutor" || sd.side === "offers";
+  const roleUnknown = !shown.role && fields.some(f => f.key === "role" && f.enabled !== false);
+  const seeking = !offering && (shown.role === "student" || (sd.side === "needs" && !!shown.seeking));
+  const used = new Set(["first_name", "age_band", "city", "country", "seeking", "offering", "headline", ...UNDERSTOOD]);
+  const sentences = [];
+  let kindSaid = false;
+  if (layout === "dating") {
+    const lf = lookingFor(c, l), who = wantsText(lf.genders, null), ages = agesText(lf.ages);
+    const whom = who ? word("wants_gender", who) : blank("Who you'd like to meet", "add who");
+    const aged = ages ? word("wants_age", ages) : blank("Their age", "add ages");
+    sentences.push(["I'd like to meet ", whom || "someone", ...(aged ? [" aged ", aged] : []), ...at]);
+  } else if (shown.headline) {
+    // Their own words lead: the headline, which the agent starts with an -ing word. "Looking for" and
+    // "you are" are written as [activity] [role] for matching only, so they can read stiffly as a sentence.
+    // The headline is a sentence of its own and the place another: its grammar is the agent's (a phrase, or
+    // clauses), so "in <place>" is never joined onto it. A headline that ends on the shown place drops it there,
+    // so the place isn't said twice.
+    const alts = [place, shown.city, shown.country].filter(Boolean).map(s => String(s).replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|");
+    let h = String(shown.headline).trim();
+    if (alts) h = h.replace(new RegExp(`\\s+in\\s+(?:${alts})[\\s.!]*$`, "iu"), "");
+    h = h.replace(/[\s.]+$/u, "");
+    const own = /^\p{L}{3,}ing(?=\s|$)/u.test(h);
+    sentences.push(own ? ["I'm ", word("headline", h.charAt(0).toLowerCase() + h.slice(1))] : [word("headline", cap(h))],
+                   ...based);
+  } else if (shown.offering && (sd.side === "offers" || !shown.seeking)) {
+    sentences.push(["I'm ", word("offering", shown.offering), ...at]);
+  } else if (sd.side === "both") {
+    sentences.push(["I'm ", word("offering", shown.offering), ", looking for ", word("seeking", shown.seeking), ...at]);
+  } else if (!shown.seeking && KIND_WORDS[shown.kind] && shown.kind !== "other" && !roleUnknown) {
+    kindSaid = true;  // most kinds have no "looking for" of their own: the kind is what they're looking for
+    sentences.push([offering ? "I offer " : "I'm looking for ", word("kind", KIND_WORDS[shown.kind]), ...at]);
+  } else if (!shown.seeking && shown.kind && shown.kind !== "other") {
+    sentences.push(...based);  // the side isn't known yet: the kind stays a fact
+  } else {
+    const what = shown.seeking ? word("seeking", shown.seeking) : blank("Who you're looking for", "add who or what");
+    sentences.push(...(what ? [["I'm looking for ", what, ...at]] : based));
+  }
+  for (const w of IN_WORDS) {
+    const say = w.say({ offer: layout === "offer", offering, seeking }, shown[w.key]);
+    if (!hasValue(shown[w.key]) || !say || (w.key === "gender" && layout !== "dating")) continue;
+    used.add(w.key);
+    const v = w.text ? w.text(shown[w.key]) : andList(shown[w.key]), after = w.after ? w.after(shown[w.key]) : "";
+    sentences.push([`${say} `, word(w.key, w.lower ? v.charAt(0).toLowerCase() + v.slice(1) : v), ...(after ? [after] : [])]);
+  }
+  // Everything else shown, as facts with their labels: the kind of match first (it decides the match), unless
+  // it's "something else": then the headline and topics, in the agent's words, say what it is.
+  const facts = [];
+  if (shown.kind && shown.kind !== "other" && !kindSaid) facts.push(word("kind", KIND_LABELS[shown.kind] || shown.kind));
+  for (const [k, v] of Object.entries(shown)) if (!used.has(k) && hasValue(v)) facts.push(word(k, val(v)));
+  return { sentences, facts };
+}
+
+// Before anything is known (nothing told to the agent, no detail filled in), the profile is just who you
+// are, all on white: no sentence of blanks and no details, because what to add depends on the request.
+// With the full editor open it has started, so the way out (Done editing) is always there.
+const started = c => !!(c.draft && (c.editing || c.draft.intent_text
+  || Object.keys(draftValues(c).shown).some(k => !["first_name", "age_band"].includes(k))));
+
+// Progress is what matching needs (who, where if they meet in person, for dating your gender and theirs).
+// Everything else helps but is optional, the agent's suggestions included, so it never moves the finish line.
+function progressOf(items) {
+  const need = items.filter(i => i.need);
+  return { done: need.filter(i => i.done).length, total: need.length };
+}
+
+// top: what goes above the hello on the white (the way back, a notice of unsaved changes).
+function profileCard(slot, p, l, c, top = "") {
+  const d = c.draft, { hidden } = draftValues(c), items = checklist(c, l);
+  const { done, total } = progressOf(items);
+  const ready = canSave(c, l);
+  const { sentences, facts } = profileWords(c, l);
+  const something = started(c);
+  const blanks = new Set(sentences.flat().filter(w => w.blank).map(w => w.label));
+  const missing = items.map((it, n) => ({ ...it, n })).filter(i => !i.done && !i.quiet && !blanks.has(i.label)).slice(0, 4);
   // Why an essential matters (dating: your gender, the ages you want), while it's missing or hidden.
   const why = items.filter(i => i.why && (!i.done || i.warn));
   const entry = l.entry;
-  const fact = (label, value, empty) => `<div class="profile-line"><span class="label tertiary">${label}</span>${value
-    ? `<span class="body-s">${esc(value)}</span>` : `<span class="body-s tertiary">${empty || "Not added yet"}</span>`}</div>`;
-  const used = new Set(["first_name", "age_band", "city", "country", "seeking", "offering", "headline", "gender", "pay", "format", "travel", "schedule", "role", "subject", ...UNDERSTOOD]);
-  const travel = shown.travel ? fact("Travel", shown.travel) : "";
-  // What your agent understood (shown details, so you can check exactly what matching uses).
-  const kindLine = shown.kind ? fact("Kind of match", KIND_LABELS[shown.kind] || shown.kind) : "";
-  const extra = Object.entries(shown).filter(([k]) => !used.has(k)).map(([, v]) => val(v));
-  const who = `<div class="row"><span class="monogram" aria-hidden="true">${esc((p.name || "?").slice(0, 1).toUpperCase())}</span>
-      <div class="grow"><div class="heading-m">${esc(p.name || "")}</div>
-        <div class="caption secondary">${esc([p.age_band, place].filter(Boolean).join(" · ") || "Add where you are")}</div></div>
-      ${l.listed ? "" : badge("", "Draft")}</div>`;
-
-  // Before anything is known, the profile is just who you are: name and age.
-  const something = d && (d.intent_text || Object.keys(shown).some(k => !["first_name", "age_band"].includes(k)));
-  if (!something) {
-    return `<div class="profile-card minimal"><div class="row"><span class="monogram" aria-hidden="true">${esc((p.name || "?").slice(0, 1).toUpperCase())}</span>
-      <div class="grow"><div class="heading-m">${esc(p.name || "")}</div><div class="caption secondary">${esc(p.age_band || "")}</div></div></div></div>`;
-  }
-  let body;
-  if (layout === "offer") {
-    const sd = sides(shown), offering = shown.role === "tutor" || sd.side === "offers";
-    const headline = shown.headline || (offering ? shown.offering : shown.seeking) || (d && d.intent_text);
-    body = `<p class="eyebrow">${offering ? "Offering" : "Wanted"}</p>
-      ${headline
-        ? `<h3 class="heading-l" style="margin: var(--space-1) 0 var(--space-3)">${esc(cap(headline))}</h3>`
-        : `<p class="body-s tertiary" style="margin: var(--space-1) 0 var(--space-3)">Your agent will fill this in as you chat</p>`}
-      ${kindLine}
-      ${fact(offering ? "Rate" : "Pay", shown.pay)}
-      ${fact("Where", place)}
-      ${travel}
-      ${fact("When", shown.schedule)}
-      ${fact("Format", shown.format)}
-      ${shown.subject ? fact("Subject", shown.subject) : ""}
-      ${sd.other ? fact(offering ? "For" : "You are", offering ? shown.seeking : sd.other) : ""}
-      <div class="posted">${who}</div>`;
-  } else if (layout === "dating") {
-    const lf = lookingFor(c, l), wanted = wantsText(lf.genders, lf.ages);
-    body = `${who}
-      ${kindLine}
-      ${fact("Looking for", wanted && cap(wanted), "Your agent will fill this in as you chat")}
-      ${shown.gender ? fact("Gender", shown.gender) : ""}${travel}`;
-  } else {
-    const sd = sides(shown);
-    body = `${who}
-      ${kindLine}
-      ${shown.headline ? `<h3 class="heading-l" style="margin: var(--space-4) 0 var(--space-1)">${esc(cap(shown.headline))}</h3>`
-        : sd.side === "offers" ? fact("Offering", sd.main) : fact("Looking for", shown.seeking, "Your agent will fill this in as you chat")}
-      ${sd.other && !shown.headline ? fact("You are", sd.other) : ""}
-      ${shown.schedule ? fact("When", shown.schedule) : ""}
-      ${shown.pay ? fact("Pay", shown.pay) : ""}${shown.format ? fact("Format", shown.format) : ""}${travel}`;
-  }
+  // The part being changed in the sheet keeps a coral underline behind it, so you can see what you're changing.
+  const open = new Set(c.detail ? DETAIL_KEYS[c.detail] || [c.detail] : []), on = k => open.has(k) ? " on" : "";
+  const part = w => typeof w === "string" ? esc(w)
+    : w.blank ? `<span class="word blank" role="button" tabindex="0" onkeydown="partKey(event)" onclick="${w.n >= 0 ? `suggest('${slot}', ${w.n})` : `toggleEdit('${slot}')`}">${esc(w.text)}</span>`
+    : `<span class="word${on(w.key)}" role="button" tabindex="0" data-key="${esc(w.key)}" onkeydown="partKey(event)" onclick="openDetail('${slot}','${w.key}',event)" aria-label="Change ${esc(w.label.toLowerCase())}: ${esc(w.text)}">${esc(w.text)}</span>`;
+  const last = s => s.at(-1), ends = s => typeof last(s) !== "string" && /[.!?]$/.test(last(s).text);
+  // A stop never wraps on its own: there's no break before it, right after the part.
+  const sentence = s => s.map(part).join("") + (ends(s) ? "" : ".");
+  const [first, ...rest] = String(p.name || "").trim().split(/\s+/);  // the accent drop is on one word
   return `
-    ${entry && !entry.accepted ? `<div class="notice error"><b>Listing refused by the Warden agent.</b><br>${entry.problems.map(esc).join("<br>")}</div>` : ""}
-    <div class="profile-card ${layout}">
-      ${body}
-      ${extra.length ? `<div style="margin-top: var(--space-3)">${tags(extra)}</div>` : ""}
-      ${hidden.length ? `<div class="hidden-well" style="margin-top: var(--space-4)"><div class="row"><span class="label grow">Only you can see this</span>${badge("ai", "Hidden")}</div>
-        ${hidden.map(f => `<div class="body-s" style="margin-top: var(--space-1)">${esc(f.label)}: ${esc(val(f.value))}</div>`).join("")}
-        <div class="hidden-note" style="margin-top: var(--space-2)">Used for matching, never shown</div></div>` : ""}
-      <div class="progress-row"><span class="caption secondary">${done} of ${total} complete</span>
-        <div class="progress" role="progressbar" aria-valuemin="0" aria-valuemax="${total}" aria-valuenow="${done}"><span style="width:${total ? Math.round(100 * done / total) : 0}%"></span></div></div>
-      ${missing.length ? `<div class="suggest">${missing.map(i => `<button class="tag" onclick="suggest('${slot}', ${i.n})">Add ${esc(i.label.toLowerCase())}</button>`).join("")}</div>` : ""}
-      ${why.map(i => `<p class="caption secondary why">${esc(i.why)}</p>`).join("")}
-      <div class="row" style="margin-top: var(--space-4)">
-        ${d ? `<button class="btn secondary sm" onclick="toggleEdit('${slot}')">${c.editing ? "Done editing" : "Edit details"}</button>` : ""}
-        <span class="grow"></span>
-        ${d ? `<button class="btn sm" ${ready ? "" : "disabled"} onclick="submit('${slot}')">${l.listed ? "Save changes" : "Start matching"}</button>` : ""}</div>
-    </div>`;
+    <div class="profile-top">${top}
+      ${entry && !entry.accepted ? `<div class="notice error"><b>Listing refused by the Warden agent.</b><br>${entry.problems.map(esc).join("<br>")}</div>` : ""}
+      <div class="hello">
+        <div class="hello-head"><span class="monogram lg" aria-hidden="true">${esc((p.name || "?").slice(0, 1).toUpperCase())}</span>
+          <div class="grow"><h2 class="hello-name">Hi, I'm <span class="drop">${esc(first)}</span>${rest.length ? " " + esc(rest.join(" ")) : ""}.</h2>
+            ${p.age_band ? `<div class="caption secondary">${esc(String(p.age_band).replace("-", "–"))}</div>` : ""}</div></div>
+        ${something && sentences.length ? `<p class="in-words">${sentences.map(sentence).join(" ")}</p>` : ""}
+      </div>
+    </div>
+    ${something ? `${facts.length ? `<div class="profile-details"><div class="facts">${facts.map(f => `<div class="fact-row"><span class="label tertiary">${esc(f.label)}</span>
+          <span><button class="fact${on(f.key)}" data-key="${esc(f.key)}" onclick="openDetail('${slot}','${f.key}',event)" aria-label="Change ${esc(f.label.toLowerCase())}: ${esc(f.text)}">${esc(f.text)}</button></span></div>`).join("")}</div></div>` : ""}
+      ${hidden.length ? `<div class="hidden-band"><div class="row"><span class="label grow">Only you can see this</span>${badge("ai", "Hidden")}</div>
+          ${hidden.map(f => `<div class="body-s" style="margin-top: var(--space-1)">${esc(f.label)}: <button class="fact${on(f.key)}" data-key="${esc(f.key)}" onclick="openDetail('${slot}','${f.key}',event)"
+            aria-label="Change ${esc(f.label.toLowerCase())}: ${esc(val(f.value))}">${esc(val(f.value))}</button></div>`).join("")}
+          <div class="hidden-note" style="margin-top: var(--space-2)">Used for matching, never shown</div></div>` : ""}
+      <div class="profile-details">
+        ${done === total && l.listed ? "" : `<div class="progress-row"><span class="caption secondary">${done === total ? "Ready to start matching"
+          : total - done === 1 ? `Almost there: ${done} of ${total}` : `${done} of ${total} complete`}</span>
+          <div class="progress" role="progressbar" aria-valuemin="0" aria-valuemax="${total}" aria-valuenow="${done}"><span style="width:${total ? Math.round(100 * done / total) : 0}%"></span></div></div>`}
+        ${missing.length ? `<div class="suggest">${missing.map(i => `<button class="tag add" onclick="suggest('${slot}', ${i.n})">Add ${esc(i.label.toLowerCase())}</button>`).join("")}</div>` : ""}
+        ${why.map(i => `<p class="caption secondary why">${esc(i.why)}</p>`).join("")}
+        <div class="row" style="margin-top: var(--space-4)">
+          ${!d ? "" : c.editing ? `<button class="btn secondary sm" onclick="toggleEdit('${slot}')">Done editing</button>`
+            : !l.listed ? `<button class="btn secondary sm" ${l.agent_busy || c.sending ? "disabled" : ""} onclick="saveDraft('${slot}')">Save draft</button>` : ""}
+          <span class="grow"></span>
+          ${d ? `<button class="btn sm" ${ready ? "" : "disabled"} onclick="submit('${slot}')">${l.listed ? "Save changes" : "Start matching"}</button>` : ""}</div>
+      </div>` : ""}`;
 }
 
 function editorHtml(slot, c) {
@@ -1035,19 +1184,21 @@ function chatHtml(slot, l, c) {
       onpointerdown="sheetDown(event,'${slot}')" onkeydown="sheetKey(event,'${slot}')"><span class="handle" aria-hidden="true"></span>
       <span class="eyebrow">Your agent</span><span class="chevron" aria-hidden="true"></span></button>`;
   if (c.chatMin) {
-    // Minimised: just the agent's latest message (or that it's replying), so the profile has the screen.
-    const peek = busy ? `<div class="bubble agent typing" aria-label="Your agent is replying"><span></span><span></span><span></span></div>`
+    // Minimised: just the agent's latest message, or that it's working on the profile, so the profile has the screen.
+    const peek = busy ? `<div class="bubble agent working" role="status"><span class="typing" aria-hidden="true"><span></span><span></span><span></span></span>Updating your profile</div>`
       : lastAgent ? `<div class="bubble agent"><span class="clamp">${esc(lastAgent.text)}</span></div>` : "";
     return `<div class="chat-sheet min">${head}${peek ? `<button class="peek" onclick="toggleChat('${slot}')" aria-label="Open the chat with your agent">${peek}</button>` : ""}</div>`;
   }
-  return `<div class="chat-sheet">${head}
+  // Built at the height it was dragged to (the sheet's max-height keeps it on screen): a height set after it's
+  // laid out would play the height transition on every redraw.
+  return `<div class="chat-sheet"${c.chatH ? ` style="height: ${Math.round(c.chatH)}px"` : ""}>${head}
     <div class="chat-pane">
       ${l.chat.map((m, n) => `<div class="bubble ${m.from}">${esc(m.text)}</div>` +
         (m.draft_updated && l.unsaved && n === lastUpdate && canSave(c, l) ? `<div class="bubble-note">${badge("ai", "Profile updated")} <button class="btn sm" onclick="submit('${slot}')">Save changes</button></div>` :
          m.draft_updated ? `<div class="bubble-note">${badge("ai", "Profile updated")}${l.listed && n > liveAt ? ` <span class="caption secondary">Save changes to make it live</span>` : ""}</div>` : "")).join("")}${pending}
       ${busy ? `<div class="bubble agent typing" aria-label="Your agent is replying"><span></span><span></span><span></span></div>` : ""}</div>
     <div class="composer-bar"><textarea class="textarea" id="chat-${slot}" aria-label="Message to your agent" placeholder="${l.chat.length > 1 ? "Reply to your agent" : "What are you looking for?"}" oninput="cur('${slot}').chatText=this.value"
-        onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();send('${slot}')}">${esc(text)}</textarea>
+        onkeydown="if(event.key==='Enter'&&!event.shiftKey&&!composing(event)){event.preventDefault();send('${slot}')}">${esc(text)}</textarea>
       <button class="btn" ${busy ? "disabled" : ""} onclick="send('${slot}')">Send</button></div>
   </div>`;
 }
@@ -1105,6 +1256,24 @@ function sheetKey(e, slot) {
   renderPhone(slot);
   document.querySelector(`#phone-${slot} .sheet-head`)?.focus();
 }
+// The chat slides to its new height (opening, minimising, settling after a drag) instead of jumping. The phone
+// redraws its whole screen, so the move is played from the height it had before to the one it has now.
+function slideSheet(slot, sheet, from) {
+  const to = sheet.offsetHeight;
+  if (Math.abs(to - from) < 2 || matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+  const settle = sheet.style.height;  // where it rests: its own height (minimised, the default) or one it was dragged to
+  sheet.style.transition = "none";
+  sheet.style.height = from + "px";
+  void sheet.offsetHeight;  // lay out the start
+  sheet.style.transition = "";
+  sheet.style.height = to + "px";
+  sheet.addEventListener("transitionend", function done(e) {
+    if (e.target !== sheet || e.propertyName !== "height") return;  // not the chevron turning inside it
+    sheet.removeEventListener("transitionend", done);
+    sheet.style.height = settle;
+    fitPane(slot);
+  });
+}
 // The profile scrolls clear of the sheet, whatever its height.
 function fitPane(slot) {
   const sheet = document.querySelector(`#phone-${slot} .chat-sheet`), pane = document.querySelector(`#phone-${slot} .profile-pane`);
@@ -1125,6 +1294,86 @@ function toggleEdit(slot) {
   if (c.editing) c.chatMin = true;  // editing needs the whole screen
   renderPhone(slot);
 }
+// A detail's value, not its shown or hidden choice: a box or list, else the chosen chip, else any chip ("Turn on" last).
+const valueControl = el => el.querySelector("input, select, textarea") || el.querySelector(".tag.on") || el.querySelector(".tag") || el.querySelector("button");
+// A part of the profile's sentence is text that flows with the words around it (so it can wrap mid-part),
+// working as a button: Enter or Space taps it, as it would a button.
+function partKey(e) {
+  if (composing(e) || (e.key !== "Enter" && e.key !== " ")) return;
+  e.preventDefault();
+  e.currentTarget.click();
+}
+// The whole editor, open at one detail, ready to change.
+function editField(slot, key) {
+  const c = cur(slot); c.editing = true; c.chatMin = true; c.detail = null;
+  renderPhone(slot);
+  const row = document.querySelector(`#phone-${slot} .field[data-key="${key}"]`);
+  if (!row) return;
+  row.scrollIntoView({ block: "center", behavior: "smooth" });
+  valueControl(row)?.focus({ preventScroll: true });
+}
+// Tapping a part of the profile opens just that detail in a sheet (with the editor open, it goes to the detail there).
+function openDetail(slot, key, e) {
+  const c = cur(slot);
+  if (c.editing) return editField(slot, key);
+  Object.assign(c, { detail: key, detailRise: true });
+  renderPhone(slot);
+  c.detailRise = false;  // it rises once, not on every redraw
+  const sheet = document.querySelector(`#phone-${slot} .detail-sheet`);
+  if (!sheet) return;
+  // From a keyboard or with a mouse, straight into the value. On a touch screen, the sheet itself: no on-screen
+  // keyboard covering its choices and Done until the person taps the box to type.
+  const control = !e || e.detail === 0 || matchMedia("(pointer: fine)").matches ? valueControl(sheet) : null;
+  (control || sheet).focus({ preventScroll: true });
+  if (control && control.matches("input, textarea")) control.setSelectionRange(control.value.length, control.value.length);  // ready to add to it
+}
+function closeDetail(slot) {
+  const c = cur(slot), key = c.detail;
+  c.detail = null; renderPhone(slot);
+  focusBack(slot, key);
+}
+// After a sheet, focus goes back to the part that was tapped (a place may now go by its other key; a detail
+// just hidden is in the hidden well), else the profile's first part, else its way back: never lost on the page.
+function focusBack(slot, key) {
+  const q = s => document.querySelector(`#phone-${slot} .profile-pane ${s}`);
+  ((DETAIL_KEYS[key] || [key]).map(k => q(`.word[data-key="${k}"], .fact[data-key="${k}"]`)).find(Boolean) || q(".word, .fact") || q("button"))?.focus({ preventScroll: true });
+}
+// After a redraw, focus goes back to the same control in the sheet: in the same detail, the same kind of control
+// with the same words (a chip, Shown or Hidden), else that detail's value ("Turn on" once it's off), else the sheet.
+function refocusSheet(sheet, was) {
+  const row = was && was.key ? sheet.querySelector(`.field[data-key="${was.key}"]`) : sheet;
+  const same = was && row && [...row.querySelectorAll("button, input, select, textarea")]
+    .find(el => el.tagName === was.tag && (el.tagName !== "BUTTON" || el.textContent === was.text));
+  const target = same || (row && row !== sheet && valueControl(row)) || sheet;
+  target.focus({ preventScroll: true });
+  if (target !== same || !/^(INPUT|TEXTAREA)$/.test(was.tag)) return;
+  // A list box redraws what was typed tidied ("a,b" as "a, b"): keep the typing and its caret. A value that
+  // really changed meanwhile gets the caret at its end.
+  const items = s => String(s ?? "").split(",").map(t => t.trim()).filter(Boolean).join(",");
+  if (same.value !== was.typed && items(same.value) === items(was.typed)) same.value = was.typed;
+  const at = same.value === was.typed ? was.caret : [same.value.length, same.value.length];
+  try { same.setSelectionRange(...at); } catch (_) {}  // not every input has a caret
+}
+function detailKey(e, slot) {
+  if (composing(e)) return;  // an Enter that picks a word in an input method isn't Done
+  if (e.key === "Escape" || (e.key === "Enter" && e.target.matches("input"))) { e.preventDefault(); closeDetail(slot); }
+}
+// A place on the profile is its city and country together; every other part is one detail.
+const DETAIL_KEYS = { city: ["city", "country"], country: ["city", "country"] };
+function detailSheet(slot, l, c) {
+  const d = c.draft;
+  const rows = c.detail && d ? (DETAIL_KEYS[c.detail] || [c.detail]).map(k => d.fields.find(f => f.key === k)).filter(Boolean) : [];
+  if (!rows.length) { c.detail = null; return ""; }  // the detail has gone (another kind of match, a new draft): nothing to reopen later
+  const title = DETAIL_KEYS[c.detail] ? "Where" : rows[0].label.replace(" (from ID check)", "");
+  const rise = c.detailRise ? " rise" : "";
+  return `<div class="scrim${rise}" onclick="closeDetail('${slot}')"></div>
+    <div class="detail-sheet${rise}" role="dialog" aria-label="${esc(title)}" tabindex="-1" onkeydown="detailKey(event,'${slot}')">
+      <div>${rows.map(f => fieldRow(slot, f)).join("")}</div>
+      ${l.listed ? `<p class="caption secondary note">Matching sees the change once you tap Save changes.</p>` : ""}
+      <div class="row actions"><button class="btn ghost" onclick="editField('${slot}','${rows[0].key}')">All details</button>
+        <span class="grow"></span><button class="btn" onclick="closeDetail('${slot}')">Done</button></div>
+    </div>`;
+}
 function suggest(slot, n) {
   const c = cur(slot), ask = checklist(c, curListing(slot))[n].ask;
   c.chatText = ask; c.chatMin = false; c.seenChat = curListing(slot).chat.length; renderPhone(slot);
@@ -1136,15 +1385,15 @@ function fieldRow(slot, f) {
   const at = `'${slot}',${i}`;
   const label = esc(f.label.replace(" (from ID check)", ""));
   if (f.sensitive && !f.enabled) {
-    return `<div class="field"><div class="head"><span class="label">${label}</span><span class="caption tertiary push">Off</span>
+    return `<div class="field" data-key="${esc(f.key)}"><div class="head"><span class="label">${label}</span><span class="caption tertiary push">Off</span>
       <button class="btn secondary sm" onclick="enable(${at},true)">Turn on</button></div></div>`;
   }
   let control;
   if (f.locked) control = `<span class="body-s">${esc(f.value)}</span> <span class="caption tertiary">from your ID check</span>`;
-  else if (f.multi && f.options && f.options.length) control = `<div>${f.options.map(o => `<button class="tag${(f.value || []).includes(o) ? " on" : ""}" onclick="toggleChip(${at},'${esc(o)}')">${esc(o)}</button>`).join("")}</div>`;
-  else if (f.multi) control = `<input class="input" value="${esc(val(f.value) ?? "")}" placeholder="Separate with commas" oninput="cur('${slot}').draft.fields[${i}].value=this.value.split(',').map(s=>s.trim()).filter(Boolean)">`;
-  else if (f.options && f.options.length) control = `<select class="select" onchange="setVal(${at},this.value)"><option value="">Choose…</option>${f.options.map(o => `<option value="${esc(o)}" ${o === f.value ? "selected" : ""}>${esc(f.key === "kind" ? KIND_LABELS[o] || o : o)}</option>`).join("")}</select>`;
-  else control = `<input class="input" value="${esc(f.value ?? "")}"${f.key === "wants_age" ? ` placeholder="Ages in years, e.g. 30-39"` : ""} oninput="cur('${slot}').draft.fields[${i}].value=this.value">`;
+  else if (f.multi && f.options && f.options.length) control = `<div role="group" aria-label="${label}">${f.options.map(o => `<button class="tag${(f.value || []).includes(o) ? " on" : ""}" onclick="toggleChip(${at},'${esc(o)}')">${esc(o)}</button>`).join("")}</div>`;
+  else if (f.multi) control = `<input class="input" aria-label="${label}" value="${esc(val(f.value) ?? "")}" placeholder="Separate with commas" oninput="cur('${slot}').draft.fields[${i}].value=this.value.split(',').map(s=>s.trim()).filter(Boolean)">`;
+  else if (f.options && f.options.length) control = `<select class="select" aria-label="${label}" onchange="setVal(${at},this.value)"><option value="">Choose…</option>${f.options.map(o => `<option value="${esc(o)}" ${o === f.value ? "selected" : ""}>${esc(f.key === "kind" ? KIND_LABELS[o] || o : o)}</option>`).join("")}</select>`;
+  else control = `<input class="input" aria-label="${label}" value="${esc(f.value ?? "")}"${f.key === "wants_age" ? ` placeholder="Ages in years, e.g. 30-39"` : ""} oninput="cur('${slot}').draft.fields[${i}].value=this.value">`;
   const always = ["seeking", "offering"].includes(f.key);
   const choice = f.locked ? "" : always ? `<span class="caption tertiary push">Always shown, so the right person can find you</span>` :
     `<span class="segmented push" role="group" aria-label="${label}: shown or hidden">
@@ -1153,7 +1402,7 @@ function fieldRow(slot, f) {
   const off = f.sensitive ? `<button class="btn ghost sm" onclick="enable(${at},false)">Turn off</button>` : "";
   // The fixed hidden look (sunken well, periwinkle hairline, "Hidden" badge) once the field holds a value.
   const hidden = f.visibility === "hidden" && !f.locked && hasValue(f.value);
-  return `<div class="field${hidden ? " hidden-field" : ""}"><div class="head"><span class="label">${label}</span>${hidden ? badge("ai", "Hidden") : ""}${choice}${off}</div>${control}
+  return `<div class="field${hidden ? " hidden-field" : ""}" data-key="${esc(f.key)}"><div class="head"><span class="label">${label}</span>${hidden ? badge("ai", "Hidden") : ""}${choice}${off}</div>${control}
     ${hidden ? `<div class="hidden-note">Used for matching, never shown</div>` : ""}</div>`;
 }
 function setVal(slot, i, v) {
@@ -1169,10 +1418,12 @@ async function changeKind(slot, kind) {
   d.kind = kind || null;  // the profile follows the kind you choose
   const city = (d.fields.find(f => f.key === "city") || {}).value || "";
   const layout = await (await fetch(`/api/layout?kind=${encodeURIComponent(kind || "")}&city=${encodeURIComponent(city)}`)).json();
-  d.fields = relayout(d.fields, layout, c.stash ||= {});
+  d.fields = relayout(d.fields, layout, c.stash ||= {}, curListing(slot)?.choices || {});
   renderPhone(slot);
 }
-function relayout(fields, layout, stash) {
+// A row new to this copy starts with the person's choice of shown or hidden for it on this listing, if any
+// (a sensitive one they chose to show was confirmed then), else this kind's default.
+function relayout(fields, layout, stash, choices) {
   const drop = new Set(layout.drop), rows = new Map(layout.rows.map(r => [r.key, r])), out = [];
   for (const f of fields) {
     if (drop.has(f.key)) { stash[f.key] = f; continue; }
@@ -1184,7 +1435,13 @@ function relayout(fields, layout, stash) {
     out.push(f);
   }
   const have = new Set(out.map(f => f.key));
-  for (const row of layout.rows) if (!have.has(row.key)) { out.push(stash[row.key] || { ...row }); delete stash[row.key]; }
+  for (const row of layout.rows) {
+    if (have.has(row.key)) continue;
+    const fresh = { ...row }, chose = (choices || {})[row.key];
+    if (chose) Object.assign(fresh, { visibility: chose }, fresh.sensitive && chose === "shown" ? { confirmed: true } : {});
+    out.push(stash[row.key] || fresh);
+    delete stash[row.key];
+  }
   return out;
 }
 function toggleChip(slot, i, o) {
@@ -1197,9 +1454,9 @@ function setVis(slot, i, v) {
     if (!confirm(`Show your ${f.label.toLowerCase()} to matches? Sensitive details are safest hidden: hidden, they can still improve a match.`)) return;
     f.confirmed = true;
   }
-  f.visibility = v; renderPhone(slot); pushVisibility(slot);
+  f.visibility = v; f.chosen = true; renderPhone(slot); pushVisibility(slot);
 }
-function enable(slot, i, on) { const f = cur(slot).draft.fields[i]; f.enabled = on; if (on) f.visibility = "hidden"; renderPhone(slot); pushVisibility(slot); }
+function enable(slot, i, on) { const f = cur(slot).draft.fields[i]; f.enabled = on; if (on) Object.assign(f, { visibility: "hidden", chosen: true }); renderPhone(slot); pushVisibility(slot); }
 // A choice of shown or hidden goes to the server as soon as it's made, so nothing the agent writes meanwhile
 // (even while it's replying) can put it back: the server remembers it for this listing.
 async function pushVisibility(slot) {
@@ -1216,14 +1473,17 @@ async function refreshOptions(slot, city) {
 }
 
 function followupCard(slot, l, q) {
-  const k = `${slot}-${l.id}`;
+  const k = `${slot}-${l.id}`, a = q.answer || { type: "yes_no" };
+  // Each question takes the answer its type says (from the server), and an age range starts from the listing's
+  // own default (one age band either side of theirs), never a fixed one.
+  const [lo, hi] = (l.wants && l.wants.default) || ["", ""];
   let controls = "";
-  if (q.question_id === "age_range") controls = `<div class="row"><input class="input" id="fu-min-${k}" type="number" value="25" min="18" aria-label="From age"><span class="body-s secondary">to</span><input class="input" id="fu-max-${k}" type="number" value="40" min="18" aria-label="To age"></div>
-    <button class="btn" style="margin-top: var(--space-3)" onclick="answer('${slot}','${l.id}','age_range',{min:+$('fu-min-${k}').value,max:+$('fu-max-${k}').value})">Answer</button>`;
-  else if (q.question_id === "schedule") controls = `<select class="select" id="fu-s-${k}">${["weekends","weekday evenings","weekday mornings","flexible"].map(o => `<option>${o}</option>`).join("")}</select>
-    <button class="btn" style="margin-top: var(--space-3)" onclick="answer('${slot}','${l.id}','schedule',{schedule:$('fu-s-${k}').value})">Answer</button>`;
-  else if (q.question_id === "also_offer") controls = `<div class="row"><button class="btn" onclick="answer('${slot}','${l.id}','also_offer',{yes:true})">Yes</button><button class="btn secondary" onclick="answer('${slot}','${l.id}','also_offer',{yes:false})">No</button></div>
-    <p class="caption tertiary" style="margin: var(--space-2) 0 0">If you say yes, your listing is updated to match. Nobody is told you were asked.</p>`;
+  if (a.type === "age_range") controls = `<div class="row"><input class="input" id="fu-min-${k}" type="number" value="${lo}" min="18" max="99" aria-label="From age"><span class="body-s secondary">to</span><input class="input" id="fu-max-${k}" type="number" value="${hi}" min="18" max="99" aria-label="To age"></div>
+    <button class="btn" style="margin-top: var(--space-3)" onclick="answer('${slot}','${l.id}','${q.question_id}',{min:+$('fu-min-${k}').value,max:+$('fu-max-${k}').value})">Answer</button>`;
+  else if (a.type === "choice") controls = `<select class="select" id="fu-s-${k}" aria-label="${esc(q.question_text)}">${a.options.map(o => `<option>${esc(o)}</option>`).join("")}</select>
+    <button class="btn" style="margin-top: var(--space-3)" onclick="answer('${slot}','${l.id}','${q.question_id}',{['${q.question_id}']:$('fu-s-${k}').value})">Answer</button>`;
+  else controls = `<div class="row"><button class="btn" onclick="answer('${slot}','${l.id}','${q.question_id}',{yes:true})">Yes</button><button class="btn secondary" onclick="answer('${slot}','${l.id}','${q.question_id}',{yes:false})">No</button></div>
+    ${q.question_id === "also_offer" ? `<p class="caption tertiary" style="margin: var(--space-2) 0 0">If you say yes, your listing is updated to match. Nobody is told you were asked.</p>` : ""}`;
   return `<div class="card sm intro question">${badge("accent", "Question from Belong.")}<h3 class="heading-m" style="margin: var(--space-3) 0">${esc(q.question_text)}</h3>${controls}</div>`;
 }
 
@@ -1255,7 +1515,7 @@ function connectedBlock(slot, l, i) {
   const name = esc(i.view.fields.first_name || "them");
   if (i.reveal_result) {
     return i.reveal_result.length
-      ? `<div class="in-common hidden-well"><p class="label" style="margin:0 0 var(--space-2)">You also have in common</p>${i.reveal_result.map(r => `<div class="body-s">${esc(LABEL[r.key] || r.key)}: ${esc(r.values.join(", "))}</div>`).join("")}</div>`
+      ? `<div class="in-common hidden-well"><p class="label" style="margin:0 0 var(--space-2)">You also have in common</p>${i.reveal_result.map(r => `<div class="body-s">${esc((l.hidden_keys.find(h => h.key === r.key) || {}).label || r.key)}: ${esc(r.values.join(", "))}</div>`).join("")}</div>`
       : `<p class="body-s secondary" style="margin: var(--space-4) 0 0">No other shared details to show.</p>`;
   }
   if (i.reveal_chosen) return `<p class="body-s secondary" style="margin: var(--space-4) 0 0">We'll let you know if you have anything else in common.</p>`;
@@ -1265,8 +1525,6 @@ function connectedBlock(slot, l, i) {
     ${l.hidden_keys.map(h => `<label class="check-row"><input type="checkbox" value="${h.key}" class="rv-${slot}-${i.intro_id}"> ${esc(h.label)}</label>`).join("")}
     <button class="btn sm" style="margin-top: var(--space-2)" onclick="reveal('${slot}','${i.intro_id}')">Compare</button></details>`;
 }
-const LABEL = { income_band: "Income", religion: "Religion", politics: "Politics", health: "Health", kinks: "Intimacy preferences",
-  children: "Children", neighborhood: "Neighborhood", employer: "Employer", diet: "Diet", smoking: "Smoking" };
 
 // actions
 async function verify(slot) {
@@ -1281,7 +1539,8 @@ function visibilityChanges(draft, from) {
   const before = new Map(JSON.parse(from).fields.map(f => [f.key, f.visibility]));
   const visibility = {}, confirmed = [];
   for (const f of draft.fields) {
-    if (f.locked || before.get(f.key) === f.visibility || (!before.has(f.key) && f.visibility !== "hidden")) continue;
+    // A row the server's copy doesn't have yet: sent when hidden, or when the person chose it (setVis, enable).
+    if (f.locked || before.get(f.key) === f.visibility || (!before.has(f.key) && f.visibility !== "hidden" && !f.chosen)) continue;
     visibility[f.key] = f.visibility;
     if (f.confirmed) confirmed.push(f.key);
   }
@@ -1300,11 +1559,15 @@ async function send(slot) {
     if (!ok) return;
   }
   c.applyScenario = SCENARIOS[scenario]?.[slot]?.message === text;
-  Object.assign(c, { sending: text, chatText: "" });
+  // The chat steps aside as soon as it's sent, so the profile can be seen while the agent updates it.
+  Object.assign(c, { sending: text, chatText: "", chatMin: true });
   renderPhone(slot);
   await api("prefill", { slot, listing_id, text });  // instant: facts we're sure of go on the profile now
   await api("agent", { slot, listing_id, text });    // the agent fills in the rest and asks what's missing
   c.sending = null;
+  // A reply that didn't change the profile (a question first) is there to be read: the chat opens again.
+  const l = curListing(slot), reply = l ? l.chat.slice(l.chat.map(m => m.from).lastIndexOf("me") + 1) : [];
+  if (reply.length && !reply.some(m => m.draft_updated || m.moved_to)) Object.assign(c, { chatMin: false, seenChat: l.chat.length });
   render([slot]);
 }
 async function submit(slot) {
@@ -1318,6 +1581,27 @@ async function submit(slot) {
     Object.assign(c, { editing: false, open: true, chatMin: false });
     go(slot, "belong");
     toast("Your listing is live.");
+  }
+}
+// Save draft keeps your own changes on the listing without starting matching, for you and your agent to
+// build on, and takes you back to your listings. Shown or hidden is saved as you choose it (pushVisibility),
+// and any still on its way goes first, as before a message (send); the server reads it here only for details
+// a new kind of match adds.
+async function saveDraft(slot) {
+  const c = cur(slot), listing_id = curId(slot), d = c.draft;
+  const vis = visibilityChanges(d, c.draftFrom);
+  if (vis) {
+    c.keepLocal = (c.keepLocal || 0) + 1;
+    let ok = false;
+    try { ok = await api("visibility", { slot, listing_id, ...vis }); } finally { c.keepLocal--; }
+    if (!ok) return;
+  }
+  const draft = { intent_text: d.intent_text, exactness: d.exactness,
+    fields: d.fields.map(f => ({ key: f.key, value: f.value, enabled: !!f.enabled, visibility: f.visibility, confirmed: !!f.confirmed })) };
+  if (await api("save_draft", { slot, listing_id, draft })) {
+    Object.assign(c, { editing: false, detail: null });
+    go(slot, "belong");
+    toast("Draft saved.");
   }
 }
 async function toggleGear(slot, id) { local[slot].gear = local[slot].gear === id ? null : id; renderPhone(slot); }

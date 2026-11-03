@@ -572,7 +572,9 @@ class OfflineMatcher:
                             if len(allowed) > 1:
                                 also_offer.setdefault(other, FollowUp(other, "also_offer", about=first, after=first))
                     continue  # both must be looking
-            reasons = reason_fields(parsed[a].kind, av, bv, how_they_meet(parsed[a], av, parsed[b], bv) == ONLINE)
+            # A kind's own reasons only when both listings are that kind: the same reasons whichever comes first.
+            same = parsed[a].kind if parsed[a].kind == parsed[b].kind else None
+            reasons = reason_fields(same, av, bv, how_they_meet(parsed[a], av, parsed[b], bv) == ONLINE)
             if not reasons:
                 continue  # never the only reason: needs a shown reason
             s = self.shown_score(index, av, bv)

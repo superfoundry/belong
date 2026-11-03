@@ -621,3 +621,213 @@ class MatchmakerRunsOnItsOwn(unittest.TestCase):
         notice = "Belong. found someone for this listing. Go back to Belong. to see them."
         self.assertIn(notice, [m["text"] for m in s.phone_state("A")["listings"][0]["chat"]])
         self.assertNotIn(notice, [m["text"] for m in s.phone_state("B")["listings"][0]["chat"]])
+
+
+class SaveDraft(unittest.TestCase):
+    """Save draft keeps the person's own changes on their draft and nowhere else (DemoSession.save_draft)."""
+
+    def setUp(self):
+        self.s = DemoSession(seed=7, agent=None)
+        self.s.verify("A", "Tomas", 41)
+        self.s.agent_message("A", "Looking for a running buddy in Lisbon, weekday mornings.")
+
+    def phone_copy(self, **values):
+        """The phone's copy of the draft with some values changed, as Save draft sends it."""
+        d = self.s.slots["A"].draft
+        return {"intent_text": d["intent_text"], "exactness": d["exactness"],
+                "fields": [{"key": f["key"], "value": values.get(f["key"], f["value"]), "enabled": f["enabled"]}
+                           for f in d["fields"]]}
+
+    def values(self):
+        return {f["key"]: f["value"] for f in self.s.slots["A"].draft["fields"]}
+
+    def test_your_changes_are_kept_on_your_draft_and_go_nowhere_else(self):
+        s = self.s
+        events, receipts = len(s.events), len(s.warden.receipts)
+        s.save_draft("A", self.phone_copy(schedule="weekends", interests=["trail running"]))
+        self.assertEqual((self.values()["schedule"], self.values()["interests"]), ("weekends", ["trail running"]))
+        self.assertFalse(s.phone_state("A")["listings"][0]["listed"])
+        self.assertNotIn(s.slots["A"].listing().id, s.board)  # never matched
+        self.assertEqual((len(s.events), len(s.warden.receipts)), (events, receipts))  # no log, no Warden
+        self.assertNotIn("trail running", json.dumps(s.phone_state("B")))
+        self.assertEqual([f["key"] for f in s.slots["A"].draft["fields"]][:2], ["kind", "first_name"])  # same rows, same order
+
+    def test_your_agent_builds_on_it(self):
+        s, seen = self.s, {}
+        s.save_draft("A", self.phone_copy(schedule="weekends"))
+
+        class Agent:  # stands in for the model: notes the profile it's given to build on
+            def respond(self, conversation, text, name, band, current):
+                seen.update(current or {})
+                return "Noted.", None
+
+        s.llm = Agent()
+        s.agent_message("A", "Evenings work too.")
+        self.assertIn(("schedule", "weekends"), {(f["key"], f["value"]) for f in seen["fields"]})
+
+    def test_it_changes_values_only(self):
+        """Not shown or hidden (its own action, which asks to confirm a sensitive detail), not the name or age."""
+        s = self.s
+        s.set_visibility("A", None, {"schedule": HIDDEN})
+        body = self.phone_copy(first_name="Someone else", age_band="18-24", schedule="weekends")
+        for f in body["fields"]:
+            f["visibility"] = SHOWN
+            if f["key"] == "religion":
+                f.update(value="Buddhist", enabled=True)
+        body["fields"].append({"key": "not_a_detail", "value": "x", "enabled": True})
+        s.save_draft("A", body)
+        by = {f["key"]: f for f in s.slots["A"].draft["fields"]}
+        self.assertEqual((by["first_name"]["value"], by["age_band"]["value"]), ("Tomas", "40-49"))
+        self.assertEqual((by["schedule"]["value"], by["schedule"]["visibility"]), ("weekends", HIDDEN))
+        self.assertEqual((by["religion"]["value"], by["religion"]["enabled"], by["religion"]["visibility"]),
+                         ("Buddhist", True, HIDDEN))
+        self.assertNotIn("not_a_detail", by)
+
+    def test_a_detail_put_aside_comes_back_hidden_if_it_was(self):
+        """Changing the kind puts a detail aside on the phone. Saved meanwhile, it comes off the draft (an
+        empty row of another kind never lingers to be filled in), and if it was hidden it comes back hidden,
+        even with the phone's default for it (a reload loses what the phone put aside)."""
+        s, listing = self.s, self.s.slots["A"].listing()
+        for f in listing.draft["fields"]:  # hidden by an agent, not by the person: not one of their choices
+            if f["key"] == "pace":
+                f.update(value="easy", visibility=HIDDEN)
+        aside = self.phone_copy(kind="tutoring")
+        aside["fields"] = [f for f in aside["fields"] if f["key"] != "pace"]
+        s.save_draft("A", aside)
+        self.assertNotIn("pace", {f["key"] for f in listing.draft["fields"]})
+        back = self.phone_copy(kind="running")
+        back["fields"].append({"key": "pace", "value": "easy", "enabled": True, "visibility": SHOWN})
+        s.save_draft("A", back)
+        self.assertEqual({f["key"]: f["visibility"] for f in listing.draft["fields"]}["pace"], HIDDEN)
+
+    def test_a_detail_a_new_kind_adds_takes_the_phones_choice_but_hidden_wins(self):
+        s, listing = self.s, self.s.slots["A"].listing()
+        s.set_visibility("A", None, {"gender": HIDDEN})  # hidden on this listing before
+        body = self.phone_copy(kind="dating")
+        body["fields"] += [{"key": "children", "value": "wants children", "enabled": True, "visibility": SHOWN},
+                           {"key": "gender", "value": "man", "enabled": True, "visibility": SHOWN},
+                           {"key": "kinks", "value": None, "enabled": True, "visibility": SHOWN}]
+        s.save_draft("A", body)
+        by = {f["key"]: f for f in listing.draft["fields"]}
+        self.assertEqual(by["children"]["visibility"], SHOWN)  # as they chose on the phone
+        self.assertEqual(by["gender"]["visibility"], HIDDEN)  # hidden before: hidden wins
+        self.assertEqual(by["kinks"]["visibility"], HIDDEN)  # sensitive: shown only with their confirmation
+
+    def test_the_choices_follow_the_kind_and_place_but_a_choice_made_is_kept(self):
+        """A detail's choices follow a new place, except where what's chosen isn't among them: the place is a
+        text box on the phone, which never clears a choice, so neither does Save draft."""
+        from belong import agent
+        listing = self.s.slots["A"].listing()
+        lisbon = agent.field_options("running", "Lisbon")["income_band"]
+        for f in listing.draft["fields"]:
+            if f["key"] == "income_band":
+                f.update(value=lisbon[1], enabled=True, options=lisbon)
+        self.s.save_draft("A", self.phone_copy(city="Osaka", country="Japan"))
+        by = {f["key"]: f for f in listing.draft["fields"]}
+        self.assertEqual((by["income_band"]["value"], by["income_band"]["options"]), (lisbon[1], lisbon))
+        self.s.save_draft("A", self.phone_copy(city="Osaka", country="Japan", income_band=None))
+        by = {f["key"]: f for f in listing.draft["fields"]}
+        self.assertEqual(by["income_band"]["options"], agent.field_options("running", "Osaka")["income_band"])
+
+    def test_only_a_hidden_value_set_aside_is_remembered_hidden(self):
+        """A detail empty and hidden only by default, set aside, isn't recorded as their choice."""
+        s, listing = self.s, self.s.slots["A"].listing()
+        for f in listing.draft["fields"]:
+            if f["key"] == "pace":
+                f.update(visibility=HIDDEN)  # empty
+        aside = self.phone_copy(kind="tutoring")
+        aside["fields"] = [f for f in aside["fields"] if f["key"] != "pace"]
+        s.save_draft("A", aside)
+        self.assertNotIn("pace", listing.choices)
+
+    def test_a_hidden_first_name_stays_hidden(self):
+        """Its value comes from the ID check, but shown or hidden is the person's choice, as at Start matching."""
+        s = self.s
+        s.set_visibility("A", None, {"first_name": HIDDEN, "age_band": HIDDEN})
+        s.save_draft("A", self.phone_copy(schedule="weekends"))
+        by = {f["key"]: f for f in s.slots["A"].draft["fields"]}
+        self.assertEqual((by["first_name"]["value"], by["first_name"]["visibility"]), ("Tomas", HIDDEN))
+        self.assertEqual(by["age_band"]["visibility"], SHOWN)  # the age band is fixed
+        self.assertEqual(s.phone_state("A")["listings"][0]["choices"].get("first_name"), HIDDEN)
+
+    def test_a_malformed_save_is_refused_and_changes_nothing(self):
+        before = json.dumps(self.s.slots["A"].draft)
+        for body in ({}, {"fields": None}, {"fields": "x"}, None):
+            with self.assertRaises(DemoError):
+                self.s.save_draft("A", body)
+        self.assertEqual(json.dumps(self.s.slots["A"].draft), before)
+
+    def test_not_while_your_agent_is_replying(self):
+        """Its reply would replace the draft, so saving waits for it (and the phone's button is off)."""
+        self.s.slots["A"].listing().agent_busy = True
+        with self.assertRaises(DemoError):
+            self.s.save_draft("A", self.phone_copy(schedule="weekends"))
+        self.assertEqual(self.values()["schedule"], "weekday mornings")
+
+    def test_a_guessed_place_you_change_is_yours(self):
+        listing = self.s.slots["A"].listing()
+        listing.provisional = {"city", "country"}
+        self.s.save_draft("A", self.phone_copy(city="Porto"))
+        self.assertEqual(listing.provisional, {"country"})  # the one left as it was is still a guess
+
+    def test_the_phone_has_save_draft_until_the_listing_is_live(self):
+        from belong import server
+        from tests.test_dating import PAGE
+        self.assertIn("save_draft", server.ACTIONS)
+        self.assertIn("save_draft", server.CHAT_ACTIONS)
+        self.assertIn('api("save_draft"', PAGE)
+        self.assertNotIn("Edit details", PAGE)
+        # Shown or hidden still on its way goes to the server first, as before a message to the agent.
+        save = PAGE[PAGE.index("async function saveDraft"):]
+        self.assertLess(save.index('api("visibility"'), save.index('api("save_draft"'))
+
+
+class PhoneCopy(unittest.TestCase):
+    """demo.html (run with node): the phone's own copy of a draft never brings back an older shown or hidden,
+    so what Start matching or Save draft sends is what the person last chose."""
+
+    def run_js(self, names, body):
+        import shutil
+        import subprocess
+        import tempfile
+        from tests.test_dating import _js
+        node = shutil.which("node")
+        if not node:
+            self.skipTest("node isn't installed")
+        with tempfile.NamedTemporaryFile("w", suffix=".js", delete=False) as f:
+            f.write("\n".join(_js(n) for n in names) + "\n" + body)
+        out = subprocess.run([node, f.name], capture_output=True, text=True)
+        self.assertEqual(out.returncode, 0, out.stderr)
+        return json.loads(out.stdout)
+
+    def test_what_a_copy_set_aside_goes_with_it(self):
+        """A new draft from the server replaces the phone's copy, and what that copy set aside on a kind change
+        goes too: it can't come back later with a shown (and a confirmation) the person has since changed."""
+        server = {"fields": [{"key": "kinks", "value": ["x"], "visibility": HIDDEN, "sensitive": True}]}
+        out = self.run_js(("function visibilityChanges", "function sameValues", "function syncDraft"), f"""
+const S = {json.dumps(server)}, c = {{ draft: {{ fields: [] }}, draftFrom: "{{}}", keepLocal: 0,
+  stash: {{ kinks: {{ key: "kinks", value: ["x"], visibility: "shown", confirmed: true }} }} }};
+const curListing = () => ({{ draft: S }}), cur = () => c, SCENARIOS = {{}}, scenario = null;
+syncDraft("A");
+console.log(JSON.stringify(c.stash));""")
+        self.assertEqual(out, {})
+
+    def test_a_detail_a_new_kind_adds_starts_with_the_listings_choice(self):
+        from belong import agent
+        layout = agent.kind_layout("dating")
+        out = self.run_js(("const hasValue", "function relayout"), f"""
+const fields = relayout([], {json.dumps(layout)}, {{}}, {{ gender: "hidden", kinks: "shown" }});
+console.log(JSON.stringify(Object.fromEntries(fields.map(f => [f.key, [f.visibility, !!f.confirmed]]))));""")
+        self.assertEqual(out["gender"], [HIDDEN, False])  # hidden on this listing before: hidden, not the default
+        self.assertEqual(out["kinks"], [SHOWN, True])  # shown before, which needed their confirmation
+        self.assertEqual(out["wants_gender"][0], next(r for r in layout["rows"] if r["key"] == "wants_gender")["visibility"])
+
+    def test_a_shown_chosen_on_a_new_detail_is_sent(self):
+        """A row the server's copy doesn't have yet is sent when the person chose it, shown or hidden; a
+        default shown isn't a choice."""
+        out = self.run_js(("function visibilityChanges",), """
+const from = JSON.stringify({ fields: [{ key: "city", visibility: "shown" }] });
+const draft = { fields: [{ key: "city", visibility: "shown" }, { key: "children", visibility: "shown", chosen: true },
+                         { key: "gender", visibility: "shown" }] };
+console.log(JSON.stringify(visibilityChanges(draft, from)));""")
+        self.assertEqual(out["visibility"], {"children": SHOWN})

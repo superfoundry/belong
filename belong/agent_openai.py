@@ -21,7 +21,7 @@ import os
 import urllib.error
 import urllib.request
 
-from .agent_llm import (MAX_TOOL_ROUNDS, SYSTEM_PROMPT, UPDATE_LISTING_TOOL, AgentUnavailable, _summary,
+from .agent_llm import (MAX_TOOL_ROUNDS, SAVE_CHECK, SYSTEM_PROMPT, UPDATE_LISTING_TOOL, AgentUnavailable, _summary,
                         build_draft, builds_on, honest, profile_so_far, turn_drafts)
 
 API_URL = "https://api.openai.com/v1/chat/completions"
@@ -71,8 +71,10 @@ class OpenAIAgent:
     def _run(self, conversation: list, first_name: str, age_band: str, current=None) -> tuple:
         system = (SYSTEM_PROMPT + f"\nThe person you work for: first name {first_name}, age band {age_band}.\n"
                   + profile_so_far(current))
-        replies, draft, attempted, saved = [], None, False, []
-        for _ in range(MAX_TOOL_ROUNDS):
+        replies, draft, attempted, saved, checked = [], None, False, [], None
+        rounds = 0
+        while rounds < MAX_TOOL_ROUNDS + (checked is not None):  # the save check is one round more
+            rounds += 1
             choice = self._call(system, conversation)["choices"][0]
             message = choice.get("message") or {}
             if choice.get("finish_reason") == "content_filter" or message.get("refusal"):
@@ -83,10 +85,14 @@ class OpenAIAgent:
             if tool_calls:
                 entry["tool_calls"] = tool_calls
             conversation.append(entry)
-            if (message.get("content") or "").strip():
+            if (message.get("content") or "").strip() and checked is None:  # after the save check, only its save counts
                 replies.append(message["content"].strip())
             if not tool_calls:
-                break
+                if attempted or checked is not None:
+                    break
+                checked = len(conversation)  # asked once more to save (agent_llm.SAVE_CHECK)
+                conversation.append({"role": "user", "content": SAVE_CHECK})
+                continue
             for call in tool_calls:
                 fn = call.get("function") or {}
                 if fn.get("name") != "update_listing":
@@ -110,6 +116,8 @@ class OpenAIAgent:
                             result = _summary(new_draft)
                 conversation.append({"role": "tool", "tool_call_id": call.get("id"), "content": result})
             draft = turn_drafts(saved)
+        if checked is not None and not attempted:
+            del conversation[checked:]  # nothing to save: the check leaves no trace
         reply = "\n\n".join(replies).strip() or ("I've drafted your listing. Take a look at your profile."
                                                   if draft else "Sorry, could you say that another way?")
         return honest(reply, attempted, draft is not None), draft

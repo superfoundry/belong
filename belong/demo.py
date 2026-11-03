@@ -43,8 +43,8 @@ from .matching.marketboard import Marketboard
 from .matching.contract import FollowUp, Proposal
 from .matching.intent import parse_intent
 from .matching.matcher import OfflineMatcher
-from .schema import (AGE_BANDS, FIELD_REGISTRY, FOLLOWUP_MENU, HIDDEN, SHOWN, Field, Listing, Person, age_band_index,
-                     age_span_choice, value_to_json)
+from .schema import (AGE_BANDS, FIELD_REGISTRY, FOLLOWUP_MENU, HIDDEN, MATCH_KINDS, SHOWN, Field, Listing, Person,
+                     age_band_index, age_span_choice, value_to_json)
 from .synth import generate
 from .warden import Clock, Warden
 
@@ -102,6 +102,7 @@ class _Listing:
         # Where they are, as the instant first draft guessed it from keywords, until an agent decides. Places
         # are the guesses that can say something about someone (an origin or a family's country), so a model
         # agent isn't handed them: it reads their words itself, and they're dropped unless its draft has them.
+        # (With a model agent there's no instant draft at all: see prefill.)
         self.provisional = set()
         # The person's own choices of shown or hidden for this listing's details, key -> visibility: what they
         # saved (_sync_draft) and what they set in the editor (set_visibility). Every agent draft keeps them
@@ -529,14 +530,15 @@ class DemoSession:
     # -- 2. talking to the agent -------------------------------------------------
 
     def prefill(self, slot: str, text: str, listing_id=None) -> None:
-        """Instant profile update as soon as a message is sent, before the agent replies:
-        facts stated plainly enough to be sure of go into empty fields (never overwriting)."""
+        """Instant profile update as soon as a message is sent, before the rule-based agent replies: facts
+        stated plainly enough to be sure of go into empty fields (never overwriting). With a model agent it
+        does nothing: the model reads their words itself, and its save fills the profile (a keyword reading,
+        such as "online preferred" as either way, is never put up first)."""
         st = self._verified(slot)
         listing = self._listing_for(st, listing_id)
-        facts = agent.quick_facts((text or "")[:2000])
         if self.llm is not None:
-            # A model agent reads where they are itself; a keyword guess of a place is never put up first.
-            facts = {k: v for k, v in facts.items() if k not in GUESSED_PLACES}
+            return
+        facts = agent.quick_facts((text or "")[:2000])
         if not facts:
             return
         if listing.draft is None:
@@ -733,7 +735,7 @@ class DemoSession:
         fields = {f["key"]: f for f in (mine.draft or {}).get("fields", [])}
         for key, vis in visibility.items():
             spec = FIELD_REGISTRY.get(key) if isinstance(key, str) else None
-            if spec is None or vis not in (SHOWN, HIDDEN) or key in ("first_name", "age_band"):
+            if spec is None or vis not in (SHOWN, HIDDEN) or key == "age_band":  # the age band is fixed (locked)
                 continue
             if spec.sensitive and vis == SHOWN and key not in confirmed:
                 continue
@@ -742,6 +744,79 @@ class DemoSession:
                 fields[key]["visibility"] = vis
                 if spec.sensitive and vis == SHOWN:
                     fields[key]["confirmed"] = True
+
+    def save_draft(self, slot: str, body: dict, listing_id=None) -> None:
+        """Save draft: the person's own changes are kept on the listing's draft without it going live, so they
+        outlast a reload, and a model agent is given them to build on (the only place they go). It is never
+        checked, matched or sent to anyone else: nothing reaches the Warden, the Marketboard or the presenter's
+        log. A detail already on the draft keeps its shown or hidden (saved as it's chosen, by set_visibility);
+        a detail a new kind of match adds takes the phone's, except that one hidden on this listing before
+        stays hidden and a sensitive one is shown only with their confirmation. A detail the phone put aside
+        (a kind that doesn't have it) comes off the draft, and a hidden value comes back hidden. A detail's
+        choices follow a new kind or place, but a choice already made is never cleared. The name and age band
+        come from the ID check. Refused while the agent is replying, whose draft would otherwise replace it."""
+        st = self._verified(slot)
+        mine = st.listing(listing_id)
+        if mine.agent_busy:
+            raise DemoError("Your agent is still replying. Save your draft once it has.")
+        if not mine.draft or not isinstance(body, dict) or not isinstance(body.get("fields"), list):
+            raise DemoError("Nothing to save yet.")
+        before = {f["key"]: f for f in mine.draft.get("fields", [])}
+        sent = [f for f in body["fields"] if isinstance(f, dict) and isinstance(f.get("key"), str)]
+        said = {f["key"]: f.get("value") for f in sent}
+        kind = said["kind"] if "kind" in said else mine.draft.get("kind")
+        kind = kind if isinstance(kind, str) and kind in MATCH_KINDS else None
+        options = agent.field_options(kind, said.get("city") if isinstance(said.get("city"), str) else None)
+        fields, changed = [], set()
+        for f in sent:
+            key = f["key"]
+            spec = FIELD_REGISTRY.get(key)
+            if spec is None or any(g["key"] == key for g in fields) or not agent.carries(kind, key):
+                continue
+            old = copy.deepcopy(before.get(key))
+            if key in ("first_name", "age_band"):  # from the ID check: kept as it is
+                fields += [old] if old else []
+                continue
+            if old is None:  # a row the kind they chose has (they changed the kind)
+                vis = f.get("visibility") if f.get("visibility") in (SHOWN, HIDDEN) else mine.choices.get(key, spec.default)
+                if mine.choices.get(key) == HIDDEN or (spec.sensitive and vis == SHOWN and not f.get("confirmed")):
+                    vis = HIDDEN
+                old = {"key": key, "label": agent.LABELS.get(key, key), "value": [] if spec.multi else None,
+                       "visibility": vis, "sensitive": spec.sensitive, "multi": spec.multi, "enabled": not spec.sensitive,
+                       "locked": False, **({"confirmed": True} if spec.sensitive and vis == SHOWN else {})}
+            value = f.get("value")
+            if value in (None, "", []):
+                value = old["value"] if old.get("value") in (None, "", []) else [] if spec.multi else None
+            elif spec.multi:
+                value = [str(x)[:200] for x in (value if isinstance(value, list) else [value])][:20]
+            else:
+                value = str(value)[:500]
+                if key == "wants_age":
+                    value = age_span_choice(value) or value  # as typed by hand; the Warden checks the form at entry
+            new = options.get(key)  # this kind's and this place's choices, unless one already made isn't among them
+            if new and new != old.get("options") and all(x in new for x in ([] if value in (None, "", []) else value if spec.multi else [value])):
+                old["options"] = new
+            old.setdefault("options", [])
+            enabled = bool(f.get("enabled")) if spec.sensitive else True
+            if value != old.get("value") or enabled != old.get("enabled"):
+                changed.add(key)
+            fields.append({**old, "value": value, "enabled": enabled})
+        for key, old in before.items():  # put aside by the phone: off the draft, and back hidden if it was hidden
+            if any(g["key"] == key for g in fields):
+                continue
+            if key in ("first_name", "age_band"):
+                fields.append(copy.deepcopy(old))
+            elif old.get("visibility") == HIDDEN and old.get("value") not in (None, "", []):
+                mine.choices[key] = HIDDEN  # a hidden value, set aside: it comes back hidden
+        try:
+            exactness = float(body.get("exactness", mine.draft.get("exactness", 0.6)))
+        except (TypeError, ValueError):
+            exactness = mine.draft.get("exactness", 0.6)
+        intent = body.get("intent_text", mine.draft.get("intent_text", ""))
+        mine.draft = {**copy.deepcopy(mine.draft), "fields": fields, "kind": kind,
+                      "intent_text": str(intent if intent is not None else "")[:2000],
+                      "exactness": exactness if 0.0 <= exactness <= 1.0 else mine.draft.get("exactness", 0.6)}
+        mine.provisional -= changed  # a guessed place they changed is theirs now; one they left stays a guess
 
     def options(self, slot: str, kind, city) -> dict:
         return agent.field_options(kind, city)
@@ -799,12 +874,11 @@ class DemoSession:
             if spec.sensitive and vis == SHOWN and f.get("confirmed"):
                 confirmed.append(key)
             fields.append(Field(key=key, value=value, visibility=vis, sensitive=spec.sensitive))
-        # Only dating records who they'd like to meet and their ages (the same rule as build_draft): the
-        # kind on the listing, or with none, the kind its description reads as.
+        # A detail only another kind has never goes live (agent.carries, the same rule as every draft): the kind
+        # on the listing, or with none, the kind its description reads as.
         intent = str(body.get("intent_text", ""))
         kind = next((f.value for f in fields if f.key == "kind"), None) or parse_intent(intent).kind
-        if kind != "dating":
-            fields = [f for f in fields if f.key not in agent.DATING_ONLY]
+        fields = [f for f in fields if agent.carries(kind, f.key)]
         version = self.board.listing(mine.id).version + 1 if mine.id in self.board else 1
         try:
             exactness = float(body.get("exactness", 0.6))
@@ -987,14 +1061,20 @@ class DemoSession:
             raise DemoError("No such question.")
         listing = self.board.listing(mine.id)
         text, exactness, fields = listing.intent_text, listing.exactness, list(listing.fields)
+        # An answer that lacks the value its question needs is refused, never filled in with a default.
         if question_id == "age_range":
-            lo, hi = int(answer.get("min", 18)), int(answer.get("max", 99))
+            try:
+                lo, hi = int(answer["min"]), int(answer["max"])
+            except (KeyError, TypeError, ValueError):
+                raise DemoError("Pick an age range from 18 up.")
             if not 18 <= lo <= hi <= 99:
                 raise DemoError("Pick an age range from 18 up.")
             text += f" Aged {lo} or older." if hi >= 99 else f" Aged {lo} to {hi}."
             fields = list(agent.with_wants_age(tuple(fields), f"{lo}-{hi}"))  # recorded on the listing too
         elif question_id == "schedule":
             sched = answer.get("schedule")
+            if sched not in self._answer_type("schedule")["options"]:
+                raise DemoError("Pick when you're usually free.")
             fields = [f for f in fields if f.key != "schedule"]
             fields.append(Field("schedule", str(sched), SHOWN, False))
         question = next(q for q in mine.followups if q["question_id"] == question_id)
@@ -1449,13 +1529,40 @@ class DemoSession:
                 "title": self._live_title(self.board.listing(mine.id)) if listed else self._title(mine.draft),
                 "unsaved": self._unsaved(mine),
                 "active": self.board.listing(mine.id).active if listed else True,
-                "kind": (mine.draft or {}).get("kind"), "listed": listed, "draft": mine.draft, "chat": mine.chat,
+                "kind": (mine.draft or {}).get("kind"), "listed": listed, "draft": mine.draft, "choices": dict(mine.choices), "chat": mine.chat,
                 # Their own dating draft, as matching reads it: who and what ages it looks for.
                 "wants": agent.dating_wants(mine.draft),
                 "agent_busy": mine.agent_busy, "entry": mine.entry,
                 "intros": intros, "hidden_keys": hidden_keys, "prefs": mine.prefs,
-                "followups": [{"question_id": q["question_id"], "question_text": q["question_text"]}
-                              for q in mine.followups]}
+                "ready": self._ready(mine.draft),
+                "followups": [{"question_id": q["question_id"], "question_text": q["question_text"],
+                               "answer": self._answer_type(q["question_id"])} for q in mine.followups]}
+
+    @staticmethod
+    def _ready(draft) -> bool:
+        """Can this draft go live: who they're looking for, and where unless it can meet online, counted as the
+        phone counts it (demo.html canSave), so every page offers Start matching by the same rule."""
+        if not draft:
+            return False
+        shown = {f["key"]: f["value"] for f in draft.get("fields", [])
+                 if f.get("enabled") and f.get("visibility") != HIDDEN and f.get("value") not in (None, "", [])}
+        if draft.get("kind") == "dating":
+            said = (agent.dating_wants(draft) or {}).get("said") or {}
+            who = bool(shown.get("wants_gender") or said.get("genders"))
+        else:
+            who = bool(shown.get("seeking") or shown.get("offering") or shown.get("kind") not in (None, "other"))
+        online = shown.get("format") in ("Online", "In person or online")
+        return who and bool(shown.get("city") or shown.get("country") or online)
+
+    @staticmethod
+    def _answer_type(question_id: str) -> dict:
+        """What a question's answer is, so every page draws the right control (never a yes or no for a value):
+        an age range, one of a fixed set of choices, or yes or no."""
+        if question_id == "age_range":
+            return {"type": "age_range"}
+        if question_id == "schedule":
+            return {"type": "choice", "options": list(agent.field_options(None, None)["schedule"])}
+        return {"type": "yes_no"}
 
     def phone_state(self, slot: str) -> dict:
         """Only what this person may know."""

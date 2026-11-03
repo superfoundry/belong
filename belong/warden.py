@@ -310,11 +310,13 @@ def reason_text(key_values: list[tuple[str, object, object]], countries=None) ->
         elif key == "interests":
             common = sorted(set(value_strings(mine)) & set(value_strings(theirs)))
             parts.append(f"You both like {', '.join(common)}.")
+        # Worded from the detail alone, never from the kind it was first made for, so it's true for any
+        # listing that shows it, whatever the Matchmaker cites.
         elif key == "level":
-            parts.append(f"They climb at {theirs} level; you're {mine}.")
+            article = "an" if str(theirs)[:1].lower() in "aeiou" else "a"
+            parts.append(f"They're at {article} {theirs} level; you're {mine}.")
         elif key == "pace":
-            article = "an" if theirs[:1] in "aeiou" else "a"
-            parts.append(f"They run at {article} {theirs} pace; yours is {mine}.")
+            parts.append(f"Their pace is {theirs}; yours is {mine}.")
         elif key == "native_language":
             parts.append(f"They speak {theirs} natively.")
         elif key == "learning_language":
@@ -322,7 +324,7 @@ def reason_text(key_values: list[tuple[str, object, object]], countries=None) ->
         elif key == "subject":
             parts.append(f"Subject: {theirs}.")
         elif key == "role":
-            parts.append(f"They're the {theirs} side.")
+            parts.append(f"Their role: {theirs}.")
         elif key == "move_in":
             parts.append(f"You both plan to move in {theirs}.")
         elif key == "seeking" and not has_offering:

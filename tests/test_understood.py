@@ -301,7 +301,7 @@ class TheModelAgentRecordsWhatItUnderstood(unittest.TestCase):
         self.assertTrue({"wants_gender", "wants_age"} <= set(keys))
         values = UPDATE_LISTING_TOOL["input_schema"]["properties"]["fields"]["items"]["properties"]["values"]
         self.assertIn("wants_age", values["description"])
-        self.assertIn("- wants_gender (default shown): woman, man, nonbinary", SYSTEM_PROMPT)
+        self.assertIn("- wants_gender (default shown, only for dating listings): woman, man, nonbinary", SYSTEM_PROMPT)
         self.assertIn("what they want to meet someone FOR, never a hobby", SYSTEM_PROMPT)
 
 
@@ -403,6 +403,7 @@ class AskWhenItsUnclear(unittest.TestCase):
                     "fields": [{"key": "city", "values": ["Kyoto"], "visibility": SHOWN}] + extra}
         client = ScriptedClient(
             reply(text("Are you looking for a date, or a running buddy? Or both? I can make two separate listings.")),
+            reply(text("NO_SAVE")),  # the app's check (SAVE_CHECK): the kind is the open question, so nothing to save
             reply(tool(save("dating", False, [{"key": "gender", "values": ["woman"], "visibility": SHOWN},
                                               {"key": "wants_gender", "values": ["man"], "visibility": SHOWN},
                                               {"key": "wants_age", "values": ["30-49"], "visibility": SHOWN}]), "t1"),
@@ -1154,14 +1155,25 @@ class WhereAndWhileReplying(unittest.TestCase):
             facts = agent.quick_facts(text)
             self.assertEqual((facts.get("city"), facts.get("country")), (city, country), text)
 
-    def test_with_a_model_agent_the_first_draft_guesses_no_place(self):
-        client = ScriptedClient(reply(text("Which city are you in?")))
+    def test_with_a_model_agent_nothing_is_guessed_first(self):
+        """No keyword guess goes up while the model replies (a place, or "online preferred" read as either way):
+        the model reads their words itself, and its save fills the profile."""
+        message = "Could someone teach me pottery? Online preferred, weekends, I can pay 30 an hour in Osaka."
+        save = {"kind": "other", "exactness": 0.6, "suggestions": [], "separate_listing": False,
+                "intent_text": "Looking for someone to teach me pottery online.",
+                "fields": [{"key": "format", "values": ["Online"], "visibility": SHOWN},
+                           {"key": "headline", "values": ["Looking for a pottery teacher"], "visibility": SHOWN},
+                           {"key": "seeking", "values": ["a pottery teacher"], "visibility": SHOWN},
+                           {"key": "offering", "values": ["a pottery student"], "visibility": SHOWN}]}
+        client = ScriptedClient(reply(tool(save, "t1")), reply(text("Saved.")))
         s = DemoSession(seed=7, agent=ClaudeAgent(client=client))
         s.verify("A", "Ada", 30)
-        s.prefill("A", "Looking for a climbing partner in Osaka on weekends.")
-        values = {f["key"]: f["value"] for f in s.slots["A"].listing().draft["fields"] if f["value"] not in (None, "", [])}
-        self.assertNotIn("city", values)  # the model reads where they are itself
-        self.assertEqual(values.get("schedule"), "weekends")  # other plain facts still go up at once
+        s.prefill("A", message)  # as the phone does, before the agent replies
+        self.assertIsNone(s.slots["A"].draft)
+        s.agent_message("A", message)
+        values = {f["key"]: f["value"] for f in s.slots["A"].draft["fields"] if f["value"] not in (None, "", [])}
+        self.assertEqual(values["format"], "Online")  # the model's reading
+        self.assertNotIn("schedule", values)  # nothing it didn't say
 
     def test_a_guessed_place_is_dropped_unless_the_model_agent_says_it(self):
         save = {"kind": "other", "exactness": 0.6, "suggestions": [], "separate_listing": False,

@@ -252,14 +252,16 @@ class Conversation(unittest.TestCase):
 class InTheDemo(unittest.TestCase):
     def test_each_phone_has_its_own_private_conversation(self):
         """An agent only ever sees its own person's messages."""
-        client = ScriptedClient(*[reply(text("Tell me more?")) for _ in range(4)])
+        # Each turn: a question, then "nothing to save" when the app checks (SAVE_CHECK).
+        client = ScriptedClient(*[reply(text(t)) for t in ("Tell me more?", "NO_SAVE") * 2])
         s = DemoSession(seed=7, agent=ClaudeAgent(client=client))
         s.verify("A", "Yuki", 27)
         s.verify("B", "Ren", 29)
         s.agent_message("A", "I want a climbing partner. My secret is A-ONLY-123.")
         s.agent_message("B", "I want a roommate.")
-        b_request = client.requests[1]
-        self.assertNotIn("A-ONLY-123", repr(b_request["messages"]) + b_request["system"])
+        for b_request in client.requests[2:]:
+            self.assertNotIn("A-ONLY-123", repr(b_request["messages"]) + b_request["system"])
+        b_request = client.requests[2]
         self.assertIn("Ren", b_request["system"])
         self.assertEqual([m["from"] for m in s.phone_state("B")["chat"]], ["agent", "me", "agent"])
         self.assertNotIn("A-ONLY-123", repr(s.phone_state("B")))
@@ -424,9 +426,9 @@ class InstantProfile(unittest.TestCase):
         self.assertEqual(fill_gaps(draft, {"format": "Online"}), ["format"])
 
     def test_a_format_noted_early_doesnt_stick_to_a_kind_without_one(self):
-        """"Online works for me" before the kind is known is noted, but a climbing draft doesn't take it."""
-        client = ScriptedClient(reply(tool(CLIMBER)), reply(text("Saved.")))
-        s = DemoSession(seed=7, agent=ClaudeAgent(client=client))
+        """"Online works for me" before the kind is known is noted, but a climbing draft doesn't take it (the
+        instant draft is the rule-based agent's: with a model agent there's none)."""
+        s = DemoSession(seed=7, agent=None)
         s.verify("A", "Yuki", 27)
         s.prefill("A", "Online works for me")
         self.assertEqual({f["key"]: f["value"] for f in s.slots["A"].draft["fields"]}["format"], "In person or online")
@@ -439,15 +441,53 @@ class InstantProfile(unittest.TestCase):
         for text in ["I would love to meet someone kind", "i live in the city", "hello"]:
             self.assertEqual(quick_facts(text), {}, text)
 
-    def test_prefill_never_overwrites_and_the_agent_draft_keeps_it(self):
-        client = ScriptedClient(reply(tool(CLIMBER)), reply(text("Saved.")))
-        s = DemoSession(seed=7, agent=ClaudeAgent(client=client))
+    def test_prefill_never_overwrites(self):
+        s = DemoSession(seed=7, agent=None)
         s.verify("A", "Yuki", 27)
         s.prefill("A", "I'm free on weekends and I'm into tennis")
         fields = {f["key"]: f["value"] for f in s.slots["A"].draft["fields"]}
         self.assertEqual((fields["schedule"], fields["interests"]), ("weekends", ["tennis"]))
         s.prefill("A", "evenings work too")  # already set: not overwritten
         self.assertEqual({f["key"]: f["value"] for f in s.slots["A"].draft["fields"]}["schedule"], "weekends")
-        s.agent_message("A", "climbing partner in Osaka")
-        # The agent was told what's already on the profile.
-        self.assertIn("schedule (shown): weekends", client.requests[0]["system"])
+
+    def test_with_a_model_agent_its_save_fills_the_profile(self):
+        """No instant draft to hand it: the profile it builds on is only what it (or the person) saved."""
+        client = ScriptedClient(reply(tool(CLIMBER)), reply(text("Saved.")))
+        s = DemoSession(seed=7, agent=ClaudeAgent(client=client))
+        s.verify("A", "Yuki", 27)
+        s.prefill("A", "I'm free on weekends and I'm into tennis")
+        self.assertIsNone(s.slots["A"].draft)
+        s.agent_message("A", "I'm free on weekends and I'm into tennis. Climbing partner in Osaka.")
+        fields = {f["key"]: f["value"] for f in s.slots["A"].draft["fields"]}
+        self.assertEqual((fields["schedule"], fields["interests"]), ("weekends", ["bouldering", "ramen"]))
+
+class SaveCheck(unittest.TestCase):
+    """A turn that ends without the model trying to save is checked once (SAVE_CHECK): the profile only changes
+    when it saves, so it saves what it learned, or answers that there's nothing to save, which leaves no trace."""
+
+    def test_asked_once_more_it_saves_and_the_person_sees_its_reply(self):
+        client = ScriptedClient(reply(text("Lovely. Which city are you in?")), reply(tool(CLIMBER)),
+                                reply(text("Saved.")))
+        conv = []
+        message, draft = ClaudeAgent(client=client).respond(conv, "I'd like a climbing partner", "Yuki", "25-29")
+        self.assertEqual(draft["kind"], "climbing")
+        self.assertEqual(message, "Lovely. Which city are you in?")  # what it wrote after the check isn't shown
+        self.assertIn("A check from the app", client.requests[1]["messages"][-1]["content"])
+
+    def test_nothing_to_save_leaves_no_trace(self):
+        client = ScriptedClient(reply(text("Hi! What are you looking for?")), reply(text("NO_SAVE")))
+        conv = []
+        message, draft = ClaudeAgent(client=client).respond(conv, "hi", "Yuki", "25-29")
+        self.assertIsNone(draft)
+        self.assertEqual(message, "Hi! What are you looking for?")
+        self.assertEqual([m["role"] for m in conv], ["user", "assistant"])
+        self.assertNotIn("NO_SAVE", message)
+
+    def test_the_openai_agent_checks_the_same_way(self):
+        post = ScriptedPost(oa_text("Nice. What's your budget?"), oa_tool(CLIMBER), oa_text("Saved."))
+        message, draft = OpenAIAgent(api_key="test", post=post).respond([], "climbing partner please", "Yuki", "25-29")
+        self.assertEqual((draft["kind"], message), ("climbing", "Nice. What's your budget?"))
+        post = ScriptedPost(oa_text("Hello! What are you after?"), oa_text("NO_SAVE"))
+        conv = []
+        message, draft = OpenAIAgent(api_key="test", post=post).respond(conv, "hello", "Yuki", "25-29")
+        self.assertEqual((draft, message, len(conv)), (None, "Hello! What are you after?", 2))
