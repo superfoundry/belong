@@ -488,8 +488,9 @@ def sea(value, about="me", steps=SEA, required=True):
 
 
 class UnstatedPreferences(unittest.TestCase):
-    """Something you didn't say is a preference you don't have. A wish you did say is required unless
-    you said "ideally"; an "ideally" the other person can't be compared with fails only a strict request."""
+    """Something you didn't say is a preference you don't have. A wish you did say, in your own words (TRUST.md #45:
+    one your agent made a must that you didn't say is only "ideally"), is required unless you said "ideally"; an
+    "ideally" the other person can't be compared with fails only a strict request."""
 
     def pairs(self, *listings):
         w, board = warden(), Marketboard()

@@ -35,7 +35,8 @@ _STORIES = {"climbing", "climber", "bouldering", "belay", "jogging", "marathon",
 ACTIVITY_WORDS = _STORIES | {w.lower() for w in synth.INTERESTS + synth.GENRES + synth.SUBJECTS}
 # Product code that may read synth.py, and the only names it may take: the simulation and its grading, the command
 # that runs it, the demo's board of synthetic people, and the trust probe's sandbox of synthetic people.
-MAY_IMPORT_SYNTH = {"synth.py": None, "sim.py": None, "evaluate.py": None, "__main__.py": {"DIALECT_SHARE"},
+MAY_IMPORT_SYNTH = {"synth.py": None, "sim.py": None, "evaluate.py": None,
+                    "__main__.py": {"DIALECT_SHARE", "INVENTED_SHARE", "OTHER_WORDS_SHARE"},  # the shares it prints
                     "demo.py": {"draft_listing", "generate"}, "probe.py": {"draft_listing", "generate"}}
 # Words with an everyday use in a product rule, each where it's allowed and why (none today).
 EVERYDAY: dict = {}
@@ -267,22 +268,76 @@ class StartMatchingByOneRule(unittest.TestCase):
         self.assertIn(False, server)
 
 
+def _synth_names(node):
+    """The names one import statement takes straight from synth ({"*"} for the whole module), or None."""
+    if isinstance(node, ast.ImportFrom) and node.module and node.module.split(".")[-1] == "synth":
+        return {a.name for a in node.names}
+    if isinstance(node, ast.Import) and any(a.name.split(".")[-1] == "synth" for a in node.names):
+        return {"*"}
+    if isinstance(node, ast.ImportFrom) and any(a.name == "synth" for a in node.names):
+        return {"*"}
+    return None
+
+
+def _module_of(path: Path, node: ast.ImportFrom, name=None):
+    """The product module (its path relative to the package) an import from reads, or with name, the one it imports
+    by that name (`from . import sim`); None for anything outside the package."""
+    if node.level:
+        base = path.parent
+        for _ in range(node.level - 1):
+            base = base.parent
+        parts = (node.module or "").split(".") if node.module else []
+    elif node.module and node.module.split(".")[0] == ROOT.name:
+        base, parts = ROOT.parent, node.module.split(".")
+    else:
+        return None
+    target = base.joinpath(*parts, *([name] if name else []))
+    target = target.with_suffix(".py")
+    try:
+        return target.relative_to(ROOT).as_posix() if target.exists() else None
+    except ValueError:
+        return None
+
+
+def synth_imports() -> dict:
+    """For each product module, the synth names it takes: straight from synth, or through another product module that
+    took them from synth (`from .sim import NAME`, or `sim.NAME` after `from . import sim`), so a re-export is never a
+    way round the allow-list."""
+    trees = {path.relative_to(ROOT).as_posix(): (path, ast.parse(path.read_text())) for path in product_modules()}
+    direct = {}
+    for rel, (_, tree) in trees.items():
+        for node in ast.walk(tree):
+            names = _synth_names(node)
+            if names is not None:
+                direct.setdefault(rel, set()).update(names)
+    out = {rel: set(names) for rel, names in direct.items()}
+    for rel, (path, tree) in trees.items():
+        via = {}  # a name this module binds to a product module that takes synth names -> that module
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.ImportFrom) or _synth_names(node) is not None:
+                continue
+            source = _module_of(path, node)
+            for a in node.names:
+                if source in direct and (a.name in direct[source] or "*" in direct[source]):
+                    out.setdefault(rel, set()).add(a.name)
+                module = _module_of(path, node, a.name)
+                if module in direct:
+                    via[a.asname or a.name] = module
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Attribute) and isinstance(node.value, ast.Name) and node.value.id in via:
+                taken = direct[via[node.value.id]]
+                if node.attr in taken or "*" in taken:
+                    out.setdefault(rel, set()).add(node.attr)
+    return out
+
+
 class NoDemoExamplesInTheProduct(unittest.TestCase):
     def test_only_the_simulation_and_the_demos_board_read_synth(self):
-        for path in product_modules():
-            for node in ast.walk(ast.parse(path.read_text())):
-                if isinstance(node, ast.ImportFrom) and node.module and node.module.split(".")[-1] == "synth":
-                    names = {a.name for a in node.names}
-                elif isinstance(node, ast.Import) and any(a.name.split(".")[-1] == "synth" for a in node.names):
-                    names = {"*"}
-                elif isinstance(node, ast.ImportFrom) and any(a.name == "synth" for a in node.names):
-                    names = {"*"}
-                else:
-                    continue
-                rel = path.relative_to(ROOT).as_posix()
-                self.assertIn(rel, MAY_IMPORT_SYNTH, f"{rel} imports synth")
-                allowed = MAY_IMPORT_SYNTH[rel]
-                self.assertTrue(allowed is None or names <= allowed, f"{rel} takes {names - (allowed or set())} from synth")
+        for rel, names in synth_imports().items():
+            self.assertIn(rel, MAY_IMPORT_SYNTH, f"{rel} imports synth")
+            allowed = MAY_IMPORT_SYNTH[rel]
+            self.assertTrue(allowed is None or names <= allowed, f"{rel} takes {names - (allowed or set())} from synth")
+
 
     def test_no_example_is_a_rule_label_or_allowed_value(self):
         found = []

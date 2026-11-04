@@ -10,9 +10,10 @@ from __future__ import annotations
 import copy
 import json
 import unittest
+from unittest import mock
 
 from belong import agent
-from belong.agent_llm import EDIT_TURN, EDIT_UNSAVED_NOTE, ClaudeAgent, build_draft, edit_message
+from belong.agent_llm import EDIT_TURN, EDIT_UNSAVED_NOTE, ClaudeAgent, _edit_problem, build_draft, edit_message
 from belong.agent_openai import OpenAIAgent
 from belong.demo import DemoError, DemoSession
 from belong.schema import HIDDEN, SHOWN
@@ -48,6 +49,12 @@ TUTOR = args(intent="Tutoring maths for families near Riverside in Leeds.",
                      ("seeking", "a maths student", SHOWN), ("offering", "a maths tutor", SHOWN),
                      ("headline", "Tutoring maths near Riverside", SHOWN), ("neighborhood", "Riverside", HIDDEN)])
 
+
+MOPED = args(intent="I'm fixing up an old two-wheeler in Ghent and could use a hand with it.",
+             fields=[("city", "Ghent", SHOWN), ("country", "Belgium", SHOWN), ("seeking", "a mechanic", SHOWN),
+                     ("offering", "a restorer", SHOWN), ("headline", "Restoring a vintage moped", SHOWN),
+                     ("topics", ["engine repair", "classic bikes"], SHOWN)],
+             details=[det("workshop", "Sint-Pieters", visibility=HIDDEN)])
 
 def values(draft) -> dict:
     return {k: agent.part_value(draft, k) for k in agent.parts(draft)}
@@ -112,6 +119,199 @@ class TheRule(unittest.TestCase):
                          {"oak"})  # the same as in a text
         self.assertEqual(agent.replacements(self.change("me:diet", ["no dairy"], ["vegan"])), [(("no", "dairy"), "vegan")])
 
+    def test_the_topics_are_read_again_when_what_the_listing_is_about_changes(self):
+        """Topics are the agent's own reading of what a listing is about, so replacing words in what it's about has
+        them read again even where they share no word with what was replaced; adding words, a change to another part,
+        a change the person made to the topics themselves, or a listing without topics, doesn't."""
+        draft, _, _ = build_draft(MOPED, "Noor", "35-44")
+        renamed = self.change("headline", "Restoring a vintage moped", "Restoring a vintage scooter")
+        self.assertTrue(agent.rereads(draft, [renamed]))
+        self.assertTrue(agent.depends(draft, [renamed]))  # no other part says "moped": the topics alone depend on it
+        self.assertFalse(agent.rereads(draft, [self.change("headline", "Restoring a vintage moped",
+                                                           "Restoring a vintage moped and sidecar")]))  # only added
+        self.assertFalse(agent.rereads(draft, [self.change("city", "Ghent", "Bruges")]))
+        self.assertFalse(agent.rereads(draft, [renamed, self.change("topics", ["engine repair", "classic bikes"],
+                                                                   ["engine repair"])]))
+        self.assertTrue(agent.rereads(draft, [self.change(agent.DESCRIPTION, "I'm fixing up an old two-wheeler",
+                                                          "I'm fixing up an old rowing boat")]))
+        bare, _, _ = build_draft(json.loads(json.dumps(MOPED).replace('"topics"', '"pay"')), "Noor", "35-44")
+        self.assertFalse(agent.rereads(bare, [renamed]))
+        self.assertFalse(agent.rereads(draft, [self.change("me:frame", ["steel"], ["carbon"])]))  # a detail: not what
+        # A hidden change never gets into the topics, not even in other words.
+        hidden_headline = self.change("headline", "Restoring a vintage moped", "Restoring a vintage scooter", private=True)
+        self.assertFalse(agent.rereads(draft, [hidden_headline]))
+        self.assertFalse(agent.depends(draft, [hidden_headline]))
+
+    def test_read_again_the_topics_take_any_words_but_never_a_hidden_one(self):
+        saved, _, _ = build_draft(json.loads(json.dumps(MOPED).replace("vintage moped", "vintage scooter")), "Noor",
+                                  "35-44")
+        renamed = self.change("headline", "Restoring a vintage moped", "Restoring a vintage scooter")
+
+        def with_topics(topics):
+            new = copy.deepcopy(saved)
+            for f in new["fields"]:
+                if f["key"] == "topics":
+                    f["value"] = topics
+            if topics is None:
+                new["fields"] = [f for f in new["fields"] if f["key"] != "topics"]
+            return new
+
+        out, fixes = agent.keep_edit(with_topics(["engine repair", "vintage scooters", "restoring Belgium's bikes"]), saved,
+                                     [renamed])  # words a match can see, in any form, though none was a topic
+        self.assertEqual(fixes, [])
+        self.assertEqual(agent.part_value(out, "topics"), ["engine repair", "vintage scooters", "restoring Belgium's bikes"])
+        out, fixes = agent.keep_edit(with_topics(["engine repair", "motor maintenance"]), saved, [renamed])
+        self.assertIn(("topics", "unseen"), fixes)  # a word no match can see could carry something hidden
+        self.assertEqual(agent.part_value(out, "topics"), ["engine repair", "classic bikes"])
+        for leak in (["engine repair", "Sint-Pieters garages"], ["engine repair", "pieter's workshop"],
+                     ["engine repair", "home workshops"]):  # its value, in any form, or its name
+            out, fixes = agent.keep_edit(with_topics(leak), saved, [renamed])
+            self.assertIn(("topics", "hidden"), fixes, leak)  # a hidden detail's words, in any form
+            self.assertEqual(agent.part_value(out, "topics"), ["engine repair", "classic bikes"])
+        # Anything hidden or sensitive, however short, and whether or not it is on or a part: a sensitive value of
+        # two letters, a hidden first name, a sensitive detail the person turned off.
+        private = copy.deepcopy(saved)
+        private["fields"] += [{"key": "health", "value": "MS", "visibility": HIDDEN, "sensitive": True, "enabled": True},
+                              {"key": "religion", "value": "Quaker", "visibility": HIDDEN, "sensitive": True,
+                               "enabled": False}]
+        for f in private["fields"]:
+            if f["key"] == "first_name":
+                f["visibility"] = HIDDEN
+        for leak in (["engine repair", "MS friendly riding"], ["engine repair", "Noor's garage"],
+                     ["engine repair", "Quaker meetups"]):
+            new = copy.deepcopy(private)
+            next(f for f in new["fields"] if f["key"] == "topics")["value"] = leak
+            out, fixes = agent.keep_edit(new, private, [renamed])
+            self.assertIn(("topics", "hidden"), fixes, leak)
+        new = copy.deepcopy(private)  # a short word a shown part already says is no word of anything hidden
+        next(f for f in new["fields"] if f["key"] == "topics")["value"] = ["restoring a scooter", "engine repair"]
+        self.assertEqual(agent.keep_edit(new, private, [renamed])[1], [])
+        # A hidden change kept together with a shown one reaches the topics in no wording: neither its words nor
+        # other words for it, which no match can see either; nor a hidden value in a form same_word doesn't read.
+        moved = self.change("me:workshop", ["Sint-Pieters"], ["Gentbrugge"], private=True)
+        sporty = copy.deepcopy(saved)
+        sporty["fields"].append({"key": "me:sport", "value": ["swimmer"], "visibility": HIDDEN, "enabled": True})
+        for topics, draft, changes in ((["engine repair", "Gentbrugge garages"], saved, [renamed, moved]),
+                                       (["engine repair", "riverside garages"], saved, [renamed, moved]),
+                                       (["engine repair", "swimming"], sporty, [renamed]),
+                                       (["engine repair", "Sint Pieters"], saved, [renamed])):
+            new = copy.deepcopy(draft)
+            next(f for f in new["fields"] if f["key"] == "topics")["value"] = topics
+            out, fixes = agent.keep_edit(new, draft, changes)
+            self.assertEqual(agent.part_value(out, "topics"), ["engine repair", "classic bikes"], topics)
+            self.assertTrue({("topics", "hidden"), ("topics", "unseen")} & set(fixes), topics)
+        out, fixes = agent.keep_edit(with_topics(None), saved, [renamed])  # left out: kept as it was
+        self.assertEqual(agent.part_value(out, "topics"), ["engine repair", "classic bikes"])
+        out, fixes = agent.keep_edit(with_topics(["engine repair", "scooter tuning"]), saved,
+                                     [self.change("city", "Antwerp", "Ghent")])  # not what it's about: the old rule
+        self.assertIn(("topics", "unrelated"), fixes)
+        self.assertEqual(agent.part_value(out, "topics"), ["engine repair", "classic bikes"])
+
+    def test_read_again_the_topics_may_use_a_shown_word_that_looks_like_a_hidden_one(self):
+        """A word a shown part already says, word for word, tells a match nothing new, even where it starts like a
+        hidden word (a hidden first name here): the topics may use it. A form of the hidden word that no shown part says
+        stays refused. Hidden topics may take a form of their own words."""
+        call = args(intent="Fermenting kimchi at home in Busan.",
+                    fields=[("city", "Busan", SHOWN), ("country", "South Korea", SHOWN),
+                            ("seeking", "a kimchi student", SHOWN), ("offering", "a kimchi teacher", SHOWN),
+                            ("headline", "Teaching kimchi in Busan", SHOWN),
+                            ("topics", ["korean cooking", "fermentation"], SHOWN)])
+        saved, problems, _ = build_draft(call, "Kim", "35-44")
+        self.assertEqual(problems, [])
+        next(f for f in saved["fields"] if f["key"] == "first_name")["visibility"] = HIDDEN
+        renamed = self.change("headline", "Fermenting kimchi in Busan", "Teaching kimchi in Busan")
+        self.assertTrue(agent.rereads(saved, [renamed]))
+
+        def save(topics, draft=saved):
+            new = copy.deepcopy(draft)
+            next(f for f in new["fields"] if f["key"] == "topics")["value"] = topics
+            return agent.keep_edit(new, draft, [renamed])
+
+        out, fixes = save(["teaching kimchi", "korean cooking"])  # "kimchi" is shown word for word
+        self.assertEqual(fixes, [])
+        self.assertEqual(agent.part_value(out, "topics"), ["teaching kimchi", "korean cooking"])
+        for leak in (["teaching kimchi", "Kim's kitchen"], ["kims", "korean cooking"]):  # the name, or a form of it
+            self.assertIn(("topics", "hidden"), save(leak)[1], leak)
+        hidden = copy.deepcopy(saved)
+        next(f for f in hidden["fields"] if f["key"] == "topics")["visibility"] = HIDDEN
+        self.assertEqual(save(["korean cook", "fermentations"], hidden)[1], [])  # forms of the topics' own words
+        message = _edit_problem("topics", "hidden", hidden)
+        self.assertNotIn("which is shown", message)  # it isn't
+        self.assertIn("which is shown", _edit_problem("topics", "hidden", saved))
+
+    def test_read_again_the_topics_never_put_a_hidden_value_of_several_words_together(self):
+        """Every word of a hidden value can be shown somewhere (a city, a word of the headline) and the value still
+        hidden: read again, one topic never has all of its words, in any order or form, unless one shown part already
+        says them together."""
+        call = args(intent="Piano lessons for adults in York.",
+                    fields=[("city", "York", SHOWN), ("country", "United Kingdom", SHOWN),
+                            ("seeking", "a music student", SHOWN), ("offering", "a music teacher", SHOWN),
+                            ("headline", "Teaching organ, conservatoire trained", SHOWN),
+                            ("topics", ["music theory", "sight reading"], SHOWN)],
+                    details=[det("college", "York Conservatoire", visibility=HIDDEN)])
+        saved, problems, _ = build_draft(call, "Ines", "35-44")
+        self.assertEqual(problems, [])
+        renamed = self.change("headline", "Teaching piano, conservatoire trained", "Teaching organ, conservatoire trained")
+        self.assertTrue(agent.rereads(saved, [renamed]))
+
+        def save(topics, draft=saved, changes=(renamed,)):
+            new = copy.deepcopy(draft)
+            next(f for f in new["fields"] if f["key"] == "topics")["value"] = topics
+            return agent.keep_edit(new, draft, list(changes))
+
+        for leak in (["teaching organ", "York Conservatoire"], ["conservatoire trained organ teaching in York"],
+                     ["music theory", "York conservatoires"]):
+            out, fixes = save(leak)
+            self.assertIn(("topics", "hidden"), fixes, leak)
+            self.assertEqual(agent.part_value(out, "topics"), ["music theory", "sight reading"])
+        for fine in (["teaching organ", "conservatoire trained"], ["teaching organ", "York"]):  # not all of it together
+            self.assertEqual(save(fine)[1], [], fine)
+        # Taken out, the rule lets it through: the test sees the rule.
+        with mock.patch.object(agent, "_says_all", lambda *a: False):
+            self.assertEqual(save(["teaching organ", "York Conservatoire"])[1], [])
+        # A shown part that already says it together: nothing new.
+        said = copy.deepcopy(saved)
+        next(f for f in said["fields"] if f["key"] == "headline")["value"] = "Teaching organ, York Conservatoire trained"
+        moved = self.change("headline", "Teaching piano, York Conservatoire trained",
+                            "Teaching organ, York Conservatoire trained")
+        self.assertEqual(save(["York Conservatoire organ"], said, [moved])[1], [])
+
+    def test_a_wish_keeps_must_or_ideally_and_a_refusal_says_exactly_what_differs(self):
+        """After a kept change, a wish keeps whether it must be met, and a detail who it's about, how it compares and
+        its steps. A save that differs only in must or ideally is refused saying that, as the profile has it; one that
+        differs in how it compares is told how it compares on the profile. Whether a detail about the person is
+        required means nothing to matching, so it isn't compared."""
+        call = args(intent="Selling a hand-built oak bookshelf in Tartu.",
+                    fields=[("city", "Tartu", SHOWN), ("country", "Estonia", SHOWN),
+                            ("seeking", "a bookshelf buyer", SHOWN), ("offering", "a bookshelf maker", SHOWN),
+                            ("headline", "Selling a walnut bookshelf", SHOWN)],
+                    details=[det("wood", "walnut"), det("pickup", "own car", about="them", required=False),
+                             det("height", "tall", about="both", compare="steps", steps=("short", "tall"))])
+        saved, problems, _ = build_draft(call, "Mari", "35-44")
+        self.assertEqual(problems, [])
+        changes = [self.change("me:wood", ["oak"], ["walnut"]),
+                   self.change("headline", "Selling an oak bookshelf", "Selling a walnut bookshelf")]
+
+        def save(key, **row):
+            new = copy.deepcopy(saved)
+            next(f for f in new["fields"] if f["key"] == key).update(row)
+            return agent.keep_edit(new, saved, changes)[1]
+
+        self.assertEqual(save("them:pickup", required=True), [("them:pickup", "required")])
+        self.assertEqual(save("both:height", required=False), [("both:height", "required")])
+        self.assertEqual(save("me:wood", required=False), [])  # matching never reads it
+        self.assertEqual(save("both:height", compare="same", required=False), [("both:height", "compare")])
+        self.assertIn("ideally", _edit_problem("them:pickup", "required", saved))
+        self.assertIn("a must", _edit_problem("both:height", "required", saved))
+        how = _edit_problem("both:height", "compare", saved)
+        self.assertIn("about both", how)
+        self.assertIn("steps: short, tall", how)
+        # Through build_draft, as the agent is told: the wish it re-sends as a must is refused, naming must or ideally.
+        again = {**call, "details": [det("wood", "walnut"), det("pickup", "own car", about="them"),
+                                     det("height", "tall", about="both", compare="steps", steps=("short", "tall"))]}
+        _, problems, _ = build_draft(again, "Mari", "35-44", current=saved, edit={"changes": changes, "saved": saved})
+        self.assertEqual(problems, [_edit_problem("them:pickup", "required", saved)])
+
     def test_one_word_in_two_forms(self):
         """same_word: one word in another form (a plural, another tense), by a fixed length rule, no word list."""
         for a, b in (("tile", "tiles"), ("ferry", "ferries"), ("bake", "baking"), ("fox", "foxes"), ("Lyon", "lyon")):
@@ -159,7 +359,8 @@ class WithAModelAgent(_Session, unittest.TestCase):
         said = client.requests[0]["messages"][-1]["content"]
         self.assertTrue(said.startswith("(From the app, not typed by the person.)"))
         self.assertIn('colour (about me) from "green" to "blue"', said)
-        self.assertEqual(said, edit_message([{"key": "me:colour", "before": ["green"], "after": ["blue"], "private": False}]))
+        self.assertEqual(said, edit_message([{"key": "me:colour", "before": ["green"], "after": ["blue"], "private": False}],
+                                            reread=True))  # the headline says the colour: what it is changes
         after = values(mine.draft)
         self.assertEqual(after["headline"], "Selling a blue velvet sofa")
         self.assertEqual(after["intent_text"], "Selling my blue velvet sofa in Utrecht.")
@@ -179,7 +380,7 @@ class WithAModelAgent(_Session, unittest.TestCase):
         s.keep_change("A", kept(mine.draft, {"me:colour": ["blue"]}))
         messages = post.requests[0]["messages"]
         self.assertEqual(messages[-1], {"role": "user", "content": edit_message(
-            [{"key": "me:colour", "before": ["green"], "after": ["blue"], "private": False}])})
+            [{"key": "me:colour", "before": ["green"], "after": ["blue"], "private": False}], reread=True)})
         self.assertEqual(values(mine.draft)["headline"], "Selling a blue velvet sofa")
         self.assertEqual(mine.chat[-1]["text"], "Updated the headline and description.")
 
@@ -264,6 +465,49 @@ class WithAModelAgent(_Session, unittest.TestCase):
         self.assertEqual(after["intent_text"], "Selling my blue velvet sofa in Utrecht.")
         self.assertEqual(mine.chat[-1]["text"], "I've updated your headline and your description to match.")
 
+    def test_an_edit_to_what_the_listing_is_about_has_the_topics_read_again(self):
+        """Edited on the profile, as in the chat: the agent is told to write the topics again, and its new topics are
+        kept, though they share no word with what the person replaced."""
+        new = json.loads(json.dumps(MOPED).replace("vintage moped", "vintage scooter"))
+        new["fields"] = [f if f["key"] != "topics" else {**f, "values": ["engine repair", "vintage scooters"]}
+                         for f in new["fields"]]
+        client = ScriptedClient(reply(tool(new)), reply(text("I've updated your related topics to match.")))
+        s, mine = self.session(MOPED, llm=ClaudeAgent(client=client))
+        s.keep_change("A", kept(mine.draft, {"headline": "Restoring a vintage scooter"}))
+        said = client.requests[0]["messages"][-1]["content"]
+        self.assertIn("write the topics again for what it's about now", said)
+        self.assertTrue(client.requests[1]["messages"][-1]["content"][0]["content"].startswith("Draft saved."))
+        after = values(mine.draft)
+        self.assertEqual(after["topics"], ["engine repair", "vintage scooters"])
+        self.assertEqual(after["headline"], "Restoring a vintage scooter")
+        self.assertEqual(mine.chat[-2], {"from": "change", "text": "You changed your headline on your profile."})
+        plain = edit_message([{"key": "city", "before": "Ghent", "after": "Bruges", "private": False}])
+        self.assertNotIn("write the topics again", plain)
+        self.assertIn("seeking and offering, topics, intent_text", plain)  # topics that say it are reworded as ever
+
+    def test_a_part_hidden_while_the_agent_works_gives_the_topics_nothing(self):
+        """A choice of shown or hidden made while the agent replies counts: its update is checked against the profile as
+        it is shown when it finishes, for an agent of its own that never meets the rule too."""
+        call = json.loads(json.dumps(MOPED))
+        call["details"].append(det("frame", "titanium"))
+
+        class HidesMeanwhile:
+            def respond(inner, conversation, text, name, band, current, in_use=None):
+                s.set_visibility("A", mine.id, {"me:frame": HIDDEN})  # the person, while it works
+                d = copy.deepcopy(current)
+                for f in d["fields"]:
+                    if f["key"] == "headline":
+                        f["value"] = "Restoring a vintage scooter"
+                    if f["key"] == "topics":
+                        f["value"] = ["engine repair", "titanium scooters"]
+                return "Updated your topics.", d
+
+        s, mine = self.session(call, llm=HidesMeanwhile())
+        s.keep_change("A", kept(mine.draft, {"headline": "Restoring a vintage scooter"}))
+        after = {f["key"]: f for f in mine.draft["fields"]}
+        self.assertEqual(after["me:frame"]["visibility"], HIDDEN)
+        self.assertEqual(after["topics"]["value"], ["engine repair", "classic bikes"])  # never the hidden word
+
     def test_a_hidden_detail_never_goes_into_a_shown_part(self):
         moved = json.loads(json.dumps(TUTOR).replace("Riverside", "Hillcrest"))
         client = ScriptedClient(reply(tool(moved)), reply(text("Updated.")))
@@ -272,7 +516,7 @@ class WithAModelAgent(_Session, unittest.TestCase):
         said = client.requests[0]["messages"][-1]["content"]
         self.assertIn("What they changed in neighborhood is hidden: never write its new wording into a part that's shown.",
                       said)
-        self.assertIn("Don't write the new wording of a hidden detail into headline, which is shown.",
+        self.assertIn("Don't write the wording of a hidden or sensitive detail into headline, which is shown.",
                       client.requests[1]["messages"][-1]["content"][0]["content"])
         after = values(mine.draft)
         self.assertEqual(after["headline"], "Tutoring maths near Riverside")  # shown: never given the hidden wording
@@ -406,7 +650,7 @@ class WithAModelAgent(_Session, unittest.TestCase):
         client = ScriptedClient(reply(tool(plural)), reply(text("Updated.")))
         s, mine = self.session(days, name="Lotte", age=50, llm=ClaudeAgent(client=client))
         s.keep_change("A", kept(mine.draft, {"me:class day": ["Wednesday"]}))
-        self.assertIn("Don't write the new wording of a hidden detail into headline, which is shown.",
+        self.assertIn("Don't write the wording of a hidden or sensitive detail into headline, which is shown.",
                       client.requests[1]["messages"][-1]["content"][0]["content"])
         self.assertEqual(values(mine.draft)["headline"], "Glazing classes on Monday mornings")
         self.assertNotIn("Wednesday", repr(s.phone_state("B")))
@@ -471,6 +715,28 @@ class WithAModelAgent(_Session, unittest.TestCase):
         s.submit("A", {**body, "base": base}, mine.id)
         self.assertTrue(mine.entry["accepted"], mine.entry)
         self.assertEqual(s.board.listing(mine.id).get("headline").value, "Selling a blue velvet sofa, like new")
+
+    def test_exactness_they_didnt_change_on_an_older_copy_is_the_drafts_as_it_now_is(self):
+        """Exactness is a part like any other: one the person left as their older copy had it is the draft's as it now
+        is (their agent may have lowered it meanwhile), and one they moved on that copy is theirs."""
+        for moved, want in ((None, 0.7), (0.5, 0.5)):
+            for live in (False, True):
+                with self.subTest(moved=moved, live=live):
+                    s, mine = self.session({**SOFA, "exactness": 0.9})
+                    base = kept(mine.draft, {})  # the copy the phone had, at 0.9
+                    mine.draft = {**copy.deepcopy(mine.draft), "exactness": 0.7}  # lowered meanwhile
+                    body = kept(base | {"fields": mine.draft["fields"]},
+                                {"headline": "Selling a green velvet sofa, as new"})
+                    body["exactness"] = 0.9 if moved is None else moved
+                    if live:
+                        body["fields"] = [f for f in body["fields"] if f.get("enabled", True)
+                                          and f["value"] not in (None, "", [])]
+                        s.submit("A", {**body, "base": base}, mine.id)
+                        self.assertTrue(mine.entry["accepted"], mine.entry)
+                        self.assertEqual(s.board.listing(mine.id).exactness, want)
+                    else:
+                        s.keep_change("A", {**body, "base": base})
+                        self.assertEqual(mine.draft["exactness"], want)
 
     def test_a_change_made_while_it_replies_stays_over_its_update(self):
         """The turn works from the draft as it began: a part changed on the draft meanwhile stays as it is now, its

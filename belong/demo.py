@@ -25,8 +25,21 @@ Privacy rule for this module: `phone_state(slot)` must contain only what that pe
 may know. Room internals go only into `room_state()`, the presenter's panel.
 
 A change the person makes on their profile themselves (a detail's sheet closed, the editor done, Save draft) is kept
-on their draft and told to their agent, which may bring only the parts that still say what they replaced in line, by
-one fixed rule (keep_change, agent.keep_edit; SPEC §3); without a model agent the phone offers that change instead.
+on their draft and told to their agent, which may bring only the parts that still say what they replaced in line, and
+write the related topics again when what the listing is about changed, by one fixed rule (keep_change,
+agent.keep_edit, agent.rereads; SPEC §3); without a model agent the phone offers that change instead.
+
+A wish (an open detail about them or both) is a must only when the person said it (SPEC §5): whatever agent drafts a
+listing, a wish saved as required is kept as "ideally" (agent.ground_wishes) unless what they typed themselves for that
+listing says one of its values (_said: their messages in its chat, never a turn the app wrote; a new separate listing,
+those from the message that led to this one's last save: _said_since), or their agent quotes their answer to its
+question about it (the message they typed next after the latest save that kept it as ideally: the listing remembers
+which wishes and when, ideally_since, and _answers gives what came after), or its draft already had it as a must; and
+at exactness 0.8 or more, where every wish shuts people out, a listing with a wish that passes none of these is made
+less exact (agent.ground_exactness). Each save of a model agent is checked against those words, for where it lands (they
+go to the check, not into the model's prompt: it has their messages only as its own conversation), and the agent is
+told (agent_llm.build_draft, typed_for); the draft of an agent that doesn't take them is held to the rule by its values
+before it is kept, without being told (agent_message, _grounded). TRUST.md #45.
 
 A person's account settings (set_settings; SPEC §3) only set each listing's own close matches and questions, which the
 Warden enforces: where a new listing's questions start, and whether a listing with no match yet has its close matches
@@ -63,8 +76,9 @@ from datetime import datetime, timezone
 from dataclasses import replace
 
 from . import agent, persona_chat
-from .agent_llm import (EDIT_UNSAVED_NOTE, SINGLED_OUT_NOTE, AgentUnavailable, ClaudeAgent, description_save_problems,
-                        detail_save_problems, edit_message, edit_note, listed_name_problems)
+from .agent_llm import (EDIT_UNSAVED_NOTE, KEPT_IDEALLY, SINGLED_OUT_NOTE, AgentUnavailable, ClaudeAgent,
+                        description_save_problems, detail_save_problems, edit_message, edit_note, listed_name_problems,
+                        read_exactness)
 from .agent_openai import OpenAIAgent
 from .leaks import leak_report
 from .matching.marketboard import Marketboard
@@ -263,6 +277,17 @@ class _Listing:
         self.asked = set()  # (question_id, about) already answered: never asked again
         # The rule-based agent asked which kind of match this is: {"text": their message, "options": [...]}
         self.pending_kind = None
+        # What the person typed for this listing before it had a chat of its own here (DemoSession._said): for a
+        # separate listing their agent started, their messages before the one that started it, from the one that led to
+        # the other's last save; for a synthetic person taken over, their description and messages, as the simulation
+        # counts them.
+        self.said_before = []
+        # Each wish an agent's save kept as ideally because nothing they typed said it (agent.ground_wishes, and
+        # agent.ground_exactness for a listing made less exact over it), and how many messages they had typed for this
+        # listing at the latest such save (len(DemoSession._said)): only the message they type next can be their answer
+        # to their agent's question whether it must be met (DemoSession._answers, agent.answered). Kept while the wish
+        # is on the draft as ideally; the person's own listing state, never sent anywhere.
+        self.ideally_since = {}
         # Where they are, as the instant first draft guessed it from keywords, until an agent decides. Places
         # are the guesses that can say something about someone (an origin or a family's country), so a model
         # agent isn't handed them: it reads their words itself, and they're dropped unless its draft has them.
@@ -610,7 +635,8 @@ class DemoSession:
                            "enabled": True, "locked": key == "age_band", "options": options.get(key, []),
                            **({"confirmed": True} if key in confirmed else {})})
         mine.draft = {**mine.draft, "intent_text": listing.intent_text, "exactness": listing.exactness, "fields": fields}
-        mine.choices.update({f.key: f.visibility for f in listing.fields})  # what they saved is their choice
+        # What they saved is their choice; a wish is always shown, so nobody chose anything about it.
+        mine.choices.update({f.key: f.visibility for f in listing.fields if f.about not in agent.WISHES})
         if live.get("kind") is not None:
             mine.draft["kind"] = live["kind"].value  # the kind of match that went live (it may have been edited)
 
@@ -868,6 +894,51 @@ class DemoSession:
             return not mine.prefs["notify_close"] if q["question_id"] == "broaden" else mine.prefs["notify_questions"]
         mine.followups = [q for q in mine.followups if still_applies(q)]
 
+    @staticmethod
+    def _said(listing: _Listing) -> list:
+        """What the person typed themselves for this listing, in order: what they typed for it before it had a chat of
+        its own here (said_before), then their messages in its chat (only agent_message writes them), never a turn the
+        app wrote for their agent (a change they made on their profile, the save check, a yes to a question). Derived
+        each time from those two, never kept anywhere else."""
+        return [*listing.said_before, *(m["text"] for m in listing.chat if m.get("from") == "me")]
+
+    @staticmethod
+    def _said_since(listing: _Listing) -> list:
+        """What the person typed for a separate listing their agent starts from this one: their messages in this
+        listing's chat from the one that led to its last save (all of them if it was never saved), so the request the
+        new listing is for, even when one message asked for both and this listing was saved from it first, and never
+        what came before, which was about this one. Only a save that answered a message of theirs counts: one from the
+        turn the app writes after a change they made on their profile (its "change" line came after their last
+        message) was led by none of theirs, so it never moves where their request starts."""
+        def answered(i: int) -> bool:
+            led = next((m.get("from") for m in reversed(listing.chat[:i]) if m.get("from") in ("me", "change")), None)
+            return led != "change"
+
+        last = max((i for i, m in enumerate(listing.chat) if m.get("draft_updated") and answered(i)), default=None)
+        start = 0 if last is None else max((i for i, m in enumerate(listing.chat[:last]) if m.get("from") == "me"),
+                                           default=last)
+        return [m["text"] for m in listing.chat[start:] if m.get("from") == "me"]
+
+    def _answers(self, listing: _Listing) -> dict:
+        """For each wish a save kept as ideally on this listing (ideally_since), what the person typed for it since the
+        latest such save: the first of it is their answer to their agent's question whether it must be met, and only
+        there can their agent find it (agent.answered)."""
+        said = self._said(listing)
+        return {key: said[n:] for key, n in listing.ideally_since.items()}
+
+    @staticmethod
+    def _note_ideally(listing: _Listing, keys, n: int) -> None:
+        """Remember each wish this save kept as ideally and had their agent ask about (keys: never one they were already
+        asked about, agent.asked_about) as of n messages typed, the latest time (the message they type next is their
+        answer), and forget each that is no longer on the draft as ideally (a must now, or taken off): nothing is
+        waiting for an answer about it. A wish they were already asked about keeps when it was asked, so their answer
+        stays the message they typed after that question."""
+        for key in keys or ():
+            listing.ideally_since[key] = n
+        ideally = {f.get("key") for f in (listing.draft or {}).get("fields", [])
+                   if split_key(f.get("key"))[0] in agent.WISHES and f.get("required") is False}
+        listing.ideally_since = {k: v for k, v in listing.ideally_since.items() if k in ideally}
+
     def _untouched(self, listing: _Listing) -> bool:
         return (listing.draft is None and listing.id not in self.board and listing.pending_kind is None
                 and not any(m["from"] == "me" for m in listing.chat))
@@ -931,11 +1002,21 @@ class DemoSession:
             chosen_before = dict(listing.choices)
             started = copy.deepcopy(listing.draft)  # the draft as the agent is given it
             in_use = self.details_in_use() if llm is not None else None
+            # What they typed, this message last, for where each save lands: a wish is a must only if they said it, or
+            # answered their agent's question about it after a save kept it as ideally. A separate save goes on a new
+            # listing whenever this one has a draft or is live (below), and only then can the two differ
+            # (agent_llm.typed_for).
+            said = {"listing": self._said(listing), "separate": self._said_since(listing),
+                    "answers": self._answers(listing)}
+            knows = llm is not None and "said" in inspect.signature(llm.respond).parameters
 
         reply = draft = None
         if llm is not None:
             try:
-                reply, draft = llm.respond(conversation, text, name, band, current, in_use=in_use)
+                if knows:  # build_draft holds each save to the rule, and tells the agent
+                    reply, draft = llm.respond(conversation, text, name, band, current, in_use=in_use, said=said)
+                else:  # an agent of its own that doesn't know the rule: held to it below all the same
+                    reply, draft = llm.respond(conversation, text, name, band, current, in_use=in_use)
             except AgentUnavailable as e:
                 with self.lock:
                     if self.llm is llm:
@@ -959,7 +1040,9 @@ class DemoSession:
             ended = listing.draft if started is not None and listing.draft is not None and (
                 agent.changes_made(started, listing.draft) or started.get("kind") != listing.draft.get("kind")) else None
             for d in drafts:
-                d = {k: v for k, v in d.items() if k != "earlier"}
+                # Which wishes its saves kept as ideally is remembered on the listing, never kept on the draft.
+                kept_ideally = d.get(KEPT_IDEALLY, []) if knows else []
+                d = {k: v for k, v in d.items() if k not in ("earlier", KEPT_IDEALLY)}
                 if d.get("separate") and (listing.id in self.board or listing.draft):
                     # The agent started a separate search: a new listing. The current one stays as it
                     # was, and the conversation carries on in the new one.
@@ -970,7 +1053,11 @@ class DemoSession:
                         continue
                     new.agent_conversation = list(conversation)
                     new.chat = [{"from": "me", "text": text}, {"from": "agent", "text": reply, "draft_updated": True}]
-                    new.draft = d
+                    # What they typed for it: their messages from the one that led to this listing's last save (this
+                    # one last).
+                    new.said_before = said["separate"][:-1]
+                    new.draft = d if knows else self._grounded(d, said["separate"])
+                    self._note_ideally(new, kept_ideally, len(said["separate"]))
                     moved.append(new.id)
                     continue
                 # Keep anything already on the profile that the agent's draft left empty, and the person's
@@ -986,7 +1073,11 @@ class DemoSession:
                         for f in d.get("fields", []):
                             if f["key"] == key and (vis == HIDDEN or not f.get("sensitive")):
                                 f["visibility"] = vis
-                listing.draft = d
+                # A must only from what they typed, whatever agent wrote the draft (build_draft holds a model agent to
+                # it, and tells it): a wish saved as required that they didn't say is kept as ideally, and a must the
+                # draft already had stays.
+                listing.draft = d if knows else self._grounded(d, said["listing"], started)
+                self._note_ideally(listing, kept_ideally, len(said["listing"]))
                 updated = True
             if updated:
                 listing.provisional = set()  # the agent has decided them (kept or dropped)
@@ -1000,6 +1091,22 @@ class DemoSession:
                                                               "stays as it is." if not updated else
                                      "I've started a separate listing for the other one, with its own details.",
                                      "moved_to": new_id})
+
+    @staticmethod
+    def _grounded(draft: dict, said: list, before=None) -> dict:
+        """The draft of an agent that doesn't take what the person typed, with each wish saved as required that their
+        typed words (said) don't say kept as ideally, and each must the draft it replaces (before) already had, as wide
+        or wider, as it is (agent.ground_wishes); and at exactness 0.8 or more, where every wish shuts people out, made
+        less exact if any wish passes neither (agent.ground_exactness). It only ever lowers. Such an agent quotes
+        nothing, so no answer counts for it. Its exactness is read first as build_draft reads a model agent's (a number
+        from 0 to 1, else the default: agent_llm.read_exactness), so every draft has one rule for it."""
+        if isinstance(draft.get("fields"), list):
+            words, was = agent.said_words(said), (before or {}).get("fields")
+            draft["fields"], _ = agent.ground_wishes(draft["fields"], words, before=was)
+            draft["exactness"], _ = agent.ground_exactness(read_exactness(draft.get("exactness")), draft["fields"],
+                                                           words, before=was,
+                                                           before_exactness=(before or {}).get("exactness"))
+        return draft
 
     @staticmethod
     def _without_guesses(listing) -> dict:
@@ -1097,7 +1204,9 @@ class DemoSession:
             earlier = agent.draft_from_message(said, st.name, st.person.age_band, words=words, earlier=earlier)
         draft = agent.draft_from_message(text, st.name, st.person.age_band, kind=kind, activity=activity, words=words,
                                          earlier=earlier)
-        # The open details it can't write stay (a model agent's, before it became unavailable, or the person's).
+        # The open details it can't write stay (a model agent's, before it became unavailable, or the person's), each
+        # as it was: a must among them was held to the rule that a must comes from the person's own words when it was
+        # saved, or came from what went live (agent.ground_wishes).
         kept = agent.keep_details(draft, earlier if before else listing.draft)
         agent.keep_visibility(draft, listing.draft, listing.choices)  # a detail they hid stays hidden
         refused = self._refused_kept(draft, kept)
@@ -1281,13 +1390,14 @@ class DemoSession:
         problems = self._save_problems(mine, fields, kind, intent, before)
         if problems:
             raise DemoError("; ".join(problems))
+        kept = read_exactness(mine.draft.get("exactness"))  # what's stored, always a number
         try:
-            exactness = float(body.get("exactness", mine.draft.get("exactness", 0.6)))
+            exactness = float(body.get("exactness", kept))
         except (TypeError, ValueError):
-            exactness = mine.draft.get("exactness", 0.6)
+            exactness = kept
         mine.choices.update({key: HIDDEN for key in hide})
         mine.draft = {**copy.deepcopy(mine.draft), "fields": fields, "kind": kind, "intent_text": intent,
-                      "exactness": exactness if 0.0 <= exactness <= 1.0 else mine.draft.get("exactness", 0.6)}
+                      "exactness": exactness if 0.0 <= exactness <= 1.0 else kept}
         mine.provisional -= changed  # a guessed place they changed is theirs now; one they left stays a guess
 
     def _save_problems(self, mine: _Listing, fields: list, kind, intent: str, before: dict) -> list:
@@ -1307,8 +1417,9 @@ class DemoSession:
     def keep_change(self, slot: str, body: dict, listing_id=None) -> None:
         """A change the person made on their profile themselves, kept (a detail sheet closed, the editor done, or Save
         draft): saved as Save draft saves it (save_draft: every check, and refused while their agent is replying), then
-        read part by part (agent.changes_made). When it replaced words that another part still says (agent.depends:
-        only adding something, or shown or hidden alone, replaces none), a model agent is told
+        read part by part (agent.changes_made). When it replaced words that another part still says, or changed what
+        the listing is about (nothing hidden) while it has topics, which are its agent's reading of that (agent.depends,
+        agent.rereads: only adding something, or shown or hidden alone, replaces none), a model agent is told
         what changed, from what to what, in a turn of its own (_consistency_turn, off the session lock), and the chat
         shows a short line saying so; without one, the phone offers the same words changed in the other parts that
         still say them (agent.offers), one tap each or all (answer_offers). Nothing here reaches anyone else, the
@@ -1354,10 +1465,13 @@ class DemoSession:
     def _rebased(self, mine: _Listing, body: dict, base: dict, live: bool = False) -> tuple:
         """The phone's body with each part the person changed on an older copy (base) that the draft has changed since
         made on the draft as it now is (agent.rebase), and each part they didn't change as the draft has it (live: for
-        a listing going live, one the draft has off or empty is left out, as the phone leaves it out). Returns (body,
-        {key: (the copy's value, theirs)}) for the parts it made again, so keep_change reads what they replaced from
-        what they saw."""
+        a listing going live, one the draft has off or empty is left out, as the phone leaves it out). Exactness too:
+        as the copy had it, it is the draft's as it now is (their agent may have lowered it meanwhile:
+        agent.ground_exactness), and moved on the copy, it is theirs. Returns (body, {key: (the copy's value, theirs)})
+        for the parts it made again, so keep_change reads what they replaced from what they saw."""
         body = {**body, "fields": [dict(f) for f in body.get("fields") or [] if isinstance(f, dict)]}
+        if "exactness" in mine.draft and body.get("exactness") == base.get("exactness"):
+            body["exactness"] = mine.draft["exactness"]
         edited = {}
         for key in [f.get("key") for f in body["fields"] if isinstance(f.get("key"), str)] + [agent.DESCRIPTION]:
             was, sent, now = self._body_value(base, key), self._body_value(body, key), agent.part_value(mine.draft, key)
@@ -1386,10 +1500,12 @@ class DemoSession:
         told only what changed, from what to what, between two drafts it is given anyway (agent_llm.edit_message), and
         builds on the saved draft as with every message. Its save goes through build_draft and is held to one fixed rule
         (agent.keep_edit: build_draft refuses what breaks it, and whatever comes back is corrected by it here, for any
-        agent), then kept like any agent draft: the person's choices of shown or hidden stand, those made meanwhile
-        too. If anything had to be corrected, the chat says what actually changed (agent.updated_line), never what the
+        agent, against the profile as it is shown when the turn ends), then kept like any agent draft: the person's
+        choices of shown or hidden stand, those made meanwhile too. If anything had to be corrected, the chat says what actually changed (agent.updated_line), never what the
         agent claimed. The turn stays in its conversation without the wording (agent_llm.edit_note). If the agent is
-        unavailable, the phone offers the change instead (agent.offers)."""
+        unavailable, the phone offers the change instead (agent.offers). A wish is never made a must here: keep_edit
+        keeps every wish as the person kept it, required or not, and takes no new one, so the rule that a must comes
+        from their own words (agent.ground_wishes) has nothing to do in this turn."""
         with self.lock:
             st = self.slots.get(slot) or self.handed_back.get(slot)
             mine = next((l for l in st.listings if l.id == listing_id), None) if st else None
@@ -1405,7 +1521,7 @@ class DemoSession:
             current = {**self._without_guesses(mine), "choices": dict(mine.choices)}
             chosen_before = dict(mine.choices)
             in_use = self.details_in_use()
-            text, start = edit_message(changes), len(conversation)
+            text, start = edit_message(changes, agent.rereads(saved, changes)), len(conversation)
         reply = draft = None
         try:
             if "edit" in inspect.signature(llm.respond).parameters:
@@ -1431,15 +1547,17 @@ class DemoSession:
             if latest:
                 d = {k: v for k, v in latest[0].items() if k != "earlier"}
                 agent.carry_over(d, self._without_guesses(mine), mine.choices)
-                result, fixes = agent.keep_edit(d, saved, changes)
+                # A choice of shown or hidden made while it was replying wins, as after a message, and counts in the
+                # rule: its update is checked against the profile as it is shown now, so nothing it wrote from a part
+                # hidden meanwhile is taken into a shown one.
+                meanwhile = {k: v for k, v in mine.choices.items() if chosen_before.get(k) != v}
+                as_shown = self._with_choices(saved, meanwhile)
+                checked = [{**c, "private": c["private"] or agent._private(as_shown, c["key"])} for c in changes]
+                result, fixes = agent.keep_edit(self._with_choices(d, meanwhile), as_shown, checked)
                 # It worked from the draft as the turn began: what changed on it since (kept or saved live meanwhile)
                 # stays as it is now, over its update.
                 result, lost = agent.keep_meanwhile(result, saved, now)
-                for key, vis in mine.choices.items():  # a choice made while it was replying wins, as after a message
-                    if chosen_before.get(key) != vis:
-                        for f in result.get("fields", []):
-                            if f["key"] == key and (vis == HIDDEN or not f.get("sensitive")):
-                                f["visibility"] = vis
+                result = self._with_choices(result, meanwhile)
                 updated = bool(agent.changes_made(now, result))
                 if updated or result != now:
                     mine.draft = result
@@ -1477,6 +1595,17 @@ class DemoSession:
             if not self._save_problems(mine, draft["fields"], draft.get("kind"), draft.get("intent_text", ""), before):
                 out.append(offer)
         return out
+
+    @staticmethod
+    def _with_choices(draft: dict, choices: dict) -> dict:
+        """A copy of the draft with these choices of shown or hidden made (a sensitive detail is only ever hidden by
+        one: only the person shows it, on its own)."""
+        draft = copy.deepcopy(draft)
+        for f in draft.get("fields", []):
+            vis = choices.get(f["key"])
+            if vis is not None and (vis == HIDDEN or not f.get("sensitive")):
+                f["visibility"] = vis
+        return draft
 
     @staticmethod
     def _with_offers(draft: dict, offers: list) -> dict:
@@ -1980,12 +2109,16 @@ class DemoSession:
             current = {**copy.deepcopy(mine.draft or {"fields": []}), "choices": dict(mine.choices)}
             headline_vis = mine.choices.get("headline", SHOWN)  # a headline they hid stays hidden
             in_use = self.details_in_use()
+            said = self._said(mine)  # what they typed, never this turn: the app writes it
         ask = (f'Belong. asked me: "{question_text}" and I said yes. Update my listing so its headline and '
                "description describe what I agreed to now. Keep everything else as it is, and keep "
                "separate_listing false.")
         draft = None
         try:
-            _, draft = llm.respond(conversation, ask, name, band, current, in_use=in_use)
+            if "said" in inspect.signature(llm.respond).parameters:
+                _, draft = llm.respond(conversation, ask, name, band, current, in_use=in_use, said=said)
+            else:
+                _, draft = llm.respond(conversation, ask, name, band, current, in_use=in_use)
         except AgentUnavailable:
             pass
         with self.lock:
@@ -2275,6 +2408,9 @@ class DemoSession:
         kind = live.get("kind").value if live.get("kind") else None  # as recorded on their listing
         mine.draft = {**agent.empty_draft(st.name, persona.person.age_band), "kind": kind, "by": "sync"}
         self._sync_draft(mine, live)
+        # What they typed, as the simulation counts it (their description, and their words for each must), so a must
+        # their agent writes later from it is theirs (agent.ground_wishes).
+        mine.said_before = [persona.intent_text, *persona.said]
         mine.chat = [{"from": "agent", "text": f"Hi {st.name}, I'm your agent. Your listing is live: "
                                               f"“{self._live_title(live)}”. I'll tell you when Belong. finds "
                                               "someone who is also looking for you."}]

@@ -12,8 +12,9 @@ from functools import lru_cache
 
 from .schema import (AGE_BAND_BOUNDS, AGE_BANDS, AGE_MAX, AGE_MIN, ANY, CITY_COORDS, FIELD_REGISTRY, FORMATS,
                      FREE_TEXT_MAX, GENDERS, HIDDEN, MATCH_KINDS, MAX_VALUES, SENSITIVE_FIELD, SENSITIVE_WORDS, SHOWN,
-                     TRAVEL, Field, Listing, age_span, canonical, detail_key, display_form, is_detail_key,
-                     mentions_sensitive, only_said, plain_place, said, split_key)
+                     LIST_UNSPACED_SCRIPTS, STRICT_EXACTNESS, TRAVEL, Field, Listing, age_span, canonical, detail_key,
+                     display_form, is_detail_key, mentions_sensitive, only_said, plain_place, said, says_nothing,
+                     split_key)
 from .schema import _CONTRACTED
 
 
@@ -1647,7 +1648,8 @@ def kind_layout(kind, city=None) -> dict:
 # editor done, Save draft) is read part by part (changes_made) and word by word, compared as schema.canonical compares
 # text (replacements). One general rule, no word list, decides which other parts still say what was replaced: a part
 # depends on the change when it has a word the person replaced (replaced_words). A model agent may update those, and
-# only those, to match (keep_edit, the fixed rule its save is held to); without one the phone offers the same words
+# only those, to match (keep_edit, the fixed rule its save is held to), and writes the related topics again when what
+# the listing is about changed (rereads: they are its own reading of it); without one the phone offers the same words
 # changed in them (offers), one tap each. A change the person made on a copy older than the draft (their agent updated
 # it meanwhile) is made on the draft as it now is (rebase), and read from the copy they changed (edited), so it never
 # puts back what the agent had just brought in line.
@@ -1675,8 +1677,22 @@ def _nfc(text) -> str:
 
 
 def _text_words(text) -> list:
-    """The words of a text, each as (start, end, canonical form), positions in its NFC form (_nfc)."""
-    return [(m.start(), m.end(), canonical(m.group())) for m in _WORD.finditer(_nfc(text))]
+    """The words of a text, each as (start, end, canonical form), positions in its NFC form (_nfc): runs of letters
+    and digits, each keeping the marks that belong to its letters (a vowel sign in Devanagari or Thai is part of its
+    word, never a break in it), as schema's shape rule reads words."""
+    text = _nfc(text)
+    if text.isascii():
+        return [(m.start(), m.end(), canonical(m.group())) for m in _WORD.finditer(text)]
+    out, start = [], None
+    for i, c in enumerate(text):
+        if c.isalnum() or start is not None and _unicodedata.category(c)[0] == "M":  # isalnum: as [^\W_] reads
+            start = i if start is None else start
+        elif start is not None:
+            out.append((start, i, canonical(text[start:i])))
+            start = None
+    if start is not None:
+        out.append((start, len(text), canonical(text[start:])))
+    return out
 
 
 def _items(value) -> list:
@@ -1836,10 +1852,64 @@ def says(value, words: set) -> bool:
     return bool(_all_words(value) & words)
 
 
+# The parts that say what a listing is about, in the person's words or their agent's, and the one part their agent
+# writes from them: related topics are its own reading of what the listing is about (broader areas), so they follow
+# what it's about, not only the words they share with it. A detail says something about the listing (a colour, a size,
+# a level), not what it is: a change to one rereads the topics only when the headline, seeking or offering, which name
+# what it is, still says what it replaced (being brought in line anyway, so no turn is added for it); the description
+# says everything (the place and times too), so its saying it doesn't count.
+_WHAT = ("headline", "seeking", "offering")
+_ABOUT = (*_WHAT, DESCRIPTION)
+_READING = "topics"
+
+
+def rereads(draft, changes: list) -> bool:
+    """Is the topics' reading of a listing out of date: a change that isn't to a hidden or sensitive part replaced words
+    in a part that says what the listing is about, or words that the headline, seeking or offering, unchanged, still
+    says; the draft has topics; and the person didn't set the topics themselves."""
+    changed = {c["key"] for c in changes}
+    if _READING in changed or part_value(draft, _READING) is None:
+        return False
+    shown = [c for c in changes if not c["private"]]
+    words = replaced_words(shown)
+    return (any(c["key"] in _ABOUT and replacements(c) for c in shown)
+            or any(says(part_value(draft, k), words) for k in _WHAT if k not in changed))
+
+
 def depends(draft, changes: list) -> bool:
-    """Does any other part of the draft still say a word the person replaced: is there anything to bring in line."""
+    """Is there anything to bring in line: another part of the draft still says a word the person replaced, or the
+    topics are to be read again (rereads)."""
     words, changed = replaced_words(changes), {c["key"] for c in changes}
-    return bool(words) and any(says(part_value(draft, k), words) for k in parts(draft) if k not in changed)
+    return (bool(words) and any(says(part_value(draft, k), words) for k in parts(draft) if k not in changed)) \
+        or rereads(draft, changes)
+
+
+def _private_texts(draft, changes: list) -> list:
+    """Each value of something hidden or sensitive, one item at a time: each hidden or sensitive row of the draft,
+    whether it is on or off and whether or not it is a part (a hidden first name too), with an open detail's name
+    (hidden, it is never shown either), and each hidden or sensitive part a change replaced, its old values too (on the
+    copy the person changed as well, _edit_of)."""
+    out = []
+    rows = [(f.get("key"), f.get("value")) for f in (draft or {}).get("fields", []) if _private(draft, f.get("key"))]
+    rows += [(c["key"], [*_items(c["before"]), *_items(c["after"]), *(v for x in _edit_of(c) for v in _items(x))])
+             for c in changes if c["private"]]
+    for key, value in rows:
+        out += _items(value)
+        about, name = split_key(key) if isinstance(key, str) else ("", "")
+        if about:
+            out.append(name)
+    return out
+
+
+def _private_words(draft, changes: list) -> set:
+    """Every word of something hidden or sensitive (_private_texts)."""
+    return set().union(*(_all_words(x) for x in _private_texts(draft, changes)))
+
+
+def _says_all(text, words) -> bool:
+    """Does this text say every one of these words, each in some form (same_word), in any order."""
+    have = _all_words(text)
+    return all(any(same_word(w, x) for x in have) for w in words)
 
 
 def _hunks(a: list, b: list) -> tuple:
@@ -1993,31 +2063,57 @@ def offers(draft, changes: list) -> list:
 
 
 def _definition(row) -> tuple:
-    """How an open detail compares, as its agent wrote it (a change of wording never changes it)."""
-    return (row or {}).get("about"), (row or {}).get("compare"), tuple(canonical(s) for s in (row or {}).get("steps") or ()), \
-        (row or {}).get("required", True) is not False
+    """How an open detail compares, as its agent wrote it (a change of wording never changes it): whom it's about, how
+    it compares and its steps. Whether a wish must be met is _required."""
+    return (row or {}).get("about"), (row or {}).get("compare"), tuple(canonical(s) for s in (row or {}).get("steps") or ())
+
+
+def _required(row) -> bool:
+    """Whether a wish must be met, as the draft holds it (matching reads it only on a wish)."""
+    return (row or {}).get("required", True) is not False
 
 
 def keep_edit(new: dict, saved: dict, changes: list) -> tuple:
     """The fixed rule a model agent's save after a kept change is held to. From the draft the person kept (saved), the
     only parts taken from the agent's save (new) are those that still said a word the person replaced
-    (replaced_words), as the agent reworded them, and only in words the part already had or the person just wrote
-    (each in any form, same_word), with grammar (_grammar). So what the person changed keeps their value, a part with
-    no value gets none, a part brought in line gets no word from anywhere else (nothing they didn't give), every other
-    part stays as it was, no part is taken off, an open detail keeps how it compares, shown or hidden stays as it was,
-    and no word of a hidden or sensitive part's new value, in any form, goes into a part that is shown. A save with
+    (replaced_words), as the agent reworded them, and only in words the part already had or the person
+    just wrote (each in any form, same_word), with grammar (_grammar). So what the person changed keeps their value, a
+    part with no value gets none, a part brought in line gets no word from anywhere else (nothing they didn't give),
+    every other part stays as it was, no part is taken off, an open detail keeps whom it's about, how it compares and
+    its steps, a wish keeps whether it must be met, shown or hidden stays as it was, and no word of a hidden or
+    sensitive part's new value, in any form, goes into a part that is shown. The one part read again rather than
+    reworded: when what the listing is about changed (rereads), the agent's topics are taken in any words a match can
+    already see on the profile (its shown parts, the person's new wording among them) or that the topics had, each in
+    any form, with grammar; never with a new word, in any form, of anything hidden or sensitive (_private_words) that
+    no shown part says word for word; and never with one topic that says every word of a hidden or sensitive value of
+    several (grammar aside), each in any form and in any order, unless one shown item, or the topics as they were,
+    already says them all. A save with
     another kind of match changes nothing. The agent's save is refused for any of these (agent_llm.build_draft), so it
     can fix it, and whatever comes back is corrected by the same rule. Two are corrected without a word, since neither
     says anything the agent may have claimed: an unrelated part it left out (kept), and a sensitive detail's shown,
     which only the person can choose (it saves one hidden). Returns (draft, fixes): fixes are (key, why) for each part
-    of the agent's save that wasn't taken, why one of "theirs", "new", "unrelated", "kept", "compare", "hidden",
-    "added", "visibility", "kind"."""
+    of the agent's save that wasn't taken, why one of "theirs", "new", "unrelated", "kept", "compare", "required",
+    "hidden", "added", "unseen", "visibility", "kind"."""
     out = _copy.deepcopy(saved)
     if new.get("kind") != saved.get("kind"):
         return out, [("kind", "kind")]
     changed = {c["key"] for c in changes}
     words = replaced_words(changes)
     private = set().union(*(_all_words(c["after"]) for c in changes if c["private"]))
+    reread = rereads(saved, changes)
+    # Read again, the topics are made of what a match can already see: words of the profile's shown parts and the
+    # topics' own, each in any form, and grammar. Never a new word, in any form, of anything hidden or sensitive that
+    # no shown part says, however short (a word a shown part says word for word tells a match nothing new, whatever it
+    # starts like; the topics' own words are theirs, hidden ones too). And never one topic with every word of a hidden
+    # or sensitive value of several, in any order or form, which shown words could otherwise put together, unless one
+    # shown item (or the topics as they were) already says them all. Other wording for a hidden value (another name
+    # for it) is beyond a word rule (TRUST.md limit 26).
+    seen = {w for k in parts(saved) if _shown(saved, k) for w in _all_words(part_value(saved, k))}
+    topics_were = part_value(saved, _READING)
+    secret = _private_words(saved, changes) - seen - _all_words(topics_were) if reread else set()
+    shown_items = [x for k in parts(saved) if _shown(saved, k) for x in _items(part_value(saved, k))] + _items(topics_were)
+    together = [ws for ws in ({w for w in _all_words(x) if not _grammar(w)} for x in _private_texts(saved, changes))
+                if len(ws) > 1 and not any(_says_all(x, ws) for x in shown_items)] if reread else []
     given = set().union(*(_all_words(c["after"]) for c in changes))  # the person's own new wording
     mine = {f["key"]: f for f in out.get("fields", [])}
     theirs = {f["key"]: f for f in new.get("fields", [])}
@@ -2031,17 +2127,28 @@ def keep_edit(new: dict, saved: dict, changes: list) -> tuple:
         if both and is_detail_key(key) and _definition(new_row) != _definition(old_row):
             fixes.append((key, "compare"))
             continue
+        if both and split_key(key)[0] in WISHES and _required(new_row) != _required(old_row):
+            fixes.append((key, "required"))  # only a wish's: matching never reads it on a detail about the person
+            continue
         if _same(was, now):
             continue
         dependent = was is not None and says(was, words)
         if now is None and key not in changed and not dependent:
             continue  # left out, and it didn't say what they replaced: kept as it was
         extra = _all_words(now) - _all_words(was)  # every word the agent brought into the part
-        why = ("theirs" if key in changed else "new" if was is None else "unrelated" if not dependent
-               else "kept" if now is None
-               else "hidden" if _shown(saved, key) and _any_form(extra, private)
-               else "added" if {w for w in extra if not _grammar(w)} - _any_form(extra, _all_words(was) | given)
-               else None)
+        if key == _READING and reread and was is not None and key not in changed:
+            # Read again for what the listing is about now, from what a match can already see.
+            why = ("kept" if now is None
+                   else "hidden" if _any_form(extra - seen, secret)
+                   or any(_says_all(x, ws) for x in _items(now) for ws in together)
+                   else "unseen" if {w for w in extra if not _grammar(w)} - _any_form(extra, seen | _all_words(was))
+                   else None)
+        else:
+            why = ("theirs" if key in changed else "new" if was is None else "unrelated" if not dependent
+                   else "kept" if now is None
+                   else "hidden" if _shown(saved, key) and _any_form(extra, private)
+                   else "added" if {w for w in extra if not _grammar(w)} - _any_form(extra, _all_words(was) | given)
+                   else None)
         if why:
             fixes.append((key, why))
             continue
@@ -2110,3 +2217,287 @@ def updated_line(saved, result) -> str:
     """What a consistency update did, said from what actually changed (never from what an agent says it did)."""
     done = [part_words(c["key"]) for c in changes_made(saved, result)]
     return f"I've updated {_listed(done)} to match." if done else NOTHING_ELSE
+
+
+# --------------------------------------------------------------------------------------
+# A must comes from the person (SPEC §5, wishes)
+#
+# A wish (an open detail about them or both) that must be met shuts out every listing that doesn't show something to
+# meet it, so only the person can make one. A wish their agent saves as required stays required only by one of three
+# fixed rules, with no word list and no judgment of meaning (ground_wishes):
+#   - what they typed for the listing says one of its values in full (wish_said). Words are compared as same_word
+#     compares them (a plural or another tense, by a fixed length rule), a number only as the same number (written with
+#     or without thousands separators; a decimal or a time, "2.5" or "9:15", is one number, never its parts), a number
+#     with the word written right after it as one word, with or without a space ("5 km" is "5km", said only by the
+#     number with that word, the word compared by its own letters, never the number's digits), except a word of
+#     SHORT_WORD letters or fewer between two numbers ("7 to 9"), which connects them and joins neither, in Hangul,
+#     which writes a noun's particles on to it, also inside a typed word that starts with it, and in a script written
+#     without spaces anywhere inside a run (never inside a longer number, in digits or in numeral characters). A typed
+#     run that mixes scripts is also read as its pieces, so a Latin word or a number written inside a Japanese or
+#     Chinese run is a word they typed. The detail's name alone never counts: words about themselves can share it. Any
+#     one value said is enough: more values widen who meets a wish, never whom it shuts out for not showing the detail,
+#     so a value said about anything keeps the wish (TRUST.md limit 28);
+#   - a save kept it as ideally, so their agent was told to ask them whether it must be met, and the words it quotes as
+#     theirs for it (its their_words) are all in the message they typed next, after the latest such save: their answer
+#     (answered). A message typed before that save is never their answer, so a quote from it counts for nothing; one
+#     typed after it counts whatever it says (a word rule can't tell a yes from a no);
+#   - the draft the save replaces had it as a must, and it is saved again as it was or wider (_as_wide): it passed the
+#     rule when it was saved, or came from what went live.
+# Otherwise it is kept as "ideally": never taken off, reworded, or made shown or hidden, only no longer required. At
+# exactness STRICT_EXACTNESS or more every wish shuts out who doesn't show it, "ideally" ones too, so there every wish
+# is held to the same three rules, and a listing with one that passes none is made less exact, just under
+# (ground_exactness): only ever lowered. Their own words are what they typed themselves for that listing, never a turn
+# the app wrote (the demo passes them on, with which wishes were kept as ideally and when: DemoSession._said,
+# _answers). A rule of the person's own agent and session, not a Warden check: the Warden never decides who matches,
+# and it never sees anyone's chat.
+# --------------------------------------------------------------------------------------
+
+WISHES = ("them", "both")  # whom a wish is about: what the other person's own value should be, or what both share
+# The most words an agent may quote as the person's answer for one must (their_words): the few that say it.
+THEIR_WORDS_MAX = 12
+# Scripts that write a noun's particles on to it, with no space between (the start of their letters' Unicode names).
+_PARTICLED_SCRIPTS = ("HANGUL",)
+# A thousands separator inside a number ("1,800", "12.500"): a number reads the same written with or without one.
+_THOUSANDS = _re.compile(r"(?<=\d)[,.](?=\d{3}(?!\d))")
+# Any other point, comma or colon inside a number ("2.5", "4,8", "9:15"): the number is one number, never its parts, so
+# it is written with one joiner there (a letter, so a text's words keep it inside the word, and never a digit).
+_INNER = _re.compile(r"(?<=\d)[.,:](?=\d)")
+_JOIN = "\u02b9"
+# A number: digits, with a joiner wherever a point, comma or colon was inside it (_INNER).
+_NUMBER = _re.compile(r"\d+(?:\u02b9\d+)*")
+# The space or dash between a number and the word written right after it ("5 km", "30-minute"): a number and that word
+# are read as one word ("5km"), since the word says what the number counts; but never a word of SHORT_WORD letters or
+# fewer followed by another number ("7 to 9"): that word connects the two, and counts nothing. And the place between a
+# number and letters written on to it ("5km"), where a number they typed is also read alone.
+_GAP = r"[\s\-\u2010-\u2015]+"
+_UNIT_GAP = _re.compile(rf"(?<=\d){_GAP}(?=[^\W\d_])(?![^\W\d_]{{1,{SHORT_WORD}}}{_GAP}\d)")
+_UNIT = _re.compile(r"(?<=\d)(?=[^\W\d_])(?!\u02b9)")
+
+
+def _one_way(text) -> str:
+    """A text with each number written one way: no thousands separator, and a joiner for any other point, comma or
+    colon inside it (_INNER), so "2.5" is one number and never 2 and 5."""
+    return _INNER.sub(_JOIN, _THOUSANDS.sub("", _nfc(text)))
+
+
+def _numbered(text) -> str:
+    """A text with each number written one way (_one_way), and with the word written right after it as one word
+    ("5 km" is "5km")."""
+    return _UNIT_GAP.sub("", _one_way(text))
+
+
+def _wish_words(value) -> set:
+    """The words of a wish's value or name, or of a quote, each in canonical form (_all_words), its numbers written one
+    way (_numbered): a number with the word right after it is one word, so "10km" is never said by 10 alone."""
+    return {w for x in _items(value) for w in _all_words(_numbered(x))}
+
+
+def _kind(c: str) -> int:
+    """Which kind of writing a character is, for where a typed run splits into its pieces (_pieces): a script written
+    without spaces, Hangul, or any other."""
+    return 1 if _unspaced(c) else 2 if _particled(c) else 0
+
+
+def _pieces(word: str) -> set:
+    """The pieces of a word that mixes scripts, split wherever a character of a script written without spaces or of
+    Hangul meets one of another kind (_kind); a mark stays with its letter. A word of one kind has none."""
+    out, start, last = set(), 0, None
+    for i, c in enumerate(word):
+        if _unicodedata.category(c)[0] == "M":
+            continue
+        kind = _kind(c)
+        if last is not None and kind != last:
+            out.add(word[start:i])
+            start = i
+        last = kind
+    return out | {word[start:]} if out else set()
+
+
+def said_words(texts) -> set:
+    """The words of what the person typed themselves, each in its canonical form: as _wish_words reads them (a number
+    with the word right after it as one word), and each number and word also alone, so a number they typed with a unit
+    still says the number ("10km" says 10, and "after 10 on" says 10, never "10km"). A run that mixes scripts is also
+    read as its pieces (_pieces): a Latin word or a number written inside a Japanese or Chinese run is one they
+    typed."""
+    out = set()
+    for t in texts or ():
+        out |= _wish_words(t) | _all_words(_UNIT.sub(" ", _one_way(t)))
+    return out | {p for w in out for p in _pieces(w)}
+
+
+def _unspaced(word: str) -> bool:
+    """A word in a script written without spaces (schema.LIST_UNSPACED_SCRIPTS): there one run is many words."""
+    return any(_unicodedata.name(c, "").startswith(LIST_UNSPACED_SCRIPTS) for c in word)
+
+
+def _particled(word: str) -> bool:
+    """A word in a script that writes a noun's particles on to it (_PARTICLED_SCRIPTS)."""
+    return any(_unicodedata.name(c, "").startswith(_PARTICLED_SCRIPTS) for c in word)
+
+
+def _letters(word: str) -> int:
+    """How long a word is, counted after canonical decomposition, as schema's shape rule counts it: a Hangul syllable
+    is the two or three letters it is written with, and a mark counts like a letter."""
+    return len(_unicodedata.normalize("NFD", word))
+
+
+def _wording(word: str) -> bool:
+    """A word that says something: more than SHORT_WORD letters (_letters), a number, in a script written without
+    spaces, where a word of one or two letters is a word, or in Hangul, where a syllable standing alone is one."""
+    return _unspaced(word) or _particled(word) or _letters(word) > SHORT_WORD or any(ch.isdigit() for ch in word)
+
+
+def _numeral(c: str) -> bool:
+    """A character that is part of a number: a digit or a numeral character (十, 五), or the joiner inside one."""
+    return c.isnumeric() or c == _JOIN
+
+
+def _inside(word: str, run: str) -> bool:
+    """Is this word somewhere inside a run they typed, never as part of a longer number (5 is not inside 15, nor 五
+    inside 十五)?"""
+    at = run.find(word)
+    while at >= 0:
+        end = at + len(word)
+        if not (_numeral(word[0]) and at > 0 and _numeral(run[at - 1])
+                or _numeral(word[-1]) and end < len(run) and _numeral(run[end])):
+            return True
+        at = run.find(word, at + 1)
+    return False
+
+
+def _word_said(word: str, words: set) -> bool:
+    """Is this canonical word one they typed, in some form (same_word)? A number only as the same number (180 never says
+    1800: no form of a number adds or drops a digit), and the word joined to it compared by its own letters, never the
+    number's digits (so "12cups" is no form of "12cm"). In Hangul a word of more than SHORT_WORD letters also counts
+    inside a typed word that starts with it (its particles follow it). In a script written without spaces a run they
+    typed is many words, so anywhere inside one counts, never inside a longer number (_inside)."""
+    if _unspaced(word):
+        return any(_inside(word, w) for w in words)
+    number = _NUMBER.findall(word)
+    particled = _particled(word) and _letters(word) > SHORT_WORD
+    rest = _NUMBER.sub("", word)
+    return any(_NUMBER.findall(w) == number and (w == word or particled and w.startswith(word)
+                                                  or bool(rest) and same_word(rest, _NUMBER.sub("", w)))
+               for w in words)
+
+
+def _in_words(text, words: set, named: bool) -> bool:
+    """Is this text said in full in their words: every word of it that says something (_wording) in some form
+    (_word_said)? A text made only of grammar-sized words counts only when named: alone, such a word says nothing of
+    what it's about."""
+    need = _wish_words(text)
+    wording = {w for w in need if _wording(w)}
+    return bool(need) and all(_word_said(w, words) for w in wording or need) and bool(wording or named)
+
+
+def wish_said(row, words: set) -> bool:
+    """Did the person say this wish (an open detail's row, or its Field), in their words (said_words): it says nothing
+    (schema.says_nothing: "any" alone, or every step), or one of its values is said in full (_in_words), a value made
+    only of grammar-sized words only with a word of the detail's name. Any one value is enough: more values widen who
+    meets a wish, never whom it shuts out for not showing the detail, so a value said about anything (a word of theirs
+    an agent adds as an extra value too) keeps it. The name alone is never enough: someone's words about themselves can
+    share it."""
+    f = row if isinstance(row, Field) else detail_field(row)
+    if f is None or says_nothing(f):
+        return True
+    name = _wish_words(f.name)
+    named = any(_word_said(w, words) for w in ({w for w in name if _wording(w)} or name))
+    return any(_in_words(value, words, named) for value in f.strings())
+
+
+def answered(their_words, texts) -> bool:
+    """Are the words an agent quotes as the person's own for a must (their_words) their answer to its question whether
+    that wish must be met: a few words (THEIR_WORDS_MAX), every one of them, in some form (_word_said), in the first
+    message of these (texts: what they typed after the latest save that kept that wish as ideally, so after their agent
+    was last told to ask), the one that answers it. Whatever it says: a word rule can't tell a yes from a no."""
+    if not isinstance(their_words, str) or not 0 < len(_text_words(their_words)) <= THEIR_WORDS_MAX:
+        return False
+    quote, first = _wish_words(their_words), list(texts or ())[:1]
+    return bool(first) and all(_word_said(w, said_words(first)) for w in quote)
+
+
+def _as_wide(f: Field, was) -> bool:
+    """Is this wish the must it was (was: the same wish on the draft it replaces, required), or a wider one: the same
+    compare and steps, and every value it had still among its values."""
+    if was is None or f.compare != was.compare or list(map(canonical, f.steps)) != list(map(canonical, was.steps)):
+        return False
+    return set(map(canonical, was.strings())) <= set(map(canonical, f.strings()))
+
+
+def ground_wishes(rows, words: set, their_words=None, before=None, answers=None) -> tuple:
+    """Each wish (about them or both) saved as required that stays required by none of the three rules kept as
+    "ideally": required False, and nothing else about it changed. The rules: the person's words (said_words) say one of
+    its values (wish_said); or the words their agent quotes as theirs for it (their_words: key -> text) are their
+    answer, all in one message they typed after a save kept it as ideally (answered; answers: key -> those messages);
+    or the draft it replaces had it as a must (before: its rows or Fields), and it is as wide or wider (_as_wide). It
+    only ever lowers required: nothing is added, taken off or reworded, and shown or hidden stays as it was. rows: a
+    draft's rows (dicts) or a listing's Fields; anything that isn't a wish passes through as it is. Returns (rows,
+    keys): a new list, with a changed copy of each wish kept as ideally, and those wishes' keys."""
+    musts = {}
+    for row in before or ():
+        was = row if isinstance(row, Field) else detail_field(row)
+        if was is not None and was.about in WISHES and was.required:
+            musts[was.key] = was
+    their_words, answers = their_words or {}, answers or {}
+    out, ideally = [], []
+    for row in rows:
+        f = row if isinstance(row, Field) else detail_field(row)
+        if (f is not None and f.about in WISHES and f.required and not _as_wide(f, musts.get(f.key))
+                and not wish_said(f, words) and not answered(their_words.get(f.key), answers.get(f.key))):
+            row = replace(row, required=False) if isinstance(row, Field) else {**row, "required": False}
+            ideally.append(f.key)
+        out.append(row)
+    return out, ideally
+
+
+def asked_about(keys, rows, before=None, answers=None) -> set:
+    """Of these wishes' keys (ones a save keeps as ideally), those the person was already asked about: on the draft the
+    turn began from (before) as the same wish (the same compare, steps and values), with something typed since a save
+    kept it as ideally (answers: key -> those messages, the first their answer). Their agent is never told to ask about
+    it again, so their answer stays the first message after it was last told to (the demo's ideally_since stays); a wish
+    changed since is another question."""
+    answers, was = answers or {}, {}
+    for row in before or ():
+        f = row if isinstance(row, Field) else detail_field(row)
+        if f is not None and f.about in WISHES:
+            was[f.key] = f
+    out = set()
+    for row in rows or ():
+        f = row if isinstance(row, Field) else detail_field(row)
+        if f is not None and f.key in keys and answers.get(f.key) and _as_wide(f, was.get(f.key)) \
+                and _as_wide(was[f.key], f):
+            out.add(f.key)
+    return out
+
+
+# The most exact a listing is made while a wish on it passes none of the rules (ground_exactness): just under
+# STRICT_EXACTNESS, where an "ideally" wish no longer shuts out who doesn't show it, on the phone's own scale (tenths).
+UNSTRICT = round(STRICT_EXACTNESS - 0.1, 1)
+
+
+def _as_must(row):
+    """A wish's row or Field as a must (required), anything else as it is."""
+    f = row if isinstance(row, Field) else detail_field(row)
+    if f is None or f.about not in WISHES:
+        return row
+    return replace(row, required=True) if isinstance(row, Field) else {**row, "required": True}
+
+
+def _exact(exactness) -> bool:
+    return isinstance(exactness, (int, float)) and not isinstance(exactness, bool) and exactness >= STRICT_EXACTNESS
+
+
+def ground_exactness(exactness, rows, words: set, their_words=None, before=None, before_exactness=None,
+                     answers=None) -> tuple:
+    """At exactness STRICT_EXACTNESS or more a listing fails everyone who doesn't show something to meet each of its
+    wishes, "ideally" ones too (matcher.details_ok), so there every wish shuts people out as a must does. So such an
+    exactness stays only when every wish on the listing stays a must by the three rules of ground_wishes, each read as
+    one (the draft it replaces too, when that was as exact: its wishes were musts then); otherwise it is lowered to
+    UNSTRICT, where an "ideally" wish shuts nobody out for not showing the detail. It is never raised, and nothing else
+    changes. rows: a draft's rows or a listing's Fields (as ground_wishes takes them, after it). Returns (exactness, the
+    keys of the wishes that pass none of the rules: none unless it was that exact)."""
+    if not _exact(exactness):
+        return exactness, []
+    _, keys = ground_wishes([_as_must(r) for r in rows or ()], words, their_words,
+                            [_as_must(r) for r in before or ()] if _exact(before_exactness) else before, answers)
+    return (UNSTRICT if keys else exactness), keys

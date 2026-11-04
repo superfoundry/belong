@@ -1,20 +1,30 @@
 """The synthetic people (belong/synth.py): names from their region, and listings in the format a
 person's agent writes now (headline, topics, phrases on every listing but dating's, open details, the
-kind dating or other), dated some days back, and the agent dialects of the batch run's second pass."""
+kind dating or other), dated some days back, the agent dialects of the batch run's second pass, the
+invented wishes of its next passes, with and without the rule that a must comes from the person's own
+words (agent.ground_wishes, TRUST.md #45), and the musts said in other words of its last pass, with the
+person's yes to their agent's question and by values alone."""
 from __future__ import annotations
 
+import io
 import re
 import unittest
+from contextlib import redirect_stdout
 from collections import Counter
 from datetime import datetime, timedelta
 
+from unittest import mock
+
+from belong import agent
+from belong.agent import said_words, wish_said
 from belong.evaluate import can_meet, truth_intent_met
 from belong.matching.marketboard import Marketboard
 from belong.schema import (FIELD_REGISTRY, SHOWN, STRICT_EXACTNESS, canonical, comparable, detail_problems,
-                           is_detail_key, own, satisfies)
-from belong.sim import run
-from belong.synth import (CITIES, COUNTRY_NAMES, DIALECT_SHARE, DIALECTS, ITEMS, LISTED_DAYS, LOCAL_SHARE, NAMES,
-                          SERVICES, Detail, draft_listing, generate)
+                           is_detail_key, own, satisfies, split_key)
+from belong.sim import run, said_listing
+from belong.synth import (ANSWER_NO, ANSWER_YES, CITIES, COUNTRY_NAMES, DIALECT_SHARE, DIALECTS, INVENTED,
+                          INVENTED_SHARE, ITEMS, LISTED_DAYS, LOCAL_SHARE, NAMES, OTHER_WORDS_SHARE, SERVICES, Detail,
+                          answer, draft_listing, generate)
 from belong.warden import Clock, Warden
 
 PEOPLE = generate(3000, 7)
@@ -43,10 +53,11 @@ def details_ok(a, b) -> bool:
     return True
 
 
-def detail_pairs(people):
-    """(truth says A's intent is met by B, A's details are met by B's) for every pair the details decide."""
+def detail_pairs(people, saved=lambda p: draft_listing(p, NOW)):
+    """(truth says A's intent is met by B, A's details are met by B's) for every pair the details decide. saved: each
+    person's listing as their agent saved it (as written, by default)."""
     people = [p for p in people if p.truth.kind in DETAIL_STORIES]
-    listings = {p.person.id: draft_listing(p, NOW) for p in people}
+    listings = {p.person.id: saved(p) for p in people}
     for a in people:
         for b in people:
             if a is b or a.truth.kind != b.truth.kind or not can_meet(a.truth, b.truth):
@@ -206,6 +217,187 @@ class Dialects(unittest.TestCase):
                 self.assertTrue(result["leak_report"]["ok"], result["leak_report"]["findings"][:5])
                 self.assertEqual(result["leak_report"]["checked"]["details_lists"], 2)
                 self.assertTrue(result["details_in_use"]["details"] and result["details_in_use"]["phrases"])
+
+
+class InventedWishes(unittest.TestCase):
+    """The invented-wish dialect: some agents add a must the person never had, quoting the first words of their
+    description for it (not an answer to anything). It costs matches, never makes a wrong one, and the rule that a
+    must comes from the person's own words (agent.ground_wishes, and agent.ground_exactness on a listing that asks for
+    exactly what it says, which sim.run applies to every listing as a model agent's saves are in the demo) wins most
+    of them back, whatever the agent quotes before the person's answer; none if it quotes their no."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.plain, cls.invented = generate(3000, 7), generate(3000, 7, invented=INVENTED_SHARE)
+
+    def test_a_share_of_listings_that_arent_dating_get_one_made_up_must_and_nothing_else_changes(self):
+        made_up = [p for p in self.invented if p.invented]
+        others = [p for p in self.invented if p.truth.kind != "dating"]
+        self.assertAlmostEqual(len(made_up) / len(others), INVENTED_SHARE, delta=0.04)  # a few already had that wish
+        self.assertFalse([p for p in made_up if p.truth.kind == "dating"])
+        self.assertEqual({p.invented.partition(":")[2] for p in made_up}, {name for name, *_ in INVENTED.values()})
+        for before, after in zip(self.plain, self.invented):
+            self.assertEqual((after.person, after.truth, after.intent_text, after.listed_days, after.dialect),
+                             (before.person, before.truth, before.intent_text, before.listed_days, before.dialect))
+            added = {k: d for k, d in after.values.items() if k not in before.values}
+            self.assertEqual({k: d for k, d in after.values.items() if k in before.values}, before.values)
+            if after.invented:
+                self.assertEqual(list(added), [after.invented])
+                self.assertTrue(after.invented.startswith("them:"))
+                self.assertTrue(added[after.invented].required)
+                self.assertEqual(after.visibility[after.invented], SHOWN)
+                # Its agent quotes their own first words for it; asked, they say it doesn't matter.
+                self.assertEqual(list(after.their_words), [after.invented])
+                self.assertTrue(after.intent_text.startswith(after.their_words[after.invented]))
+                self.assertEqual(answer(after, after.invented), ANSWER_NO)
+                listing = draft_listing(after, NOW)
+                self.assertEqual(detail_problems(listing.fields, listing.get("kind").value), [], after.person.id)
+            else:
+                self.assertEqual(added, {})
+
+    def test_it_costs_matches_never_makes_a_wrong_one_and_the_rule_wins_them_back(self):
+        """The batch run's invented-wish passes (python3 -m belong run): precision 1.0 and a clean leak report with
+        the rule and without it, and more matches with it, with and without dialects. On the batch run's first two
+        passes the rule costs no matches either."""
+        for share in (0.0, DIALECT_SHARE):
+            with self.subTest(dialects=share):
+                ruled = run(n=300, seed=7, dialects=share, invented=INVENTED_SHARE)
+                unruled = run(n=300, seed=7, dialects=share, invented=INVENTED_SHARE, ground=False)
+                for result in (ruled, unruled):
+                    self.assertEqual(result["metrics"]["precision"], 1.0)
+                    self.assertTrue(result["leak_report"]["ok"], result["leak_report"]["findings"][:5])
+                self.assertGreater(ruled["metrics"]["coverage"], unruled["metrics"]["coverage"] + 0.03)
+                self.assertGreater(ruled["metrics"]["wishes_kept_ideally"], 0)
+                self.assertEqual(unruled["metrics"]["wishes_kept_ideally"], 0)
+                # Remove the rule (every wish counts as said) and the matches it won back are gone again.
+                with mock.patch.object(agent, "wish_said", lambda row, words: True):
+                    removed = run(n=300, seed=7, dialects=share, invented=INVENTED_SHARE)
+                self.assertEqual(removed["metrics"]["coverage"], unruled["metrics"]["coverage"])
+                # Count any quote as theirs, wherever it came from, and the made-up musts their agents quote
+                # something for stay musts: so do the matches they cost.
+                with mock.patch.object(agent, "answered", lambda their_words, texts: bool(their_words)):
+                    quoted = run(n=300, seed=7, dialects=share, invented=INVENTED_SHARE)
+                self.assertEqual(quoted["metrics"]["coverage"], unruled["metrics"]["coverage"])
+                # An agent that quotes the person's no as their answer keeps every must it made up: a word rule
+                # can't tell a yes from a no, so it wins nothing back from such an agent (TRUST.md limit 28).
+                over = run(n=300, seed=7, dialects=share, invented=INVENTED_SHARE, quote_any=True)
+                self.assertEqual(over["metrics"]["precision"], 1.0)
+                self.assertEqual(over["metrics"]["coverage"], unruled["metrics"]["coverage"])
+                self.assertEqual(over["metrics"]["wishes_kept_ideally"], 0)
+                # Without making a listing less exact over a made-up wish, the wish, kept as ideally, still shuts
+                # out everyone who doesn't show it on the listings that ask for exactly what they say.
+                with mock.patch.object(agent, "ground_exactness", lambda exactness, *a, **kw: (exactness, [])):
+                    loose = run(n=300, seed=7, dialects=share, invented=INVENTED_SHARE)
+                self.assertEqual(loose["metrics"]["precision"], 1.0)
+                self.assertLess(loose["metrics"]["coverage"], ruled["metrics"]["coverage"])
+                self.assertGreater(loose["metrics"]["coverage"], unruled["metrics"]["coverage"])
+                # Without invented wishes, the rule costs nothing.
+                self.assertGreaterEqual(run(n=300, seed=7, dialects=share)["metrics"]["coverage"],
+                                        run(n=300, seed=7, dialects=share, ground=False)["metrics"]["coverage"])
+
+
+class MustsInOtherWords(unittest.TestCase):
+    """Every person says each must they have, with its value, as a person telling their agent would
+    (synth.say_musts); where their agent wrote it otherwise (a dialect's scale) its save keeps it as ideally, it asks,
+    and they answer yes (synth.answer), which it quotes. So the rule that a must comes from the person's own words keeps
+    every must they really have: a run with it matches exactly as one without it, and a detail written differently
+    still never makes a wrong match. Said in other words than the value their agent writes (OTHER_WORDS_SHARE), only
+    their answer shows it is theirs: read by its values alone, a must they said would be kept as ideally, and with
+    dialects that makes wrong matches."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.dialect = generate(3000, 7, dialects=DIALECT_SHARE)
+        cls.other = generate(3000, 7, dialects=DIALECT_SHARE, other_words=OTHER_WORDS_SHARE)
+
+    def test_each_must_is_said_with_its_value_or_answered_and_nothing_else_changes(self):
+        for before, after in zip(self.dialect, self.other):
+            musts = {k for k, d in before.values.items() if isinstance(d, Detail) and d.required
+                     and split_key(k)[0] in ("them", "both")}
+            self.assertEqual((after.person, after.truth, after.intent_text, after.values, after.visibility, after.dialect),
+                             (before.person, before.truth, before.intent_text, before.values, before.visibility,
+                              before.dialect))
+            self.assertEqual((before.their_words, after.their_words), ({}, {}))  # nobody's agent quotes a request
+            self.assertEqual(after.other_words, bool(musts))
+            self.assertEqual(after.said, ())  # no value of a must typed
+            self.assertEqual(len(before.said), len(musts))  # a message for each
+            typed = said_words([before.intent_text, *before.said])
+            for f in draft_listing(before, NOW).fields:
+                # Each must they typed with its values, unless their agent wrote it on another scale (a dialect).
+                if f.key in musts and not before.dialect.startswith("other scale"):
+                    self.assertTrue(wish_said(f, typed), (before.person.id, f.key))
+            for p in (before, after):
+                for key in musts:
+                    self.assertEqual(answer(p, key), ANSWER_YES)
+                # Asked about each must its save kept as ideally, they say yes: every must stays one.
+                self.assertEqual(said_listing(draft_listing(p, NOW), p)[1], [], p.person.id)
+            # Without their answers, every must they said in other words is kept as ideally.
+            self.assertEqual(set(said_listing(draft_listing(after, NOW), after, False)[1]),
+                             {f.key for f in draft_listing(after, NOW).fields if f.key in musts and not wish_said(
+                                 f, said_words([after.intent_text]))})
+
+    def test_saved_listings_never_make_a_wrong_match_and_values_alone_would(self):
+        """With the rule, as every run saves listings, a detail written differently still costs matches and never
+        makes a wrong one: every must a person has stays one. Read by values alone, the musts said in other words are
+        kept as ideally, and where the other listing doesn't show that detail they let through pairs the truth
+        rejects."""
+        answered = Counter(detail_pairs(self.other[:1500], lambda p: said_listing(draft_listing(p, NOW), p)[0]))
+        self.assertEqual(answered[(False, True)], 0, answered)
+        self.assertEqual(answered, Counter(detail_pairs(self.dialect[:1500])))
+        alone = Counter(detail_pairs(self.other[:1500], lambda p: said_listing(draft_listing(p, NOW), p, False)[0]))
+        self.assertGreater(alone[(False, True)], 0, alone)
+
+    def test_the_batch_run_with_musts_in_other_words(self):
+        """The batch run's last pass (python3 -m belong run): with their answers, it matches exactly as the dialects'
+        week and keeps every must; by values alone it keeps some as ideally (and at another seed makes wrong matches).
+        The rule costs nothing where nobody's agent made a must up."""
+        week = run(n=300, seed=7, dialects=DIALECT_SHARE)
+        answered = run(n=300, seed=7, dialects=DIALECT_SHARE, other_words=OTHER_WORDS_SHARE)
+        alone = run(n=300, seed=7, dialects=DIALECT_SHARE, other_words=OTHER_WORDS_SHARE, answers=False)
+        for result in (answered, alone):
+            self.assertTrue(result["leak_report"]["ok"], result["leak_report"]["findings"][:5])
+        self.assertEqual({k: answered["metrics"][k] for k in ("proposals", "proposals_correct", "precision", "coverage")},
+                         {k: week["metrics"][k] for k in ("proposals", "proposals_correct", "precision", "coverage")})
+        self.assertEqual(answered["metrics"]["wishes_kept_ideally"], 0)
+        self.assertGreater(alone["metrics"]["wishes_kept_ideally"], 0)
+        self.assertGreater(alone["metrics"]["musts_in_other_words"], 0)
+        self.assertEqual(week["metrics"]["coverage"], run(n=300, seed=7, dialects=DIALECT_SHARE,
+                                                          ground=False)["metrics"]["coverage"])
+        self.assertEqual(run(n=300, seed=3, dialects=DIALECT_SHARE, other_words=OTHER_WORDS_SHARE)["metrics"]["precision"],
+                         1.0)
+        self.assertLess(run(n=300, seed=3, dialects=DIALECT_SHARE, other_words=OTHER_WORDS_SHARE,
+                            answers=False)["metrics"]["precision"], 1.0)
+
+    def test_the_batch_run_counts_the_musts_nothing_they_typed_says(self):
+        """Nobody in the last pass types a message with the values of their musts, but their descriptions are unchanged
+        and still say most of them: the run counts musts, not people, so it says how many only their yes keeps. Counted
+        here apart from the run: each must a person has on their agent's draft (never a made-up one), and whether
+        anything they typed says it. By values alone, exactly those are kept as ideally, and with their answers none."""
+        for seed in (5, 9):
+            people = generate(240, seed, DIALECT_SHARE, 0.0, OTHER_WORDS_SHARE)
+            musts = unsaid = 0
+            for p in people:
+                typed = said_words([p.intent_text, *p.said])
+                for f in draft_listing(p, NOW).fields:
+                    if is_detail_key(f.key) and split_key(f.key)[0] in ("them", "both") and f.required:
+                        musts, unsaid = musts + 1, unsaid + (not wish_said(f, typed))
+            answered = run(n=240, seed=seed, dialects=DIALECT_SHARE, other_words=OTHER_WORDS_SHARE)["metrics"]
+            alone = run(n=240, seed=seed, dialects=DIALECT_SHARE, other_words=OTHER_WORDS_SHARE, answers=False)["metrics"]
+            for m in (answered, alone):
+                self.assertEqual((m["musts"], m["musts_unsaid"]), (musts, unsaid), seed)
+            self.assertLess(0, unsaid)
+            self.assertLess(unsaid, musts - unsaid)  # their descriptions still say most of them
+            self.assertEqual(alone["wishes_kept_ideally"], unsaid)
+            self.assertEqual(answered["wishes_kept_ideally"], 0)
+        # What the command line prints next to the musts kept as ideally is that count, in musts.
+        from belong import __main__ as cli
+        week = run(n=240, seed=5, dialects=DIALECT_SHARE, other_words=OTHER_WORDS_SHARE, answers=False)
+        out = io.StringIO()
+        with redirect_stdout(out):
+            cli._summary(week, wrote=False, other=[("Last pass", week, week)])
+        m = week["metrics"]
+        self.assertIn(f"musts: {m['musts']}   not in what they typed: {m['musts_unsaid']}   kept as ideally: "
+                      f"{m['wishes_kept_ideally']}", out.getvalue())
 
 
 if __name__ == "__main__":

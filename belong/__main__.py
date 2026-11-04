@@ -1,7 +1,19 @@
 """Command line (SPEC §8).
 
   python3 -m belong run    [--n 300] [--seed 7]   simulate, write out/run.json, print summary; then the same
-                                                  week with agent dialects (synth.DIALECTS), summary only
+                                                  week with agent dialects (synth.DIALECTS), summary only; then
+                                                  both again with invented wishes (synth.INVENTED: a share of agents
+                                                  add a must the person never had), with the rule that a must comes
+                                                  from the person's own words (agent.ground_wishes, as in every run)
+                                                  and without it, to show what it wins back, and with it while their
+                                                  agent quotes the person's answer whatever it says (a no too), to show
+                                                  what it doesn't; then the dialects' week
+                                                  with nobody typing their musts with their values
+                                                  (synth.OTHER_WORDS_SHARE): their descriptions still say most of
+                                                  them, and the rest (counted in musts: sim.unsaid_musts) only their
+                                                  yes to their agent's question keeps; with that yes and by values
+                                                  alone, to show what reading values alone would cost on those musts
+                                                  (neither with --matcher ai)
                            [--matcher ai] [--ai-pairs 80]   opt-in: the Matchmaker AI judges the fuzzy part of up to
                                                   that many pairs a round (a mock of the enclosed model: it calls the
                                                   API BELONG_MATCHMAKER_URL names, OpenAI's by default, and costs
@@ -24,7 +36,7 @@ from pathlib import Path
 from .matching.hybrid import MAX_PAIRS_PER_RUN
 from .matchmaker_openai import JudgeUnavailable, OpenAIJudge
 from .sim import RUN_FORMAT, run
-from .synth import DIALECT_SHARE
+from .synth import DIALECT_SHARE, INVENTED_SHARE, OTHER_WORDS_SHARE
 
 ROOT = Path(__file__).resolve().parent.parent
 OUT = ROOT / "out" / "run.json"
@@ -49,7 +61,11 @@ def _run(n: int, seed: int, **options) -> dict:
     return result
 
 
-def _summary(result: dict, dialects: dict = None, wrote: bool = True) -> None:
+def _summary(result: dict, dialects: dict = None, wrote: bool = True, invented=(), other=()) -> None:
+    """invented: (title, with the rule, without it, with it while their agent quotes every answer, a no too) for each
+    invented-wish pass, printed after the first two; other: (title, with the person's answers, by values alone) for the
+    pass where nobody types their musts with their values, printed last, with how many musts the people have and how
+    many of them nothing they typed says (sim.unsaid_musts)."""
     m, lr = result["metrics"], result["leak_report"]
     print(f"People: {result['meta']['n']}   admitted: {m['admitted']}   rejected at entry: {m['entry_rejections']}")
     print(f"Proposals: {m['proposals']}   correct by ground truth: {m['proposals_correct']}   "
@@ -65,6 +81,24 @@ def _summary(result: dict, dialects: dict = None, wrote: bool = True) -> None:
               f"correct by ground truth: {d['proposals_correct']}   precision: {d['precision']}   "
               f"coverage: {d['coverage']}")
         _leaks(dialects["leak_report"], "  ")
+    for title, ruled, unruled, quoted in invented:
+        for line, run_ in ((title, ruled),
+                           ("  Without the rule that a must comes from the person's own words", unruled),
+                           ("  With the rule, and their agent quoting the person's answer whatever it says (a no too)",
+                            quoted)):
+            m = run_["metrics"]
+            print(f"{line}: proposals: {m['proposals']}   correct by ground truth: {m['proposals_correct']}   "
+                  f"precision: {m['precision']}   coverage: {m['coverage']}   wishes made up: {m['invented_wishes']}   "
+                  f"kept as ideally: {m['wishes_kept_ideally']}")
+            _leaks(run_["leak_report"], "  ")
+    for title, answered, alone in other:
+        for line, run_ in ((title, answered), ("  Reading only the values, not the person's yes to their agent's question",
+                                               alone)):
+            m = run_["metrics"]
+            print(f"{line}: proposals: {m['proposals']}   correct by ground truth: {m['proposals_correct']}   "
+                  f"precision: {m['precision']}   coverage: {m['coverage']}   musts: {m['musts']}   "
+                  f"not in what they typed: {m['musts_unsaid']}   kept as ideally: {m['wishes_kept_ideally']}")
+            _leaks(run_["leak_report"], "  ")
     if wrote:
         print(f"Wrote {OUT.relative_to(ROOT)}")
 
@@ -130,15 +164,32 @@ def main(argv=None) -> int:
         # A hostile stand-in's week isn't the inspector's: it's printed, never written.
         result = (run if hostile else _run)(n=args.n, seed=args.seed, **options)
         dialects = run(n=args.n, seed=args.seed, dialects=DIALECT_SHARE, **options)
-        _summary(result, dialects, wrote=not hostile)
+        # The same two weeks with invented wishes, with the rule, without it, and with it while the agent that made a
+        # must up quotes the person's answer whatever it says (a word rule can't tell a yes from a no); not with the
+        # Matchmaker AI, whose requests cost money (the rules and the hostile stand-in cost nothing).
+        invented = [] if args.matcher == "ai" else [
+            (title, *(run(n=args.n, seed=args.seed, dialects=share, invented=INVENTED_SHARE, ground=ground,
+                          quote_any=quote_any, **options)
+                      for ground, quote_any in ((True, False), (False, False), (True, True))))
+            for title, share in ((f"With invented wishes ({INVENTED_SHARE:.0%} of listings that aren't dating)", 0.0),
+                                 (f"With invented wishes and agent dialects ({DIALECT_SHARE:.0%} of people)",
+                                  DIALECT_SHARE))]
+        # The dialects' week with nobody typing their musts with their values (their descriptions still say most), with
+        # the person's yes when their agent asks whether one their words don't say must be met, and by values alone.
+        other = [] if args.matcher == "ai" else [
+            (f"With no must typed with its value, and agent dialects ({DIALECT_SHARE:.0%} of people)",
+             *(run(n=args.n, seed=args.seed, dialects=DIALECT_SHARE, other_words=OTHER_WORDS_SHARE, answers=answers,
+                   **options) for answers in (True, False)))]
+        _summary(result, dialects, wrote=not hostile, invented=invented, other=other)
+        reports = [result, dialects, *(r for _, *runs in [*invented, *other] for r in runs)]
         if hostile:
+            sent = [str(r["leak_report"]["checked"].get("judge_requests", 0)) for r in reports]
             print("Matchmaker AI: a hostile stand-in (no model, no network) that says yes to every pair and answers out "
                   "of shape. Proposals and precision above are what the rules' hard rules let it make; the leak reports "
-                  f"audited every request it was sent ({result['leak_report']['checked'].get('judge_requests', 0)} and "
-                  f"{dialects['leak_report']['checked'].get('judge_requests', 0)}).")
+                  f"audited every request it was sent ({', '.join(sent[:-1])} and {sent[-1]}).")
         elif options:
             _ai_summary(options["judge"])
-        return 0 if result["leak_report"]["ok"] and dialects["leak_report"]["ok"] else 1
+        return 0 if all(r["leak_report"]["ok"] for r in reports) else 1
     load_dotenv()
     if os.environ.get("BELONG_REQUIRE_PASSWORD") and not os.environ.get("BELONG_PASSWORD"):
         # Hosted (deploy/belong.service, Dockerfile): never start open to everyone by mistake.
