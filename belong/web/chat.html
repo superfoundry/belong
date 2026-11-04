@@ -3,11 +3,11 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Belong. connector</title>
-<meta name="description" content="Mockup of the Belong. connector: Belong. inside your AI assistant, following the Apps SDK UI guidelines.">
+<title>Belong connector</title>
+<meta name="description" content="Mockup of the Belong connector: Belong inside your AI assistant, following the Apps SDK UI guidelines.">
 <link rel="stylesheet" href="/ds/tokens.css">
 <style>
-  /* A mockup of Belong. as an app inside ChatGPT, built to OpenAI's Apps SDK UI guidelines
+  /* A mockup of Belong as an app inside ChatGPT, built to OpenAI's Apps SDK UI guidelines
      (developers.openai.com/apps-sdk/concepts/ui-guidelines):
      - the system font and system colours for text, icons, dividers and backgrounds;
      - our colour only on primary buttons and small badges, never on backgrounds or text;
@@ -16,7 +16,7 @@
        name and icon above the card);
      - the model's follow-up is short and doesn't repeat the card.
      The chat app itself is plain dark greys with no logos: it isn't the real ChatGPT.
-     The sign-in popup is our own website, so it uses the Belong. design system. */
+     The sign-in popup is our own website, so it uses the Belong design system. */
   :root {
     --sys-bg: #212121; --sys-side: #181818; --sys-raise: #2f2f2f; --sys-card: #272727;
     --sys-line: rgba(255, 255, 255, 0.10); --sys-line-2: rgba(255, 255, 255, 0.16);
@@ -133,7 +133,7 @@
   .sheet label { display: flex; gap: 8px; align-items: center; font-size: 14px; color: var(--sys-text-2); }
   .sheet .actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
 
-  /* The sign-in popup is our own website (OAuth), so it uses the Belong. design system. */
+  /* The sign-in popup is our own website (OAuth), so it uses the Belong design system. */
   .popup { width: min(420px, 94vw); background: var(--surface-card); color: var(--text-primary); border-radius: 14px; overflow: hidden;
            box-shadow: 0 12px 40px rgba(0,0,0,.5); font: var(--text-body-s); }
   .popup .chrome { background: #ececec; color: #555; font: 12px var(--sys-font); padding: 8px 12px; display: flex; gap: 8px; align-items: center; }
@@ -164,7 +164,7 @@
     <div class="compose">
       <div class="box"><textarea id="box" rows="1" placeholder="Ask anything"></textarea>
         <button class="send" id="send" aria-label="Send"><span aria-hidden="true"></span></button></div>
-      <p class="foot">Mockup of Belong. as a ChatGPT app. Not the real ChatGPT, not affiliated with OpenAI; replies come from the Belong. demo agent.</p>
+      <p class="foot">Mockup of Belong as a ChatGPT app. Not the real ChatGPT, not affiliated with OpenAI; replies come from the Belong demo agent.</p>
     </div>
   </main>
   <aside class="tester" id="tester" hidden>
@@ -206,7 +206,7 @@ async function api(action, body = {}) {
 const listing = () => ME.listings.find(l => l.id === ME.current) || ME.listings[ME.listings.length - 1] || null;
 const shownOf = l => Object.fromEntries(((l && l.draft) ? l.draft.fields : []).filter(f => f.enabled && f.visibility !== "hidden" &&
   f.value !== null && f.value !== "" && !(Array.isArray(f.value) && !f.value.length)).map(f => [f.key, f.value]));
-const label = () => `<div class="app-label"><span class="app-icon" aria-hidden="true">B.</span>Belong.</div>`;
+const label = () => `<div class="app-label"><span class="app-icon" aria-hidden="true">B.</span>Belong</div>`;
 
 // ---- cards (live: they read the current state) ----
 // Questions shown as their own cards: all but "Want to include close matches?", which sits on the
@@ -283,7 +283,7 @@ function introCard(id) {
 }
 function questionCard(qid, lid) {
   const l = ME.listings.find(x => x.id === lid), q = l && l.followups.find(x => x.question_id === qid);
-  if (!q) return `<div class="card"><p class="title">Question from Belong.<span class="badge plain">Answered</span></p></div>`;
+  if (!q) return `<div class="card"><p class="title">Question from Belong<span class="badge plain">Answered</span></p></div>`;
   // Each question takes the answer its type says (from the server): a yes or no never stands in for a value.
   const a = q.answer || { type: "yes_no" }, k = `${lid}-${qid}`, [lo, hi] = (l.wants && l.wants.default) || ["", ""];
   const controls = a.type === "age_range"
@@ -292,7 +292,7 @@ function questionCard(qid, lid) {
        <button class="btn primary" onclick="answerAges('${lid}','${qid}')">Answer</button>`
     : `<button class="btn primary" onclick="ask('answer_yes','${lid}:${qid}')">Yes</button>
        <button class="btn secondary" onclick="ask('answer_no','${lid}:${qid}')">No</button>`;
-  return `<div class="card"><p class="for">For “${esc(cap(l.title))}”</p><p class="title">Question from Belong.</p><p class="sub">${esc(q.question_text)}</p>
+  return `<div class="card"><p class="for">For “${esc(cap(l.title))}”</p><p class="title">Question from Belong</p><p class="sub">${esc(q.question_text)}</p>
     <div class="actions">${controls}</div></div>`;
 }
 function answerAges(lid, qid) {
@@ -301,7 +301,7 @@ function answerAges(lid, qid) {
   ask("answer_value", { lid, qid, answer: { min, max }, said: max >= 99 ? `${min} or older` : `${min} to ${max}` });
 }
 // Once live, the listing card is also the live matching card: while the chat is open it keeps
-// checking with Belong. (a widget can call the app's tools itself) and offers to show what's new.
+// checking with Belong (a widget can call the app's tools itself) and offers to show what's new.
 function matchingStatus(l) {
   const fresh = l.intros.filter(i => i.status === "pending" && !L.seen[i.intro_id]);
   const exact = fresh.filter(i => !i.close).length, close = fresh.length - exact;
@@ -324,7 +324,7 @@ function matchingStatus(l) {
       <div class="actions"><button class="btn primary" onclick="ask('answer_yes','${l.id}:broaden')">Yes, include them</button>
         <button class="btn secondary" onclick="ask('answer_no','${l.id}:broaden')">No thanks</button></div></div>`;
   }
-  return `<div class="status"><p class="sub" style="margin:0">Matching: Belong. is looking for people who are also looking for you.</p>
+  return `<div class="status"><p class="sub" style="margin:0">Matching: Belong is looking for people who are also looking for you.</p>
     <p class="sub" style="margin-top: 8px; font-size: 12px">Mockup: updates while this chat is open. Real ChatGPT may only allow this while the chat is on screen.</p>
     <div class="actions">${settings}</div></div>`;
 }
@@ -357,7 +357,7 @@ function render() {
       }
     }
     if (t.bot) out.push(`<div class="bot">${esc(t.bot)}</div>`);
-    if (t.connect && !ME.verified) out.push(`<div><button class="btn system" onclick="openPopup()">Connect Belong.</button></div>`);
+    if (t.connect && !ME.verified) out.push(`<div><button class="btn system" onclick="openPopup()">Connect Belong</button></div>`);
   });
   if (!L.log.length) out.push(`<div class="bot">What can I help with?</div>`);
   if (L.sending) out.push(`<div class="typing" aria-label="Thinking"><span></span><span></span><span></span></div>`);
@@ -367,10 +367,10 @@ function render() {
   $("send").disabled = L.sending;
   const mine = ME.verified ? ME.listings.filter(l => l.listed || l.chat.some(m => m.from === "me")) : [];
   $("side").innerHTML = `<button class="item" onclick="newChat()">New chat</button>
-    <p class="side-label">Apps</p><div class="item">${ME.verified ? "Belong. · connected" : '<span class="muted">Belong. · not connected</span>'}</div>
+    <p class="side-label">Apps</p><div class="item">${ME.verified ? "Belong · connected" : '<span class="muted">Belong · not connected</span>'}</div>
     <p class="side-label">Chats</p>${mine.map(l => `<div class="item${l.id === (listing() || {}).id ? " on" : ""}">${esc(cap(l.title))}</div>`).join("")}
     <div class="item muted">Weekend trip ideas</div><div class="item muted">Fix my CV</div>
-    <p class="side-note">A mockup of Belong. as an app in ChatGPT, following OpenAI's Apps SDK UI guidelines. <a href="/demo">Phone demo</a> · <a href="/trust">Trust</a></p>
+    <p class="side-note">A mockup of Belong as an app in ChatGPT, following OpenAI's Apps SDK UI guidelines. <a href="/demo">Phone demo</a> · <a href="/trust">Trust</a></p>
     <button class="reset" onclick="resetDemo()">Reset this demo</button>`;
   renderLayer();
 }
@@ -384,7 +384,7 @@ async function sendMsg() {
   L.log.push({ me: text }); L.sending = true; L.jump = true; render();
   try {
     if (!ME.verified) {
-      L.log.push({ bot: "I can do that with the Belong. app. Connect it first: you'll sign in on the Belong. website, where your ID check and privacy choices live.", connect: true });
+      L.log.push({ bot: "I can do that with the Belong app. Connect it first: you'll sign in on the Belong website, where your ID check and privacy choices live.", connect: true });
       L.pendingText = text;
       return;
     }
@@ -411,7 +411,7 @@ async function draftWith(text) {
   L.log.push({ app: updated, cards: updated ? [{ kind: "listing", latest: true }] : [], bot: followUp || "Done." });
 }
 async function checkMatches(onlyId) {
-  const d = await (await fetch("/api/chat/state")).json(); ME = d.me;  // read what Belong. has found
+  const d = await (await fetch("/api/chat/state")).json(); ME = d.me;  // read what Belong has found
   const ls = liveListings().filter(l => !onlyId || l.id === onlyId);
   const cards = [], pending = [];
   for (const l of ls) {
@@ -469,7 +469,7 @@ async function run(kind, arg) {
     const title = cap(l.title);
     if (await api("delete_listing", { listing_id: l.id })) {
       L.settings = null;
-      L.log.push({ app: true, cards: [], bot: `Deleted “${title}”. It's off Belong. and won't be matched again.` });
+      L.log.push({ app: true, cards: [], bot: `Deleted “${title}”. It's off Belong and won't be matched again.` });
     }
   } else if (kind === "start_matching") {
     const d = l.draft, body = { intent_text: d.intent_text, exactness: d.exactness,
@@ -478,13 +478,13 @@ async function run(kind, arg) {
                      ...(detailParts(f.key) ? { about: f.about, name: f.name, compare: f.compare, steps: f.steps, required: f.required } : {}) })) };
     if (await api("submit", { listing_id: l.id, listing: body })) {
       for (const t of L.log) for (const c of t.cards || []) if (c.kind === "listing" || c.kind === "status") c.latest = false;
-      L.log.push({ app: true, cards: [], bot: "Your listing is live. I'll update its card when Belong. finds someone, or ask me any time." });
+      L.log.push({ app: true, cards: [], bot: "Your listing is live. I'll update its card when Belong finds someone, or ask me any time." });
     }
   } else if (kind === "say_yes" || kind === "not_now") {
     await api("decide", { intro_id: arg, yes: kind === "say_yes" });
     const i = ME.listings.flatMap(x => x.intros).find(x => x.intro_id === arg);
     if (kind === "say_yes") L.log.push({ bot: i && i.status === "connected"
-      ? `${nameOf(arg)} said yes too, so you're introduced. Message them in the Belong. app.`
+      ? `${nameOf(arg)} said yes too, so you're introduced. Message them in the Belong app.`
       : `Done. I'll let you know if ${nameOf(arg)} says yes too; ask me any time.` });
   } else if (kind === "answer_value") {
     if (await api("answer", { listing_id: arg.lid, question_id: arg.qid, answer: arg.answer }))
@@ -510,7 +510,7 @@ function renderLayer() {
     const draft = L.msg || "";
     layer.innerHTML = `<div class="full" role="dialog" aria-modal="true" aria-label="Chat with ${esc(name)}">
       <div class="full-head"><button class="btn secondary" onclick="closeThread()">Close</button>
-        <span class="app-label" style="margin:0"><span class="app-icon" aria-hidden="true">B.</span>Belong. · ${esc(name)}</span></div>
+        <span class="app-label" style="margin:0"><span class="app-icon" aria-hidden="true">B.</span>Belong · ${esc(name)}</span></div>
       <div class="thread-body" id="thread-body">
         <p class="notice">You and ${esc(name)} both said yes. This chat is shown in your AI assistant, so it passes through your assistant's provider; ${esc(name)} has been told.</p>
         ${t.map(m => `<div class="msg ${m.mine ? "mine" : ""}">${esc(m.text)}</div>`).join("") || `<p class="sub" style="text-align:center">Say hello to ${esc(name)}.</p>`}
@@ -528,7 +528,7 @@ function renderLayer() {
     const row = (label, on, change) => `<label class="srow"><span>${label}</span><input type="checkbox" class="sw" ${on ? "checked" : ""} onchange="${change}"></label>`;
     layer.innerHTML = `<div class="full" role="dialog" aria-modal="true" aria-label="Listing settings">
       <div class="full-head"><button class="btn secondary" onclick="L.settings=null; renderLayer(); render()">Close</button>
-        <span class="app-label" style="margin:0"><span class="app-icon" aria-hidden="true">B.</span>Belong.</span></div>
+        <span class="app-label" style="margin:0"><span class="app-icon" aria-hidden="true">B.</span>Belong</span></div>
       <div class="full-body"><p class="title" style="font-weight:600; margin:0 0 4px">${esc(cap(l.title))}</p><p class="sub" style="margin:0 0 16px">Listing settings</p>
         ${row("Active", l.active !== false, `setActive('${l.id}', this.checked)`)}
         ${row("Close matches", pr.notify_close, `setPref('${l.id}', 'notify_close', this.checked)`)}
@@ -539,17 +539,17 @@ function renderLayer() {
   if (c) {
     const a = ACTIONS[c.kind];
     layer.innerHTML = `<div class="scrim"><div class="sheet" role="dialog" aria-modal="true" aria-labelledby="cf-t">
-      <h2 id="cf-t">${esc(a.ask(c.arg))}</h2><p>Belong. wants to use the <b>${a.tool}</b> action.</p>
+      <h2 id="cf-t">${esc(a.ask(c.arg))}</h2><p>Belong wants to use the <b>${a.tool}</b> action.</p>
       <pre>${esc(JSON.stringify(a.args(c.arg), null, 2))}</pre>
       ${["say_yes", "delete_listing"].includes(c.kind) ? "" : `<label><input type="checkbox" id="cf-r"> Remember for this conversation</label>`}
       <div class="actions"><button class="btn secondary" onclick="L.confirm=null; renderLayer()">Cancel</button>
         <button class="btn system" onclick="confirmIt()">Confirm</button></div></div></div>`;
   } else if (L.popup) {
     const step = L.popup.step;
-    layer.innerHTML = `<div class="scrim"><div class="popup" role="dialog" aria-modal="true" aria-label="Sign in to Belong.">
+    layer.innerHTML = `<div class="scrim"><div class="popup" role="dialog" aria-modal="true" aria-label="Sign in to Belong">
       <div class="chrome"><span>●●●</span><span class="url">belong.example/connect</span></div>
       <div class="body"><span class="wordmark">Belong.</span>
-      ${step === 0 ? `<h3>Connect to ChatGPT</h3><p>Sign in with your verified Belong. account. An independent ID provider checks your document; we receive only that you're verified and your age band.</p>
+      ${step === 0 ? `<h3>Connect to ChatGPT</h3><p>Sign in with your verified Belong account. An independent ID provider checks your document; we receive only that you're verified and your age band.</p>
         <label class="f" for="pn">First name</label><input class="i" id="pn" value="${esc(L.form.name || "")}" oninput="L.form.name=this.value">
         <label class="f" for="pa">Age</label><input class="i" id="pa" type="number" value="${esc(L.form.age || "")}" oninput="L.form.age=this.value">
         <button class="go" onclick="popupNext()">Continue</button>`
@@ -584,7 +584,7 @@ async function setPref(id, key, on) {
 // ask in any chat ("I'm also looking for...") and the agent starts a separate one.
 function newChat() {
   if (!ME.verified || L.sending) return;
-  L.log = [{ bot: "New chat. Your Belong. listings carry on; ask me anything about them, or tell me what else you're looking for." }];
+  L.log = [{ bot: "New chat. Your Belong listings carry on; ask me anything about them, or tell me what else you're looking for." }];
   L.jump = true; render();
 }
 function confirmIt() {
@@ -598,7 +598,7 @@ async function popupDone() {
   if (!await api("verify", { name: L.form.name, age: L.form.age })) { L.popup.step = 0; return renderLayer(); }
   await api("new_listing", {});
   L.popup = null;
-  L.log.push({ app: true, cards: [], bot: `Belong. is connected. ${L.pendingText ? "Let's start on that." : "Tell me who you'd like to meet, or what you need."}` });
+  L.log.push({ app: true, cards: [], bot: `Belong is connected. ${L.pendingText ? "Let's start on that." : "Tell me who you'd like to meet, or what you need."}` });
   render();
   if (L.pendingText) { const t = L.pendingText; L.pendingText = null; L.sending = true; render(); try { await draftWith(t); } finally { L.sending = false; L.jump = true; render(); } }
 }
@@ -625,7 +625,7 @@ $("box").addEventListener("keydown", e => { if (e.key === "Enter" && !e.shiftKey
 $("box").addEventListener("input", e => { e.target.style.height = "auto"; e.target.style.height = Math.min(160, e.target.scrollHeight) + "px"; });
 fetch("/api/chat/state").then(r => r.json()).then(d => {
   ME = d.me;
-  // A fresh visit rebuilds the conversation from what Belong. holds for this chat.
+  // A fresh visit rebuilds the conversation from what Belong holds for this chat.
   const l = ME.verified ? listing() : null;
   if (l) for (const m of l.chat.slice(1)) L.log.push(m.from === "me" ? { me: m.text } : { app: !!m.draft_updated, cards: [], bot: m.text });
   if (l && l.draft) L.log.push({ app: true, cards: [{ kind: "listing", latest: true }] });

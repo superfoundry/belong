@@ -84,7 +84,7 @@ class OpenSourceBoundary(unittest.TestCase):
         self.assertIn("SIMULATED", doc["status"])
 
     def test_attestation_says_the_matchmaker_ai_is_a_mock(self):
-        """What an agent verifying Belong. reads says, as the trust page does, that the Matchmaker AI is a mock for
+        """What an agent verifying Belong reads says, as the trust page does, that the Matchmaker AI is a mock for
         synthetic and test profiles, and what it may be sent."""
         ai = attest.attestation("abc")["policy"]["matchmaker_ai"]
         self.assertTrue(ai["status"].startswith("MOCK"))

@@ -13,7 +13,7 @@ import this one. It defines:
     (own, says_nothing, comparable, satisfies, agrees, meets, detail_reasons), so matching and the Warden
     can't disagree;
   - the fixed sensitive-word check (SENSITIVE_WORDS), the contact rules (CONTACT_RULES), and the rule
-    against claiming what the ID check or Belong. vouches for (vouching_problems, shown_claim_problems);
+    against claiming what the ID check or Belong vouches for (vouching_problems, shown_claim_problems);
   - the crowd size k (K_CROWD) and the per-person listing cap, shared by the Warden, matching and the audit.
 
 Some read helpers read a value the same way everywhere it matters: a place name, how someone will meet
@@ -407,7 +407,7 @@ class Listing:
     owner_id: str = ""
     # The person's notification choices for this listing, both off unless they opt in:
     # close matches (one-way: the other person isn't told unless this person says yes)
-    # and questions from Belong. (fixed-menu follow-ups). The Warden enforces both.
+    # and questions from Belong (fixed-menu follow-ups). The Warden enforces both.
     notify_close: bool = False
     notify_questions: bool = False
     # A paused listing stays on the board but isn't matched: no new introductions or questions.
@@ -512,7 +512,7 @@ VALUE_MAX = 40
 MAX_VALUES = {"me": 3, "both": 3, "them": 5}
 _NOT_PLAIN = re.compile(r"[<>{}\[\]\\`|]|://")
 _BARE = {"yes", "no", "true", "false"}
-# Names that would pass for a built-in field, or for something the ID check or Belong. vouches for.
+# Names that would pass for a built-in field, or for something the ID check or Belong vouches for.
 RESERVED_NAMES = frozenset({canonical(k) for k in FIELD_REGISTRY}
                            | {canonical(k).removesuffix("s") for k in FIELD_REGISTRY})
 TRUST_WORDS = frozenset({"name", "age", "gender", "verified", "id", "kyc", "belong", "warden", "official", "identity"})
@@ -562,7 +562,7 @@ def name_problems(name) -> list[str]:
     if name in RESERVED_NAMES or name.removesuffix("s") in RESERVED_NAMES:
         out.append("that name is a built-in detail; use the built-in one")
     if any(w in TRUST_WORDS or w.removesuffix("s") in TRUST_WORDS for w in name.split()):
-        out.append("that name would look like something the ID check or Belong. vouches for")
+        out.append("that name would look like something the ID check or Belong vouches for")
     out += [_sensitive_advice(c) for c in sorted(sensitive_categories(name, in_detail=True))]
     # A name is shown wherever the detail is, so it is held to the same contact rules as a value.
     out += [f"that name looks like contact details ({rule})" for rule in contact_problems(name)]
@@ -593,7 +593,7 @@ def _value_problems(text, limit: int) -> list[str]:
     return out
 
 
-# A claim that the ID check or Belong. vouches for something ("ID verified", "KYC passed"), wherever someone
+# A claim that the ID check or Belong vouches for something ("ID verified", "KYC passed"), wherever someone
 # writes it into what is shown: open details' values and steps (their names have TRUST_WORDS) and the shown
 # built-in free text. Only the vouching words themselves, as whole words in any case or width: everyday words
 # ("age", "name", "official", "identity") stay usable.
@@ -603,9 +603,9 @@ SHOWN_FREE_TEXT = ("headline", "seeking", "offering", "topics", "pay", "format")
 
 
 def vouching_problems(text) -> list[str]:
-    """Why this text would pass for something the ID check or Belong. vouches for. Empty list = fine."""
+    """Why this text would pass for something the ID check or Belong vouches for. Empty list = fine."""
     if isinstance(text, str) and _VOUCHING.search(canonical(text)):
-        return [f"{text!r} would look like something the ID check or Belong. vouches for"]
+        return [f"{text!r} would look like something the ID check or Belong vouches for"]
     return []
 
 
@@ -850,7 +850,7 @@ def _sensitive_advice(category: str) -> str:
 
 
 # Contact details: someone's handle, email address, phone number or a link. Never in a value anyone
-# else sees, so nobody is reached outside Belong. before both people say yes (the Warden's
+# else sees, so nobody is reached outside Belong before both people say yes (the Warden's
 # specific-person check uses the same patterns on descriptions).
 CONTACT_RULES = [
     ("social handle", re.compile(r"@\w{2,}")),

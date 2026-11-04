@@ -147,7 +147,7 @@ class Drafting(unittest.TestCase):
             "always shown": det("noise tolerance", "quiet", about="them", compare="steps",
                                 steps=("quiet", "moderate", "lively"), visibility=HIDDEN),
             "built-in detail": det("seeking", "a band"),
-            "ID check or Belong. vouches for": det("verified status", "yes please"),
+            "ID check or Belong vouches for": det("verified status", "yes please"),
             "use the hidden religion detail (religion)": det("diet", "halal"),
             "use the hidden health detail (health)": det("condition", "asthma", visibility=HIDDEN),
             "contact details": det("instrument", "drums @inkpot"),
@@ -1015,7 +1015,7 @@ class NeverOneParticularPerson(unittest.TestCase):
         draft, problems, _ = build_draft(many, "Yuki", "25-29")
         self.assertIsNone(draft)
         self.assertEqual([p for p in problems if "specific person" in p],
-                         ["Belong. can't search for a specific person; 'Looking for a tall climbing partner with a beard "
+                         ["Belong can't search for a specific person; 'Looking for a tall climbing partner with a beard "
                           "and freckles.' contains three or more details of how they look. " + IDENTIFIERS_HELP])
         fewer = {**many, "intent_text": "Looking for a tall climbing partner with a beard."}
         client = ScriptedClient(reply(tool(many, "t1")), reply(tool(fewer, "t2")),

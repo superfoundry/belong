@@ -1,5 +1,5 @@
 // Shared top menu for every page. Add or rename links here, once.
-// Styled from the Belong. design system (NavLink, the wordmark, surface-nav-blur).
+// Styled from the Belong design system (NavLink, the wordmark, surface-nav-blur).
 (function () {
   const LINKS = [
     { href: "/", label: "Demo", also: ["/demo"] },

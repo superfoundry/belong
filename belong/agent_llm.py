@@ -270,11 +270,11 @@ kinds, fields or other internal names.
 Your job: understand what they're looking for, then draft their listing with the \
 update_listing tool. A listing has a short description of what they want, plus details, each \
 either shown (a match can see it) or hidden (used only to improve matching, never shown to \
-anyone). Belong. never reveals hidden details.
+anyone). Belong never reveals hidden details.
 
 How to work:
 - The kind is "dating" for a date or a relationship, and "other" for everything else. Never tell the \
-person Belong. can't help with something. The kind is what they want to meet someone FOR, never a hobby \
+person Belong can't help with something. The kind is what they want to meet someone FOR, never a hobby \
 or interest they happen to mention: "looking for a relationship; I enjoy sailing and quizzes" is dating, \
 and sailing and quizzes are a detail about them. The kind you choose is saved on their listing and is \
 what matching uses, so their description never has to repeat it.
@@ -319,7 +319,7 @@ must have what the other wants (a swap, a teacher and a learner, a team and a pl
 roles, and details about them and about the other person say what each has and wants. Write intent_text in \
 plain words without "date", "relationship" or "partner" unless it's dating (e.g. "Looking for someone to \
 teach me to fish in Ireland").
-- Location: Belong. works anywhere in the world. Set "country" (in English, e.g. "Ireland") and, \
+- Location: Belong works anywhere in the world. Set "country" (in English, e.g. "Ireland") and, \
 if they have one, "city" (e.g. "Galway"). If they're happy anywhere in a country or region, set \
 only the country. Never list example cities or suggest they're limited to certain places.
 - How they meet: for every kind except dating, set "format": "In person", "Online" or "In person or \
@@ -386,19 +386,19 @@ matches but is never shown. Sexual orientation and gender identity have no detai
 them out.
 - Sensitive details always start hidden. If they want to show one, tell them that once their profile is on \
 their screen they can tap it there and choose shown themselves.
-- Belong. never helps find one particular person. Judge it yourself, from their words and the context, not from \
+- Belong never helps find one particular person. Judge it yourself, from their words and the context, not from \
 capital letters: a name in any form (a full name, a first name or a surname alone, a nickname, a username, a name \
 written in lower case), an ex, or clues that together fit only one person (where someone works and how they look, \
 someone they saw at a certain place or time). Never write a description, phrase or detail that names or points at \
 one particular person. When a request does, call update_listing with singles_out true (nothing is saved) and \
-explain kindly why: Belong. only introduces people who are also looking. Otherwise singles_out is false.
-- Belong. also refuses, by a fixed rule over everything said about the person sought, a place or time where they \
+explain kindly why: Belong only introduces people who are also looking. Otherwise singles_out is false.
+- Belong also refuses, by a fixed rule over everything said about the person sought, a place or time where they \
 can be found together with anything about how they look, three or more details of how they look, and a mark \
 described with where it is or what it shows. One or two common details of looks are fine, and the person's own job \
 and looks never count; what they say about themselves (what they offer, details about them) is read as theirs, but \
 a clue about someone else written there counts too. Write only what matters for finding people like that, not one \
 person.
-- Belong. also refuses two capitalised words in a row in the middle of a sentence, because they look like a \
+- Belong also refuses two capitalised words in a row in the middle of a sentence, because they look like a \
 person's full name (lower-case words such as "de" or "van" between them, or an initial's full stop, still count), \
 unless one of them is part of the city or country the person shows or of a place on the shared list written out \
 whole, a word written all in capitals, a month or a weekday. When such a pair is really a place, a title or a thing, \
@@ -560,7 +560,7 @@ def detail_save_problems(rows: list, kind, intent_text: str = "", in_use=None, o
              for k, v in own_words if k in OWN_WORDS and v not in (None, "", [], ())]
     fix = lambda problem: (IDENTIFIERS_HINT if for_person else IDENTIFIERS_HELP) if problem in IDENTIFIERS else \
         "Take it out."
-    problems += [f"Belong. can't search for a specific person; {_where(names, read_with)} could identify one "
+    problems += [f"Belong can't search for a specific person; {_where(names, read_with)} could identify one "
                  f"person ({problem}). {fix(problem)}"
                  for names, read_with, problem in detail_person_findings(fields + words, intent_text)]
     ways = {}
@@ -595,20 +595,20 @@ def description_save_problems(intent_text: str, own_words=(), place_fields=(), p
         label = "Your description" if not key else f"“{LABELS.get(key, key)}”"
         for problem in specific_person_problems(text, where, places, poster=key in POSTER_WORDS):
             if problem in IDENTIFIERS:
-                problems.append(f"{label} could identify one person ({problem}), and Belong. never helps find one "
+                problems.append(f"{label} could identify one person ({problem}), and Belong never helps find one "
                                 f"particular person. {IDENTIFIERS_HINT}" if for_person else
-                                f"Belong. can't search for a specific person; '{text}' contains {problem}. "
+                                f"Belong can't search for a specific person; '{text}' contains {problem}. "
                                 f"{IDENTIFIERS_HELP}")
             elif problem == FULL_NAME:
                 pair = full_name_pairs(text, exempt)[0]
                 lines = _on_two_lines(pair, raw.get(key, text))
                 problems.append(
                     f"{label} has two capitalised words in a row (“{pair}”), which looks like someone's full "
-                    f"name, and Belong. never helps find one particular person. "
+                    f"name, and Belong never helps find one particular person. "
                     + ("They're on two lines: if it's a list, end the first line with a comma or a full stop."
                        if lines else "If it's a place or a title, write it another way, for example with a "
                                      "lower-case word between them.") if for_person else
-                    f"Belong. can't search for a specific person; '{text}' contains {FULL_NAME} ('{pair}'): two "
+                    f"Belong can't search for a specific person; '{text}' contains {FULL_NAME} ('{pair}'): two "
                     f"capitalised words in a row in the middle of a sentence. Words of the city and country the "
                     f"person shows, and of places on the shared list, are never read as a name where the whole place "
                     f"is written out. If it names or points "
@@ -618,9 +618,9 @@ def description_save_problems(intent_text: str, own_words=(), place_fields=(), p
                     + (" They stand on two lines: a line break doesn't end a sentence, so end the first line with a "
                        "comma or a full stop." if lines else ""))
             else:
-                problems.append(f"{label} could identify one person ({problem}), and Belong. never helps find one "
+                problems.append(f"{label} could identify one person ({problem}), and Belong never helps find one "
                                 f"particular person." if for_person else
-                                f"Belong. can't search for a specific person; '{text}' contains {problem}.")
+                                f"Belong can't search for a specific person; '{text}' contains {problem}.")
     # The identifiers rule reads everything the listing's own words say about the person sought together (the
     # Warden's rule, warden.sought_words, with what the poster says about themselves read as theirs,
     # warden.poster_words); a problem one text has on its own is said above.
@@ -629,8 +629,8 @@ def description_save_problems(intent_text: str, own_words=(), place_fields=(), p
     for problem in identifier_problems(sought_words(intent_text, words), poster=poster_words(words)):
         if problem not in alone:
             problems.append(f"Your description and phrases together could identify one person ({problem}), and "
-                            f"Belong. never helps find one particular person. {IDENTIFIERS_HINT}" if for_person else
-                            f"Belong. can't search for a specific person; the description and phrases together "
+                            f"Belong never helps find one particular person. {IDENTIFIERS_HINT}" if for_person else
+                            f"Belong can't search for a specific person; the description and phrases together "
                             f"contain {problem}. {IDENTIFIERS_HELP}")
     return problems
 
@@ -1224,13 +1224,13 @@ UNSAVED_NOTE = ("(I wasn't able to save that change to your listing. Could you s
 # The model's own judgement that a request singles out one particular person (update_listing's singles_out): it can
 # only refuse. build_draft saves nothing and tells the model this; the person is told by SINGLED_OUT_NOTE.
 SINGLED_OUT = ("Nothing was saved: you judged that this request names or points at one particular person "
-               "(singles_out). Belong. never helps find one particular person. Tell the person kindly why, and that "
-               "Belong. only introduces people who are also looking. Save again only for a request about anyone who "
+               "(singles_out). Belong never helps find one particular person. Tell the person kindly why, and that "
+               "Belong only introduces people who are also looking. Save again only for a request about anyone who "
                "fits, with singles_out false.")
 SINGLED_OUT_AGAIN = ("Nothing was saved: this is the request you judged this turn names or points at one particular "
                      "person, and it stays refused. Tell the person kindly why. Save only a different request, about "
                      "anyone who fits.")
-SINGLED_OUT_NOTE = ("(I didn't save that: Belong. never helps find one particular person, only people who are also "
+SINGLED_OUT_NOTE = ("(I didn't save that: Belong never helps find one particular person, only people who are also "
                     "looking.)")
 # What a model agent's turn says when its provider refuses to answer (Claude's "refusal", OpenAI's refusal or
 # content filter): nothing more was written, so whatever it saved before stands, and honest() adds the fixed notes.

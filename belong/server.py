@@ -6,7 +6,7 @@ a cookie that proves it without containing it.
 
   /, /demo                  two-person demo (belong/web/demo.html)
   /welcome                  landing page (belong/web/landing.html)
-  /connector (and /chat)    mockup: one person using Belong. inside a ChatGPT-style chat, through a connector
+  /connector (and /chat)    mockup: one person using Belong inside a ChatGPT-style chat, through a connector
                             (belong/web/chat.html), on its own demo session
   /trust                    trust page (belong/web/trust.html)
   /inspector                batch-run inspector (belong/web/index.html + out/run.json); "Take over" gives a
@@ -266,7 +266,7 @@ class _Handler(BaseHTTPRequestHandler):
         self._send(200, route[0].read_bytes(), route[1])
 
     def _design_file(self, rel: str):
-        """Belong. design system files (tokens, components, fonts). Fixed list, no paths from the URL."""
+        """Belong design system files (tokens, components, fonts). Fixed list, no paths from the URL."""
         files = {"tokens.css": "text/css; charset=utf-8", "belong.css": "text/css; charset=utf-8",
                  "theme-dark.css": "text/css; charset=utf-8"}
         files.update({f"fonts/{f.name}": "font/woff2" for f in (WEB / "ds" / "fonts").glob("*.woff2")})

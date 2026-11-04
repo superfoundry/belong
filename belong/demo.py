@@ -11,10 +11,10 @@ The presenter can also take over a synthetic person (from the inspector, `take_o
 get a phone of their own, held to the same rules as A and B, their live listing is matched
 like a phone's, and nothing is decided for them any more until they're handed back.
 
-Everything Belong. receives or sends is recorded in a data log for the presenter:
+Everything Belong receives or sends is recorded in a data log for the presenter:
 
-  in       Belong. received something (KYC facts, a listing, a decision, consents)
-  out      Belong. sent something to a person, through the Warden (exact payload logged)
+  in       Belong received something (KYC facts, a listing, a decision, consents)
+  out      Belong sent something to a person, through the Warden (exact payload logged)
   blocked  the Warden refused to let something in or out
   inside   private matching activity (presenter view only; never sent to anyone)
 
@@ -105,19 +105,19 @@ CHOICES_MAX = 100  # shown or hidden choices remembered per listing (built-ins, 
 MESSAGE_MAX = 1000  # characters in one message to a match
 PERSONA_REPLIES = 30  # a simulated person replies at most this many times in one conversation
 REACTIONS = ("👍", "❤️", "😂", "😮", "🙏")  # the only reactions a message can get
-# What a listing's own agent says when Belong. has news for it: (one, several), by kind (DemoSession._tell).
+# What a listing's own agent says when Belong has news for it: (one, several), by kind (DemoSession._tell).
 NOTICES = {
-    "match": ("Belong. found someone for this listing. Go back to Belong. to see them.",
-              "Belong. found {n} people for this listing. Go back to Belong. to see them."),
-    "question": ("Belong. has a question for this listing. Go back to Belong. to answer it.",
-                 "Belong. has {n} questions for this listing. Go back to Belong. to answer them."),
+    "match": ("Belong found someone for this listing. Go back to Belong to see them.",
+              "Belong found {n} people for this listing. Go back to Belong to see them."),
+    "question": ("Belong has a question for this listing. Go back to Belong to answer it.",
+                 "Belong has {n} questions for this listing. Go back to Belong to answer them."),
     # Once per listing at most (the Warden asks "include close matches?" only once), so one sentence either way.
     "close": ("No match yet, so I've included close matches for this listing, as your settings ask. They're one-way: "
               "they aren't told about you. You can turn them off with the gear on this listing.",) * 2,
 }
 # The person's account settings (the menu's Settings), both off until they turn one on. They only set a listing's own
 # choices, which the Warden enforces: "questions" is where a new listing's questions start; "close" turns a listing's
-# close matches on by itself, where Belong. would otherwise ask whether to include them (DemoSession._close_by_setting).
+# close matches on by itself, where Belong would otherwise ask whether to include them (DemoSession._close_by_setting).
 SETTINGS = ("always_close", "always_questions")
 
 
@@ -356,7 +356,7 @@ class DemoSession:
         self._matchmaker_choice = matchmaker
         self._judge = None  # the Matchmaker AI's judge, off the lock; kept across resets (its usage, its answers)
         self.generation = 0
-        # People who use Belong. through their own AI assistant (the connector). Their matches are
+        # People who use Belong through their own AI assistant (the connector). Their matches are
         # told, because what they write to that person passes through the assistant's provider.
         self.assistant_slots: set = set()
         self.run_inline = False  # tests: run agent work directly instead of on a thread
@@ -703,7 +703,7 @@ class DemoSession:
         st.person = Person(id=st.person_id, verified=True, age_band=band, created_at=self.clock.now())
         st.name = name
         self._event("in", f"Identity check for phone {slot}",
-                    "The KYC provider saw the ID document. Belong. received only these two facts:",
+                    "The KYC provider saw the ID document. Belong received only these two facts:",
                     payload={"verified": True, "age_band": band}, slots=[slot])
 
     def update_profile(self, slot: str, name: str) -> None:
@@ -772,7 +772,7 @@ class DemoSession:
 
     def set_settings(self, slot: str, settings) -> None:
         """The person's account settings, both off until they turn one on: "always allow questions" (a new listing's
-        questions start on) and "always include close matches" (where Belong. would ask whether to include them, it
+        questions start on) and "always include close matches" (where Belong would ask whether to include them, it
         turns them on by itself and says so: _close_by_setting). They never change a listing's choices once it has
         any of its own (it was written to, or its choices were set on it), and the Warden enforces each listing's own
         choices whatever they say."""
@@ -791,7 +791,7 @@ class DemoSession:
     def new_listing(self, slot: str) -> str:
         """Start another listing (e.g. a tutor search alongside dating). It gets its own chat.
         Questions start as the person's settings say (off unless they chose always); close matches start off, and
-        Belong. offers them once if no match turns up (or, if their settings say always, turns them on then)."""
+        Belong offers them once if no match turns up (or, if their settings say always, turns them on then)."""
         st = self._verified(slot)
         if len(st.listings) >= MAX_LISTINGS and not any(self._untouched(l) for l in st.listings):
             raise DemoError(f"You can have up to {MAX_LISTINGS} listings.")
@@ -1724,7 +1724,7 @@ class DemoSession:
                         f"{len(listing.fields)} details ({n_hidden} hidden) passed the Warden's entry check.",
                         receipts=receipts, slots=[slot])
             if before is None:
-                text = (f"Your listing is live: \u201c{self._live_title(listing)}\u201d. I'll tell you when Belong. finds "
+                text = (f"Your listing is live: \u201c{self._live_title(listing)}\u201d. I'll tell you when Belong finds "
                         "someone who is also looking for you.")
             else:
                 changed = self._what_changed(before, listing)
@@ -2006,7 +2006,7 @@ class DemoSession:
                     payload={"question": d["question_text"]}, receipts=receipts, slots=[slot])
 
     def _close_by_setting(self, fu: FollowUp, slot: str, listing: _Listing) -> None:
-        """"Always include close matches" (the person's settings): where Belong. would ask "Want to include close
+        """"Always include close matches" (the person's settings): where Belong would ask "Want to include close
         matches?", it turns that listing's close matches on by itself and says so in the listing's chat. Only where
         the question could be asked: the Warden lets it out first, by the question's own checks (the listing is active,
         has no match yet and its close matches are still off, and it's the first time ever), so a listing looks for
@@ -2023,7 +2023,7 @@ class DemoSession:
         self.outputs["followups"].append(d)  # audited as the question is (R5: once, and while close matches were off)
         try:
             self.set_prefs(slot, listing.id, {"notify_close": True, "notify_questions": listing.prefs["notify_questions"]},
-                           why="No match yet, and their settings say always include close matches, so Belong. turned "
+                           why="No match yet, and their settings say always include close matches, so Belong turned "
                                "them on instead of asking. The Warden let it happen by the question's own checks, then "
                                "re-checked the listing:", start=start)
         except DemoError:
@@ -2110,7 +2110,7 @@ class DemoSession:
             headline_vis = mine.choices.get("headline", SHOWN)  # a headline they hid stays hidden
             in_use = self.details_in_use()
             said = self._said(mine)  # what they typed, never this turn: the app writes it
-        ask = (f'Belong. asked me: "{question_text}" and I said yes. Update my listing so its headline and '
+        ask = (f'Belong asked me: "{question_text}" and I said yes. Update my listing so its headline and '
                "description describe what I agreed to now. Keep everything else as it is, and keep "
                "separate_listing false.")
         draft = None
@@ -2412,7 +2412,7 @@ class DemoSession:
         # their agent writes later from it is theirs (agent.ground_wishes).
         mine.said_before = [persona.intent_text, *persona.said]
         mine.chat = [{"from": "agent", "text": f"Hi {st.name}, I'm your agent. Your listing is live: "
-                                              f"“{self._live_title(live)}”. I'll tell you when Belong. finds "
+                                              f"“{self._live_title(live)}”. I'll tell you when Belong finds "
                                               "someone who is also looking for you."}]
         st.listings.append(mine)
         st.current = mine.id

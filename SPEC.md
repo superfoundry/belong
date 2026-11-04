@@ -146,7 +146,7 @@ writes out). The value "any" means open to any value of that name; on a scale it
 about the other person (their own value, or the request's, is one step). It says nothing two people
 have in common, so it is never a reason. One entry rule (`schema.detail_problems`) holds for every
 detail, checked by the Warden at entry and by the agents before saving: a name of 1 to 3 plain words
-in any script (letters, the marks on them, digits) that isn't a built-in's name or a word the ID check or Belong.
+in any script (letters, the marks on them, digits) that isn't a built-in's name or a word the ID check or Belong
 vouches for; short plain values and steps with no contact details and no "verified" or "KYC" (nor
 in the shown headline, phrases, topics, pay or format, `schema.shown_claim_problems`); at most 12
 details; a wish (`them`) and what the request needs both to share (`both`) are always shown. Open
@@ -364,7 +364,7 @@ Entry:
   ages for dating) or short plain text; open details pass the one entry rule (§4); intimacy only on
   dating listings; sensitive fields default to hidden.
 - Intent, shown free text and open details pass the specific-person check; nothing shown claims
-  what the ID check or Belong. vouches for ("verified", "KYC").
+  what the ID check or Belong vouches for ("verified", "KYC").
 - At most 5 live listings per person.
 - Rate limits on listing updates (per listing, and per person across their listings). An update to a live
   listing that only turns something off (questions, close matches, or matching itself, by pausing it) and

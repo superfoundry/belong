@@ -781,8 +781,8 @@ class MatchmakerRunsOnItsOwn(unittest.TestCase):
 
     @staticmethod
     def found(n):
-        return ("Belong. found someone for this listing. Go back to Belong. to see them." if n == 1 else
-                f"Belong. found {n} people for this listing. Go back to Belong. to see them.")
+        return ("Belong found someone for this listing. Go back to Belong to see them." if n == 1 else
+                f"Belong found {n} people for this listing. Go back to Belong to see them.")
 
     def test_the_person_is_told_in_their_listing_chat(self):
         s = DemoSession(seed=7, agent=None)
@@ -806,7 +806,7 @@ class MatchmakerRunsOnItsOwn(unittest.TestCase):
         for _ in range(2):
             s.run_matchmaker(quiet=True)
             mine = s.phone_state("A")["listings"][0]
-            news = [m["text"] for m in mine["chat"] if m["text"].startswith("Belong. found")]
+            news = [m["text"] for m in mine["chat"] if m["text"].startswith("Belong found")]
             self.assertEqual(news, [self.found(self.waiting(mine))])
             self.assertEqual(mine["chat"][-1]["text"], news[0])
             counts.append(self.waiting(mine))
@@ -860,7 +860,7 @@ class MatchmakerRunsOnItsOwn(unittest.TestCase):
         s.run_matchmaker(quiet=True)
         self.assertEqual(len(mine()["followups"]), 1)
         self.assertEqual(mine()["chat"][-1]["text"],
-                         "Belong. has a question for this listing. Go back to Belong. to answer it.")
+                         "Belong has a question for this listing. Go back to Belong to answer it.")
 
     def test_a_new_line_once_something_else_is_said(self):
         """Notices of one kind collapse only while nothing else is said; other kinds keep their own line,
@@ -871,16 +871,16 @@ class MatchmakerRunsOnItsOwn(unittest.TestCase):
         tell(listing, "question", 1)
         tell(listing, "match", 2)
         self.assertEqual([m["text"] for m in listing.chat[1:]], [
-            "Belong. has a question for this listing. Go back to Belong. to answer it.",
-            "Belong. found 2 people for this listing. Go back to Belong. to see them."])
+            "Belong has a question for this listing. Go back to Belong to answer it.",
+            "Belong found 2 people for this listing. Go back to Belong to see them."])
         tell(listing, "question", 2)
         self.assertEqual(listing.chat[-1]["text"],
-                         "Belong. has 2 questions for this listing. Go back to Belong. to answer them.")
+                         "Belong has 2 questions for this listing. Go back to Belong to answer them.")
         self.assertEqual(len(listing.chat), 3)
         listing.chat.append({"from": "me", "text": "Thanks"})
         tell(listing, "match", 1)
         self.assertEqual([m["text"] for m in listing.chat[-2:]], ["Thanks", self.found(1)])
-        self.assertEqual(sum(m["text"].startswith("Belong. found") for m in listing.chat), 2)
+        self.assertEqual(sum(m["text"].startswith("Belong found") for m in listing.chat), 2)
 
     def test_a_one_way_close_match_isnt_news_to_the_other_person(self):
         s = DemoSession(seed=7, agent=None)
@@ -890,7 +890,7 @@ class MatchmakerRunsOnItsOwn(unittest.TestCase):
         self.assertEqual(intro.one_way_to, "demoA-1")
         mine = s.phone_state("A")["listings"][0]
         self.assertIn(self.found(len(mine["intros"])), [m["text"] for m in mine["chat"]])
-        self.assertFalse([m for m in s.phone_state("B")["listings"][0]["chat"] if m["text"].startswith("Belong. found")])
+        self.assertFalse([m for m in s.phone_state("B")["listings"][0]["chat"] if m["text"].startswith("Belong found")])
 
 
 class SaveDraft(unittest.TestCase):
@@ -1136,7 +1136,7 @@ class SaveDraft(unittest.TestCase):
                 phone = True
             except DemoError as e:
                 phone = False
-                self.assertIn("Belong. never helps find one particular person", str(e))
+                self.assertIn("Belong never helps find one particular person", str(e))
             self.assertEqual((len(s.events), len(s.warden.receipts)), (events, receipts))
             listing = Listing(f"x{i}", intent, 0.6, (Field("city", city, vis, False),), "2026-10-12T09:00:00Z")
             warden = s.warden.admit(Person(f"x{i}", True, "40-49", "2026-10-01T00:00:00Z"), listing, Marketboard())

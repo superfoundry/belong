@@ -1,6 +1,6 @@
 """Account-wide settings for close matches and questions (TRUST.md #24, #25). Both are off until the person turns one
 on. A new listing's questions start from "Always allow questions"; "Always include close matches" turns a listing's
-close matches on by itself, only where Belong. would ask whether to include them (no match yet, once ever, by the
+close matches on by itself, only where Belong would ask whether to include them (no match yet, once ever, by the
 Warden's own checks for that question), through the usual update the Warden re-checks, and the person is told. The
 Warden still enforces each listing's own choices. And the phone (demo.html, run with node): the Settings page's two
 switches, the listing menu's two switches, and the menu's delete confirmation."""
@@ -411,7 +411,7 @@ class OnThePhone(_Page, unittest.TestCase):
         cls.deleted = both()
 
     def phone(self, state, then: str, answer=None):
-        """Phone A on its Belong. tab with this state, then the steps in `then` (they may await); every request the
+        """Phone A on its Belong tab with this state, then the steps in `then` (they may await); every request the
         page makes is recorded, and answered with `answer` when given."""
         return self.run_page(f"""
 const calls = [], focusedBy = [], reply = {json.dumps(answer)};

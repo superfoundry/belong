@@ -1,7 +1,7 @@
 # systemd service for the hosted demo on a VM (README, "Run it online"). Installed by deploy/setup.sh.
 # The demo listens on 127.0.0.1:8000 only; Caddy (deploy/Caddyfile) is the only way in, over HTTPS.
 [Unit]
-Description=Belong. demo
+Description=Belong demo
 After=network.target
 
 [Service]
