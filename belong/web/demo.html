@@ -338,7 +338,13 @@
   .signin-foot { padding-top: var(--space-6); }
   .start { position: relative; height: 100%; display: flex; align-items: center; justify-content: center; }
   .start .wordmark { font-size: 56px; }
-  .start .btn { position: absolute; left: 0; right: 0; bottom: var(--space-2); width: 100%; }
+  /* The title screen's way in is orange text alone, not a button shape (the user's choice): the coral line's deeper
+     orange, large and bold, where it is readable on the phone's ground (text-accent reads as rust). */
+  .start .start-link { position: absolute; left: 0; right: 0; bottom: var(--space-6); margin: 0 auto; width: max-content;
+                       padding: var(--space-2) var(--space-3); background: none; border: 0; cursor: pointer;
+                       font: inherit; font-size: 19px; font-weight: 700; color: var(--border-accent); }
+  .start .start-link:hover { text-decoration: underline; text-underline-offset: 2px; }
+  .start .start-link:focus-visible { outline: 2px solid var(--border-accent); outline-offset: 2px; border-radius: var(--radius-sm); }
   .welcome { text-align: center; padding: var(--space-10) var(--space-2) var(--space-8); }
   .welcome .wordmark { font-size: 44px; display: block; margin-bottom: var(--space-4); }
   .welcome p { color: var(--text-secondary); margin: 0; font: var(--text-body-s); }
@@ -843,7 +849,7 @@ const SCREENS = {
     const sc = SCENARIOS[scenario]?.[slot] || {};
     if (!L.signin) {
       return `<div class="start"><span class="wordmark">Belong.</span>
-        <button class="btn block lg" onclick="local['${slot}'].signin=true; renderPhone('${slot}')">Sign in / Register</button></div>`;
+        <button class="start-link" onclick="local['${slot}'].signin=true; renderPhone('${slot}')">Sign in / Register</button></div>`;
     }
     return `<div class="signin">
       <div class="back-bar"><button class="btn ghost sm" onclick="local['${slot}'].signin=false; renderPhone('${slot}')"><span class="back-chev" aria-hidden="true"></span>Back</button></div>
