@@ -1,4 +1,4 @@
-"""Turn the tokens.json of the Belong. design system into belong/web/ds/tokens.css.
+"""Turn the tokens.json of the Belong design system into belong/web/ds/tokens.css.
 
 The design system is the "Belong." Design System artifact
 (https://claude.ai/artifact/KDPcQmxczT7iQ7Kcgt1et6). Download its project/ folder
@@ -31,7 +31,7 @@ def css_value(v):
     return f"var(--{m.group(1)})" if m else v
 
 
-lines = ["/* Belong. design system: generated from tokens.json (design system artifact",
+lines = ["/* Belong design system: generated from tokens.json (design system artifact",
          "   https://claude.ai/artifact/KDPcQmxczT7iQ7Kcgt1et6). Do not edit by hand; regenerate. */", ""]
 
 for f in t["type"]["fonts"]:

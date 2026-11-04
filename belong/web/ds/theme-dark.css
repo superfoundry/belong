@@ -1,5 +1,5 @@
-/* Belong. — OPT-IN dark treatment ("Belong. at night").
-   Not part of tokens.json on purpose: the default ground of Belong. is cream, as in the
+/* Belong — OPT-IN dark treatment ("Belong at night").
+   Not part of tokens.json on purpose: the default ground of Belong is cream, as in the
    SuperFoundry family. Link this file in the rare deliverable that needs dark (decks,
    the private-matching explainer panel, video), then scope with data-theme="dark". */
 [data-theme="dark"] {

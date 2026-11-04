@@ -110,7 +110,7 @@ class TheReports(unittest.TestCase):
         self.assertEqual(agent.wanted_ages("Looking for a man a bit younger than me", "40-49")[0], "35-49")
         self.assertEqual(agent.wanted_ages("Looking for a woman, a bit older", "25-29")[0], "25-34")
         self.assertEqual(agent.wanted_ages("Looking for a man around 19", "18-24"),  # 16 to 22, as said
-                         ("18-22", "Belong. only introduces adults, so the ages start at 18."))
+                         ("18-22", "Belong only introduces adults, so the ages start at 18."))
         self.assertIsNone(agent.wanted_ages("Looking for a woman in Osaka", "30-34")[0])
         # Matching reads "around my age" the same way when only the description says it.
         no_field = person_listing("p", VISITING, "35-39", "dating", "man", ["woman"])

@@ -1552,7 +1552,7 @@ class Warden:
             return None  # a paused listing gets no questions
         if followup.question_id == "broaden":
             return self._exit_broaden(followup, board)
-        # Questions from Belong. only reach people who opted in to them.
+        # Questions from Belong only reach people who opted in to them.
         if not self._receipt("followup_opted_in", board.listing(followup.person_id).notify_questions,
                              {"p": followup.person_id}):
             return None

@@ -7,7 +7,7 @@ set -eu
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
 head -c 50000000 | tar -xz -C "$tmp" --no-same-owner --no-same-permissions
-[ -f "$tmp/belong/__main__.py" ] || { echo "That isn't the Belong. code." >&2; exit 1; }
+[ -f "$tmp/belong/__main__.py" ] || { echo "That isn't the Belong code." >&2; exit 1; }
 if [ -n "$(find "$tmp" -type l)" ]; then echo "Links aren't allowed in the upload." >&2; exit 1; fi
 rm -rf /opt/belong/belong /opt/belong/out
 cp -r "$tmp/belong" /opt/belong/belong

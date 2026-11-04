@@ -3,7 +3,14 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Belong. demo</title>
+<!-- Added to an iPhone's home screen, the page opens full screen as its own app, named and with its icon. -->
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Belong">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="theme-color" content="#ffffff">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<title>Belong demo</title>
 <link rel="stylesheet" href="/ds/tokens.css">
 <link rel="stylesheet" href="/ds/belong.css">
 <link rel="stylesheet" href="/ds/theme-dark.css">
@@ -111,7 +118,7 @@
   .chat-sheet.min .chat-pane, .chat-sheet.min .composer-bar { display: none; }
   .chat-sheet.min .sheet-head { border-bottom: 0; }
   /* The profile in two tones: on white, hello in the person's own words, each detail a part to tap
-     and change; below, on the phone's own off-white (by the user's choice, as on Belong., not cream), the
+     and change; below, on the phone's own off-white (by the user's choice, as on Belong, not cream), the
      other details, the hidden well, what's left to add and the editor. */
   .profile-pane { background: var(--phone-bg); }
   .profile-pane.blank { background: var(--surface-card); }  /* nothing to show below the hello yet */
@@ -331,7 +338,13 @@
   .signin-foot { padding-top: var(--space-6); }
   .start { position: relative; height: 100%; display: flex; align-items: center; justify-content: center; }
   .start .wordmark { font-size: 56px; }
-  .start .btn { position: absolute; left: 0; right: 0; bottom: var(--space-2); width: 100%; }
+  /* The title screen's way in is orange text alone, not a button shape (the user's choice): the coral line's deeper
+     orange, large and bold, where it is readable on the phone's ground (text-accent reads as rust). */
+  .start .start-link { position: absolute; left: 0; right: 0; bottom: var(--space-6); margin: 0 auto; width: max-content;
+                       padding: var(--space-2) var(--space-3); background: none; border: 0; cursor: pointer;
+                       font: inherit; font-size: 19px; font-weight: 700; color: var(--border-accent); }
+  .start .start-link:hover { text-decoration: underline; text-underline-offset: 2px; }
+  .start .start-link:focus-visible { outline: 2px solid var(--border-accent); outline-offset: 2px; border-radius: var(--radius-sm); }
   .welcome { text-align: center; padding: var(--space-10) var(--space-2) var(--space-8); }
   .welcome .wordmark { font-size: 44px; display: block; margin-bottom: var(--space-4); }
   .welcome p { color: var(--text-secondary); margin: 0; font: var(--text-body-s); }
@@ -381,7 +394,7 @@
   .receipt-row { display: flex; gap: var(--space-2); align-items: center; padding: 6px 0; border-bottom: 1px solid var(--border-subtle); }
   .receipt-row .grow { flex: 1; font: var(--text-body-s); }
 
-  /* ---------- presenter panel ("Belong. at night": the panel explaining private matching) ---------- */
+  /* ---------- presenter panel ("Belong at night": the panel explaining private matching) ---------- */
   .panel { background: var(--surface-app); background-image: var(--gradient-app); color: var(--text-primary); border-radius: var(--radius-md);
            padding: var(--space-8); min-height: 800px; margin-top: 30px; box-shadow: var(--shadow-lg); }
   .panel .sub { color: var(--text-secondary); font: var(--text-body-s); margin: var(--space-2) 0 var(--space-6); }
@@ -673,7 +686,7 @@ function applyScenario(draft, sc) {
 // ---------------------------------------------------------------------------------
 // Phone
 // ---------------------------------------------------------------------------------
-// Where a phone is: one of two tabs (the Belong. tab: your listings; the Found. tab: people you've both said yes
+// Where a phone is: one of two tabs (the Belong tab: your listings; the Found tab: people you've both said yes
 // to), or a screen opened from them (a listing's profile and chat, a chat with a match, receipts).
 function screenFor(slot) {
   const p = S.phones[slot], L = local[slot];
@@ -703,7 +716,7 @@ function renderPhone(slot) {
   const p = S.phones[slot], L = local[slot], screen = screenFor(slot);
   if (p.taken_over && $("label-" + slot)) {
     $("label-" + slot).textContent = `Answering as ${p.name}`;
-    document.title = `${p.name} in the Belong. demo`;
+    document.title = `${p.name} in the Belong demo`;
   }
   if (screen === "thread") { const i = connected(p).find(x => x.intro_id === L.thread); if (i) L.seen[i.intro_id] = (i.thread || []).length; }
   const pending = p.listings.reduce((n, l) => n + needsAnswer(l), 0);
@@ -836,7 +849,7 @@ const SCREENS = {
     const sc = SCENARIOS[scenario]?.[slot] || {};
     if (!L.signin) {
       return `<div class="start"><span class="wordmark">Belong.</span>
-        <button class="btn block lg" onclick="local['${slot}'].signin=true; renderPhone('${slot}')">Sign in / Register</button></div>`;
+        <button class="start-link" onclick="local['${slot}'].signin=true; renderPhone('${slot}')">Sign in / Register</button></div>`;
     }
     return `<div class="signin">
       <div class="back-bar"><button class="btn ghost sm" onclick="local['${slot}'].signin=false; renderPhone('${slot}')"><span class="back-chev" aria-hidden="true"></span>Back</button></div>
@@ -907,7 +920,7 @@ const SCREENS = {
     const text = L.msg[i.intro_id] || "";
     return `<div class="thread">
       <div class="thread-head">
-        <button class="btn ghost sm back" onclick="go('${slot}','found')" aria-label="Back to Found."><span class="back-chev" aria-hidden="true"></span></button>
+        <button class="btn ghost sm back" onclick="go('${slot}','found')" aria-label="Back to Found"><span class="back-chev" aria-hidden="true"></span></button>
         ${avatar(name)}
         <div class="grow"><div class="heading-s">${esc(name)}</div>
           <button class="why" aria-expanded="${!!L.why}" onclick="local['${slot}'].why=!local['${slot}'].why; renderPhone('${slot}')">Why you matched<span class="chevron" aria-hidden="true"></span></button></div></div>
@@ -915,7 +928,7 @@ const SCREENS = {
         ${wishes.length ? `<p class="caption secondary" style="margin: var(--space-3) 0 var(--space-1)">What they'd like</p><div>${tags(wishes)}</div>` : ""}${connectedBlock(slot, i.listing, i)}</div>` : ""}
       <div class="chat-pane thread-pane">
         <p class="caption tertiary thread-note">${i.their_assistant
-          ? `You both said yes. ${esc(name)} uses Belong. through their own AI assistant, so what you write to them passes through that assistant's provider.`
+          ? `You both said yes. ${esc(name)} uses Belong through their own AI assistant, so what you write to them passes through that assistant's provider.`
           : i.simulated ? `You both said yes. ${esc(name)} is a simulated person in this demo: an AI model writes their replies from what they were shown about you, never your hidden details.`
           : "You both said yes. Only the two of you can see this conversation."}</p>
         ${t.map((m, n) => messageRow(slot, i, m, n, t, name, p.name)).join("")}
@@ -1698,7 +1711,7 @@ function followupCard(slot, l, q) {
     <button class="btn" style="margin-top: var(--space-3)" onclick="answer('${slot}','${l.id}','${q.question_id}',{min:+$('fu-min-${k}').value,max:+$('fu-max-${k}').value})">Answer</button>`;
   else controls = `<div class="row"><button class="btn" onclick="answer('${slot}','${l.id}','${q.question_id}',{yes:true})">Yes</button><button class="btn secondary" onclick="answer('${slot}','${l.id}','${q.question_id}',{yes:false})">No</button></div>
     ${q.question_id === "also_offer" ? `<p class="caption tertiary" style="margin: var(--space-2) 0 0">If you say yes, your listing is updated to match. Nobody is told you were asked.</p>` : ""}`;
-  return `<div class="card sm intro question">${badge("accent", "Question from Belong.")}<h3 class="heading-m" style="margin: var(--space-3) 0">${esc(q.question_text)}</h3>${controls}</div>`;
+  return `<div class="card sm intro question">${badge("accent", "Question from Belong")}<h3 class="heading-m" style="margin: var(--space-3) 0">${esc(q.question_text)}</h3>${controls}</div>`;
 }
 
 // Without a model agent, after a change the person made themselves: the other parts that still say what they replaced,
@@ -1716,7 +1729,7 @@ function offersHtml(slot, l) {
       <button class="btn ghost sm" onclick="answerOffers('${slot}',[])">Leave as is</button></div></div></div>`;
 }
 
-// No match yet: the one question Belong. asks without an opt-in, because a yes is the opt-in to close matches (questions
+// No match yet: the one question Belong asks without an opt-in, because a yes is the opt-in to close matches (questions
 // keep their own switch). Asked once per listing; with "Always include close matches" on, they're turned on instead.
 function broadenCard(slot, l) {
   const q = l.followups.find(x => x.question_id === "broaden");
@@ -1733,7 +1746,7 @@ function introCard(slot, l, i) {
     <p class="caption tertiary" style="margin: var(--space-2) 0 0">${i.close ? "They haven't been told about you. If you say yes, they're asked too." : "You're only introduced if you both say yes."}</p>`;
   else if (i.status === "waiting") status = badge("", "Waiting on the other person");
   else if (i.status === "closed") action = `<p class="body-s secondary" style="margin: var(--space-4) 0 0">Not this time.</p>`;
-  else { status = badge("success", "Introduced"); action = `<button class="btn secondary sm" style="margin-top: var(--space-4)" onclick="openView('${slot}','thread',{thread:'${i.intro_id}'})">Open chat in Found.</button>`; }
+  else { status = badge("success", "Introduced"); action = `<button class="btn secondary sm" style="margin-top: var(--space-4)" onclick="openView('${slot}','thread',{thread:'${i.intro_id}'})">Open chat in Found</button>`; }
   return `<div class="card sm intro">${i.close ? `<p class="caption text-ai" style="margin:0 0 var(--space-2)">Close match: not exactly what you asked for</p>` : ""}
     <div class="row"><h3 class="heading-l grow">${esc(f.first_name || "Someone")}</h3>${status}</div>
     ${wants ? `<p class="body-s secondary" style="margin: var(--space-2) 0 0">Looking for ${esc(wants)}</p>` : ""}
@@ -2012,12 +2025,12 @@ function renderRoom() {
     <p class="eyebrow">Presenter view</p>
     <h2 class="display-s" style="margin-top: var(--space-2)">Behind the scenes</h2>
     <p class="sub"><b>${esc(r.agent_status)}</b> on each phone. <b>${esc(r.matchmaker_status || "Matchmaker: rules")}</b>. Single-phone views: <a href="/demo?phone=A" target="_blank">A</a>, <a href="/demo?phone=B" target="_blank">B</a>.${taken.length ? ` Synthetic people taken over from the <a href="/inspector">inspector</a>: ${taken.join(", ")}.` : ""}<br>
-      What private matching reads and what Belong. sends out. The goal for production is that no one can see this, not even the people who run Belong. It's shown here only because the data is synthetic.</p>
+      What private matching reads and what Belong sends out. The goal for production is that no one can see this, not even the people who run Belong. It's shown here only because the data is synthetic.</p>
     <div class="controls">
       <select class="select" id="scenario" aria-label="Scenario" onchange="scenario=this.value; resetLocal(false); render(['A','B'])">${Object.entries(SCENARIOS).map(([k, s]) => `<option value="${k}" ${k === scenario ? "selected" : ""}>${esc(s.label)}</option>`).join("")}</select>
       <button class="btn secondary sm" ${ffBusy ? "disabled" : ""} ${scenario === "blank" ? 'title="Pick a scenario first"' : ""} onclick="fastForward()">${ffBusy ? "Fast-forwarding…" : "Fast-forward both phones"}</button>
       <button class="btn secondary sm" onclick="api('attack')">Simulate a compromised Matchmaker</button>
-      <button class="btn ghost sm" onclick="reset()">Reset</button>
+      <button class="btn ghost sm" ${resetBusy ? "disabled" : ""} onclick="reset()">${resetBusy ? "Resetting…" : "Reset"}</button>
     </div>
     <p class="caption secondary" style="margin: var(--space-2) 0 0">The Matchmaker runs on its own while this page is open: whenever something changes, and once a minute${r.matchmaker_last_run ? ` (last run at ${esc(r.matchmaker_last_run.slice(11, 16))} demo time)` : ""}. The log shows only runs that send something or are held back.${aiLine(r.matchmaker)}</p>
     <div class="audit">${lr.ok ? badge("success", "Passing") : badge("error", "Failed")}<div>
@@ -2073,7 +2086,14 @@ function resetLocal(clearForms = true) {
     else { Object.assign(local[s], { tab: null, view: null, form: {} }); for (const c of Object.values(local[s].ls)) c.chatText = ""; }
   }
 }
-async function reset() { resetLocal(); await api("reset"); }
+// A reset builds the synthetic board again, which takes a few seconds: the button says so meanwhile, and once.
+let resetBusy = false;
+async function reset() {
+  if (resetBusy) return;
+  resetBusy = true; renderRoom();
+  try { resetLocal(); if (await api("reset")) toast("The demo is reset."); }
+  finally { resetBusy = false; renderRoom(); }
+}
 // Fast-forward: each phone gets the scenario's listing, written with its agent and made live,
 // then the Matchmaker runs. Phones that are already set up keep everything and gain a listing.
 let ffBusy = false;
@@ -2120,7 +2140,7 @@ function render(force = []) {
     if (force.includes(slot) || snap !== last[slot]) { last[slot] = snap; renderPhone(slot); }
   }
   if (SINGLE) return;  // the presenter panel isn't on a single-phone page
-  const roomSnap = JSON.stringify(S.room) + scenario + ffBusy;
+  const roomSnap = JSON.stringify(S.room) + scenario + ffBusy + resetBusy;
   if (roomSnap !== last.room) { last.room = roomSnap; renderRoom(); }
 }
 fetch(STATE_URL).then(r => r.json()).then(d => { S = d; render(VIEW); });

@@ -162,7 +162,7 @@ def detail_field(row: dict):
 def wanted_ages(text: str, age_band) -> tuple:
     """(ages in years as "lo-hi" or None, a note or None): the ages a dating description asks for,
     absolute ("early 30s", "25 to 34", "no one over 40") or relative to their own age band ("around my
-    age": one band either side of theirs). Belong. introduces adults only, so nobody under 18 is ever
+    age": one band either side of theirs). Belong introduces adults only, so nobody under 18 is ever
     recorded. A bare number ("a woman, 30") is never turned into a range: the note asks instead."""
     _, years = _dating_wants(text, guess=False)
     years = years or relative_years(text, age_band)
@@ -174,10 +174,10 @@ def wanted_ages(text: str, age_band) -> tuple:
                       f"range, e.g. \"30 to 39\".")
     lo, hi = years[0], min(years[1], AGE_MAX)
     if hi < AGE_MIN:
-        return None, "Belong. only introduces adults, so I haven't added an age range. Who would you like to meet?"
+        return None, "Belong only introduces adults, so I haven't added an age range. Who would you like to meet?"
     note = None
     if lo < AGE_MIN:
-        lo, note = AGE_MIN, f"Belong. only introduces adults, so the ages start at {AGE_MIN}."
+        lo, note = AGE_MIN, f"Belong only introduces adults, so the ages start at {AGE_MIN}."
     value = f"{lo}-{hi}"
     return (value, note) if age_span(value) else (None, None)
 

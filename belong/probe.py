@@ -1,4 +1,4 @@
-"""Tests an outside agent can run against Belong. (the trust page's "test it yourself").
+"""Tests an outside agent can run against Belong (the trust page's "test it yourself").
 
 Each probe builds a fresh SANDBOX: the same Warden code, the same Matchmaker and
 300 synthetic people. Probes never touch real listings.
@@ -487,7 +487,7 @@ def attack_suite(body: dict) -> dict:
         person, listing = replace(me, id=pid), replace(a_listing, person_id=pid)
         results_ = [warden.admit(person, listing, scratch).accepted for _ in range(6)]
         return results_[-1] if all(results_[:5]) else None  # first five must pass, sixth must not
-    attempt("entry", "Flood Belong. with listing updates (6 in a day)", flood)
+    attempt("entry", "Flood Belong with listing updates (6 in a day)", flood)
 
     # Turning something off is never held back by the update limit (consent first), so a hostile agent might dress
     # up any other change as one. Past the day's limit, only an update that turns something off and changes nothing

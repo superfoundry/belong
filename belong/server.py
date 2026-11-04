@@ -6,7 +6,7 @@ a cookie that proves it without containing it.
 
   /, /demo                  two-person demo (belong/web/demo.html)
   /welcome                  landing page (belong/web/landing.html)
-  /connector (and /chat)    mockup: one person using Belong. inside a ChatGPT-style chat, through a connector
+  /connector (and /chat)    mockup: one person using Belong inside a ChatGPT-style chat, through a connector
                             (belong/web/chat.html), on its own demo session
   /trust                    trust page (belong/web/trust.html)
   /inspector                batch-run inspector (belong/web/index.html + out/run.json); "Take over" gives a
@@ -50,6 +50,7 @@ FILES = {
     "/trust/TRUST.md": (ROOT / "TRUST.md", "text/plain; charset=utf-8"),
     "/inspector": (WEB / "index.html", "text/html; charset=utf-8"),
     "/nav.js": (WEB / "nav.js", "text/javascript; charset=utf-8"),
+    "/apple-touch-icon.png": (WEB / "apple-touch-icon.png", "image/png"),
     "/run.json": (ROOT / "out" / "run.json", "application/json"),
 }
 MAX_BODY = 64 * 1024
@@ -116,7 +117,8 @@ PROBES = {"canary": probe.canary_test, "attacks": probe.attack_suite}
 
 COOKIE = "belong_session"
 SIGNED_IN_FOR = 30 * 24 * 3600  # seconds
-OPEN_PATHS = {"/login"}  # and the design files (/ds/...), which the sign-in page needs
+OPEN_PATHS = {"/login", "/apple-touch-icon.png"}  # and the design files (/ds/...), which the sign-in page needs;
+# the icon, because a phone fetches it for its home screen without the cookie
 LOGIN_LIMIT = 20  # failed attempts a minute, from anyone; then sign-in pauses for that minute
 _failures: list = []
 _failures_lock = threading.Lock()
@@ -266,7 +268,7 @@ class _Handler(BaseHTTPRequestHandler):
         self._send(200, route[0].read_bytes(), route[1])
 
     def _design_file(self, rel: str):
-        """Belong. design system files (tokens, components, fonts). Fixed list, no paths from the URL."""
+        """Belong design system files (tokens, components, fonts). Fixed list, no paths from the URL."""
         files = {"tokens.css": "text/css; charset=utf-8", "belong.css": "text/css; charset=utf-8",
                  "theme-dark.css": "text/css; charset=utf-8"}
         files.update({f"fonts/{f.name}": "font/woff2" for f in (WEB / "ds" / "fonts").glob("*.woff2")})

@@ -1,4 +1,4 @@
-"""Notification choices (SPEC §5 follow-ups; Belong.'s close matches): questions only for people
+"""Notification choices (SPEC §5 follow-ups; Belong's close matches): questions only for people
 who opted in, close matches only one-way to people who opted in, and an "also offer" question
 quotes only a shown phrase of someone who opted in, without saying who. The one question asked
 without an opt-in is the opt-in itself ("Want to include close matches?"): once, with no match yet."""
