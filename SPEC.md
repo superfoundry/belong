@@ -103,7 +103,7 @@ Field
   sensitive: bool            # sensitive built-ins start hidden + off; open details never
   compare: "same" | "steps"  # open details only
   steps: [str]               # open details compared on a scale: 2-7 ordered steps
-  required: bool             # wishes only: false = "ideally"
+  required: bool             # wishes only: false = "ideally"; true only from the person's own words (§5)
 
 Proposal  (internal to the room, never leaves as-is)
   person_a, person_b
@@ -199,8 +199,57 @@ and places also drop every accent (`schema.plain_place`). Values are stored as w
   reason (`schema.meets`). A wish the other listing can't be compared on (no such detail, another
   way of comparing, a step not on the scale) fails a required wish, and an "ideally" one only at
   exactness 0.8 or more. So a detail named or scaled differently by two agents costs a match, never
-  makes a wrong one; the shared list (§6) keeps agents' names the same.
+  makes a wrong one while the wish is required; the shared list (§6) keeps agents' names the same.
   Matching and the Warden share these comparisons, so they can't disagree.
+- **A wish is required only from the person's own words.** A required wish shuts out every listing
+  that doesn't show something to meet it, so an agent's guess must never do that. Whatever agent
+  drafts a listing, a wish it saves as required stays required only by one of three fixed rules
+  (`agent.ground_wishes`):
+  1. What the person typed themselves for that listing says one of its values in full
+     (`agent.wish_said`). Each word that says something counts in some form by the length rule
+     `agent.same_word`, a number only as the same number (thousands separators don't matter) and with
+     the word written right after it as one word, with or without a space ("5 km" is "5km", never said by
+     5 alone; 5 is said by "5km"), a word with the marks of its letters, in Hangul also with its
+     particles after it (a syllable standing alone is a word), and anywhere inside a run in a script
+     written without spaces (never inside a longer number); a value of only one- or two-letter words
+     counts only with a word of the detail's name; the name alone never counts; a wish that says nothing
+     always counts. Any one value said is enough: more values widen who meets a wish, never whom it
+     shuts out for not showing the detail, so a value said about anything (one an agent adds next to a
+     made-up one too) keeps it (TRUST.md limit 28).
+  2. A save kept it as "ideally" earlier, so the agent was told to ask whether it must be met, and the
+     few words the agent quotes as theirs for it (its `their_words`, at most `agent.THEIR_WORDS_MAX`)
+     are all in the message they typed next, after the latest such save: their answer
+     (`agent.answered`). A quote of anything typed before that save, or of a later message, never
+     counts; the answer counts whatever it says (a word rule can't tell a yes from a no). The demo
+     remembers on the person's own listing which wishes were kept as ideally and when, as of the latest
+     save that kept each so (`_Listing.ideally_since`, `DemoSession._note_ideally`; the draft carries
+     them only from the agent to the demo, `agent_llm.KEPT_IDEALLY`), and passes the messages typed
+     since (`DemoSession._answers`); it forgets one when an agent's save no longer has the wish as
+     ideally (a must now, or gone).
+  3. The draft it replaces already had it as a must, and it is saved as it was or wider: it passed
+     these rules when it was saved, or came from what went live.
+
+  Otherwise it is kept as "ideally": only made not required, never taken off, reworded, or made shown
+  or hidden. At exactness 0.8 or more (`schema.STRICT_EXACTNESS`) every wish shuts out who doesn't show
+  it, "ideally" ones too, so there every wish is held to the same three rules (a draft as exact counts
+  its wishes as musts for rule 3), and a save with one that passes none is made less exact
+  (`agent.ground_exactness`: `agent.UNSTRICT`, 0.7), never raised, nothing else changed; the agent is
+  told, and the wish is remembered as one waiting for an answer. What counts is the person's own
+  messages in the chat of the listing a save lands on (a new separate listing: their messages from the
+  one that led to the other listing's last save, `DemoSession._said_since`; a synthetic person taken
+  over: also their description and messages, as the simulation counts them), never a turn the app writes
+  for their agent (a change they made on their profile, the check when the agent replied without saving,
+  a yes to a question); values typed on the profile don't count yet. A model agent is given those words,
+  for where each save lands, and told which wish was kept as ideally, so it can ask, and is asked to
+  keep at least one value of a must as the person wrote it for what must be met, next to any common form
+  (`agent_llm.build_draft`, `typed_for`, `SYSTEM_PROMPT`); the draft of an agent that doesn't take them
+  is held to rules 1 and 3, and on exactness by them, before it is kept
+  (`demo.DemoSession.agent_message`). In a turn after a change the person made themselves,
+  `agent.keep_edit` already keeps every wish as they kept it. It is a rule of the person's own agent and
+  session, not a Warden check: the Warden never decides who matches and never sees anyone's chat. It
+  reads whether words are theirs and when they were typed, not what they mean (TRUST.md #45, limit 28).
+  The Matchmaker AI is told that a wish that isn't required, and that the other listing says nothing
+  about, never makes its answer "no" or "close" on its own.
 - **Both must be looking.** A pair is proposed only if A's intent is met by B *and*
   B's intent is met by A. Nobody is approached who didn't ask.
 - **Never a specific person.** The Warden agent rejects intents narrow enough to identify one
@@ -337,7 +386,15 @@ hidden leaks. No secure hardware yet, but built the way the room will run.
 1. Generate 300 synthetic people (mix of dating + functional intents, realistic
    hidden fields), written as phrases and open details. A second run gives a quarter of them
    agents that write one detail differently (another name, another scale, one left out or
-   hidden), to show that costs matches but never makes a wrong one.
+   hidden), to show that costs matches but never makes a wrong one. Every run holds each listing's
+   wishes to the person's own words (§5: each synthetic person types their description and each must
+   they have with its value; where their agent writes it otherwise, it asks and they answer yes, so
+   every real must stays one); two more sets of three runs give a quarter of the listings that aren't
+   dating an agent that adds a must the person never had (quoting their own first words for it; asked,
+   they say no), with that rule and without it, to show what it wins back, and with it while that agent
+   quotes their no as their answer, to show what a word rule can't win back; a last pair has every must
+   said in other words than the value its agent writes, with their yes to its question and by values
+   alone, to show what reading values alone would cost.
 2. Narrow: embeddings + hard filters → shortlist per person.
 3. Matchmaker (pluggable interface):
    - `OfflineMatcher`: embeddings + rules, no API key.

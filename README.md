@@ -54,6 +54,12 @@ their region, and plain Python; secure hardware comes in Step 3.
   `python3 -m belong run` then runs the same week again with a quarter of the people's agents writing
   one detail differently from most agents (another name, another scale, one left out or hidden), and
   prints both results: a detail written differently costs matches but should never make a wrong one.
+  Then it runs both again with a quarter of the agents of listings that aren't dating adding a must the
+  person never had, with and without the rule that a must comes from the person's own words, to show
+  what that rule wins back, and with it while those agents quote the person's "no" as their answer, to
+  show what a word rule can't win back; and last the second week with every must said in other words
+  than the value its agent writes, with the person's yes to their agent's question and by values alone,
+  to show what reading values alone would cost (TRUST.md #45).
 - **[TRUST.md](TRUST.md)** lists every privacy promise with the code that enforces it,
   the test that proves it, and what isn't guaranteed yet. Start there.
 - **[SPEC.md](SPEC.md)** is the product spec.
@@ -154,7 +160,15 @@ above):
    met and never asks for the detail. An own "any" meets a wish only for a listing that isn't strict
    (exactness under 0.8), and it is never a reason: it says nothing two people have in common. A
    detail the other doesn't show, or names or scales differently, fails a required wish: that costs a
-   match but never makes a wrong one.
+   match but never makes a wrong one. A wish stays required only when you said it: what you typed
+   says one of its values; or a save kept it as "ideally", so your agent was told to ask whether it
+   must be met, and it quotes your answer from the message you typed next; or it was already a must on
+   your draft. One your agent saves as a must that you never said is kept as "ideally", so it no longer
+   shuts out people who don't show that detail, though it still fails anyone who shows a value that
+   doesn't meet it. At exactness 0.8 or more every wish shuts out who doesn't show it, so a listing that
+   exact with a wish you never said is made less exact (0.7) until you answer. It is a word rule, not a
+   reading of meaning: your answer counts whatever it says, any one value counts, and a must you never
+   put into words is only "ideally" until you say it (TRUST.md #45, limit 28).
 5. **Never the only reason.** A pair must also share something both show (where they can meet,
    their phrases, or a detail they have in common) and score well enough without any hidden detail
    (on shown details, and how alike the two descriptions read).

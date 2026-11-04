@@ -24,6 +24,15 @@ tool call is checked here before it touches the draft:
     scale of steps, values, shown or hidden, required or ideally) must pass the one entry rule the Warden
     also checks (schema.detail_problems), and a name already on the shared list of details in use keeps its
     meaning there: the same compare and the same steps ("one name, one meaning"),
+  - a wish (about them or both) is a must only when the person said it: given what they typed themselves for
+    the listing the save lands on (`said`, typed_for), a wish saved as required stays one only when their words
+    say one of its values, or when an earlier save kept it as ideally and the few words the agent quotes as
+    theirs for it (its their_words) are all in the message they typed next, after the latest such save (their
+    answer), or when the profile already had it as a must; otherwise it is kept as "ideally" by one fixed rule
+    (agent.ground_wishes, SPEC §5), and the agent is told so it can ask them; at exactness 0.8 or more, where
+    every wish shuts people out, a save with a wish that passes none of these is made less exact
+    (agent.ground_exactness); each is a note, never a refusal, so it never stops a save, and the draft says
+    which wishes it kept so (KEPT_IDEALLY) for the demo to remember on the person's own listing,
   - what the agent understood is recorded on the listing as shown details the person can check:
     the kind of match it chose ("kind": dating, or other) and, for dating, who they'd like to meet and
     those people's ages in years ("wants_gender", "wants_age"), in the fixed forms the Warden accepts.
@@ -57,13 +66,13 @@ import json
 import re
 import unicodedata
 
-from .agent import (_BY_KIND, _COMMON, _KIND_NAMES, DATING_ONLY, LABELS, NOTHING_ELSE, carries, carry_over, city_country,
-                    detail_field, detail_row, field_options, fill_gaps, keep_edit, mentions_sensitive, part_value, ready,
-                    wants_text)
+from .agent import (_BY_KIND, _COMMON, _KIND_NAMES, DATING_ONLY, LABELS, NOTHING_ELSE, UNSTRICT, WISHES, carries,
+                    carry_over, city_country, detail_field, detail_row, field_options, fill_gaps, ground_exactness,
+                    ground_wishes, keep_edit, mentions_sensitive, part_value, ready, said_words, wants_text)
 from .matching.intent import ages_text, default_age_range, parse_intent
 from .schema import (ABOUTS, AGE_MAX, AGE_MIN, COMPARES, FIELD_REGISTRY, FREE_TEXT_MAX, GENDERS, HEADLINE_MAX, HIDDEN,
                      LIST_CAPS, LIST_LONG_RUN, LIST_LONG_RUN_CHARS, LIST_PHRASE_KEYS, LIST_PHRASE_WORDS, LIST_PREFIX,
-                     LIST_TEXT_MAX, LIST_UNSPACED_CHARS,
+                     LIST_TEXT_MAX, LIST_UNSPACED_CHARS, STRICT_EXACTNESS,
                      LIST_UNSPACED_SCRIPTS, LIST_VALUE_WORDS, PRIVATE_FIELDS, PRIVATE_VALUE_MAX, SENSITIVE_FIELD, SHOWN,
                      STEPS_MAX, STEPS_MIN, Field, age_span_choice, canonical, detail_problems, display_form,
                      is_detail_key, meeting_format, name_problems, sensitive_categories, shown_claim_problems, split_key,
@@ -101,10 +110,14 @@ DETAIL_SCHEMA = {
                                   "accept about them."},
         "visibility": {"type": "string", "enum": [SHOWN, HIDDEN],
                        "description": "Always shown about them or both. About me, hidden only if they ask."},
-        "required": {"type": "boolean", "description": "About them or both: true when it must be met, false for "
-                                                       "'ideally'. true about me."},
+        "required": {"type": "boolean", "description": "About them or both: true only when they said it must be "
+                                                       "met; otherwise false ('ideally'). true about me."},
+        "their_words": {"type": "string",
+                        "description": "About them or both, when required is true and they said yes to your question "
+                                       "whether it must be met: the few words of that answer, copied from their "
+                                       "message (never your words or the app's). Empty otherwise."},
     },
-    "required": ["name", "about", "compare", "steps", "values", "visibility", "required"],
+    "required": ["name", "about", "compare", "steps", "values", "visibility", "required", "their_words"],
     "additionalProperties": False,
 }
 
@@ -132,7 +145,10 @@ UPDATE_LISTING_TOOL = {
             },
             "exactness": {
                 "type": "number",
-                "description": "0.3 = cast a wide net, 0.6 = balanced, 0.9 = exactly what they said.",
+                "description": "0.3 = cast a wide net, 0.6 = balanced, 0.9 = exactly what they said. From "
+                               f"{STRICT_EXACTNESS} every wish must be met, ideally ones too, so it stays that high "
+                               "only while each wish is in their own words or their answer; else it is saved at "
+                               f"{UNSTRICT} and you're told.",
             },
             "fields": {
                 "type": "array",
@@ -426,7 +442,11 @@ the person or both, give the one step that applies; about them, every neighbouri
 - values: each in its plainest common form, lower case unless it's a name, a word or two. "any" on its own \
 only in a wish (about them), when they're open to anything; about the person or the request, give the value \
 that applies.
-- required: true when what they'd like must be met, false when they said "ideally" or "preferably".
+- required: true only when they said it must be met; otherwise false. A must stays one only if one of its \
+values is in their own words, so give a must at least one value as they wrote it for what must be met, next to \
+any common form; else it is saved as ideally and you're told. Then ask them whether it must be met: if they say \
+yes in their next message, save it as a must with their_words copying the few words of that answer (their yes \
+keeps it). their_words stays empty otherwise.
 - What they'd like in the other person (about them) and what the request needs both people to share (about \
 both) are wishes, always shown: a hidden wish could never decide anything. Only details about themselves can \
 be hidden, if they ask.
@@ -487,10 +507,12 @@ def _texts(raw) -> list:
     return [display_form(v) for v in raw if isinstance(v, str) and v.strip()] if isinstance(raw, list) else []
 
 
-def _clean_details(raw) -> tuple:
+def _clean_details(raw, their_words=None) -> tuple:
     """(rows, problems): the open details one save writes, as draft rows (agent.detail_row), in the agent's
     order. Names are stored canonical, steps and values in display form, and a value written as one of its
-    steps in another case or spacing becomes that step. Their form is checked after (detail_save_problems)."""
+    steps in another case or spacing becomes that step. Their form is checked after (detail_save_problems).
+    their_words: a dict to fill with the words the agent quotes as the person's own for each wish it saves as a
+    must (key -> text), for agent.ground_wishes; they go nowhere else, never on the draft."""
     rows, problems = [], []
     for d in raw if isinstance(raw, list) else []:
         if not isinstance(d, dict):
@@ -506,7 +528,10 @@ def _clean_details(raw) -> tuple:
         steps, values = _texts(d.get("steps")), _texts(d.get("values"))
         values = [next((s for s in steps if canonical(s) == canonical(v)), v) for v in values]
         rows.append(detail_row(about, name, compare, steps, values, d.get("visibility"),
-                               d.get("required") is not False))
+                               d.get("required") is True))  # a must only when the agent says so
+        if their_words is not None and about in WISHES and d.get("required") is True \
+                and isinstance(d.get("their_words"), str) and d["their_words"].strip():
+            their_words[rows[-1]["key"]] = " ".join(d["their_words"].split())[:FREE_TEXT_MAX]
     if raw is not None and not isinstance(raw, list):
         problems.append("details must be a list")
     return rows, problems
@@ -772,7 +797,45 @@ def _named(key: str) -> str:
     return f"{name} (about {about})" if about else key
 
 
-def build_draft(args: dict, first_name: str, age_band: str, current=None, in_use=None, refused=(), edit=None) -> tuple:
+# A wish saved as a must that stays one by none of the rules (agent.ground_wishes) is kept as ideally: the agent is
+# told, as a note (never a refusal, so the save goes through), so it can ask them whether it must be met, and their
+# answer, quoted, makes it one (agent.answered: only the message they type next, after this save, is their answer).
+WISH_IDEALLY = ("'{name}' was saved as ideally, not as a must: none of its values is in anything they typed. Keep it "
+                "as it is, and ask them whether it must be met. If they say it must, save it as a must with "
+                "their_words copied from their answer.")
+# At exactness STRICT_EXACTNESS or more every wish must be met, "ideally" ones too, so a save that exact with a wish
+# that stays a must by none of the rules is made less exact (agent.ground_exactness), with this note (never a refusal).
+EXACTNESS_LOWERED = ("Exactness was saved as {exactness}, not {asked}: from {strict} every wish must be met, ideally "
+                     "ones too, and none of the values of {names} is in anything they typed. Ask them whether it must "
+                     "be met. If they say it must, save it as a must with their_words copied from their answer, and "
+                     "the exactness can be as they want it.")
+# On a draft an agent hands back: the keys of the wishes its saves kept as ideally (agent.ground_wishes, and
+# agent.ground_exactness), for the demo to remember on the person's own listing (and when, so that only the message they
+# type next is their answer). The demo takes it off before the draft is kept, so it never reaches the phone or anyone
+# else.
+KEPT_IDEALLY = "kept_ideally"
+
+
+def typed_for(said, args: dict):
+    """What the person typed that counts for one save, from what the demo gives (said), as (texts, answers), or None
+    (no rule). said: a list (the same words wherever the save lands, no answers); or {"listing": the words for a save
+    on this listing, "separate": the words for a new separate listing, "answers": for each wish a save on this listing
+    kept as ideally, the messages they typed after the latest such save, the first of them their answer}. The demo
+    puts a separate save on a new listing whenever this listing has a draft or is live, and only then do the two
+    differ (a new listing counts the messages from the one that led to this listing's last save:
+    DemoSession._said_since), so the save's separate_listing says which words are the listing's it lands on. A new
+    listing has no answers yet: nothing was asked on it."""
+    if said is None:
+        return None
+    if not isinstance(said, dict):
+        return list(said), {}
+    if args.get("separate_listing") is True:
+        return list(said.get("separate") or ()), {}
+    return list(said.get("listing") or ()), dict(said.get("answers") or {})
+
+
+def build_draft(args: dict, first_name: str, age_band: str, current=None, in_use=None, refused=(), edit=None,
+                said=None) -> tuple:
     """Check one update_listing call. Returns (draft or None, problems, notes).
 
     current: the profile this save replaces (None for a new listing), with "choices": the person's own
@@ -792,7 +855,17 @@ def build_draft(args: dict, first_name: str, age_band: str, current=None, in_use
     edit: for the turn after a change the person made on their profile themselves (EDIT_TURN), {"changes": what they
     changed (agent.changes_made), "saved": the draft they kept}. The save is refused for any part agent.keep_edit
     wouldn't take from it (what they changed keeps their value, nothing new, only parts that said what they replaced,
-    shown or hidden as it was), each said so the agent can fix it."""
+    shown or hidden as it was), each said so the agent can fix it.
+
+    said: what the person typed themselves (never a turn the app wrote), as the demo gives it for where this save lands
+    (typed_for). Given, a wish (about them or both) saved as required is kept as "ideally" (agent.ground_wishes) unless
+    those words say one of its values, or the few words the agent quotes as theirs for it (its their_words) are all in
+    the message they typed next after the latest save that kept it as ideally (their answer), or `current` already had
+    it as a must, as wide or wider; with a note (WISH_IDEALLY), never a problem. At exactness STRICT_EXACTNESS or more
+    every wish is held to the same rules (`current` read the same way when it was as exact), and if one passes none
+    the save is made less exact (agent.ground_exactness), with a note (EXACTNESS_LOWERED). The draft lists the wishes
+    of either (KEPT_IDEALLY). Not in a turn after a change the person made themselves (edit): there keep_edit already
+    keeps every wish exactly as they kept it, required or not, and adds none, and the exactness as it was."""
     if singles_out(args):  # the model judged this request singles out one person: it can only refuse
         return None, [SINGLED_OUT], []
     if request_key(args) in refused:
@@ -841,7 +914,8 @@ def build_draft(args: dict, first_name: str, age_band: str, current=None, in_use
         values.pop(key)
         visibility.pop(key, None)
         notes.append(f"{key} was left out: it's only used for dating.")
-    details, problems_of_form = _clean_details(args.get("details"))
+    their_words = {}  # the words the agent quotes as the person's own for each must (agent.ground_wishes)
+    details, problems_of_form = _clean_details(args.get("details"), their_words)
     problems += problems_of_form
     # The details the agent chose shown or hidden for on purpose: a value it kept, with a visibility of its
     # own (the tool always sends one, even with no value: that chooses nothing), and every open detail it
@@ -853,7 +927,8 @@ def build_draft(args: dict, first_name: str, age_band: str, current=None, in_use
     written = {d["key"] for d in details}
     before = {f.get("key") for f in (current or {}).get("fields", []) if f.get("value") not in (None, "", [])}
     for key, vis in sorted(((current or {}).get("choices") or {}).items()):
-        if is_detail_key(key) and key in before and key not in written:
+        # A wish is always shown, so nobody chose anything about it: one left out isn't pointed out.
+        if is_detail_key(key) and split_key(key)[0] not in WISHES and key in before and key not in written:
             notes.append(f"'{_named(key)}' was left out, and the person chose to keep it {vis}. If they didn't ask "
                          f"to remove it, save it again.")
 
@@ -890,6 +965,26 @@ def build_draft(args: dict, first_name: str, age_band: str, current=None, in_use
     draft = {"intent_text": intent, "exactness": exactness, "kind": kind, "fields": fields + details, "listed": listed}
     # The listing as it will be: what's already on the profile, and the person's choices of shown or hidden.
     carry_over(draft, current, (current or {}).get("choices"))
+    typed = typed_for(said, args)
+    ideally = []
+    if typed is not None and not edit:
+        # A must only from the person's own words: a wish saved as required is kept as ideally unless they typed one of
+        # its values, or the agent quotes their answer to its question about it, or the profile it replaces already had
+        # it as a must (as wide or wider).
+        texts, answers = typed
+        words, was = said_words(texts), (current or {}).get("fields")
+        draft["fields"], ideally = ground_wishes(draft["fields"], words, their_words, was, answers)
+        # At exactness 0.8 or more every wish shuts out who doesn't show it, "ideally" ones too: held to the same rules,
+        # or the listing is made less exact.
+        asked = draft["exactness"]
+        draft["exactness"], loose = ground_exactness(asked, draft["fields"], words, their_words, was,
+                                                     (current or {}).get("exactness"), answers)
+        details = [f for f in draft["fields"] if is_detail_key(f.get("key"))]
+        notes += [WISH_IDEALLY.format(name=_named(key)) for key in ideally]
+        if loose:
+            notes.append(EXACTNESS_LOWERED.format(exactness=draft["exactness"], asked=asked, strict=STRICT_EXACTNESS,
+                                                  names=", ".join(f"'{_named(key)}'" for key in loose)))
+        ideally += [key for key in loose if key not in ideally]
     by = {f["key"]: f for f in draft["fields"]}
     if kind != "dating":
         # Matching needs both phrases to find the other person, so on a listing that isn't dating they're
@@ -997,6 +1092,8 @@ def build_draft(args: dict, first_name: str, age_band: str, current=None, in_use
         understood += ", with " + wants_text(merged.get("wants_gender"), merged.get("wants_age"))
     draft.update({"understood": understood, "notes": notes, "missing": missing, "complete": not missing, "by": "claude",
                   "suggestions": _suggestions(args.get("suggestions")), "separate": args.get("separate_listing") is True})
+    if ideally:
+        draft[KEPT_IDEALLY] = ideally
     return draft, [], notes
 
 
@@ -1165,12 +1262,19 @@ def turn_drafts(saved: list):
     """Everything one turn saved, as one draft to hand back: the current listing's latest draft, then
     each separate listing's latest (one per search: its kind and what it looks for), in that order. The
     last is returned, carrying the others under "earlier" for whoever applies them in order (a "both"
-    answer makes two listings, each with its own kind). None if nothing was saved."""
-    current = [d for d in saved if not d.get("separate")][-1:]
-    separate = {}
+    answer makes two listings, each with its own kind). Each lists every wish any of that listing's saves
+    this turn kept as ideally (KEPT_IDEALLY): the agent was told about each. None if nothing was saved."""
+    def latest(drafts: list) -> dict:
+        kept = list(dict.fromkeys(k for d in drafts for k in d.get(KEPT_IDEALLY, ())))
+        return {**drafts[-1], KEPT_IDEALLY: kept} if kept else drafts[-1]
+
+    mine = [d for d in saved if not d.get("separate")]
+    current = [latest(mine)] if mine else []
+    searches = {}
     for d in saved:
         if d.get("separate"):
-            separate[_search(d)] = d
+            searches.setdefault(_search(d), []).append(d)
+    separate = {search: latest(drafts) for search, drafts in searches.items()}
     ordered = current + list(separate.values())
     if not ordered:
         return None
@@ -1197,8 +1301,8 @@ def _detail_line(f: dict) -> str:
     how = f.get("compare", "")
     if f.get("steps"):
         how += ", steps: " + ", ".join(f["steps"])
-    if about != "me" and f.get("required") is False:
-        how += ", ideally"
+    if about != "me":
+        how += ", ideally" if f.get("required") is False else ", must"
     value = f.get("value")
     return f'detail "{name}" (about {about}, {how}; {f.get("visibility")}): ' + \
         (", ".join(value) if isinstance(value, list) else str(value))
@@ -1229,9 +1333,16 @@ def profile_so_far(draft) -> str:
     return "The profile so far (keep all of it when you save, unless they change something): " + "; ".join(parts) + "." + kept
 
 
+def _strength(f: dict) -> str:
+    """What a match will see of a wish's strength: a must, or only ideally."""
+    if split_key(f["key"])[0] not in WISHES:
+        return ""
+    return " (ideally)" if f.get("required") is False else " (must)"
+
+
 def _summary(draft: dict) -> str:
     said = lambda f: ", ".join(f["value"]) if is_detail_key(f["key"]) else f["value"]
-    shown = [f"{_named(f['key'])}={said(f)}" for f in draft["fields"]
+    shown = [f"{_named(f['key'])}={said(f)}{_strength(f)}" for f in draft["fields"]
              if f["value"] and f["enabled"] and f["visibility"] == SHOWN]
     hidden = [_named(f["key"]) for f in draft["fields"] if f["value"] and f["enabled"] and f["visibility"] == HIDDEN]
     out = (f"Draft saved. A match will see only these details: {', '.join(shown) or 'nothing'}. "
@@ -1272,22 +1383,25 @@ class ClaudeAgent:
         self.model = model
 
     def respond(self, conversation: list, user_text: str, first_name: str, age_band: str, current=None,
-                in_use=None, edit=None) -> tuple:
+                in_use=None, edit=None, said=None) -> tuple:
         """Append the person's message, run the agent, and return (reply, draft or None).
         `conversation` is this person's message history; it is only ever appended to.
         `current` is the profile draft as it stands (so the agent builds on it). `in_use` is the shared
         list of details in use (Warden.details_in_use(...).vocabulary()), given to the model as data.
         `edit`: what the person changed on their profile themselves (agent.changes_made), when user_text is the
-        app's EDIT_TURN about it: every save is held to agent.keep_edit, and a reply without one is fine."""
+        app's EDIT_TURN about it: every save is held to agent.keep_edit, and a reply without one is fine.
+        `said`: what the person typed themselves, as the demo gives it for where each save lands (typed_for): a wish
+        is a must only if they said it (build_draft)."""
         start = len(conversation)
         conversation.append({"role": "user", "content": user_text})
         try:
-            return self._run(conversation, first_name, age_band, current, in_use, edit)
+            return self._run(conversation, first_name, age_band, current, in_use, edit, said)
         except AgentUnavailable:
             del conversation[start:]  # drop the unfinished turn so a later retry starts clean
             raise
 
-    def _run(self, conversation: list, first_name: str, age_band: str, current=None, in_use=None, edit=None) -> tuple:
+    def _run(self, conversation: list, first_name: str, age_band: str, current=None, in_use=None, edit=None,
+             said=None) -> tuple:
         system = (SYSTEM_PROMPT + f"\nThe person you work for: first name {first_name}, age band {age_band}.\n"
                   + profile_so_far(current))
         replies, draft, attempted, saved, checked, singled, refused = [], None, False, [], None, False, set()
@@ -1318,7 +1432,8 @@ class ClaudeAgent:
                 args = dict(block.input)
                 singled = singled or singles_out(args)
                 new_draft, problems, _ = build_draft(args, first_name, age_band, builds_on(args, saved, current),
-                                                     in_use, refused, {"changes": edit, "saved": current} if edit else None)
+                                                     in_use, refused, {"changes": edit, "saved": current} if edit else None,
+                                                     said)
                 if singles_out(args):
                     refused.add(request_key(args))
                 if problems:

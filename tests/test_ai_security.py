@@ -437,7 +437,14 @@ class AHostileMatchmakerAIOnASyntheticBoard(unittest.TestCase):
             self.assertFalse((Path(d) / "run.json").exists())
         self.assertEqual(code, 0)
         self.assertIn("hostile stand-in", out.getvalue())
-        self.assertEqual(out.getvalue().count("Leak report: PASS"), 2)
+        # Both weeks, then both again with invented wishes, with the rule that a must comes from the person, without,
+        # and with it while the agent quotes every answer, then the dialects' week with every must said in other words,
+        # with the person's answers and by values alone: every one audited.
+        self.assertEqual(out.getvalue().count("Leak report: PASS"), 10)
+        self.assertEqual(out.getvalue().count("Without the rule that a must comes from the person's own words"), 2)
+        self.assertEqual(out.getvalue().count("their agent quoting the person's answer whatever it says"), 2)
+        self.assertEqual(out.getvalue().count("Reading only the values, not the person's yes to their agent's question"),
+                         1)
 
 
 def _compare_tool():

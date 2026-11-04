@@ -28,7 +28,8 @@ from .agent_llm import (MAX_TOOL_ROUNDS, SAVE_CHECK, SYSTEM_PROMPT, UPDATE_LISTI
                         build_draft, builds_on, honest, not_saved, profile_so_far, quiet_reply, refused_reply,
                         request_key, singles_out, turn_drafts, with_list)
 # A change the person made on their profile themselves reaches this agent as the same turn (agent_llm.EDIT_TURN,
-# written by the demo), with `edit` for build_draft: the same text and the same fixed rule as the Claude agent.
+# written by the demo), with `edit` for build_draft: the same text and the same fixed rule as the Claude agent. So does
+# what the person typed themselves (`said`), with which build_draft keeps a wish they didn't say as ideally.
 
 API_URL = "https://api.openai.com/v1/chat/completions"
 DEFAULT_MODEL = "gpt-5"
@@ -63,22 +64,25 @@ class OpenAIAgent:
         self._post = post
 
     def respond(self, conversation: list, user_text: str, first_name: str, age_band: str, current=None,
-                in_use=None, edit=None) -> tuple:
+                in_use=None, edit=None, said=None) -> tuple:
         """Append the person's message, run the agent, and return (reply, draft or None).
         `conversation` is this person's message history; it is only ever appended to,
         except that a turn which fails part-way is removed again. `in_use` is the shared list of
         details in use (Warden.details_in_use(...).vocabulary()), given to the model as data.
         `edit`: what the person changed on their profile themselves, when user_text is the app's turn about it
-        (agent_llm.EDIT_TURN): every save is held to agent.keep_edit, and a reply without one is fine."""
+        (agent_llm.EDIT_TURN): every save is held to agent.keep_edit, and a reply without one is fine.
+        `said`: what the person typed themselves, as the demo gives it for where each save lands (agent_llm.typed_for):
+        a wish is a must only if they said it (agent_llm.build_draft, the same rule as the Claude agent)."""
         start = len(conversation)
         conversation.append({"role": "user", "content": user_text})
         try:
-            return self._run(conversation, first_name, age_band, current, in_use, edit)
+            return self._run(conversation, first_name, age_band, current, in_use, edit, said)
         except AgentUnavailable:
             del conversation[start:]
             raise
 
-    def _run(self, conversation: list, first_name: str, age_band: str, current=None, in_use=None, edit=None) -> tuple:
+    def _run(self, conversation: list, first_name: str, age_band: str, current=None, in_use=None, edit=None,
+             said=None) -> tuple:
         system = (SYSTEM_PROMPT + f"\nThe person you work for: first name {first_name}, age band {age_band}.\n"
                   + profile_so_far(current))
         replies, draft, attempted, saved, checked, singled, refused = [], None, False, [], None, False, set()
@@ -119,7 +123,8 @@ class OpenAIAgent:
                         singled = singled or singles_out(args)
                         new_draft, problems, _ = build_draft(args, first_name, age_band,
                                                              builds_on(args, saved, current), in_use, refused,
-                                                             {"changes": edit, "saved": current} if edit else None)
+                                                             {"changes": edit, "saved": current} if edit else None,
+                                                             said)
                         if singles_out(args):
                             refused.add(request_key(args))
                         if problems:

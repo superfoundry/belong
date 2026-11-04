@@ -1242,7 +1242,7 @@ class Scripted:
 
 def duet_player(s: DemoSession, slot="A", level=("middle",)):
     """A listing with open details of every kind: about the person (a step on a scale), a wish about the other
-    person (a run of steps), and something both must share."""
+    person (a run of steps) that must be met, as the person says, and something both must share."""
     scale = ["low", "middle", "high"]
     s.verify(slot, "Noor", 33)
     s.llm = Scripted({"city": "Lyon", "country": "France", "seeking": "a duet partner", "offering": "a duet partner",
@@ -1253,7 +1253,7 @@ def duet_player(s: DemoSession, slot="A", level=("middle",)):
                        "visibility": "shown", "required": True},
                       {"name": "tempo", "about": "both", "compare": "same", "steps": [], "values": ["slow"],
                        "visibility": "shown", "required": False}])
-    s.agent_message(slot, "Looking for someone to play duets with in Lyon.")
+    s.agent_message(slot, "Looking for someone to play duets with in Lyon, of middle skill or higher.")
     return s.slots[slot].listing()
 
 

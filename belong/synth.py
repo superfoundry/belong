@@ -15,8 +15,14 @@ Each Persona carries:
   - the Person record (as the KYC provider would report it),
   - every value the person *has* (shown or not): built-ins by key, open details by detail key,
   - the person's visibility choices,
+  - what they typed besides their description: for each wish they have that must be met, their words
+    saying so, its value among them, as a person telling their agent would (see say_musts); asked for,
+    a share of people say it in other words than the value their agent writes (see OTHER_WORDS_SHARE),
+    and answer yes when their agent asks whether it must be met (see answer),
   - how long ago their listing last changed, and how their agent's way of writing details differs
-    from most agents' (a dialect, for a share of people when asked for: see DIALECTS),
+    from most agents' (a dialect, for a share of people when asked for: see DIALECTS), and, also
+    when asked for, a wish their agent made up that they never had (the invented-wish dialect: see
+    INVENTED),
   - a Truth: what they really want, in structured form, as one of the stories below (climbing,
     a language exchange, a roommate...). The stories are test data, never kinds of match. Truth
     never enters the room; it is used only to grade the Matchmaker and to simulate answers and
@@ -170,6 +176,30 @@ OTHER_SCALES = {"level": ("novice", "intermediate", "advanced", "expert"),
 # The details a dialect changes, the ones matching depends on most first.
 _DIALECT_ORDER = ("level", "pace", "language", "subject", "move in month", "free time", "interests", "smoking",
                   "diet")
+# The invented-wish dialect. Some agents add a wish the person never had, as one that must be met: asked for, on a share
+# of the listings that aren't dating (INVENTED_SHARE), one wish each, made up in one of these ways: about a detail
+# nobody shows, about one many people show of themselves, or the person's own free time made into what the other person
+# must have. Truth is unchanged, so the batch run measures what such a guess costs, and what the rule that a must comes
+# from the person's own words (agent.ground_wishes, which sim.run applies) wins back. The agent that makes a must up
+# quotes the first words of their description as theirs for it (their_words, as a model asked for them might): a quote
+# that isn't their answer to anything, which the rule never counts.
+INVENTED_SHARE = 0.25
+INVENTED_QUOTE_WORDS = 5
+# Musts said in other words. Each person says every wish they have that must be met, in a message of their own with
+# its value (Persona.said), as a person telling their agent would. Asked for, a share of people (OTHER_WORDS_SHARE: in
+# the batch run, everyone, as agents write values in their plainest common form whatever words the person used) say
+# each must without the value their agent writes, so their agent's save keeps it as ideally, asks them whether it must
+# be met, and quotes their yes (answer): the batch run measures what the rule that a must comes from the person's own
+# words would cost if it read the values alone, without their answers.
+OTHER_WORDS_SHARE = 1.0
+# A person's answer when their agent asks whether a wish must be met: yes for a must they have, no for any other.
+ANSWER_YES = "Yes, that has to match, it's a must."
+ANSWER_NO = "No, that doesn't matter to me."
+INVENTED = {  # way -> (name, values (None: their own free time), compare, steps)
+    "a detail nobody shows": ("experience", ("lots",), "steps", ("some", "lots")),
+    "a detail people show": ("smoking", ("doesn't smoke",), "same", ()),
+    "their own free time": ("free time", None, "same", ()),
+}
 
 
 @dataclass
@@ -219,6 +249,11 @@ class Persona:
     confirmed_shown: set = field(default_factory=set)
     listed_days: int = 0  # how many days before the start their listing last changed
     dialect: str = ""  # how their agent writes details unlike most ("other name: level"), or ""
+    invented: str = ""  # the key of a wish their agent made up (the invented-wish dialect), or ""
+    said: tuple = ()  # what they typed besides their description: their words for each must, with its value (say_musts)
+    # wish key -> the words their agent quotes as theirs for it on its first save: only for a must it made up
+    their_words: dict = field(default_factory=dict)
+    other_words: bool = False  # they said their musts in other words than the values their agent writes
 
 
 def _weighted(rng: random.Random, pairs):
@@ -566,17 +601,23 @@ def _accepted_steps(scale, at: int, exactness: float) -> tuple:
     return tuple(scale[max(0, at - 1):at + 2])
 
 
-def generate(n: int = 300, seed: int = 7, dialects: float = 0.0) -> list[Persona]:
+def generate(n: int = 300, seed: int = 7, dialects: float = 0.0, invented: float = 0.0,
+             other_words: float = 0.0) -> list[Persona]:
     """n synthetic people. dialects: the share of them whose agent writes details unlike most agents
-    (DIALECT_SHARE in the batch run's second pass, none by default); everything else about everyone,
-    those people included, is the same either way."""
+    (DIALECT_SHARE in the batch run's second pass, none by default). invented: the share of those whose
+    listing isn't dating whose agent adds a wish they never had (INVENTED_SHARE in the batch run's
+    invented-wish passes, none by default). other_words: the share of them who say each must in other
+    words than the value their agent writes (OTHER_WORDS_SHARE in the batch run's last pass, none by
+    default). Everything else about everyone, those people included, is the same either way."""
     rng = random.Random(seed)
     # How far each person travels, and who works online only, come from a stream of their own, so
     # everything else about each person is the same as before these details existed. So do how long
-    # ago each listing last changed, and the dialects.
+    # ago each listing last changed, the dialects and the invented wishes.
     meet = random.Random(seed * 1_000_003 + 17)
     since = random.Random(seed * 1_000_003 + 29)
     speech = random.Random(seed * 1_000_003 + 31)
+    guess = random.Random(seed * 1_000_003 + 37)
+    words = random.Random(seed * 1_000_003 + 41)
     personas = []
     for i in range(n):
         pid = f"p{i:03d}"
@@ -667,10 +708,51 @@ def generate(n: int = 300, seed: int = 7, dialects: float = 0.0) -> list[Persona
                         created_at="2026-10-01T00:00:00Z")
         p = Persona(person=person, truth=t, intent_text=write_intent(t, rng), values=v, sensitive_on=sensitive_on,
                     visibility=visibility, confirmed_shown=confirmed, listed_days=since.randint(*LISTED_DAYS))
+        say_musts(p, other_words=bool(other_words) and words.random() < other_words)
         if dialects and speech.random() < dialects:
             _speak_dialect(p, speech)
+        if invented:
+            roll, way = guess.random(), guess.choice(sorted(INVENTED))  # drawn for everyone, so one share's
+            if kind != "dating" and roll < invented:                   # people are among a larger one's
+                _invent_wish(p, way)
         personas.append(p)
     return personas
+
+
+def say_musts(p: Persona, other_words: bool = False) -> None:
+    """What the person types besides their description: for each wish they have that must be met, a message saying
+    so with its values, as a person telling their agent would ("Their pace has to be easy or moderate."). other_words:
+    none of that is typed (they said each in other words than the value their agent writes), so their agent asks, and
+    they answer yes (answer). Before any dialect, so it is what they want, however their agent writes it."""
+    musts = [(key, d) for key, d in p.values.items() if isinstance(d, Detail) and is_detail_key(key)
+             and split_key(key)[0] in ("them", "both") and d.required]
+    said = [] if other_words else [f"{'Their' if split_key(key)[0] == 'them' else 'The'} {split_key(key)[1]} has to be "
+                                   f"{' or '.join(d.values)}." for key, d in musts]
+    p.said, p.their_words, p.other_words = tuple(dict.fromkeys(said)), {}, other_words and bool(musts)
+
+
+def answer(p: Persona, key: str) -> str:
+    """What the person types when their agent asks whether this wish must be met (after a save kept it as ideally): yes
+    for a must they have, however their agent writes it; no for one they never had (a must their agent made up)."""
+    d = p.values.get(key)
+    return ANSWER_YES if key != p.invented and isinstance(d, Detail) and d.required else ANSWER_NO
+
+
+def _invent_wish(p: Persona, way: str) -> None:
+    """The agent adds a wish this person never had, required, one of INVENTED's ways (after any dialect, so the
+    dialects stay as they are). Their truth, their description and everything else are unchanged. A person who already
+    has a wish of that name keeps theirs (no wish is made up then)."""
+    name, values, compare, steps = INVENTED[way]
+    key = detail_key("them", name)
+    if key in p.values:
+        return
+    if values is None:  # their own free time, or a common one for someone free whenever
+        values = (p.truth.schedule if p.truth.schedule != "flexible" else SCHEDULES[0],)
+    p.values[key] = Detail(values, compare, steps)
+    p.visibility[key] = SHOWN  # a wish is always shown
+    p.invented = key
+    # It quotes their own first words as theirs for it, as a model asked for their words might: not their answer.
+    p.their_words = {**p.their_words, key: " ".join(p.intent_text.split()[:INVENTED_QUOTE_WORDS])}
 
 
 def _speak_dialect(p: Persona, rng: random.Random) -> None:

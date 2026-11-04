@@ -97,8 +97,10 @@ closely related, one step off on a scale, or most but not all of what is wanted)
 - fit: a number from 0 to 1 for how well the two suit each other, both directions together, for ranking.
 Judge meaning, not wording: different words for the same thing agree, and details two writers named or scaled \
 differently can still agree. Respect exactness: a listing at {STRICT_EXACTNESS} or more wants exactly what it asks \
-for. Where and how they would meet, ages and genders were already checked: leave them out. Never assume what a \
-listing doesn't say.
+for. A "them" or "both" detail that isn't required, and that the other listing says nothing about, never makes an \
+answer "no" or "close" on its own (the rules waive it the same way); if what the other listing shows contradicts it, \
+"close" at most. Where and how they would meet, ages and genders were already checked: leave them out. Never assume \
+what a listing doesn't say.
 
 hunts_one_person: only in a message with no candidates: the focus label if that listing seems to look for one \
 particular, identifiable person (someone the writer saw, met or knows, described so that only they would fit) rather \
