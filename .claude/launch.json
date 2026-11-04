@@ -1,6 +1,8 @@
 {
   "version": "0.0.1",
   "configurations": [
-    { "name": "inspector", "runtimeExecutable": "python3", "runtimeArgs": ["-m", "belong", "serve", "--port", "8000"], "port": 8000 }
+    { "name": "inspector", "runtimeExecutable": "python3", "runtimeArgs": ["-m", "belong", "serve", "--port", "8000"], "port": 8000 },
+    { "name": "offline-test", "runtimeExecutable": "env", "runtimeArgs": ["BELONG_AGENT=rules", "BELONG_PASSWORD=", "python3", "-m", "belong", "serve", "--port", "8001"], "port": 8001 },
+    { "name": "model-test", "runtimeExecutable": "env", "runtimeArgs": ["BELONG_PASSWORD=", "python3", "-m", "belong", "serve", "--port", "8002"], "port": 8002 }
   ]
 }

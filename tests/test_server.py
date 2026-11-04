@@ -137,6 +137,15 @@ class StateRoutes(unittest.TestCase):
         self.assertEqual(status, 200)
         self.assertEqual(body, {"seed": server.SESSION.seed, "people": server.SESSION.people})
 
+    def test_which_matchmaker_runs_for_the_trust_page(self):
+        """Only whether the Matchmaker AI runs and which model: never what it was sent or answered."""
+        status, body = self.get("/api/trust/matchmaker")
+        self.assertEqual((status, body), (200, {"ai": False, "model": ""}))  # tests run on the rules
+        with mock.patch.object(server.SESSION, "matchmaker_state",
+                               lambda: {"ai": True, "model": "OpenAI gpt-5", "usage": {"prompt_tokens": 9},
+                                        "last_run": {"pairs": 3}}):
+            self.assertEqual(self.get("/api/trust/matchmaker")[1], {"ai": True, "model": "OpenAI gpt-5"})
+
 
 @mock.patch("belong.__main__.load_dotenv", lambda: None)  # never read the real .env in tests
 class Listening(unittest.TestCase):

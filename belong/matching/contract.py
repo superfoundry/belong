@@ -5,8 +5,12 @@ thing they share: the shape of what the Matchmaker may hand to the Warden. Becau
 Warden treats every Proposal as untrusted and re-checks it against the Marketboard,
 the privacy guarantee never depends on what the Matchmaker does.
 
-A Proposal carries no free text: only person ids, booleans, numbers and field keys.
-So even a hostile Matchmaker has nowhere to hide a hidden value.
+A Proposal carries no free text of its own: only person ids, booleans, numbers, field keys and
+open-detail reason refs. Open details' names are written by people's agents, so keys and refs can
+carry words; but the Warden accepts the refs only if they are exactly the ones it works out itself from
+both people's shown details (schema.detail_reasons), writes every reason itself from shown fields, and
+checks each used hidden key against the crowd rule before anything about it is logged. So even a
+hostile Matchmaker has nowhere to hide a hidden value.
 """
 from __future__ import annotations
 
@@ -25,8 +29,12 @@ class Proposal:
     score: float  # shown_score + hidden bonus
     shown_score: float  # score from shown fields alone
     shown_threshold: float  # shown_score had to reach this
-    reason_fields: tuple  # keys shown by BOTH people
-    used_hidden_fields: tuple  # hidden keys that raised the score
+    # Built-in keys shown by BOTH people, plus the open-detail refs ("agree:{name}", "wants:{name}"),
+    # which must be exactly schema.detail_reasons for the pair.
+    reason_fields: tuple
+    # Keys of hidden fields (built-in, or me:/both: open details) that raised the score; each needs a
+    # shared value that K_CROWD other people have too.
+    used_hidden_fields: tuple
     # A close match: the listing whose intent is only nearly met (one-way, to that listing only,
     # which must have opted in). "" for an ordinary match, where both intents are met.
     close: str = ""

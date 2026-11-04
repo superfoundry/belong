@@ -20,5 +20,18 @@ class ChatMockup(unittest.TestCase):
         self.assertTrue(server.CHAT_ACTIONS <= set(server.ACTIONS))
 
 
+class OpenDetailsInTheConnector(unittest.TestCase):
+    def test_the_connector_reads_an_open_details_key_as_the_phone_does(self):
+        """One rule for about:name on every page (the phone's is checked against schema.split_key in test_demo)."""
+        import re
+        from pathlib import Path
+        web = Path(__file__).resolve().parent.parent / "belong" / "web"
+        rule = lambda page: re.search(r"^const detailParts = .*$", (web / page).read_text(), flags=re.M).group(0)
+        self.assertEqual(rule("chat.html"), rule("demo.html"))
+        chat = (web / "chat.html").read_text()
+        self.assertNotIn('"choice"', chat)  # no question has a fixed list of choices any more
+        self.assertIn("What they'd like", chat)
+
+
 if __name__ == "__main__":
     unittest.main()

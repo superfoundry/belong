@@ -101,9 +101,13 @@ function show(id) {
   document.querySelectorAll("section").forEach(s => s.classList.toggle("on", s.id === id));
   try { localStorage.setItem("belong-tab", id); } catch (_) {}
 }
+// A listing's details: built-in ones by key, open ones (about:name) with how they compare in the title.
 function fieldPills(fields) {
-  return fields.map(f => `<span class="pill ${f.visibility === "hidden" ? "hidden" : ""}" title="${f.visibility}${f.sensitive ? ", sensitive" : ""}">${f.visibility === "hidden" ? "Hidden · " : ""}${esc(f.key)}: ${esc(val(f.value))}</span>`).join("");
+  const how = f => f.about ? `, ${f.compare}${f.steps && f.steps.length ? ` on ${f.steps.join(" / ")}` : ""}${f.required === false ? ", ideally" : ""}` : "";
+  return fields.map(f => `<span class="pill ${f.visibility === "hidden" ? "hidden" : ""}" title="${esc(f.visibility + (f.sensitive ? ", sensitive" : "") + how(f))}">${f.visibility === "hidden" ? "Hidden · " : ""}${esc(f.key)}: ${esc(val(f.value))}</span>`).join("");
 }
+// A value in an introduction's view: an open detail comes as { values, compare, steps, required }.
+const viewValue = x => x && typeof x === "object" && !Array.isArray(x) ? (x.values || []).join(", ") : val(x);
 // A description as it went live (as in the live demo), with anything this run's follow-up answers added marked.
 function intentCell(p) {
   const entered = p.intent_as_entered ?? p.intent_text, answered = p.answered_in_run || "";
@@ -119,6 +123,17 @@ function filterable(sectionId, rowsHtml, headHtml, placeholder) {
     const q = input.value.toLowerCase();
     s.querySelectorAll("tbody tr").forEach(tr => tr.style.display = tr.textContent.toLowerCase().includes(q) ? "" : "none");
   };
+}
+// The shared list of details in use, as the Warden built it for the run: entries only, no counts.
+function listHtml(v) {
+  if (!v) return "";
+  const named = e => `${e.about}:${e.name}`;
+  const rows = [["Details", (v.details || []).map(e => `${named(e)} (${e.compare})`)], ["Scales", (v.scales || []).map(e => `${named(e)}: ${e.steps.join(" / ")}`)],
+                ["Values", (v.values || []).map(e => `${named(e)} = ${e.value}`)], ["Phrases", (v.phrases || []).map(e => `${e.key}: ${e.value}`)],
+                ["Places", (v.places || []).map(e => `${e.city}, ${e.country}`)]];
+  return `<div class="card"><h2>Details in use (the shared list)</h2>
+    <p class="note">Built by the Warden from shown details on listings unchanged for a week, each used by at least ${RUN.meta.k_crowd} different people. Every agent gets it as data, so the same thing is written the same way. Nothing hidden is ever on it.</p>
+    <table><tbody>${rows.map(([k, x]) => `<tr><td>${k}</td><td>${x.length ? x.map(e => `<span class="pill">${esc(e)}</span>`).join(" ") : '<span class="muted">none yet</span>'}</td></tr>`).join("")}</tbody></table></div>`;
 }
 
 let RUN = null;
@@ -148,10 +163,16 @@ function render(d) {
            ["Used a hidden field", m.proposals_using_hidden_fields]].map(([l, n]) => `<div class="stat"><div class="n">${n ?? "–"}</div><div class="l">${l}</div></div>`).join("")}
       </div>
       <p class="note">Precision: share of proposals where both people's real intents are met. Coverage: share of people who had at least one truly compatible partner and got a proposal. Rejected at entry: ${esc(JSON.stringify(m.entry_rejections))}.</p>
-      <div class="scroll"><table><thead><tr><th>Kind</th><th>People</th><th>Matchable</th><th>Proposals</th><th>Precision</th><th>Coverage</th></tr></thead><tbody>
-      ${Object.entries(m.by_kind).map(([k, v]) => `<tr><td>${k}</td><td>${v.people}</td><td>${v.matchable}</td><td>${v.proposals}</td><td>${v.precision ?? "–"}</td><td>${v.coverage ?? "–"}</td></tr>`).join("")}
+      <p class="note">By ground-truth story: what each synthetic person really wants. Listings themselves are only dating or something else, written in phrases and the details each person's agent chose.</p>
+      <div class="scroll"><table><thead><tr><th>Ground-truth story</th><th>People</th><th>Matchable</th><th>Proposals</th><th>Precision</th><th>Coverage</th></tr></thead><tbody>
+      ${Object.entries(m.by_kind).map(([k, v]) => `<tr><td>${esc(k)}</td><td>${v.people}</td><td>${v.matchable}</td><td>${v.proposals}</td><td>${v.precision ?? "–"}</td><td>${v.coverage ?? "–"}</td></tr>`).join("")}
       </tbody></table></div>
-    </div>`;
+      ${Object.keys(m.by_dialect || {}).length ? `<p class="note">By agent dialect: people whose agent named, scaled or left out a detail differently.</p>
+      <div class="scroll"><table><thead><tr><th>Dialect</th><th>People</th><th>Matchable</th><th>Proposals</th><th>Precision</th><th>Coverage</th></tr></thead><tbody>
+      ${Object.entries(m.by_dialect).map(([k, v]) => `<tr><td>${esc(k)}</td><td>${v.people}</td><td>${v.matchable}</td><td>${v.proposals}</td><td>${v.precision ?? "–"}</td><td>${v.coverage ?? "–"}</td></tr>`).join("")}
+      </tbody></table></div>` : ""}
+    </div>
+    ${listHtml(d.details_in_use)}`;
 
   // People
   $("people").innerHTML = `<p class="note">Everything each person put in their listing. Details marked Hidden are used for matching, never shown.</p>
@@ -160,7 +181,7 @@ function render(d) {
       : DEMO ? `Take over is off: this run (seed ${d.meta.seed}, ${d.meta.n} people) doesn't show the live demo's people (seed ${DEMO.seed}, ${DEMO.people}).` : "These are synthetic people."}</p>
     <p class="note" id="take-msg" role="status"></p>`;
   filterable("people", d.people.map(p => `<tr>
-      <td>${name(p.id)}${p.admitted && canTake ? `<div><button class="take" data-take="${esc(p.id)}" aria-label="Take over ${esc((p.fields.find(f => f.key === "first_name") || {}).value || p.id)} in the live demo">Take over</button></div>` : ""}</td><td>${p.kind}</td>
+      <td>${name(p.id)}${p.admitted && canTake ? `<div><button class="take" data-take="${esc(p.id)}" aria-label="Take over ${esc((p.fields.find(f => f.key === "first_name") || {}).value || p.id)} in the live demo">Take over</button></div>` : ""}</td><td>${esc(p.kind || "")}${p.story ? `<div class="note">story: ${esc(p.story)}</div>` : ""}${p.dialect ? `<div class="note">dialect: ${esc(p.dialect)}</div>` : ""}</td>
       <td>${p.admitted ? '<span class="pill ok">admitted</span>' : `<span class="pill bad">rejected</span><div class="note">${p.entry_problems.map(esc).join("<br>")}</div>`}</td>
       <td>${intentCell(p)}<div class="note">exactness ${p.exactness}</div></td>
       <td>${fieldPills(p.fields)}</td></tr>`).join(""),
@@ -168,7 +189,7 @@ function render(d) {
 
   // Introductions
   const yn = v => v === true ? '<span class="pill ok">yes</span>' : v === false ? '<span class="pill">no</span>' : "–";
-  const viewHtml = (v, who) => `<div class="view"><h4>What ${who} sees</h4>${Object.entries(v.fields).map(([k, x]) => `<span class="pill">${esc(k)}: ${esc(val(x))}</span>`).join("")}<p>${esc(v.reason)}</p></div>`;
+  const viewHtml = (v, who) => `<div class="view"><h4>What ${who} sees</h4>${Object.entries(v.fields).map(([k, x]) => `<span class="pill">${esc(k)}: ${esc(viewValue(x))}</span>`).join("")}${v.reason ? `<p>${esc(v.reason)}</p>` : ""}</div>`;
   $("intros").innerHTML = `<p class="note">These are the only match outputs that were sent out. Each view shows the other person's shown fields and a reason built only from fields both of them show.</p>
     ${d.introductions.map(i => `<div class="card"><div><b>${i.intro_id}</b> · ${name(i.person_a)} ↔ ${name(i.person_b)} · A said ${yn(i.a_said_yes)} B said ${yn(i.b_said_yes)}</div>
       <div class="views">${viewHtml(i.a_view, "A")}${viewHtml(i.b_view, "B")}</div></div>`).join("")}`;

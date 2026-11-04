@@ -26,7 +26,7 @@ def climber_a(s: DemoSession) -> None:
     s.verify("A", "Yuki", 27)
     s.agent_message("A", "Looking for a climbing partner in Osaka on weekends. I'm an intermediate climber, "
                          "into bouldering and ramen.")
-    s.submit("A", fill(s.slots["A"].draft, hidden={"religion": "Buddhist", "smoking": "doesn't smoke"}))
+    s.submit("A", fill(s.slots["A"].draft, hidden={"religion": "Buddhist", "me:interests": ["bouldering", "ramen"]}))
 
 
 def synthetic_match_of_a(s: DemoSession) -> tuple:
@@ -95,6 +95,14 @@ class TakeOver(unittest.TestCase):
             self.assertEqual((draft[f.key]["visibility"], draft[f.key]["value"]),
                              (f.visibility, f.value if isinstance(f.value, str) else list(f.value)))
         self.assertEqual(mine["draft"]["intent_text"], live.intent_text)
+        # Their open details as their agent wrote them, each named on their phone (never by its raw key).
+        opened = [f for f in live.fields if f.about]
+        self.assertTrue(opened)
+        for f in opened:
+            row = draft[f.key]
+            self.assertEqual((row["label"], row["compare"], row["steps"], row["required"]),
+                             (f.name[:1].upper() + f.name[1:], f.compare, list(f.steps), f.required))
+        self.assertTrue(all(":" not in h["label"] for h in mine["hidden_keys"]))
         self.assertEqual(self.s.phone_state("A")["listings"], [])  # A and B are untouched
         self.assertEqual(self.s.board.listing(pid), live)  # nothing re-entered or changed
 
@@ -163,7 +171,7 @@ class TakenOverPersonAnswersForThemselves(unittest.TestCase):
     def test_no_simulated_answer_when_comparing_details(self):
         self.s.decide("A", self.intro, True)
         self.s.decide(self.slot, self.intro, True)
-        self.s.reveal("A", self.intro, ["religion", "smoking"])
+        self.s.reveal("A", self.intro, ["religion", "me:interests"])
         self.assertNotIn((self.intro, self.pid), self.s.consents)  # they choose for themselves
         self.s.reveal(self.slot, self.intro, list(self.s.board.listing(self.pid).hidden()))
         self.assertIsNotNone(next(i for i in self.s.phone_state("A")["intros"]
@@ -204,14 +212,14 @@ class CloseMatchToSomeoneTakenOver(unittest.TestCase):
         s.set_prefs(slot, pid, {"notify_close": True, "notify_questions": False})
         s.submit(slot, {"intent_text": "Need my air conditioner fixed in Tokyo this weekend.", "exactness": 0.6,
                         "fields": [{"key": k, "value": v, "visibility": SHOWN} for k, v in
-                                   {"first_name": name, "country": "Japan", "city": "Tokyo", "schedule": "weekends",
+                                   {"first_name": name, "country": "Japan", "city": "Tokyo",
                                     "seeking": "an air conditioner repair technician",
                                     "offering": "an air conditioner repair customer"}.items()]}, pid)
         s.verify("B", "Ken", 42)
         ken = s.new_listing("B")
         s.submit("B", {"intent_text": "I'm a repairman in Tokyo looking for repair jobs.", "exactness": 0.6,
                        "fields": [{"key": k, "value": v, "visibility": SHOWN} for k, v in
-                                  {"first_name": "Ken", "country": "Japan", "city": "Tokyo", "schedule": "flexible",
+                                  {"first_name": "Ken", "country": "Japan", "city": "Tokyo",
                                    "seeking": "a repair customer", "offering": "a repairman"}.items()]}, ken)
         s.run_matchmaker()
         intro = next(i for i in s.intros.values() if {i.person_a, i.person_b} == {pid, ken})
@@ -257,7 +265,7 @@ class HandBack(unittest.TestCase):
         s.decide("A", intro, True)
         s.decide(slot, intro, True)
         s.hand_back(slot)
-        s.reveal("A", intro, ["religion", "smoking"])  # they choose for themselves while simulated
+        s.reveal("A", intro, ["religion", "me:interests"])  # they choose for themselves while simulated
         self.assertIn((intro, pid), s.consents)
         s.take_over(pid)
         mine = next(i for i in s.phone_state(slot)["intros"] if i["intro_id"] == intro)

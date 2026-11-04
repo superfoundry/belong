@@ -14,14 +14,14 @@ from pathlib import Path
 from belong import agent
 from belong.agent_llm import build_draft
 from belong.demo import DemoSession
-from belong.matching.intent import ages_text, default_age_range, own_gender, parse_intent
+from belong.matching.intent import ages_text, default_age_range, own_gender, parse_intent, read_listing
 from belong.matching.marketboard import Marketboard
 from belong.matching.matcher import OfflineMatcher, intent_met
 from belong.matching.narrow import ShownView
 from belong.schema import HIDDEN, SHOWN, Field, Listing, Person
 from belong.sim import run
 from belong.synth import generate
-from tests.helpers import warden
+from tests.helpers import detail, warden
 from tests.test_demo import fill
 
 
@@ -77,15 +77,98 @@ class DatingWording(unittest.TestCase):
         ]:
             self.assertNotEqual(parse_intent(text).kind, "dating", text)
 
-    def test_functional_kinds_still_come_first(self):
-        cases = {
-            "Looking for a climbing partner in Osaka, a man or a woman.": "climbing",
-            "Want to meet a woman to run with on weekends.": "running",
-            "Looking for a female maths tutor in Kyoto.": "tutoring",
-            "Looking for a flatmate in London, men or women.": "roommate",
-        }
-        for text, kind in cases.items():
-            self.assertEqual(parse_intent(text).kind, kind, text)
+    def test_a_request_is_read_by_its_sentence_never_by_which_trade_it_names(self):
+        """Matching names no trade or service: requests worded the same are read the same whichever one they
+        name, a task after who ("a man with a ladder to ...") is what makes a request not a date, and a kind
+        the listing shows always comes first."""
+        said = lambda trade: f"I'd like to meet a woman in Lyon, and I also need a {trade}."
+        readings = {parse_intent(said(trade)).kind for trade in ("glazier", "locksmith", "upholsterer", "piano tuner",
+                                                                "tax adviser", "physiotherapist", "decorator")}
+        self.assertEqual(len(readings), 1, readings)
+        for trade in ("glazier", "tax adviser"):
+            self.assertEqual(read_listing(said(trade), {"kind": "other"}.get).kind, "other")
+        for text in ("Looking for a man with a ladder to clear my gutters in Leeds.",
+                     "Looking for a woman with a sewing machine to take up my curtains.",
+                     "Looking for a man in Porto Alegre to proofread my thesis."):
+            self.assertIsNone(parse_intent(text).kind, text)
+        for text in ("Looking for a man with a kind smile to grow old with.",
+                     "Looking to meet a woman in Porto Alegre to share my life with."):
+            self.assertEqual(parse_intent(text).kind, "dating", text)
+
+    def test_dating_that_names_a_thing_is_that_thing(self):
+        """"A dating app", "my dating profile": the thing is what they mean, not a date (unless it's a partner)."""
+        for text in ("Looking for help with my dating profile in Leeds.",
+                     "Want someone to build a dating app with me in Porto."):
+            self.assertIsNone(parse_intent(text).kind, text)
+        for text in ("Looking for a dating partner in Leeds.", "Interested in dating women in Porto.",
+                     "Back on the dating scene, hoping to meet a man in Leeds."):
+            self.assertEqual(parse_intent(text).kind, "dating", text)
+
+    def test_dating_describing_a_noun_leaves_the_noun_to_say_what_it_is(self):
+        """Only the word "dating" is set aside where it describes a noun, and the noun is read for what it means
+        by itself, by matching and by the offline agent alike: a romantic noun or someone asked for is still
+        dating, a thing or a service is not. No noun is listed either way."""
+        for text in ("After my divorce I'm ready for some dating romance with a kind man in Hull.",
+                     "Seeking a dating partner near Truro.",
+                     "Back in the dating world and keen on a bit of dating flirting with women in Ely."):
+            self.assertEqual(parse_intent(text).kind, "dating", text)
+            self.assertEqual(agent.draft_from_message(text, "Sam", "30-34").get("kind"), "dating", text)
+        for text in ("Need a dating mentor to boost my confidence in Truro.",
+                     "Looking for a dating podcast to listen to on my commute.",
+                     "Want someone to proofread my dating bio.",
+                     "Looking for the dating workshop in Bath next month."):
+            self.assertIsNone(parse_intent(text).kind, text)
+            self.assertNotEqual(agent.draft_from_message(text, "Sam", "30-34").get("kind"), "dating", text)
+
+    def test_dating_before_a_person_asks_for_them_and_before_any_other_noun_is_set_aside(self):
+        """"Dating" before a person (a partner, a man, someone) asks for that person romantically, with or without a
+        meeting word; so does "dating" as a verb ("dating again"). Before any other noun, with a determiner or not,
+        only "dating" is set aside and the noun says what it is ("dating mentors", "dating photo tips")."""
+        for text in ("Would really like a dating partner around Kendal.", "Keen on a dating partner who sails.",
+                     "Open to dating women near Kendal.", "Ready to start dating again in Kendal."):
+            self.assertEqual(parse_intent(text).kind, "dating", text)
+            self.assertEqual(agent.draft_from_message(text, "Sam", "30-34").get("kind"), "dating", text)
+        for text in ("Looking for dating mentors in Kendal.", "Want dating photo tips from a pro in Kendal.",
+                     "Looking for help writing dating bios for a small agency."):
+            self.assertIsNone(parse_intent(text).kind, text)
+            self.assertNotEqual(agent.draft_from_message(text, "Sam", "30-34").get("kind"), "dating", text)
+
+    def test_dating_a_person_described_first_is_still_dating(self):
+        """"Dating" as a verb whose object is a person with describing words first stays dating: a person noun after
+        up to three words that aren't grammar words, or a describing word made from a verb right after it. A noun it
+        describes is still set aside."""
+        for text in ("Happy to try dating shorter guys near Leeds.", "Curious about dating quiet, bookish women.",
+                     "Open to dating widowed men in Bath.", "Fine with dating much older people, honestly."):
+            self.assertEqual(parse_intent(text).kind, "dating", text)
+            self.assertEqual(agent.draft_from_message(text, "Sam", "30-34").get("kind"), "dating", text)
+        for text in ("Looking for dating profile writers in Leeds.", "Want dating chat ideas for a podcast.",
+                     "Looking for dating app reviewers in Bath."):
+            self.assertIsNone(parse_intent(text).kind, text)
+
+    def test_a_for_after_what_someone_has_describes_them(self):
+        """After a "with a ..." that says what the person has, only a purpose said with "to" is a task: a "for ..."
+        belongs to the noun before it and describes them. Directly after who, or after where they are, a
+        "for ..." is still a task."""
+        for text in ("Would like to meet a man with an appetite for the theatre in York.",
+                     "Hoping to meet a woman with a hunger for the open road.",
+                     "Looking to meet a man with a nose for a bargain and a big laugh."):
+            self.assertEqual(parse_intent(text).kind, "dating", text)
+            self.assertEqual(agent.draft_from_message(text, "Sam", "30-34").get("kind"), "dating", text)
+        for text in ("Looking for a man with a truck to shift some furniture.",
+                     "Looking for women for our netball team in Derby.",
+                     "Looking for a man near Bath for a garden job."):
+            self.assertIsNone(parse_intent(text).kind, text)
+
+    def test_an_activity_with_a_man_or_a_woman_in_it_is_not_dating(self):
+        """Who they'd like to do something with isn't a date: these are read as not dating (None), and
+        their phrases decide what they are for."""
+        for text in ("Looking for a climbing partner in Osaka, a man or a woman.",
+                     "Want to meet a woman to run with on weekends.",
+                     "Looking for a female maths tutor in Kyoto.",
+                     "Looking for a flatmate in London, men or women.",
+                     "Looking for a woman to restore old clocks with in Porto.",
+                     "Hoping to find men or women to sing barbershop with in Leeds."):
+            self.assertIsNone(parse_intent(text).kind, text)
 
     def test_what_you_say_about_yourself_is_not_who_you_want(self):
         self.assertEqual(parse_intent("I'm a woman looking for a man in Lisbon.").seeking, ("man",))
@@ -97,10 +180,10 @@ class DatingWording(unittest.TestCase):
         text = "I'd like to meet someone kind in Osaka who likes jazz."
         self.assertIsNone(parse_intent(text).kind)
         self.assertEqual(parse_intent(text, "Looking for a long-term partner").kind, "dating")
-        # The synthetic people's headlines never change what their descriptions say.
+        # The synthetic people's headlines never change what their descriptions say: dating or not.
         for p in generate(300, 11):
             if not p.truth.bad_intent:
-                expected = None if p.truth.kind in ("other", "service", "item") else p.truth.kind
+                expected = "dating" if p.truth.kind == "dating" else None
                 self.assertEqual(parse_intent(p.intent_text, p.values.get("headline", "")).kind, expected, p.intent_text)
 
     def test_the_matcher_reads_the_headline_only_when_it_is_shown(self):
@@ -111,7 +194,7 @@ class DatingWording(unittest.TestCase):
             for pid, intent, headline in people:
                 fields = [Field("city", "Osaka", SHOWN, False), Field("country", "Japan", SHOWN, False),
                           Field("gender", "man", SHOWN, False), Field("age_band", "25-29", SHOWN, False),
-                          Field("interests", ("jazz",), SHOWN, False), Field("schedule", "weekends", SHOWN, False)]
+                          detail("interests", "jazz"), detail("free time", "weekends")]
                 if headline:
                     fields.append(Field("headline", headline, headline_visibility, False))
                 listing = Listing(pid, intent, 0.6, tuple(fields), "t")
@@ -152,6 +235,124 @@ class DecadeAges(unittest.TestCase):
         self.assertEqual(parse_intent("I'd like to meet women in Osaka for someone to date. Aged 25 to 39.").age_range,
                          (1, 3))
 
+    def test_a_decade_is_an_age_only_where_the_sentence_makes_it_one(self):
+        """After "in his / her / their" or "aged", or as a phrase of its own (between commas, at the end, or before
+        a "who" or "with" saying more about the person). A decade that describes anything else is no age,
+        whatever it describes: no list of what a decade can describe."""
+        for text, expected in (("in his fifties", (5, 5)), ("late 40s who reads a lot", (4, 4)),
+                               ("mid-twenties with a dog", (0, 1)), ("thirties or forties", (2, 4)),
+                               ("roughly late 20s", (1, 1))):
+            self.assertEqual(self.ages(text), expected, text)
+        for text in ("who restores 70s motorbikes", "who grew up in the sixties", "fan of the eighties",
+                     "with a 50s-style kitchen", "who quotes 90s sitcoms, kind"):
+            self.assertIsNone(self.ages(text), text)
+
+    def test_a_decade_after_the_person_wanted_after_of_or_after_roughly_is_an_age(self):
+        """Directly after the person they want (perhaps after a comma), after "of", and after a word for roughly
+        anywhere, as "around 30" is read. A decade followed by a word it describes is still no age, and a man or a
+        woman named before they say what they want is the person writing."""
+        for text, expected in (("Hoping to meet a lady late 50s near the coast.", (5, 5)),
+                               ("Seeking a partner early 40s with a calm temper.", (4, 4)),
+                               ("Looking for a woman of forties or fifties.", (4, 5)),
+                               ("Want to meet a gentleman close to sixties.", (5, 5)),
+                               ("Hoping to find guys mid 20s to early 30s in Leeds.", (0, 2)),
+                               ("Looking to meet a man approximately 40s and kind.", (4, 4))):
+            self.assertEqual(parse_intent(text).age_range, expected, text)
+        for text in ("Looking for a man who is a fan of 70s cinema.",
+                     "Looking to meet a woman who reads about 90s pop.",
+                     "Looking for a man with a 60s-era camper van.",
+                     "Looking for a woman who collects records of 50s jazz.",
+                     "Woman 40s looking for a man.", "Man 40s seeking a kind woman."):
+            self.assertIsNone(parse_intent(text).age_range, text)
+
+    def test_a_run_of_decades_is_read_whole(self):
+        """After "of", a word for roughly or the person wanted, a run of decades ("60s, 70s and 80s") is read whole:
+        a word after its last decade that it describes makes it no age, however the decades are joined."""
+        for text in ("Looking for a woman who is a fan of 20s and 30s jazz.",
+                     "Hoping to meet a man to chat about 50s, 60s and 70s motor racing with.",
+                     "Looking for a man, 60s or 70s arcade gamer like me.",
+                     "Hoping to meet a man about 30s to 40s cartoons."):
+            self.assertIsNone(parse_intent(text).age_range, text)
+            self.assertIsNone(agent.wanted_ages(text, "25-29")[0], text)
+        for text, expected in (("Looking for a woman of thirties and forties.", (2, 4)),
+                               ("Hoping to meet a man about 30s or 40s, kind.", (2, 4)),
+                               ("Looking for a man, 30s, 40s or 50s, who walks.", (2, 5))):
+            self.assertEqual(parse_intent(text).age_range, expected, text)
+
+    def test_a_decade_next_to_the_person_wanted_is_read_however_it_is_joined(self):
+        """In the sentence where they say what they want, a decade next to the person wanted is an age: after a
+        comma, a dash or a bracket, after a hedge ("probably"), after "in" or "in the", or directly before them; a
+        "+" after it is a lower bound. A man or a woman described in a sentence of its own is the person writing."""
+        for text, expected in (("Hoping to meet a woman, probably early 50s, who gardens.", (5, 5)),
+                               ("Looking for a man (mid 30s) to go to gigs with.", (2, 3)),
+                               ("Would like to meet a guy – late 20s – who cooks.", (1, 1)),
+                               ("Hoping to meet a man in mid 40s.", (4, 4)),
+                               ("Seeking a lady in the forties.", (4, 4)),
+                               ("Looking for a fifty-something man in Kendal.", (5, 5)),
+                               ("Hoping to date 30-something women near Kendal.", (2, 3)),
+                               ("Looking for a woman 30s+ who swims.", (2, 5))):
+            self.assertEqual(parse_intent(text).age_range, expected, text)
+            self.assertIsNotNone(agent.wanted_ages(text, "25-29")[0], text)
+        for text in ("Hoping to meet a kind woman. Me: guy early 30s, loves films.",
+                     "Seeking a woman to hike with. About me: man mid 40s.",
+                     "Looking for a man in York. Lady 50s here who dances."):
+            self.assertIsNone(parse_intent(text).age_range, text)
+        self.assertEqual(parse_intent("Looking for a man, ideally 50s, in York.").age_range, (5, 5))
+
+    def test_a_long_run_of_decades_is_read_in_time_proportional_to_it(self):
+        """Each run of decades is found once and read by the words around it, and every join between two decades
+        can be read only one way, so a long hostile text (repeated decades, joins, hedges or dashes) takes
+        milliseconds, not the exponential or quadratic time a regex that re-reads a run from each decade would."""
+        import time
+        for unit in ("30s, ", "30s and ", "early 30s-", "thirty-something, ", "ideally ", "a man - ", "40s+ ",
+                     "30-something ", "a man. ", "(30s "):
+            text = "Looking for a man " + unit * (8000 // len(unit)) + "40s."
+            started = time.perf_counter()
+            parse_intent(text)
+            agent.wanted_ages(text, "25-29")
+            self.assertLess(time.perf_counter() - started, 5.0, unit)
+
+    def test_the_default_age_range_is_never_used_when_a_decade_was_said(self):
+        """However a decade is said where it is an age, it is read: matching never falls back to one band either
+        side of her own (default_age_range), so she is introduced only to people in the ages she named, and the
+        offline agent records them instead of saying she named none."""
+        contexts = ("Hoping to meet a man {} who sails.", "Hoping to meet a man, {}, in Bath.",
+                    "Hoping to meet someone {} near Bath.", "Looking for a partner of {}.",
+                    "Looking for a man roughly {}.", "Looking for a man in his {}.", "Looking for a man aged {}.",
+                    "Hoping to meet a man, ideally {}, who sails.", "Hoping to meet a man - {} - in Bath.",
+                    "Hoping to meet a man in {} near Bath.", "Hoping to meet a man ({}) near Bath.",
+                    "Hoping to meet a {} man near Bath.")
+        decades = {"early 40s": (4, 4), "mid-forties": (4, 4), "40-something": (4, 4), "40s or 50s": (4, 5)}
+
+        def listing(pid, text, gender, band, wants_gender, wants_age=None):
+            fields = [Field("first_name", pid, SHOWN, False), Field("city", "Bath", SHOWN, False),
+                      Field("country", "United Kingdom", SHOWN, False), Field("kind", "dating", SHOWN, False),
+                      Field("gender", gender, SHOWN, False), Field("age_band", band, SHOWN, False),
+                      Field("wants_gender", (wants_gender,), SHOWN, False), detail("interests", "sea swimming")]
+            if wants_age:
+                fields.append(Field("wants_age", wants_age, SHOWN, False))
+            return Listing(pid, text, 0.6, tuple(fields), "t")
+
+        for context in contexts:
+            for decade, bands in decades.items():
+                text = context.format(decade)
+                her = listing("her", text, "woman", "25-29", "man")
+                self.assertEqual(read_listing(text, ShownView(her).get).age_range, bands, text)
+                self.assertNotEqual(read_listing(text, ShownView(her).get).age_range, default_age_range("25-29"))
+                ages, note = agent.wanted_ages(text, "25-29")
+                self.assertIsNotNone(ages, text)
+                self.assertIsNone(note, text)
+                w, board = warden(), Marketboard()
+                people = (her, listing("young", "Hoping to meet a woman in Bath.", "man", "18-24", "woman", "18-29"),
+                          listing("older", "Hoping to meet a woman in Bath.", "man", "40-49", "woman", "25-34"))
+                for l in people:
+                    r = w.admit(Person(l.person_id, True, dict(her="25-29", young="18-24", older="40-49")[l.person_id],
+                                       "t"), l, board)
+                    self.assertTrue(r.accepted, r.problems)
+                introduced = {frozenset((p.person_a, p.person_b)) for p in OfflineMatcher().match(board).proposals
+                              if not p.close and w.exit_introduction(p, board)}
+                self.assertEqual(introduced, {frozenset(("her", "older"))}, text)
+
     def test_your_own_age_is_not_the_age_you_want(self):
         self.assertIsNone(parse_intent("I'm 34 and looking for a man in Osaka.").age_range)
         self.assertIsNone(parse_intent("Single woman, 34, looking for a kind man in Osaka.").age_range)
@@ -161,7 +362,7 @@ class DecadeAges(unittest.TestCase):
 def dating_listing(pid, intent, gender, band, exactness=0.6, gender_visibility=SHOWN, band_shown=True):
     fields = [Field("first_name", pid, SHOWN, False), Field("city", "Osaka", SHOWN, False),
               Field("country", "Japan", SHOWN, False), Field("gender", gender, gender_visibility, False),
-              Field("interests", ("jazz",), SHOWN, False), Field("schedule", "weekends", SHOWN, False)]
+              detail("interests", "jazz"), detail("free time", "weekends")]
     if band_shown:
         fields.append(Field("age_band", band, SHOWN, False))
     return Listing(pid, intent, exactness, tuple(fields), "t")
@@ -173,8 +374,8 @@ def met(a: Listing, b: Listing) -> bool:
 
 
 class NoAgeRangeSaid(unittest.TestCase):
-    """Something you didn't say is not a strict preference (the climbing and running rule): with no age
-    range, you're open to one age band either side of your own."""
+    """Something you didn't say is not a strict preference (as with any detail): with no age range, you're
+    open to one age band either side of your own."""
 
     # Like the synthetic listing in the reported case: no age range at all.
     NO_AGES = "I'd like to meet women in Osaka for someone to date."
@@ -281,8 +482,9 @@ class YourGender(unittest.TestCase):
 PAGE = (Path(__file__).resolve().parent.parent / "belong" / "web" / "demo.html").read_text()
 
 
-def _js(name: str) -> str:
-    """One top-level function or constant from the phone page's script, by brackets."""
+def _js(name: str, page: str = None) -> str:
+    """One top-level function or constant from the phone page's script (or another page's, given), by brackets."""
+    PAGE = page if page is not None else globals()["PAGE"]
     start = PAGE.index(name)
     i = PAGE.index("{", start) if name.startswith("function") else start
     depth, seen = 0, False
@@ -366,7 +568,8 @@ class TheReportedCase(unittest.TestCase):
         return s, others, no_ages
 
     def test_with_her_gender_shown_she_meets_a_synthetic_man_who_named_no_ages(self):
-        s, others, no_ages = self.introduced(self.MESSAGE + " I'm a woman.")
+        # Her own interests, said of herself: what she says of the man is never read as hers (agent.listed_details).
+        s, others, no_ages = self.introduced(self.MESSAGE + " I'm a woman and I like jazz too.")
         self.assertTrue(no_ages, others)
         self.assertIn("p003", no_ages)  # the reported listing: "I'd like to meet women in Osaka for someone to date."
         # Her phone shows what her agent understood: a man, "early 30s" in years, as matching reads it.

@@ -60,7 +60,7 @@ SESSION = DemoSession(people=PEOPLE)
 # The chat mockup's own session: one person, matched against the synthetic people, so it never
 # touches the two phones. Made on first use.
 _CHAT = None
-CHAT_ACTIONS = {"reset", "verify", "new_listing", "open_listing", "prefill", "visibility", "agent", "submit", "match", "answer", "set_active", "delete_listing",
+CHAT_ACTIONS = {"reset", "verify", "new_listing", "open_listing", "prefill", "visibility", "agent", "save_draft", "offers", "submit", "match", "answer", "set_active", "delete_listing",
                 "decide", "set_prefs", "message", "react", "update_profile"}
 
 
@@ -84,6 +84,7 @@ ACTIONS = {
     "delete_listing": lambda s, b: s.delete_listing(b.get("slot"), b.get("listing_id")),
     "set_active": lambda s, b: s.set_active(b.get("slot"), b.get("listing_id"), b.get("active")),
     "set_prefs": lambda s, b: s.set_prefs(b.get("slot"), b.get("listing_id"), b.get("prefs")),
+    "settings": lambda s, b: s.set_settings(b.get("slot"), b.get("settings")),
     "message": lambda s, b: s.send_message(b.get("slot"), b.get("intro_id"), b.get("text")),
     "react": lambda s, b: s.react(b.get("slot"), b.get("intro_id"), b.get("index"), b.get("emoji")),
     "open_listing": lambda s, b: s.open_listing(b.get("slot"), b.get("listing_id")),
@@ -91,6 +92,11 @@ ACTIONS = {
     "visibility": lambda s, b: s.set_visibility(b.get("slot"), b.get("listing_id"), b.get("visibility"),
                                                 b.get("confirmed")),
     "agent": lambda s, b: s.agent_message(b.get("slot"), b.get("text"), b.get("listing_id")),
+    # Save draft, and a change kept on the profile (a detail sheet closed, the editor done): saved, then the person's
+    # agent is told what changed so the rest of the profile can say the same (its turn runs off the lock), or the
+    # phone offers that change in the other parts.
+    "save_draft": lambda s, b: s.keep_change(b.get("slot"), b.get("draft") or {}, b.get("listing_id")),
+    "offers": lambda s, b: s.answer_offers(b.get("slot"), b.get("listing_id"), b.get("keys")),
     "submit": lambda s, b: s.submit(b.get("slot"), b.get("listing") or {}, b.get("listing_id")),
     "match": lambda s, b: s.run_matchmaker(),
     "answer": lambda s, b: s.answer_followup(b.get("slot"), b.get("question_id"), b.get("answer") or {},
@@ -249,16 +255,9 @@ class _Handler(BaseHTTPRequestHandler):
             return self._design_file(path.removeprefix("/ds/"))
         if path.startswith("/api/trust/"):
             return self._trust_get(path.removeprefix("/api/trust/"))
-        if path == "/api/options":
-            from urllib.parse import parse_qs, urlparse
-            q = parse_qs(urlparse(self.path).query)
-            with SESSION.lock:
-                return self._json(200, SESSION.options("A", (q.get("kind") or [None])[0], (q.get("city") or [None])[0]))
         if path == "/api/layout":
             # The profile's rows for a kind of match, when the person changes the kind in the editor.
-            from urllib.parse import parse_qs, urlparse
-            q = parse_qs(urlparse(self.path).query)
-            return self._json(200, SESSION.layout((q.get("kind") or [None])[0], (q.get("city") or [None])[0]))
+            return self._json(200, SESSION.layout(self._query().get("kind")))
         route = FILES.get(path)
         if path == "/run.json" and route and not route[0].exists():
             return self._json(503, {"preparing": True})  # the inspector's run is still being built
@@ -293,6 +292,12 @@ class _Handler(BaseHTTPRequestHandler):
             if text is None:
                 return self._json(404, {"error": "Not one of the published files. See /api/trust/source."})
             return self._send(200, text.encode(), "text/plain; charset=utf-8")
+        if what == "matchmaker":
+            # Which Matchmaker runs (the trust page says so): the rules alone, or with the Matchmaker AI, a mock of the
+            # enclosed model. Only which model, never what it was sent or what it answered.
+            with SESSION.lock:
+                state = SESSION.matchmaker_state()
+            return self._json(200, {"ai": state["ai"], "model": state.get("model", "") if state["ai"] else ""})
         if what == "receipts":
             try:
                 start = max(0, int(q.get("from", 0)))

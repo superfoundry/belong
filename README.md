@@ -7,25 +7,33 @@ This repository is the Step 2 prototype from [SPEC.md](SPEC.md). It uses synthet
 (5,000 in the demo, set with `BELONG_PEOPLE`; 300 in tests and the batch run), with names from
 their region, and plain Python; secure hardware comes in Step 3.
 
-- **Any kind of match.** Besides the named kinds (dating, climbing, running, language
-  exchange, tutoring, cofounder, roommate), the agent can create an open-ended listing:
-  a short "looking for" phrase and a "you are" phrase, written by the agent ("a fishing
-  teacher" / "a fishing student", "a ska guitarist" / "a ska band"). Two people are
-  introduced only when each one's "looking for" fits the other's "you are".
+- **Any kind of match.** A listing is for dating, which has fixed rules of its own (who each
+  person would like to meet, and their ages), or for anything else: a short "looking for" phrase
+  and a "you are" phrase, written by the agent ("a fishing teacher" / "a fishing student", "a ska
+  guitarist" / "a ska band"), plus whatever details matter to it, which the agent names on the
+  spot ("My instrument is cello.", "I'd like their skill to be middle or high."). There is no
+  built-in list of activities or details. Two people are introduced only when each one's
+  "looking for" fits the other's "you are" and every wish each one shows is met by the other.
+- **One vocabulary, from what people already show.** So that agents name the same thing the same
+  way, every agent is given a shared list of the details, scales, phrases and places already in
+  use, each one shown by at least 20 different people. The Warden builds it once a day from the
+  listings alone, nothing hidden or sensitive ever goes on it, and phones never get it.
 - **Anywhere in the world, in person or online.** Location is a country plus an optional
   city, and each listing says how it meets (in person, online, or either) and how far its
   person will travel to meet in person (same city, up to 30 km, up to 100 km). See "How
   matching works" below.
 - **Several listings per person.** One person can be looking for a tutor in one listing
-  and a date in another. Each listing has its own profile, agent chat and matches, and
-  a person is never matched with their own other listing. (SPEC.md assumes one listing
-  per person; this is a deliberate change.)
+  and a date in another, up to five live listings. Each listing has its own profile, agent chat
+  and matches, and a person is never matched with their own other listing.
 - **Asked when it matters.** A new listing starts with exact matches only. If it has no match
   yet, Belong. asks once: "No matches yet. Want to include close matches?" A yes turns on close
-  matches (one-way: the other person isn't told unless you say yes) and, with them, follow-up
-  questions ("Someone is looking for an air conditioner repair technician. Would that work for
-  you?", never saying who). People you've both said yes to appear under **Found.**, where you
-  can message each other.
+  matches (one-way: the other person isn't told unless you say yes). Follow-up questions ("Someone
+  is looking for an air conditioner repair technician. Would that work for you?", never saying
+  who) have a switch of their own. Each listing's gear has both switches, and Settings has two
+  account-wide ones, both off until you turn one on: "Always allow questions" (new listings start
+  with questions on) and "Always include close matches" (instead of asking, Belong. turns them on
+  when a listing has no match yet, and says so in its chat). People you've both said yes to appear
+  under **Found.**, where you can message each other.
 - **Chatting with a synthetic person.** If you match with one of the synthetic people, they say hello
   and reply to your messages, written by the AI model (OpenAI's `OPENAI_CHAT_MODEL`, gpt-5-mini by
   default) from only what they'd know, sometimes with a reaction. No key: short built-in replies.
@@ -43,6 +51,9 @@ their region, and plain Python; secure hardware comes in Step 3.
   is decided for them until you **Hand back** (above their phone). The presenter panel lists who's taken over.
   Each description is shown as it went live, as in the live demo; anything the batch run's follow-up
   answers added ("Aged 25 to 39.") is marked **Batch-run answer**, because the live demo doesn't have it.
+  `python3 -m belong run` then runs the same week again with a quarter of the people's agents writing
+  one detail differently from most agents (another name, another scale, one left out or hidden), and
+  prints both results: a detail written differently costs matches but should never make a wrong one.
 - **[TRUST.md](TRUST.md)** lists every privacy promise with the code that enforces it,
   the test that proves it, and what isn't guaranteed yet. Start there.
 - **[SPEC.md](SPEC.md)** is the product spec.
@@ -50,23 +61,64 @@ their region, and plain Python; secure hardware comes in Step 3.
 ## How matching works
 
 **First, what you want, in your agent's words and yours.** Your personal agent writes down what it
-understood as details on your listing, where you can see and change them: the kind of match (what
-you want to meet someone *for*: "I enjoy climbing" in a dating request is a hobby, not a search for
-a climbing partner) and, for dating, who you'd like to meet and their ages ("Looking for: a woman,
-30–49"). It works the ages out from what you said: "early 30s", "late 20s to mid 30s", "around my
-age" (one age band either side of yours). When your words could mean two things (meeting a woman,
-and climbing; or just "a partner"), it should ask you one short question before saving, and "both"
-makes two listings, each with its own kind. The Claude or OpenAI agent is told to ask (an
-instruction, not something the code can check); the rule-based agent asks when its own readers
-see two readings, and never records a kind or an age range it only guessed. It also writes only words it
-recognises into anything shown (a known activity, place or fixed choice): the rest of what you type stays in your
-description, and it asks when it doesn't recognise what you want ("What would you like a partner for?"). The Warden lets these details in only as fixed
-choices (no listing can ask for anyone under 18), and matching uses them first. Your description is
-read only for what they don't say, and it's never shown to anyone. A detail you hide never decides a
-match: matching then reads your description as if the detail weren't there.
+understood as details on your listing, where you can see and change them: the kind of match (dating,
+or something else: what you want to meet someone *for*: "I enjoy sailing" in a dating request is a
+hobby, not a search for a sailing partner); for dating, who you'd like to meet and their ages
+("Looking for: a woman, 30–49"); otherwise your "looking for" and "you are" phrases; and any details
+that matter, named on the spot: about you ("My instrument is cello."), what you'd like in the other
+person ("I'd like their skill to be middle or high.", required unless you said "ideally"), or what
+the request needs from both of you ("The tempo is brisk."). It works the ages out from what you said:
+"early 30s", "late 20s to mid 30s", "around my age" (one age band either side of yours). When your
+words could mean two things (meeting a woman, and a sport; or just "a partner"), it should ask you
+one short question before saving, and "both" makes two listings, each with its own kind. The Claude
+or OpenAI agent is told to ask, and to reuse the names and scales on the shared list when it means
+the same thing (instructions, not something the code can check; a name on the list can't be reused
+with another meaning). The rule-based agent asks when its own readers see two readings, and never
+records a kind or an age range it only guessed. It also writes only words it recognises into
+anything shown (words on the shared list, a known place, a fixed choice), and a value about you only
+when you say it about yourself ("I'm an intermediate player", "I like hiking", "my level is…"),
+never from a wish, a description of someone else (including a value of someone's: "a seasoned crew's
+coach"), a value after a comma that starts another clause ("I'm a thrower, a glazer would suit me" writes
+only "thrower"), the object of something you do ("I'm leading a weekend group") or a denial ("not", "hardly",
+"far from", "neither … nor", "doubt", also over a clause that depends on it: "I don't think I'm…"):
+the rest of what you type stays in
+your description, and it asks when it doesn't recognise what you want ("What would you like a
+partner for?"). The Warden lets what the agent understood in only as fixed choices (no listing can
+ask for anyone under 18), and the details it names on the spot only in a fixed form: short plain
+words, no contact details, no claim to be "verified", nothing that singles out one person, and
+nothing sensitive (religion, health, politics, income and intimacy go only in their own hidden
+categories). What you'd like in the other person, and what you both need to share, is always shown.
+Nobody can use it to find one particular person, in three layers where the AI only ever adds a refusal.
+The Warden's fixed floor refuses handles, contact details, an ex, clues that together narrow to one
+person, and two capitalised words in a row in the middle of a sentence, which look like a full name (also with
+"van", "de la" or another lower-case name particle between them, or after an initial), unless one of them
+is part of the city or country your listing shows or of a place on the shared list, written out whole, the
+pronoun I, a word in capitals, a month or a weekday (no list of places, languages or titles). A live listing
+keeps the listed places it was accepted with, so a later list never refuses its next update. The Claude or OpenAI agent
+also judges from your words and the context (a first name alone, a nickname, a name in lower case): it
+saves nothing it judges singles someone out and tells you why, and when the floor refuses two capitalised
+words that are really a place or a title, it rewords them and says so. The rule-based agent has no model
+and relies on the floor; so does Save draft on the phone, which runs the same rules. The Matchmaker AI
+(below) may also decline to match a listing it judges is hunting one person, which can only leave pairs
+out. Clues are counted only about the person you're looking for, never your own job or looks (what you
+say about yourself, in what you offer or a detail about you, is read as yours, so only a clue about someone
+else written there counts): one or two common details of how they look are fine, but the Warden refuses a
+place or time where they can be found (where they work or live, a workplace you share with them, someone you
+saw or met, "the" and a clock time) together with how they look, three or more details of how they look, or a
+scar, birthmark, tattoo or piercing described with where it is or what it shows. A character that shows
+nothing never hides any of these rules. A looks word counts only where it describes a person, never a thing. The rule reads
+English sentences with a few words for looks, marks, workplaces, homes, meeting someone and people;
+anything else is left to the model agent's judgement (its instructions, untested against a live model),
+and the rule-based agent has only the rule (TRUST.md limit 26).
+Matching uses these details first. Your description is never shown to anyone and is never part of a
+reason, but matching does read it: to tell dating from the rest, for who and what ages a dating
+listing wants and how a listing meets when those details aren't shown, and as text similarity, which
+counts toward a pair's score and orders shortlists (TRUST.md §5, limit 4). A detail you hide never decides a match:
+matching then reads your description as if the detail weren't there.
 
 **Then the Matchmaker** ([matcher.py](belong/matching/matcher.py), [narrow.py](belong/matching/narrow.py))
-looks at every listing in the same order, using only what people show:
+looks at every listing in the same order, using only what people show (and their descriptions, as
+above):
 
 1. **How you'd meet.** If both listings are happy to meet online, they can be matched wherever
    they are. If either one only meets in person, both must meet in person, and step 2 decides.
@@ -81,18 +133,33 @@ looks at every listing in the same order, using only what people show:
    both people show the same country: a Cambridge in the United States is never near London. Any
    other city, or a city shown without a country, only matches a city of the same name. Someone
    who gives a country but no city is open to anywhere in it.
-3. **What, by meaning.** Named kinds (dating, language exchange, tutoring...) are compared with
-   their own kind: the kind on the listing. Everything else is compared by its "looking for" and
-   "you are" phrases, but only with listings that share a word (or the start of one, so "repair"
-   meets "repairman") between what one looks for and what the other is, shows about themselves or
-   lists as topics. This never drops a pair the rules below could accept;
-   `python3 tools/compare_narrowing.py` checks it on 3,000 people.
+3. **What, by meaning.** Dating is compared with dating. Everything else is compared by its
+   "looking for" and "you are" phrases, but only with listings that share a word (or the start of
+   one, so "repair" meets "repairman") between what one looks for and what the other is, shows
+   about themselves or lists as topics; a role word alone ("partner", "teacher") doesn't count.
+   This never drops a pair the rules below could accept; `python3 tools/compare_narrowing.py`
+   checks it on 3,000 people.
 4. **Both must be looking.** Two people are introduced only when each is what the other asked for,
    judged from shown details only. For dating: the gender each would like to meet, and an age in
-   the other's range.
-5. **Never the only reason.** A pair must also share something both show (the same city, an
-   interest, when they're free) and score well enough on shown details alone. Hidden details can
-   only raise the score of a pair that already qualifies, and only when at least 20 people share them.
+   the other's range. For anything else: what one looks for is what the other is, and what you look
+   for but aren't yourself, they must be (two first violinists both looking for a second violinist
+   aren't each other's answer). Two phrases with the same main noun are compared on their other
+   words, in any language: "a hockey goalkeeper" isn't "a handball goalkeeper", and at the usual
+   exactness two phrases that each say something the other doesn't never meet, whatever they share
+   and in any word order: "an evening sketching partner" isn't "an evening baking partner", nor
+   "amico di pesca serale" "amico di corsa serale" (a wide net, under 0.5, accepts half of those
+   words). And always: every wish each one shows is met by the other's own
+   shown detail of that name (the same value, or one of the wished steps; a wide net also takes the
+   step next to one). A wish for "any" (or for every step of its scale) says nothing, so it is always
+   met and never asks for the detail. An own "any" meets a wish only for a listing that isn't strict
+   (exactness under 0.8), and it is never a reason: it says nothing two people have in common. A
+   detail the other doesn't show, or names or scales differently, fails a required wish: that costs a
+   match but never makes a wrong one.
+5. **Never the only reason.** A pair must also share something both show (where they can meet,
+   their phrases, or a detail they have in common) and score well enough without any hidden detail
+   (on shown details, and how alike the two descriptions read).
+   Hidden details can only raise the score of a pair that already qualifies, and only when at least
+   20 other people share them.
 6. **Fair ranking.** Among pairs that qualify, a listing that already had introductions today
    ranks a little lower, and one updated in the last day a little higher, so new and quiet
    listings get seen. This only changes the order; it never lets a pair skip a rule. When only the
@@ -100,20 +167,38 @@ looks at every listing in the same order, using only what people show:
 
 **For dating, a few things worth knowing:**
 
-- **What you didn't say isn't a strict preference.** No climbing level: any level will do. No ages:
-  people within one age band of your own (25 to 39 if you're 30 to 34). If you've turned on
-  questions, Belong. may ask what ages you'd like, to narrow it.
+- **What you didn't say isn't a strict preference.** A wish you didn't make is no wish: any value
+  will do. No ages: people within one age band of your own (25 to 39 if you're 30 to 34). If you've
+  turned on questions, Belong. may ask what ages you'd like, to narrow it.
 - **Your gender** is how people looking for a woman or a man find you, so the profile asks for it
   and says why. You can keep it hidden, but a hidden detail never decides a match, so then only
   people open to anyone can match you, and you may get fewer matches. Without knowing who you'd
   like to meet, Belong. can't match a dating listing at all.
 - **When a listing records nothing,** for instance an older one, the description is read by simple
   rules: wanting to meet a man or a woman, a boyfriend or a girlfriend, or looking for love is
-  dating; "a man with a van" or "a woman to clean my flat" isn't, and nor is selling, buying or
-  giving something away. Ages work in your own words ("aged 25 to 34", "early 30s", "in their
-  thirties", "around 30"), and what you say about your own age ("I'm 34") isn't read as the age you
-  want. These rules are a fallback: what people type has no end, which is why your agent records
+  dating; "a man with a van to help me move" or "a woman to clean my flat" isn't, and nor is
+  selling, buying or giving something away. They read how a sentence is built and a few general
+  words (a date, a drink, love), never a list of trades or hobbies: "dating" before a noun leaves the
+  noun to say what it is ("a dating romance" is dating, "a dating podcast" and "dating coaches"
+  aren't), "dating" before a person asks for them ("a dating partner", "dating women", also with describing
+  words first, "dating older men", or a word made from a verb, "dating widowed men"), and in "a man
+  with a nose for a bargain" the "for" describes him. Ages work in your own words ("aged 25 to 34",
+  "early 30s", "in their thirties", "around 30", "a woman late 40s", "a man, ideally 40s", "a man in
+  late 30s", "a 40-something woman", "a woman 40s+", "of thirties or forties"), but not decades that
+  describe something else ("a fan of 70s cinema", "a fan of 80s and 90s films"), and what you say
+  about your own age ("I'm 34", or "Me: woman mid-40s" in a sentence of its own) isn't read as the age
+  you want. These rules are a fallback: what people type has no end, which is why your agent records
   what it understood instead.
+
+**The Matchmaker AI** ([hybrid.py](belong/matching/hybrid.py), [matchmaker_openai.py](belong/matchmaker_openai.py))
+is a mock of the model that will run enclosed: OpenAI's API stands in for it, for synthetic and test profiles
+only. The rules above still narrow and decide everything hard and exact; the AI judges only the fuzzy part of
+each pair they allow (does each give what the other wants, also where two agents named or scaled a detail
+differently), from what both listings show and their descriptions, with every first name, id and hidden text
+taken out. Its answer is read as verdicts and a number only, the proposal is the rules' own contract, and the
+Warden checks it as before. Every request goes only once the Warden's check passes it, against the board as it
+is just before it goes (`warden.exit_judge_request`), and is kept and audited again by the leak report
+(`leaks.py`, A8); every security check runs as if it were enclosed (TRUST.md #39 to #44, limit 27).
 
 ## Run it
 
@@ -125,6 +210,28 @@ rule-based agent, and the presenter panel says so): copy `.env.example` to `.env
 OpenAI key in it (`OPENAI_API_KEY=...`), and restart `python3 -m belong serve`. `.env` is
 git-ignored. To use Claude instead, `pip install -r requirements.txt`, set
 `ANTHROPIC_API_KEY`, and leave `OPENAI_API_KEY` empty (or set `BELONG_AGENT=claude`).
+
+**The Matchmaker AI in the demo** is on when `OPENAI_API_KEY` is set (the presenter panel says
+"Matchmaker AI: OpenAI ... (a mock of the enclosed model; synthetic and test profiles only)", or
+"Matchmaker: rules"). `BELONG_MATCHMAKER=rules` turns it off, `BELONG_MATCHMAKER=ai` on. Its settings:
+`OPENAI_MATCHMAKER_MODEL` (else `OPENAI_MODEL`, else gpt-5); `BELONG_MATCHMAKER_URL` to use another
+server that speaks the Chat Completions format (a self-hosted open-weights model behind vLLM, llama.cpp
+or Ollama; https, or http on this machine only, and no redirect is followed) with `BELONG_MATCHMAKER_KEY`
+if it needs one (the OpenAI key only ever goes to OpenAI); `BELONG_MATCHMAKER_TIMEOUT` (seconds, default
+120). Only the phones'
+listings are matched in the demo, so only their pairs reach it. **Cost:** one request per phone listing
+with up to 40 candidates, plus one small request asking about each phone listing alone (once for each version
+of it), at most 80 pairs a run (the rest decided by the rules), each verdict kept until a listing of its request
+changes; the presenter panel shows the tokens used. If it fails, or the Warden's check stops a request, the rules
+decide.
+
+**The batch run stays on the rules**, network-free, as in CI. `python3 -m belong run --matcher ai
+[--ai-pairs 80]` runs the week with the Matchmaker AI (live: it costs money); `--matcher hostile` runs it
+with a stand-in that says yes to every pair and answers out of shape (no model, no network, writes
+nothing), to show the leak reports still pass. `python3 tools/compare_judges.py [--n 300] [--seed 7]`
+compares the rules with the Matchmaker AI on the same shortlists and on pairs outside them, by
+disagreement bucket, with the simulation's ground truth saying who is right, and the tokens used; it
+sends nothing without `--yes` (live, it costs money).
 
 ## Run it online
 
@@ -184,17 +291,22 @@ when idle, at the cost of one instance kept warm. To take it down:
 
 ```text
 belong/                                    [open] = published as open source
-  schema.py        [open] data model, field registry, follow-up menu   SPEC §4
-  warden.py        [open] entry + exit checks, sealed outputs,         §7
-                          hash-chained receipts
-  leaks.py         [open] independent leak audit                       §8.6
+  schema.py        [open] data model: built-in fields, open-detail     SPEC §4
+                          rules, the one normaliser, comparisons,
+                          sensitive words, follow-up menu
+  warden.py        [open] entry + exit checks, sealed outputs, the     §7
+                          shared list, hash-chained receipts
+  leaks.py         [open] independent leak audit (and of what the      §8.6
+                          Matchmaker AI is sent)
   attest.py        [open] measurements, simulated attestation, the
                           list of published files
   matching/        private matching: no network, files or logging
     __init__.py    [open] isolation rules for matching code
     contract.py    [open] the only shapes the Matchmaker may hand the Warden
     marketboard.py [open] stores listings
-    matcher.py     [open] OfflineMatcher (rules), LLMMatcher (planned)  §8.3
+    matcher.py     [open] OfflineMatcher (rules)                        §5, §8.3
+    hybrid.py      [open] LLMMatcher: the rules narrow, an injected     §3, §8.3
+                          judge judges the fuzzy part (no network here)
     intent.py      [open] reads free-text intents into structure
     narrow.py      [open] how, where (travel), what (word index)       §8.2
                           -> shortlists
@@ -204,17 +316,21 @@ belong/                                    [open] = published as open source
   agent_llm.py     personal agent powered by Claude, plus the instructions
                    and draft checks shared by every model-powered agent
   agent_openai.py  personal agent powered by OpenAI (standard library only)
+  matchmaker_openai.py [open] the Matchmaker AI's judge over a Chat     §3, §8.3
+                   Completions API (OpenAI's, as a mock; standard library only)
   synth.py         synthetic people (regional names) + ground truth §8.1
   evaluate.py      match quality vs ground truth; narrowing's word index
                    vs the catch-all group it replaced
   sim.py           one simulated week, end to end                      §8.5
   demo.py          two-person demo session + boundary log, and phones for
                    synthetic people taken over from the inspector
-  probe.py         canary test + attack suite for outside agents
+  probe.py         canary test + attack suite for outside agents, and stand-in
+                   Matchmaker AIs that answer as badly as they can
   server.py        web server (loopback only unless hosted; optional password)
   web/             demo.html, trust.html, index.html (inspector), nav.js (menu)
     ds/            the Belong. design system: tokens.css (generated by
                    tools/make_tokens_css.py), belong.css (components), fonts
 tests/             privacy, entry, isolation, matching (and its order), demo, trust
-tools/             compare_narrowing.py, make_tokens_css.py
+tools/             compare_narrowing.py, compare_judges.py (rules vs the Matchmaker AI;
+                   live, opt-in), make_tokens_css.py
 ```

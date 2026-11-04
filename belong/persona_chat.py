@@ -12,11 +12,11 @@ from __future__ import annotations
 import json
 import re
 
-from .schema import value_strings
+from .schema import split_key, value_strings
 
 SKIP = {"first_name", "seeking", "offering"}  # the name is said separately; phrases read badly as facts
 
-SYSTEM = """You are {name}, a person using Belong., a service that introduces two people only when each is \
+SYSTEM = """You are {name}. You use Belong. to meet people: it introduces two people only when each is \
 what the other is looking for. You and {their} both said yes to the introduction, and now you're \
 chatting.
 About you (what you chose to show): {about_me}
@@ -34,17 +34,25 @@ Answer with JSON only: {{"reply": "...", "react": ""}} (react is "" or one of th
 
 
 def _facts(fields: dict) -> str:
+    """Shown details in plain words: a built-in by its key, an open detail by its name and whose it is
+    ("quiz strength: history", "would like their quiz strength to be: science", "the quiz night: Thursday")."""
     parts = []
     for key, value in fields.items():
+        if isinstance(value, dict):  # an open detail as an introduction carries it (schema.field_to_json)
+            value = value.get("values")
         if key in SKIP or value in (None, "", [], ()):
             continue
-        parts.append(f"{key.replace('_', ' ')}: {', '.join(value_strings(value))}")
+        about, name = split_key(key)
+        said = {"me": name, "them": f"would like their {name} to be", "both": f"the {name}"}.get(
+            about, key.replace("_", " "))
+        parts.append(f"{said}: {', '.join(value_strings(value))}")
     return "; ".join(parts) or "nothing beyond your name"
 
 
 def context(name: str, my_shown: dict, request: str, their_view: dict) -> dict:
     """Everything the model may know. my_shown must be the person's SHOWN fields only, and their_view
-    the introduction view they received (the other person's shown fields and the Warden's reason)."""
+    the introduction view they received (the other person's shown fields, open details among them, and
+    the Warden's reason). Hidden details are never in either."""
     fields = their_view.get("fields", {})
     return {"name": name, "their": fields.get("first_name") or "them", "about_me": _facts(my_shown),
             "request": request, "about_them": _facts(fields), "reason": their_view.get("reason", "")}

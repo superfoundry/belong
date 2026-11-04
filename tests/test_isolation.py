@@ -12,7 +12,7 @@ from unittest import mock
 
 from belong.matching.matcher import OfflineMatcher
 from belong.sim import run
-from belong.warden import _SEAL, FollowUpOut, Introduction, Reveal
+from belong.warden import _SEAL, DetailsInUse, FollowUpOut, Introduction, Reveal
 
 PKG = Path(__file__).resolve().parent.parent / "belong"
 ROOM = PKG / "matching"
@@ -66,6 +66,8 @@ class OnlyTheWardenCreatesOutputs(unittest.TestCase):
             FollowUpOut(None, "a", "age_range")
         with self.assertRaises(PermissionError):
             Reveal(None, "a", "b", "religion", ["x"])
+        with self.assertRaises(PermissionError):
+            DetailsInUse(None, "2026-10-12T09:00:00Z", 0, [], [], [], [], [])
 
     def test_no_module_but_the_warden_touches_the_seal(self):
         self.assertIsNotNone(_SEAL)

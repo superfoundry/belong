@@ -7,7 +7,34 @@ from __future__ import annotations
 
 import math
 import re
+import unicodedata
 from collections import Counter
+
+from ..schema import canonical
+
+_ASCII_WORD = re.compile(r"[a-z]+")
+
+
+def letter_words(text) -> list:
+    """The words of a text, compared the way every value is (schema.canonical: ignoring case, width, accents
+    on Latin letters, and "-", "_" or "/" between words): runs of letters in any script, each keeping the
+    marks that belong to its letters (so a word in Devanagari or Thai stays whole). Digits and punctuation
+    end a word. Text in a script without spaces between words is one word per run."""
+    t = canonical(text)
+    if t.isascii():
+        return _ASCII_WORD.findall(t)
+    out, word = [], []
+    for c in t:
+        cat = unicodedata.category(c)
+        if cat[0] == "L" or (cat[0] == "M" and word):
+            word.append(c)
+        elif word:
+            out.append("".join(word))
+            word = []
+    if word:
+        out.append("".join(word))
+    return out
+
 
 _STOP = set("""a an and the in on at for of to with i i'm i'd me my is are be or from who
 that this it as by around want looking need someone wanted ideally hoping find like""".split())
@@ -21,10 +48,10 @@ def tokenize(text: str) -> tuple:
     if out is not None:
         return out
     words = []
-    for w in re.findall(r"[a-zà-ÿ]+", text.lower()):
+    for w in letter_words(text):
         if w in _STOP or len(w) < 2:
             continue
-        for suffix in ("ing", "ers", "er", "s"):
+        for suffix in ("ing", "ers", "er", "s") if w.isascii() else ():  # English endings, on Latin words only
             if len(w) > len(suffix) + 3 and w.endswith(suffix):
                 w = w[: -len(suffix)]
                 break
