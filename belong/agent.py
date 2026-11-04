@@ -1647,7 +1647,8 @@ def kind_layout(kind, city=None) -> dict:
 # editor done, Save draft) is read part by part (changes_made) and word by word, compared as schema.canonical compares
 # text (replacements). One general rule, no word list, decides which other parts still say what was replaced: a part
 # depends on the change when it has a word the person replaced (replaced_words). A model agent may update those, and
-# only those, to match (keep_edit, the fixed rule its save is held to); without one the phone offers the same words
+# only those, to match (keep_edit, the fixed rule its save is held to), and writes the related topics again when what
+# the listing is about changed (rereads: they are its own reading of it); without one the phone offers the same words
 # changed in them (offers), one tap each. A change the person made on a copy older than the draft (their agent updated
 # it meanwhile) is made on the draft as it now is (rebase), and read from the copy they changed (edited), so it never
 # puts back what the agent had just brought in line.
@@ -1836,10 +1837,53 @@ def says(value, words: set) -> bool:
     return bool(_all_words(value) & words)
 
 
+# The parts that say what a listing is about, in the person's words or their agent's, and the one part their agent
+# writes from them: related topics are its own reading of what the listing is about (broader areas), so they follow
+# what it's about, not only the words they share with it. A detail says something about the listing (a colour, a size,
+# a level), not what it is: a change to one rereads the topics only when the headline, seeking or offering, which name
+# what it is, still says what it replaced (being brought in line anyway, so no turn is added for it); the description
+# says everything (the place and times too), so its saying it doesn't count.
+_WHAT = ("headline", "seeking", "offering")
+_ABOUT = (*_WHAT, DESCRIPTION)
+_READING = "topics"
+
+
+def rereads(draft, changes: list) -> bool:
+    """Is the topics' reading of a listing out of date: a change that isn't to a hidden or sensitive part replaced words
+    in a part that says what the listing is about, or words that the headline, seeking or offering, unchanged, still
+    says; the draft has topics; and the person didn't set the topics themselves."""
+    changed = {c["key"] for c in changes}
+    if _READING in changed or part_value(draft, _READING) is None:
+        return False
+    shown = [c for c in changes if not c["private"]]
+    words = replaced_words(shown)
+    return (any(c["key"] in _ABOUT and replacements(c) for c in shown)
+            or any(says(part_value(draft, k), words) for k in _WHAT if k not in changed))
+
+
 def depends(draft, changes: list) -> bool:
-    """Does any other part of the draft still say a word the person replaced: is there anything to bring in line."""
+    """Is there anything to bring in line: another part of the draft still says a word the person replaced, or the
+    topics are to be read again (rereads)."""
     words, changed = replaced_words(changes), {c["key"] for c in changes}
-    return bool(words) and any(says(part_value(draft, k), words) for k in parts(draft) if k not in changed)
+    return (bool(words) and any(says(part_value(draft, k), words) for k in parts(draft) if k not in changed)) \
+        or rereads(draft, changes)
+
+
+def _private_words(draft, changes: list) -> set:
+    """Every word of something hidden or sensitive: each hidden or sensitive row of the draft, whether it is on or off
+    and whether or not it is a part (a hidden first name too), with an open detail's name (hidden, it is never shown
+    either), and each hidden or sensitive part a change replaced, its old values too (on the copy the person changed as
+    well, _edit_of)."""
+    out = set()
+    rows = [(f.get("key"), f.get("value")) for f in (draft or {}).get("fields", []) if _private(draft, f.get("key"))]
+    rows += [(c["key"], [*_items(c["before"]), *_items(c["after"]), *(v for x in _edit_of(c) for v in _items(x))])
+             for c in changes if c["private"]]
+    for key, value in rows:
+        out |= _all_words(value)
+        about, name = split_key(key) if isinstance(key, str) else ("", "")
+        if about:
+            out |= _all_words(name)
+    return out
 
 
 def _hunks(a: list, b: list) -> tuple:
@@ -2001,23 +2045,33 @@ def _definition(row) -> tuple:
 def keep_edit(new: dict, saved: dict, changes: list) -> tuple:
     """The fixed rule a model agent's save after a kept change is held to. From the draft the person kept (saved), the
     only parts taken from the agent's save (new) are those that still said a word the person replaced
-    (replaced_words), as the agent reworded them, and only in words the part already had or the person just wrote
-    (each in any form, same_word), with grammar (_grammar). So what the person changed keeps their value, a part with
-    no value gets none, a part brought in line gets no word from anywhere else (nothing they didn't give), every other
-    part stays as it was, no part is taken off, an open detail keeps how it compares, shown or hidden stays as it was,
-    and no word of a hidden or sensitive part's new value, in any form, goes into a part that is shown. A save with
+    (replaced_words), as the agent reworded them, and only in words the part already had or the person
+    just wrote (each in any form, same_word), with grammar (_grammar). So what the person changed keeps their value, a
+    part with no value gets none, a part brought in line gets no word from anywhere else (nothing they didn't give),
+    every other part stays as it was, no part is taken off, an open detail keeps how it compares, shown or hidden stays
+    as it was, and no word of a hidden or sensitive part's new value, in any form, goes into a part that is shown. The
+    one part read again rather than reworded: when what the listing is about changed (rereads), the agent's topics are
+    taken in any words a match can already see on the profile (its shown parts, the person's new wording among them)
+    or that the topics had, each in any form, with grammar, and never a word, in any form, of anything hidden or
+    sensitive (_private_words) that no shown part says. A save with
     another kind of match changes nothing. The agent's save is refused for any of these (agent_llm.build_draft), so it
     can fix it, and whatever comes back is corrected by the same rule. Two are corrected without a word, since neither
     says anything the agent may have claimed: an unrelated part it left out (kept), and a sensitive detail's shown,
     which only the person can choose (it saves one hidden). Returns (draft, fixes): fixes are (key, why) for each part
     of the agent's save that wasn't taken, why one of "theirs", "new", "unrelated", "kept", "compare", "hidden",
-    "added", "visibility", "kind"."""
+    "added", "unseen", "visibility", "kind"."""
     out = _copy.deepcopy(saved)
     if new.get("kind") != saved.get("kind"):
         return out, [("kind", "kind")]
     changed = {c["key"] for c in changes}
     words = replaced_words(changes)
     private = set().union(*(_all_words(c["after"]) for c in changes if c["private"]))
+    reread = rereads(saved, changes)
+    # Read again, the topics are made of what a match can already see: words of the profile's shown parts and the
+    # topics' own, each in any form, and grammar. And never a word, in any form, of anything hidden or sensitive that
+    # no shown part says, however short. So nothing hidden reaches them, in any wording.
+    seen = {w for k in parts(saved) if _shown(saved, k) for w in _all_words(part_value(saved, k))}
+    secret = _private_words(saved, changes) - seen if reread else set()
     given = set().union(*(_all_words(c["after"]) for c in changes))  # the person's own new wording
     mine = {f["key"]: f for f in out.get("fields", [])}
     theirs = {f["key"]: f for f in new.get("fields", [])}
@@ -2037,11 +2091,18 @@ def keep_edit(new: dict, saved: dict, changes: list) -> tuple:
         if now is None and key not in changed and not dependent:
             continue  # left out, and it didn't say what they replaced: kept as it was
         extra = _all_words(now) - _all_words(was)  # every word the agent brought into the part
-        why = ("theirs" if key in changed else "new" if was is None else "unrelated" if not dependent
-               else "kept" if now is None
-               else "hidden" if _shown(saved, key) and _any_form(extra, private)
-               else "added" if {w for w in extra if not _grammar(w)} - _any_form(extra, _all_words(was) | given)
-               else None)
+        if key == _READING and reread and was is not None and key not in changed:
+            # Read again for what the listing is about now, from what a match can already see.
+            why = ("kept" if now is None
+                   else "hidden" if _any_form(extra, secret)
+                   else "unseen" if {w for w in extra if not _grammar(w)} - _any_form(extra, seen | _all_words(was))
+                   else None)
+        else:
+            why = ("theirs" if key in changed else "new" if was is None else "unrelated" if not dependent
+                   else "kept" if now is None
+                   else "hidden" if _shown(saved, key) and _any_form(extra, private)
+                   else "added" if {w for w in extra if not _grammar(w)} - _any_form(extra, _all_words(was) | given)
+                   else None)
         if why:
             fixes.append((key, why))
             continue

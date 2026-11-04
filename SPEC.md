@@ -63,7 +63,11 @@ settings only), for synthetic and test profiles only, and every security check r
 agent is told what changed, from what to what, and may update only the other parts that still say a
 word they replaced, by one fixed rule (`agent.keep_edit`: their change keeps its value, a part brought in
 line uses only words it had and their new wording, shown or hidden stays as it was, a hidden detail's words
-never go into a shown part, in any form); its update is made on the draft as it is when it finishes. A
+never go into a shown part, in any form); its update is made on the draft as it is when it finishes, and
+checked against what is shown then. The related topics are the agent's own reading of what the listing is
+about, so when what it is about changes (the headline, seeking, offering or description, nothing hidden),
+the agent writes the topics again, only with words a match can already see on the profile, in any form
+(`agent.rereads`). A
 change made on an older copy (while the agent was working) is made on the draft as it now is
 (`agent.rebase`). Without a model agent the phone offers the same change in those parts, one tap each
 (TRUST.md #34).

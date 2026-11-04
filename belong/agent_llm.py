@@ -35,7 +35,8 @@ saves two listings in one turn (turn_drafts).
 
 When the person changes their profile themselves, the app tells the agent what changed, from what to what, in a
 turn of its own (EDIT_TURN, one text for every provider), so it can bring the parts that still say the old thing in
-line; every save that turn is also held to one fixed rule (agent.keep_edit, through build_draft's `edit`), and the
+line, and write the topics again when what the listing is about changed (EDIT_TOPICS); every save that turn is also
+held to one fixed rule (agent.keep_edit, through build_draft's `edit`), and the
 turn is kept in the conversation without the wording (edit_note). TRUST.md #34.
 
 The shared list (Warden.details_in_use) reaches the agent as data, in a message of its own after the fixed
@@ -1006,10 +1007,12 @@ def _edit_problem(key: str, why: str, saved) -> str:
             "new": f"Don't add {_named(key)}: the person didn't give it.",
             "unrelated": f"Leave {_named(key)} as it was: it didn't say anything the person replaced.",
             "compare": f"Keep how {_named(key)} compares, and its steps, as they were.",
-            "hidden": f"Don't write the new wording of a hidden detail into {_named(key)}, which is shown. Not in "
-                      "another form either (a plural, say).",
+            "hidden": f"Don't write the wording of a hidden or sensitive detail into {_named(key)}, which is shown. "
+                      "Not in another form either (a plural, say).",
             "added": f"Reword {_named(key)} only with words it had and the person's new wording: a word from anywhere "
                      "else would add something they didn't give.",
+            "unseen": f"Write {_named(key)} only with words a match can already see on the profile, or that it had (in "
+                      "any form): a word from anywhere else could carry something hidden.",
             "visibility": f"Keep {_named(key)} {vis or 'as it was'}: this update never changes what's shown or hidden.",
             "kept": f"Keep {_named(key)} on the profile: reword it if it said what they replaced, never leave it out.",
             "kind": "Keep the kind of match as it is."}[why]
@@ -1024,13 +1027,19 @@ def _edit_problem(key: str, why: str, saved) -> str:
 EDIT_TURN = ("(From the app, not typed by the person.) The person changed their profile themselves: {said}. The profile "
              "below already has their change. Their profile should say one thing, so update every other part that still "
              "says what they replaced, the same way: the headline, seeking and offering, topics, intent_text, and any "
-             "detail or wish that said it. Keep their change exactly as they set it. Change nothing that didn't say what "
-             "they replaced, reword a part only with words it already has and their new wording (never add anything "
-             "they didn't give), and keep every detail shown or hidden as it is.{hidden} "
+             "detail or wish that said it. Keep their change exactly as they set it. Change nothing that didn't say what they "
+             "replaced, reword a part only with words it already has and their new wording (never add anything they "
+             "didn't give), and keep every detail shown or hidden as it is.{hidden}{topics} "
              "If a part needs updating, call update_listing once with the whole profile (separate_listing false); if none "
              "does, don't save. Then tell them in one short sentence what you updated, or that nothing else needed "
              "changing.")
 EDIT_HIDDEN = " What they changed in {names} is hidden: never write its new wording into a part that's shown."
+# Topics are the agent's own reading of what the listing is about, so a change to what it's about has them read again
+# (agent.rereads), from words a match can already see (agent.keep_edit), so never with anything hidden.
+EDIT_TOPICS = (" What the listing is about changed, so write the topics again for what it's about now (two to five "
+               "areas, as always), even where they share no word with what they replaced, using only words a match "
+               "can already see on the profile (its shown parts, their new wording among them) or that the topics "
+               "already have, in any form.")
 EDIT_NOTE = "(From the app, not typed by the person.) The person changed {names} on their profile themselves."
 # The reply when the agent wrote none: true to whether it saved.
 EDIT_SAVED = "I've updated the rest of your profile to match."
@@ -1044,12 +1053,14 @@ def _quoted(value) -> str:
     return '"' + (", ".join(value) if isinstance(value, list) else str(value)) + '"'
 
 
-def edit_message(changes: list) -> str:
+def edit_message(changes: list, reread: bool = False) -> str:
     """The turn that tells the agent what the person changed, from what to what (agent.changes_made: values from the
-    draft they had saved and the one they kept, nothing else)."""
+    draft they had saved and the one they kept, nothing else); reread: the topics are to be read again
+    (agent.rereads)."""
     said = "; ".join(f"{_named(c['key'])} from {_quoted(c['before'])} to {_quoted(c['after'])}" for c in changes)
     hidden = [_named(c["key"]) for c in changes if c["private"]]
-    return EDIT_TURN.format(said=said, hidden=EDIT_HIDDEN.format(names=", ".join(hidden)) if hidden else "")
+    return EDIT_TURN.format(said=said, hidden=EDIT_HIDDEN.format(names=", ".join(hidden)) if hidden else "",
+                            topics=EDIT_TOPICS if reread else "")
 
 
 def edit_note(changes: list) -> str:

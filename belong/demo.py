@@ -25,8 +25,9 @@ Privacy rule for this module: `phone_state(slot)` must contain only what that pe
 may know. Room internals go only into `room_state()`, the presenter's panel.
 
 A change the person makes on their profile themselves (a detail's sheet closed, the editor done, Save draft) is kept
-on their draft and told to their agent, which may bring only the parts that still say what they replaced in line, by
-one fixed rule (keep_change, agent.keep_edit; SPEC §3); without a model agent the phone offers that change instead.
+on their draft and told to their agent, which may bring only the parts that still say what they replaced in line, and
+write the related topics again when what the listing is about changed, by one fixed rule (keep_change,
+agent.keep_edit, agent.rereads; SPEC §3); without a model agent the phone offers that change instead.
 
 A person's account settings (set_settings; SPEC §3) only set each listing's own close matches and questions, which the
 Warden enforces: where a new listing's questions start, and whether a listing with no match yet has its close matches
@@ -1307,8 +1308,9 @@ class DemoSession:
     def keep_change(self, slot: str, body: dict, listing_id=None) -> None:
         """A change the person made on their profile themselves, kept (a detail sheet closed, the editor done, or Save
         draft): saved as Save draft saves it (save_draft: every check, and refused while their agent is replying), then
-        read part by part (agent.changes_made). When it replaced words that another part still says (agent.depends:
-        only adding something, or shown or hidden alone, replaces none), a model agent is told
+        read part by part (agent.changes_made). When it replaced words that another part still says, or changed what
+        the listing is about (nothing hidden) while it has topics, which are its agent's reading of that (agent.depends,
+        agent.rereads: only adding something, or shown or hidden alone, replaces none), a model agent is told
         what changed, from what to what, in a turn of its own (_consistency_turn, off the session lock), and the chat
         shows a short line saying so; without one, the phone offers the same words changed in the other parts that
         still say them (agent.offers), one tap each or all (answer_offers). Nothing here reaches anyone else, the
@@ -1386,8 +1388,8 @@ class DemoSession:
         told only what changed, from what to what, between two drafts it is given anyway (agent_llm.edit_message), and
         builds on the saved draft as with every message. Its save goes through build_draft and is held to one fixed rule
         (agent.keep_edit: build_draft refuses what breaks it, and whatever comes back is corrected by it here, for any
-        agent), then kept like any agent draft: the person's choices of shown or hidden stand, those made meanwhile
-        too. If anything had to be corrected, the chat says what actually changed (agent.updated_line), never what the
+        agent, against the profile as it is shown when the turn ends), then kept like any agent draft: the person's
+        choices of shown or hidden stand, those made meanwhile too. If anything had to be corrected, the chat says what actually changed (agent.updated_line), never what the
         agent claimed. The turn stays in its conversation without the wording (agent_llm.edit_note). If the agent is
         unavailable, the phone offers the change instead (agent.offers)."""
         with self.lock:
@@ -1405,7 +1407,7 @@ class DemoSession:
             current = {**self._without_guesses(mine), "choices": dict(mine.choices)}
             chosen_before = dict(mine.choices)
             in_use = self.details_in_use()
-            text, start = edit_message(changes), len(conversation)
+            text, start = edit_message(changes, agent.rereads(saved, changes)), len(conversation)
         reply = draft = None
         try:
             if "edit" in inspect.signature(llm.respond).parameters:
@@ -1431,15 +1433,17 @@ class DemoSession:
             if latest:
                 d = {k: v for k, v in latest[0].items() if k != "earlier"}
                 agent.carry_over(d, self._without_guesses(mine), mine.choices)
-                result, fixes = agent.keep_edit(d, saved, changes)
+                # A choice of shown or hidden made while it was replying wins, as after a message, and counts in the
+                # rule: its update is checked against the profile as it is shown now, so nothing it wrote from a part
+                # hidden meanwhile is taken into a shown one.
+                meanwhile = {k: v for k, v in mine.choices.items() if chosen_before.get(k) != v}
+                as_shown = self._with_choices(saved, meanwhile)
+                checked = [{**c, "private": c["private"] or agent._private(as_shown, c["key"])} for c in changes]
+                result, fixes = agent.keep_edit(self._with_choices(d, meanwhile), as_shown, checked)
                 # It worked from the draft as the turn began: what changed on it since (kept or saved live meanwhile)
                 # stays as it is now, over its update.
                 result, lost = agent.keep_meanwhile(result, saved, now)
-                for key, vis in mine.choices.items():  # a choice made while it was replying wins, as after a message
-                    if chosen_before.get(key) != vis:
-                        for f in result.get("fields", []):
-                            if f["key"] == key and (vis == HIDDEN or not f.get("sensitive")):
-                                f["visibility"] = vis
+                result = self._with_choices(result, meanwhile)
                 updated = bool(agent.changes_made(now, result))
                 if updated or result != now:
                     mine.draft = result
@@ -1477,6 +1481,17 @@ class DemoSession:
             if not self._save_problems(mine, draft["fields"], draft.get("kind"), draft.get("intent_text", ""), before):
                 out.append(offer)
         return out
+
+    @staticmethod
+    def _with_choices(draft: dict, choices: dict) -> dict:
+        """A copy of the draft with these choices of shown or hidden made (a sensitive detail is only ever hidden by
+        one: only the person shows it, on its own)."""
+        draft = copy.deepcopy(draft)
+        for f in draft.get("fields", []):
+            vis = choices.get(f["key"])
+            if vis is not None and (vis == HIDDEN or not f.get("sensitive")):
+                f["visibility"] = vis
+        return draft
 
     @staticmethod
     def _with_offers(draft: dict, offers: list) -> dict:
