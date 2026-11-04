@@ -86,11 +86,15 @@
       <span class="badge warning">Prototype</span>
       <p><b>Every check on this page really runs.</b> But private matching doesn't yet run inside secure hardware, so today you still have to trust the machine it runs on. The tables below separate what you can verify now from what arrives with the hardware enclave in step 3.</p>
     </div>
+    <div class="card md status">
+      <span class="badge warning">Mock</span>
+      <p><b>This version's Matchmaker AI is a mock.</b> When it's on, a model reached over OpenAI's API judges whether two listings suit each other, standing in for the model that will run inside secure hardware. It's used only with synthetic and test profiles. It's given only what people show and their descriptions, never a hidden detail, a first name or an id: the Warden agent checks every request before it goes, and an independent audit checks it again. Every check on this page runs as if it were enclosed: the rules still decide everything hard and exact, its answer can only be a verdict and a number, and the Warden agent checks every match the same way.</p>
+    </div>
 
     <section id="promises-section">
       <p class="eyebrow">What we promise</p>
       <h2 class="display-m">Each promise, and how you can check it</h2>
-      <p class="intro">The rule behind all of it: the Matchmaker agent, which reads every listing, has no way to send anything out, and the Warden agent, which checks everything that goes out, never decides who matches.</p>
+      <p class="intro">The rule behind all of it: the Matchmaker agent, which reads every listing, can send nothing to anyone but the Warden agent (and, in this prototype, its mock Matchmaker AI, which gets only shown details and descriptions, each request checked by the Warden agent first), and the Warden agent, which checks everything that goes out, never decides who matches.</p>
       <div class="card md scroll"><table>
         <thead><tr><th>Promise</th><th>How you can check it</th><th>Status</th></tr></thead>
         <tbody id="promises"></tbody>
@@ -100,7 +104,8 @@
     <section id="how">
       <p class="eyebrow">How it's built</p>
       <h2 class="display-m">Two agents, deliberately split</h2>
-      <p class="intro">The Matchmaker agent finds matches. The Warden agent checks everything that goes into private matching and everything that comes out. Both are open source for anyone to read, and the Warden agent still treats the Matchmaker agent as hostile, so even a modified Matchmaker can't send out a hidden detail.</p>
+      <p class="intro">The Matchmaker agent finds matches. The Warden agent checks everything that goes into private matching and everything that comes out. Both are open source for anyone to read, and the Warden agent still treats the Matchmaker agent as hostile: whatever the Matchmaker agent hands over, the Warden agent checks before it goes, and that includes every request to the mock Matchmaker AI. One gap stays while the AI is a mock: the code that carries those requests to the model is Matchmaker code, trusted to send only what the Warden agent passed, until the model runs enclosed with it.</p>
+      <p class="body-s secondary" id="which-matchmaker" hidden></p>
       <div class="card">
         <svg class="diagram" viewBox="0 0 860 300" role="img" aria-label="Your agent sends your listing through the Warden agent's entry check into private matching, where the Matchmaker agent reads every listing; only introductions the Warden agent has checked come out to your match.">
           <defs><marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" style="fill: var(--text-tertiary)"/></marker></defs>
@@ -108,7 +113,7 @@
           <rect class="box" x="10" y="180" width="150" height="70"/><text x="85" y="210" text-anchor="middle">Your match</text><text class="sub" x="85" y="230" text-anchor="middle">sees shown details only</text>
           <rect class="agent" x="215" y="30" width="150" height="240"/><text x="290" y="60" text-anchor="middle" font-weight="600">Warden agent</text><text class="ai-sub" x="290" y="80" text-anchor="middle">open source</text>
           <text class="sub" x="290" y="125" text-anchor="middle">entry check</text><text class="sub" x="290" y="215" text-anchor="middle">exit check</text><text class="sub" x="290" y="235" text-anchor="middle">public receipts</text>
-          <rect class="private" x="420" y="20" width="430" height="260"/><text x="635" y="48" text-anchor="middle" font-weight="600">Private matching</text><text class="sub" x="635" y="66" text-anchor="middle">no network, no files, no logs; the only way out is the Warden agent</text>
+          <rect class="private" x="420" y="20" width="430" height="260"/><text x="635" y="48" text-anchor="middle" font-weight="600">Private matching</text><text class="sub" x="635" y="66" text-anchor="middle">matching code: no network, no files, no logs; out only past the Warden agent</text>
           <rect class="box" x="450" y="95" width="170" height="110"/><text x="535" y="130" text-anchor="middle">Marketboard</text><text class="sub" x="535" y="150" text-anchor="middle">every listing, with</text><text class="sub" x="535" y="166" text-anchor="middle">its hidden details</text>
           <rect class="agent" x="650" y="95" width="170" height="110"/><text x="735" y="130" text-anchor="middle" font-weight="600">Matchmaker agent</text><text class="ai-sub" x="735" y="150" text-anchor="middle">open source, and</text><text class="ai-sub" x="735" y="166" text-anchor="middle">treated as hostile</text>
           <path class="flow" d="M160,95 L215,95"/><path class="flow" d="M365,120 L450,135"/><path class="flow" d="M620,150 L650,150"/>
@@ -118,7 +123,7 @@
       <div class="grid2" style="margin-top: var(--space-6)">
         <div class="card md">
           <h3 class="heading-m">Why you don't need to trust the Matchmaker agent</h3>
-          <p class="body-s secondary">You can read how it matches, but you don't have to rely on it. It can only hand the Warden agent a proposal: two ids, yes-or-no flags, scores and field names. There's no free text, so there's nowhere to hide a hidden detail. The Warden agent then writes the introduction itself from shown details only, and checks it for hidden values. Privacy rests on the Warden agent, and its code never depends on the Matchmaker's.</p>
+          <p class="body-s secondary">You can read how it matches, but you don't have to rely on it. It can only hand the Warden agent a proposal: two ids, yes-or-no flags, scores and field names. There's no free text, so there's nowhere to hide a hidden detail. The Warden agent then writes the introduction itself from shown details only, and checks it for hidden values. Privacy rests on the Warden agent, and its code never depends on the Matchmaker's. The Matchmaker AI is held the same way: it judges only pairs the rules allow, it's given only shown details and descriptions, and its answer is read as a verdict and a number, nothing more.</p>
         </div>
         <div class="card md">
           <h3 class="heading-m">What "not even us" requires</h3>
@@ -167,7 +172,7 @@
         <div class="card check">
           <span class="caption tertiary">Canary test</span>
           <h3 class="heading-l">Plant secrets, then look for them everywhere</h3>
-          <p class="what">Creates people with unique secret words in their hidden details and private descriptions, runs a full week of matching (questions, introductions, yes and no, comparing details), then searches every byte that was sent out for those words. The canaries never agree to compare anything, so any hit at all is a leak.</p>
+          <p class="what">Creates people with unique secret words in their hidden details and private descriptions, runs a full week of matching (questions, introductions, yes and no, comparing details), then searches what was sent out: each canary's own random words in every byte, and anything else it hides in whatever was sent about it to someone else, as whole words, apart from what that person may see anyway. The canaries never agree to compare anything, so any hit at all is a leak.</p>
           <div class="actions">
             <label class="inline-field">Canaries <input class="input" id="canary-n" type="number" value="20" min="1" max="50"></label>
             <button class="btn secondary" id="btn-canary" onclick="runCanary()">Run the canary test</button>
@@ -177,7 +182,7 @@
         <div class="card check">
           <span class="caption tertiary">Attack suite</span>
           <h3 class="heading-l">Try to break in and get details out</h3>
-          <p class="what">Tries <span id="attack-count">every attack in the suite</span>: identifying intents, forged and mislabelled listings, a compromised Matchmaker agent, forged outputs, and comparing details without consent. Each must be blocked, and the result names the rule that stopped it.</p>
+          <p class="what">Tries <span id="attack-count">every attack in the suite</span>: identifying intents, forged and mislabelled listings, a compromised Matchmaker agent, a hostile or obedient Matchmaker AI, forged outputs, and comparing details without consent. Each must be blocked, and the result names the rule that stopped it.</p>
           <label class="field-label" for="attack-intents">Your own intents to try, one per line (optional)</label>
           <textarea class="textarea" id="attack-intents" rows="2" placeholder="My coworker Jane Smith from accounting"></textarea>
           <div class="actions" style="margin-top: var(--space-4)"><button class="btn secondary" id="btn-attack" onclick="runAttacks()">Run the attack suite</button></div>
@@ -197,7 +202,7 @@
           <tr><td class="mono">GET /api/trust/source</td><td class="how">Every open-source file and its SHA-256</td></tr>
           <tr><td class="mono">GET /api/trust/source/&lt;file&gt;</td><td class="how">The file itself, for any file of either agent</td></tr>
           <tr><td class="mono">GET /api/trust/receipts?from=N</td><td class="how">The public receipt log, plus the previous hash so you can verify from any point</td></tr>
-          <tr><td class="mono">POST /api/probe/canary</td><td class="how">The canary test; bring your own listings and secrets</td></tr>
+          <tr><td class="mono">POST /api/probe/canary</td><td class="how">The canary test; bring your own listings and secrets, and add <span class="mono">"matchmaker": "hostile"</span> to run its week with a stand-in Matchmaker AI that says yes to every pair, searching what it was sent too</td></tr>
           <tr><td class="mono">POST /api/probe/attacks</td><td class="how">The attack suite; bring your own intents</td></tr>
         </tbody></table>
         <details><summary>Examples</summary><pre id="examples"></pre></details>
@@ -229,8 +234,11 @@ const PROMISES = [
   ["A hidden detail is shared only if both of you have it and both choose to compare it", "Canary test: canaries never agree, so their secrets must never appear", NOW],
   ["Both agents' code is open and is what was measured", "Check 1 (hashes computed in your browser)", NOW],
   ["Receipts can't be quietly deleted or edited, even by us", "Check 3 (recomputed in your browser)", NOW],
+  ["The Matchmaker AI is never given a hidden detail, a first name or an id", "The Warden agent's check on every request before it goes, and an independent audit after; attack suite: a modified Matchmaker that tries to send one, an AI that a listing tells to copy someone's details", NOW],
+  ["Whatever the Matchmaker AI answers, it can't add a match the hard rules refuse, go past the daily limit of introductions, or put words in an introduction", "Attack suite: an AI that says yes to every pair, answers out of shape, or does what a listing tells it", NOW],
   ["The measured code is what's actually running", "A hardware-signed attestation document", SIM],
   ["We can't see your hidden details", "Enclave isolation, attestation-gated keys and encryption on your device", LATER],
+  ["The Matchmaker AI runs inside secure hardware", "Today it's a mock on OpenAI's API, used only with synthetic and test profiles", LATER],
 ];
 const ROADMAP = [
   ["Run private matching inside a hardware enclave (for example AWS Nitro Enclaves)", "The host machine and its operators can't read private matching's memory", LATER],
@@ -240,6 +248,7 @@ const ROADMAP = [
   ["No debug or operator access to the enclave", "Removes the way in an operator could otherwise use", LATER],
   ["Reproducible builds of both agents", "Anyone can rebuild them and get the same measurements", LATER],
   ["Independent security audit of the Warden agent's rules", "Outside experts check the rules, not just the code", LATER],
+  ["Run the Matchmaker AI's model inside the enclave (self-hosted, open weights)", "Nothing it judges leaves secure hardware; today it's a mock on OpenAI's API", LATER],
   ["Open-source Warden and Matchmaker agents", "You can read every check and how matching works; the Matchmaker agent still can't get past the checks", NOW],
   ["Hash-chained public receipt log", "The history of checks can't be rewritten", NOW],
   ["Agent test API (canary test and attack suite)", "Your agent can test Belong. itself", NOW],
@@ -259,10 +268,11 @@ curl -s ${origin}/api/trust/source/matching/matcher.py | shasum -a 256
 curl -s -X POST ${origin}/api/probe/canary -H 'Content-Type: application/json' -d '{
   "count": 10,
   "listings": [{
-    "intent_text": "Looking for a running buddy in Kyoto, weekends.",
+    "intent_text": "Looking for someone to play duets with in Lyon.",
     "fields": [
-      {"key": "city", "value": "Kyoto"}, {"key": "schedule", "value": "weekends"},
-      {"key": "pace", "value": "easy"},
+      {"key": "city", "value": "Lyon"}, {"key": "kind", "value": "other"},
+      {"key": "seeking", "value": "a duet partner"}, {"key": "offering", "value": "a duet partner"},
+      {"name": "skill", "about": "me", "compare": "steps", "steps": ["low", "middle", "high"], "values": ["middle"]},
       {"key": "health", "value": "my-private-detail", "visibility": "hidden"}
     ],
     "secrets": ["my-private-detail"]
@@ -376,6 +386,18 @@ async function runAttacks() {
   } catch (e) { out.innerHTML = `<p>${badge("error", "Error")} ${esc(e.message)}</p>`; }
   $("btn-attack").disabled = false;
 }
+
+// Which Matchmaker this demo runs right now: its rules alone, or with the Matchmaker AI (a mock of the enclosed model).
+async function whichMatchmaker() {
+  try {
+    const m = await (await fetch("/api/trust/matchmaker")).json();
+    $("which-matchmaker").textContent = m.ai
+      ? `Running now: the Matchmaker AI, a mock of the model that will run enclosed${m.model ? ` (${m.model})` : ""}. It's used only with synthetic and test profiles, it's given only what people show and their descriptions, never a hidden detail, each request is checked by the Warden agent before it goes, and every check runs as if it were enclosed.`
+      : "Running now: the Matchmaker agent's rules alone, with no AI model.";
+    $("which-matchmaker").hidden = false;
+  } catch (e) { /* the page reads the same without it */ }
+}
+whichMatchmaker();
 </script>
 </body>
 </html>

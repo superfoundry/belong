@@ -1,9 +1,11 @@
 """Grade match quality against ground truth (SPEC §8: "prove that free-text intent
 matching produces good matches").
 
-Truth is what each synthetic person really wants. The Matchmaker never sees it; it
-only sees the listing. A proposal is "correct" if, by the truth, both people's
-intents are met.
+Truth is what each synthetic person really wants, as one of synth's stories (climbing, a language
+exchange, a roommate...). The Matchmaker never sees it; it only sees the listing, where every story but
+dating is the kind "other" with phrases and open details. A proposal is "correct" if, by the truth,
+both people's intents are met. The rules below read the truth only, never how a listing writes it, so
+a detail written wrongly (or differently, as the dialects do) shows up as a wrong or missed match.
 
 compare_narrowing() checks narrowing's word index (SPEC §8.2) against the catch-all group it
 replaced: it may only drop candidates no decision could accept.
@@ -13,7 +15,7 @@ from __future__ import annotations
 from dataclasses import replace
 
 from .schema import TRAVEL, km_between
-from .synth import CITIES, COUNTRY_NAMES, Persona, Truth
+from .synth import CITIES, COUNTRY_NAMES, Persona, Truth, draft_listing
 
 
 def _sched_overlap(x, y) -> bool:
@@ -72,7 +74,7 @@ def truth_intent_met(a: Truth, b: Truth) -> bool:
     if a.kind == "item":
         # Selling meets buying; giving away meets looking for it free (not looking to pay).
         return a.sub == b.sub and {a.role, b.role} in ({"seller", "buyer"}, {"giver", "taker"})
-    return True  # roommate: being able to meet is enough
+    return a.move_in == b.move_in  # roommate: moving in the same month
 
 
 def compatible(a: Persona, b: Persona) -> bool:
@@ -100,19 +102,26 @@ def evaluate(personas: dict, admitted: set, proposals: list, introductions: list
     proposed_people = {x for p in proposals for x in (p.person_a, p.person_b)}
     introduced_people = {x for i in introductions for x in (i["person_a"], i["person_b"])}
 
-    by_kind = {}
-    for kind in sorted({personas[p].truth.kind for p in ids}):
-        people = {p for p in ids if personas[p].truth.kind == kind}
-        props = [p for p in proposals if p.person_a in people]
+    def among(people: set, by_either: bool = False) -> dict:
+        props = [p for p in proposals if p.person_a in people or (by_either and p.person_b in people)]
         good = [p for p in props if compatible(personas[p.person_a], personas[p.person_b])]
         m = people & matchable
-        by_kind[kind] = {
+        return {
             "people": len(people),
             "matchable": len(m),
             "proposals": len(props),
             "precision": round(len(good) / len(props), 3) if props else None,
             "coverage": round(len(m & proposed_people) / len(m), 3) if m else None,
         }
+
+    # By ground-truth story (the key keeps its old name): every story but dating is listed as "other".
+    by_kind = {kind: among({p for p in ids if personas[p].truth.kind == kind})
+               for kind in sorted({personas[p].truth.kind for p in ids})}
+    # By how their agent wrote details (synth.DIALECTS), when some people's agents write them differently:
+    # what a dialect costs in matches, and that it never makes a wrong one.
+    dialects = sorted({personas[p].dialect.partition(":")[0] for p in ids} - {""})
+    by_dialect = {d or "none": among({p for p in ids if personas[p].dialect.partition(":")[0] == d}, by_either=True)
+                  for d in ["", *dialects]} if dialects else {}
 
     return {
         "admitted": len(ids),
@@ -129,6 +138,7 @@ def evaluate(personas: dict, admitted: set, proposals: list, introductions: list
         "proposals_using_hidden_fields": sum(1 for p in proposals if p.used_hidden_fields),
         "close_matches": len(close),
         "by_kind": by_kind,
+        "by_dialect": by_dialect,
     }
 
 
@@ -137,17 +147,18 @@ def compare_narrowing(personas: list, shortlist_size: int = 40) -> dict:
     compared by phrase (as before the word index), and with the word index. Reports whether the
     index only drops candidates (`subset`), and every dropped pair a decision could still accept
     (`lost`: either listing's intent met by the other, exactly or with the wide net of a close
-    match, or nearly met as a question would ask). Then runs the Matchmaker both ways at its usual
+    match, or nearly met as a close match or a question would take it, with every wish both show
+    still met at the close match's wide net). Each part is the Matchmaker's own function, open
+    details (matcher.details_ok) included. Then runs the Matchmaker both ways at its usual
     shortlist size and compares the proposals with the ground truth."""
-    from . import agent
     from .matching.marketboard import Marketboard
-    from .matching.matcher import (CLOSE_EXACTNESS, OfflineMatcher, ShownView, has_phrases, index_words, intent_met,
-                                   nearly, understood)
+    from .matching.matcher import (CLOSE_EXACTNESS, OfflineMatcher, ShownView, details_ok, has_phrases, index_words,
+                                   intent_met, nearly, understood)
     from .matching.narrow import shortlists
 
     board, by_id = Marketboard(), {p.person.id: p for p in personas}
     for p in personas:
-        board.put(p.person, agent.draft_listing(p, "2026-10-12T09:00:00Z"))
+        board.put(p.person, draft_listing(p, "2026-10-12T09:00:00Z"))
     listings = {l.person_id: l for l in board.listings()}
     views = {pid: ShownView(l) for pid, l in listings.items()}
     parsed = {pid: understood(views[pid]) for pid in listings}  # read exactly as the Matchmaker reads them
@@ -159,9 +170,11 @@ def compare_narrowing(personas: list, shortlist_size: int = 40) -> dict:
             return True
         if intent_met(pa, wide[a], pb, vb) or intent_met(pb, wide[b], pa, va):
             return True
-        return has_phrases(va) and has_phrases(vb) and (
-            nearly(va.get("seeking"), vb.get("offering"), va.get("topics"), vb.get("topics"))
-            or nearly(vb.get("seeking"), va.get("offering"), vb.get("topics"), va.get("topics")))
+        # A close match or a question from nearly(): the Matchmaker also needs each side's wishes met, at
+        # each person's own exactness or the close match's wider one (a superset of both).
+        return has_phrases(va) and has_phrases(vb) and details_ok(wide[a], vb) and details_ok(wide[b], va) and (
+            nearly(va.get("seeking"), vb.get("offering"), va.get("topics"), vb.get("topics"), va.get("offering"))
+            or nearly(vb.get("seeking"), va.get("offering"), vb.get("topics"), va.get("topics"), vb.get("offering")))
 
     everyone = len(listings) + 1
     old, _ = shortlists(parsed, views, everyone)

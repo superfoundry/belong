@@ -6,13 +6,15 @@ a connection. It only ever sees its own person's data.
 """
 from __future__ import annotations
 
-import hashlib
 import random
-from dataclasses import replace
+from dataclasses import dataclass, field, replace
+from functools import lru_cache
 
-from .schema import (AGE_BAND_BOUNDS, AGE_BANDS, AGE_MAX, AGE_MIN, CITY_COORDS, FIELD_REGISTRY, FORMATS, FREE_TEXT_MAX,
-                     GENDERS, HIDDEN, MATCH_KINDS, SHOWN, TRAVEL, Field, Listing, age_span, only_said, plain_place, said)
-from .synth import Persona, ages_in_years
+from .schema import (AGE_BAND_BOUNDS, AGE_BANDS, AGE_MAX, AGE_MIN, ANY, CITY_COORDS, FIELD_REGISTRY, FORMATS,
+                     FREE_TEXT_MAX, GENDERS, HIDDEN, MATCH_KINDS, MAX_VALUES, SENSITIVE_FIELD, SENSITIVE_WORDS, SHOWN,
+                     TRAVEL, Field, Listing, age_span, canonical, detail_key, display_form, is_detail_key,
+                     mentions_sensitive, only_said, plain_place, said, split_key)
+from .schema import _CONTRACTED
 
 
 def with_wants_age(fields: tuple, value: str) -> tuple:
@@ -23,28 +25,9 @@ def with_wants_age(fields: tuple, value: str) -> tuple:
     return tuple(fields) + (Field("wants_age", value, FIELD_REGISTRY["wants_age"].default, False),)
 
 
-def draft_listing(p: Persona, now: str) -> Listing:
-    """Turn the person's details into a listing, applying their visibility choices.
-
-    Sensitive categories the person did not turn on are left out entirely.
-    """
-    fields = []
-    for key, value in p.values.items():
-        spec = FIELD_REGISTRY[key]
-        if spec.sensitive and key not in p.sensitive_on:
-            continue
-        fields.append(Field(key=key, value=value, visibility=p.visibility[key], sensitive=spec.sensitive))
-    # Synthetic people's notification choices, fixed per person: most take questions, about
-    # half want close matches.
-    pick = int(hashlib.sha256(p.person.id.encode()).hexdigest()[:4], 16)
-    return Listing(person_id=p.person.id, intent_text=p.intent_text, exactness=p.truth.exactness,
-                   fields=tuple(fields), updated_at=now, confirmed_shown=tuple(sorted(p.confirmed_shown)),
-                   notify_questions=pick % 10 < 8, notify_close=pick % 2 == 0)
-
-
-def answer_followup(p: Persona, listing: Listing, question_id: str, now: str, rng: random.Random,
+def answer_followup(p, listing: Listing, question_id: str, now: str, rng: random.Random,
                     phrase: str = "") -> Listing:
-    """The person answers a fixed-menu question; the agent updates the listing."""
+    """A synthetic person (synth.Persona) answers a fixed-menu question; the agent updates the listing."""
     text, exactness, fields = listing.intent_text, listing.exactness, listing.fields
     if question_id == "also_offer":
         # Synthetic people have exactly one role in their ground truth, so they honestly can't
@@ -57,14 +40,11 @@ def answer_followup(p: Persona, listing: Listing, question_id: str, now: str, rn
             text = f"{text} Aged {lo_age} or older."
         else:
             text = f"{text} Aged {lo_age} to {AGE_BAND_BOUNDS[hi][1]}."
-        fields = with_wants_age(fields, ages_in_years(p.truth.age_range))  # and recorded as understood
+        fields = with_wants_age(fields, f"{lo_age}-{AGE_BAND_BOUNDS[hi][1]}")  # and recorded as understood
         p.truth.omit_age = False
-    elif question_id == "schedule":
-        pass  # schedule is already a field; the person keeps their choice
     elif question_id == "broaden":
-        if rng.random() < 0.6:  # most say yes: close matches, and with them follow-up questions
-            return replace(listing, notify_close=True, notify_questions=True, updated_at=now,
-                           version=listing.version + 1)
+        if rng.random() < 0.6:  # most say yes: close matches only (questions keep their own choice)
+            return replace(listing, notify_close=True, updated_at=now, version=listing.version + 1)
         return listing
     p.intent_text = text
     return replace(listing, intent_text=text, exactness=exactness, fields=fields, updated_at=now,
@@ -107,84 +87,75 @@ def reveal_consents(listing: Listing, rng: random.Random) -> set:
 
 import re as _re
 
-from . import synth as _vocab
-from .matching.intent import (_KIND_PATTERNS, _MEETING, _ROMANTIC, _TASK_AFTER, HOBBY_END, _is_dating, _set_aside,
+from .matching.intent import (_MEETING, _ROMANTIC, _TASK_AFTER, HOBBY_END, _is_dating, _set_aside,
                               ages_text, dating_wants as _dating_wants, default_age_range, own_gender,
-                              parse_intent as _parse_intent, read_listing, relative_years, request_kind,
-                              without_hobbies)
-
-ALL_MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August",
-              "September", "October", "November", "December"]
+                              parse_intent as _parse_intent, read_listing, relative_years,
+                              request_kind as _dating_request, without_hobbies)
 
 LABELS = {
     "first_name": "First name", "city": "City", "country": "Country", "age_band": "Age band (from ID check)",
-    "gender": "Gender",
-    "interests": "Interests", "schedule": "Free time", "level": "Level", "pace": "Pace",
-    "native_language": "Native language", "learning_language": "Learning", "role": "Your role",
-    "subject": "Subject", "move_in": "Moving in", "seeking": "Looking for", "offering": "You are (to them)", "topics": "Related topics", "headline": "Headline", "pay": "Pay", "format": "Format",
-    "travel": "How far you'll travel",
-    "diet": "Diet", "smoking": "Smoking",
+    "gender": "Gender", "seeking": "Looking for", "offering": "You are (to them)", "topics": "Related topics",
+    "headline": "Headline", "pay": "Pay", "format": "Format", "travel": "How far you'll travel",
     "children": "Children", "neighborhood": "Neighborhood", "employer": "Employer",
     "income_band": "Income", "religion": "Religion", "politics": "Politics", "health": "Health",
     "kinks": "Intimacy preferences",
     "kind": "Kind of match", "wants_gender": "Looking for", "wants_age": "Their age",
 }
+assert set(LABELS) == set(FIELD_REGISTRY)
 
-_COMMON = ["first_name", "country", "city", "travel", "age_band", "interests", "schedule", "diet", "smoking",
-           "neighborhood", "employer", "income_band", "religion", "politics", "health"]
+_COMMON = ["first_name", "country", "city", "travel", "age_band", "neighborhood", "employer", "income_band",
+           "religion", "politics", "health"]
 # Only dating records who they'd like to meet and their ages.
 DATING_ONLY = ("wants_gender", "wants_age")
-_BY_KIND = {
-    "dating": ["gender", *DATING_ONLY, "children", "kinks"], "climbing": ["level"], "running": ["pace"],
-    "language": ["native_language", "learning_language", "format"], "tutoring": ["role", "subject", "pay", "format"],
-    "roommate": ["move_in", "pay"], "cofounder": ["role", "format"],
-    "other": ["seeking", "offering", "pay", "format"],
-}
-_KIND_NAMES = {
-    "dating": "a relationship or date", "climbing": "a climbing partner", "running": "a running buddy",
-    "language": "a language exchange", "cofounder": "a cofounder", "tutoring": "tutoring",
-    "roommate": "a roommate",
-    "other": "something else",
-}
-assert tuple(_KIND_NAMES) == MATCH_KINDS  # the kinds an agent may choose are the ones the Warden accepts
+# What each kind of match has besides the common details: dating its fixed rules, everything else the
+# phrases matching compares and its terms. Open details (detail_row) go on either kind.
+_BY_KIND = {"dating": ["gender", *DATING_ONLY, "children", "kinks"], "other": ["seeking", "offering", "pay", "format"]}
+_KIND_NAMES = {"dating": "a relationship or date", "other": "something else"}
+assert tuple(_KIND_NAMES) == MATCH_KINDS and set(_BY_KIND) == set(MATCH_KINDS)
 # Why dating needs your gender, and what hiding it means (hidden details never decide a match).
 GENDER_NOTE = ("Please tell me your gender. It's needed so people looking for a woman or a man can find you. "
                "You can keep it hidden, but a hidden detail never decides a match, so then only people open to "
                "anyone can match you, and you may get fewer matches.")
-_SENSITIVE_VOCAB = {
-    "religion": [r for r in _vocab.RELIGION if r != "not religious"],
-    "health": _vocab.HEALTH,
-    "politics": ["progressive", "conservative", "liberal", "left-wing", "right-wing"],
-    "kinks": _vocab.KINKS,
-}
 
 
-def field_options(kind, city=None) -> dict:
-    """The choices the person can pick from for each field."""
-    country = _vocab.CITIES[city][0] if city in _vocab.CITIES else None
-    roles = {"cofounder": ["technical", "business"], "tutoring": ["tutor", "student"]}.get(kind, [])
-    return {
-        "city": [], "country": [], "gender": ["woman", "man", "nonbinary"],
-        "interests": [], "schedule": _vocab.SCHEDULES, "level": _vocab.LEVELS,
-        "pace": _vocab.PACES, "native_language": _vocab.LANGUAGES, "learning_language": _vocab.LANGUAGES,
-        "role": roles, "subject": [], "move_in": ALL_MONTHS, "diet": _vocab.DIET,
-        "format": list(FORMATS), "travel": list(TRAVEL),
-        "smoking": _vocab.SMOKING, "children": _vocab.CHILDREN,
-        "neighborhood": [], "employer": [],
-        "income_band": _vocab.INCOME[country] if country else ["lower income", "middle income", "higher income"],
-        "religion": _vocab.RELIGION, "politics": _vocab.POLITICS, "health": _vocab.HEALTH,
-        "kinks": _vocab.KINKS,
-        "kind": list(MATCH_KINDS), "wants_gender": list(GENDERS), "wants_age": [],
-    }
+def field_options(kind=None, city=None) -> dict:
+    """The fixed choices of the built-in details that have them. The same for every kind and place (the
+    arguments change nothing); every other detail is written in words, and an open detail's choices are
+    its own steps (detail_row)."""
+    return {"gender": list(GENDERS), "format": list(FORMATS), "travel": list(TRAVEL), "kind": list(MATCH_KINDS),
+            "wants_gender": list(GENDERS)}
 
 
-def _find_language(pattern: str, low: str):
-    for m in _re.finditer(pattern, low):
-        word = next(g for g in m.groups() if g)
-        lang = next((l for l in _vocab.LANGUAGES if l.lower() == word), None)
-        if lang:
-            return lang
-    return None
+def label_for(key: str) -> str:
+    """What the phone calls a detail: a built-in's label, or an open detail's name in sentence case."""
+    if key in LABELS:
+        return LABELS[key]
+    name = split_key(key)[1]
+    return name[:1].upper() + name[1:]
+
+
+def detail_row(about: str, name: str, compare: str, steps, values, visibility: str = SHOWN,
+               required: bool = True) -> dict:
+    """An open detail as a draft carries it (the same row shape as a built-in, plus what an open detail
+    has): its key is about:name, its value always a list, and its choices are its own steps."""
+    name = canonical(name)
+    return {"key": detail_key(about, name), "label": label_for(detail_key(about, name)), "about": about,
+            "name": name, "compare": compare, "steps": list(steps), "required": bool(required),
+            "value": list(values), "visibility": visibility, "sensitive": False, "multi": True, "enabled": True,
+            "locked": False, "options": list(steps)}
+
+
+def detail_field(row: dict):
+    """The Field an open detail's row goes live as, or None if the row isn't an open detail. Its form is
+    the Warden's to check (schema.detail_problems), exactly as the person's agent wrote it."""
+    key = row.get("key") if isinstance(row, dict) else None
+    if not is_detail_key(key):
+        return None
+    value = row.get("value")
+    values = value if isinstance(value, (list, tuple)) else [] if value in (None, "") else [value]
+    steps = row.get("steps") if isinstance(row.get("steps"), (list, tuple)) else ()
+    return Field(key, tuple(display_form(v) for v in values), row.get("visibility"), False,
+                 row.get("compare", ""), tuple(display_form(s) for s in steps), row.get("required", True) is not False)
 
 
 def wanted_ages(text: str, age_band) -> tuple:
@@ -211,186 +182,262 @@ def wanted_ages(text: str, age_band) -> tuple:
 
 
 # --- Sensitive words ---------------------------------------------------------------------------
-# Words that say something sensitive about a person: the sensitive details' own choices
-# (_SENSITIVE_VOCAB), other ways of saying them, and identity words with no detail of their own
-# (sexual orientation, gender identity, health conditions). They are an extra safeguard, not what keeps
-# a person's words out of what is shown: the offline agent writes shown details only from words it
-# recognises (below), and none of those is sensitive. They are also how a sensitive detail mentioned in
-# a message is recorded, hidden (sensitive_details), and the model agent's save is refused when one is in
-# a shown detail (agent_llm.build_draft). Words with an everyday meaning too ("a blind date", "easy
-# recovery runs", "straight after work", "a bi-lingual exchange") count only where they say who someone
-# is ("I'm bi", "I'm straight", "in recovery").
-_SENSITIVE_OTHER = (
-    # religion
-    r"buddhism|christianity|catholics?|catholicism|protestants?|evangelicals?|mormons?|islam|islamic|jews?|judaism|"
-    r"hinduism|sikhs?|sikhism|atheists?|atheism|agnostics?|religious|religion|faith|church|mosque|synagogue|bible|"
-    r"quran|koran|torah|spiritual|prayer|praying|orthodox|baptists?|sunnis?|shias?|shiites?|ramadan|"
-    # health
-    r"diabetes|diabetic|celiac|coeliac|migraines?|deaf|disabled|disability|disabilities|wheelchair|autism|"
-    r"autistic|epilepsy|epileptic|hiv|hsv|herpes|cancer|chemo\w*|depression|depressed|anxiety|bipolar|schizophreni\w*|"
-    r"ptsd|ocd|illness|sober|sobriety|rehab|pregnant|pregnancy|asthma|asthmatic|dyslexi\w*|"
-    # politics
-    r"liberals?|left[- ]wing|right[- ]wing|leftists?|socialists?|socialism|communists?|communism|republicans?|"
-    r"democrats?|libertarians?|feminists?|political|politics|activists?|"
-    # intimacy
-    r"kinks?|kinky|fetish\w*|role[- ]?play\w*|polyamor\w*|poly|voyeur\w*|swingers?|swinging|bondage|submissive|"
-    r"dominant|"
-    # sexual orientation and gender identity
-    r"gay|lesbians?|bisexuals?|bi-?curious|queer|genderqueer|genderfluid|trans|transgender|transsexual|asexual|"
-    r"demisexual|pansexual|homosexual|heterosexual|lgbt\w*|intersex|"
-    # everyday words, only where they say who someone is
-    r"(?:i['’]?m|i am|we['’]?re|we are|who['’]?s|who is|who are|as an?|being)\s+(?:a |an )?(?:bi|straight|blind)(?![\w-])|"
-    r"(?:bi|straight|blind)\s+(?:man|men|woman|women|guys?|girls?|lady|ladies|person|people|couple)|"
-    r"(?:legally|partially|completely) blind|in recovery|recovering (?:addicts?|alcoholics?)|"
-    r"(?:addiction|alcohol|drug) recovery|recovery from (?:addiction|alcohol|drugs)|in therapy|in aa|aa meetings?")
-_SENSITIVE_WORDS = _re.compile(r"\b(?:" + "|".join(
-    [_re.escape(w.lower()) + "s?" for words in _SENSITIVE_VOCAB.values() for w in words] + [_SENSITIVE_OTHER])
-    + r")\b")
-# Other ways of saying one of a sensitive detail's choices, so it can be recorded (hidden) as that choice.
-_SENSITIVE_SAME = {
-    "religion": {"Christian": r"christianity|catholics?|catholicism|protestants?|evangelicals?", "Muslim": r"islam|islamic",
-                 "Jewish": r"jews?|judaism", "Hindu": r"hinduism", "Buddhist": r"buddhism"},
-    "kinks": {"polyamorous": r"polyamory", "roleplay": r"role[- ]play(?:ing)?"},
-}
-
-
-def mentions_sensitive(text) -> bool:
-    """Does this text say something sensitive (see _SENSITIVE_WORDS)?"""
-    return bool(_SENSITIVE_WORDS.search(" ".join(str(text or "").lower().split())))
-
+# The fixed sensitive words (schema.SENSITIVE_WORDS, mentions_sensitive) are published in schema.py and
+# shared with the Warden and the audit. They are an extra safeguard, not what keeps a person's words out of
+# what is shown: the offline agent writes shown details only from words other people already show (below),
+# and none of those is sensitive. They are also how a sensitive thing said in a message is recorded,
+# hidden, under its built-in category (sensitive_details), and why the model agent's save is refused when
+# one is in a shown detail or an open detail (agent_llm.build_draft).
 
 def without_sensitive(text) -> str:
     """The text in lower case, with every sensitive word taken out."""
-    return " ".join(_SENSITIVE_WORDS.sub(" ", " ".join(str(text or "").lower().split())).split())
+    low = " ".join(str(text or "").lower().split())
+    for rx in SENSITIVE_WORDS.values():
+        low = rx.sub(" ", low)
+    return " ".join(low.split())
 
 
-def sensitive_details(low: str, kind) -> dict:
-    """The sensitive details a message states plainly, as {key: value} in each detail's fixed choices
-    (intimacy only for dating). These go on the listing as hidden details, never shown."""
+def sensitive_details(text: str, kind) -> dict:
+    """The sensitive things a message says, as {hidden built-in: the words as said}, one for each category
+    that has a built-in of its own (intimacy only on dating listings). Who someone is (orientation, gender
+    identity) has none, so it stays in the description only. These go on the listing hidden, never shown. A
+    category named after whose it is counts only as the person's own, with what they say about it ("my long-term
+    health" as "long-term health"): never the bare name ("my salary"), nor someone else's ("their income", "my
+    sister's health"); those are only warned about (draft_from_message)."""
+    said_ = " ".join(str(text or "").split())
+    low = said_.lower()
     out = {}
-    for key, words in _SENSITIVE_VOCAB.items():
-        if key == "kinks" and kind != "dating":
+    for category, rx in SENSITIVE_WORDS.items():
+        key = SENSITIVE_FIELD[category]
+        if not key or (key == "kinks" and kind != "dating"):
             continue
-        hit = next((w for w in words if _re.search(r"\b" + _re.escape(w.lower()) + r"s?\b", low)), None)
-        hit = hit or next((value for value, rx in _SENSITIVE_SAME.get(key, {}).items()
-                           if _re.search(rf"\b(?:{rx})\b", low)), None)
-        if hit:
-            value = hit if key != "politics" else next(
-                (p for p in _vocab.POLITICS if hit.split("-")[0] in p), "politically progressive")
-            out[key] = (value,) if FIELD_REGISTRY[key].multi else value
+        for m in rx.finditer(low):
+            word = said_[m.start():m.end()] if len(said_) == len(low) else m.group(0)  # as they wrote it
+            whose = _WHOSE.match(m.group(0))
+            if whose:  # a category named after whose it is ("my health", "their income", "my mental health")
+                if whose.group(1) not in ("my", "our"):
+                    continue  # someone else's: nothing about the person
+                word = word[whose.end():]
+                if len(word.split()) < 2:
+                    continue  # only the category's own name ("my salary"): it says nothing to record
+                if _OTHERS_OWN.match(word):
+                    continue  # "my uncle's income": someone else's, named after the person (still warned about)
+            out[key] = (word,) if FIELD_REGISTRY[key].multi else word
+            break
     return out
 
 
+# A sensitive category named after whose it is, as the free-text reading counts it (schema.SENSITIVE_WORDS).
+_WHOSE = _re.compile(r"(my|our|your|his|her|their|whose)\s+")
+# A word after "my" / "our" that is itself a possessive ("<word>'s", "<word>s'"): what follows is that person's.
+_OTHERS_OWN = _re.compile(r"[\w'’-]*(?:['’]s|s['’])\s")
+
+
 # --- What the offline agent recognises ---------------------------------------------------------
-# The range of what people type is endless, so the offline agent never copies a person's own words into
-# a detail that is shown. It writes shown details only from vocabulary it recognises: the kinds of match,
-# the activities below, each detail's fixed choices, subjects, languages and known places (known_city).
-# Everything else stays only in the description, which is never shown, and where it matters (which
-# activity?) the agent asks instead. Every activity here is an ordinary pastime (a test checks none is
-# sensitive).
-_GAMES = {"tennis", "chess", "golf", "yoga", "football", "soccer", "basketball", "volleyball", "badminton", "squash",
-          "pilates", "karate", "judo", "padel", "table tennis", "ping pong", "board games", "frisbee", "cricket",
-          "rugby", "baseball", "darts", "poker", "tai chi", "kendo", "aikido", "bowling", "hockey", "billiards", "pool"}
-KNOWN_ACTIVITIES = tuple(sorted(
-    {*_GAMES, *_vocab.INTERESTS, *_vocab.SUBJECTS, "climbing", "rock climbing", "bouldering", "running", "trail running",
-     "jogging", "walking", "swimming", "fishing", "photography", "painting", "drawing", "dancing", "singing", "guitar",
-     "drums", "violin", "gardening", "reading", "writing", "baking", "skiing", "snowboarding", "skating", "sailing",
-     "kayaking", "camping", "gaming", "gym", "boxing", "knitting"},
-    key=lambda a: (-len(a), a)))  # longest first, so "table tennis" is read before "tennis"
-_ACTIVITY = "|".join(map(_re.escape, KNOWN_ACTIVITIES))
-_KNOWN_ACTIVITY = _re.compile(rf"\b({_ACTIVITY})\b")
+# The range of what people type is endless, so the offline agent never copies a person's own words into a
+# detail that is shown. Its vocabulary is the shared list of details in use (Warden.details_in_use): words at
+# least K_CROWD other people already show, so nothing on it is anyone's own. It writes a listed topic, or what
+# a listed partner phrase is for, as what they want a partner for ("a ... partner", "a ... teacher"), a listed
+# value under its listed name, and a listed place. Everything else stays only in the description, which is
+# never shown, and where it matters (which activity?) the agent asks instead.
 
-
-def known_activities(text) -> list:
-    """The known activities a text names, in order ("I enjoy chess, pottery and jazz" -> chess, jazz)."""
-    return list(dict.fromkeys(m.group(1) for m in _KNOWN_ACTIVITY.finditer(" ".join(str(text or "").lower().split()))))
-
-
-def known_activity(text):
-    """The first known activity a text names, or None."""
-    return next(iter(known_activities(text)), None)
-
-
-# A partner for an activity, named: "a tennis partner", "a hiking buddy". Romantic words aren't an activity.
+# A partner for an activity, named: "a kayaking partner", "a quiz buddy". Romantic words aren't an activity.
 _PARTNER_PHRASE = _re.compile(r"\b(?:a|an|some)\s+((?:[a-z'-]+\s+){0,2}?[a-z'-]+)\s+(?:partner|buddy|companion)s?\b")
 _NOT_AN_ACTIVITY = {"life", "long", "term", "long-term", "lifelong", "romantic", "serious", "loving", "committed",
                     "steady", "new", "nice", "good", "kind", "great", "potential", "future", "real", "special",
                     "perfect", "ideal", "business", "possible", "the", "my", "your", "our"}
 
 
+def _lower(text) -> str:
+    return " ".join(str(text or "").lower().replace("’", "'").split())
+
+
+def _words_rx(words) -> _re.Pattern:
+    """One pattern for any of these words or phrases, longest first ("sea kayaking" before "kayaking")."""
+    words = sorted(set(words), key=lambda w: (-len(w), w))
+    return _re.compile(r"(?<![\w'-])(" + "|".join(map(_re.escape, words)) + r")(?![\w'-])") if words else None
+
+
+@dataclass(frozen=True)
+class Words:
+    """What the offline agent may write, all from the shared list of details in use (words_in_use).
+
+    activities: what each listed partner phrase is for ("a kayaking partner" -> "kayaking"), then the
+    listed topics, never one that reads as dating. values: {value: (about, name, compare, steps)} for each
+    listed value it may write as the person's own (me) or the request's (both), and every step of a listed
+    scale about the person or the request (the scale is listed, so each of its steps is a listed word): only
+    one listed under exactly one name, never "any". cities: {plain city: {countries}}, the cities with a known
+    centre (schema.CITY_COORDS) and the listed places; a city in two countries ("Cambridge") has no country of
+    its own."""
+    activities: tuple = ()
+    values: dict = field(default_factory=dict)
+    cities: dict = field(default_factory=dict)
+    _activity_rx: object = field(default=None, compare=False, repr=False)
+    _value_rx: object = field(default=None, compare=False, repr=False)
+    _city_rx: object = field(default=None, compare=False, repr=False)
+
+
+def _entries(vocabulary, section: str) -> list:
+    entries = (vocabulary or {}).get(section) if isinstance(vocabulary, dict) else None
+    return [e for e in entries or [] if isinstance(e, dict)]
+
+
+def words_in_use(vocabulary=None) -> Words:
+    """The offline agent's vocabulary from the Warden's shared list (DetailsInUse.vocabulary(); None or
+    empty: nothing listed yet, so it writes no phrase or open detail at all)."""
+    phrases = _entries(vocabulary, "phrases")
+    partners = {m.group(1) for e in phrases if e.get("key") in ("seeking", "offering")
+                for m in [_PARTNER_PHRASE.fullmatch(_lower(e.get("value")))] if m}
+    topics = {_lower(e.get("value")) for e in phrases if e.get("key") == "topics"} - partners
+    # What people already look for partners for first (the examples activity_hint gives), then the topics.
+    activities = [a for a in sorted(partners) + sorted(topics) if a and a.split()[-1] not in _NOT_AN_ACTIVITY
+                  and not _dating_request(a) and not mentions_sensitive(a)]
+
+    compare = {(e.get("about"), e.get("name")): e.get("compare") for e in _entries(vocabulary, "details")}
+    scales = {(e.get("about"), e.get("name")): tuple(e.get("steps") or ()) for e in _entries(vocabulary, "scales")}
+    found: dict = {}  # canonical value -> {name: (about, name, compare, steps, display form)}
+    # Each listed value, then each step of a listed scale (so a message naming two steps is seen to, even
+    # where only one of them is listed as a value).
+    said_ = [(e.get("about"), e.get("name"), e.get("value")) for e in _entries(vocabulary, "values")]
+    said_ += [(about, name, step) for (about, name), steps in scales.items()
+              if compare.get((about, name)) == "steps" for step in steps]
+    for about, name, value in said_:
+        how = compare.get((about, name))
+        if about not in ("me", "both") or how is None or not isinstance(value, str) or canonical(value) == ANY \
+                or mentions_sensitive(value, in_detail=True):
+            continue
+        steps = scales.get((about, name), ())
+        if how == "steps" and canonical(value) not in {canonical(s) for s in steps}:
+            continue  # a step it can't place on its scale
+        names = found.setdefault(canonical(value), {})
+        if name not in names or about == "me":  # about the person, where the same name is listed both ways
+            names[name] = (about, name, how, steps, value)
+    values = {_lower(v[4]): v[:4] for names in found.values() if len(names) == 1 for v in names.values()}
+
+    cities: dict = {}
+    for city, where in CITY_COORDS:
+        cities.setdefault(city, set()).add(_country(where) or _title(where))
+    for e in _entries(vocabulary, "places"):
+        city, country = plain_place(e.get("city")), e.get("country")
+        if city and isinstance(country, str) and not mentions_sensitive(city):
+            cities.setdefault(city, set()).add(_country(country) or _title(country))
+    return Words(tuple(activities), values, cities, _words_rx(activities), _words_rx(values), _words_rx(cities))
+
+
+@lru_cache(maxsize=1)
+def _nothing_listed() -> Words:
+    return words_in_use(None)
+
+
+def _words(words) -> Words:
+    """`words` as Words: Words itself, the Warden's vocabulary dict, or None (nothing listed)."""
+    return words if isinstance(words, Words) else words_in_use(words) if words else _nothing_listed()
+
+
+def known_activities(text, words=None) -> list:
+    """The listed activities a text names, in order ("I enjoy kayaking, pottery and quizzes" -> kayaking and
+    quizzes, if both are listed)."""
+    rx = _words(words)._activity_rx
+    return list(dict.fromkeys(m.group(1) for m in rx.finditer(_lower(text)))) if rx else []
+
+
+def known_activity(text, words=None):
+    """The first listed activity a text names, or None."""
+    return next(iter(known_activities(text, words)), None)
+
+
 def _partner_phrases(text) -> list:
     """What each "a ... partner" phrase names, unless it's romantic ("a long-term partner")."""
-    low = " ".join(str(text or "").lower().split())
-    return [m.group(1) for m in _PARTNER_PHRASE.finditer(low) if m.group(1).split()[-1] not in _NOT_AN_ACTIVITY]
+    return [m.group(1) for m in _PARTNER_PHRASE.finditer(_lower(text))
+            if m.group(1).split()[-1] not in _NOT_AN_ACTIVITY]
 
 
-def activity_partner(text: str):
-    """The known activity of a partner they name ("a tennis partner" -> "tennis", "a Christian hiking
-    buddy" -> "hiking"), or None. Only an activity the agent recognises counts: "a pottery partner" or "a
-    Muslim partner" names none it knows, and nothing else from the phrase is ever used."""
-    return next(filter(None, (known_activity(words) for words in _partner_phrases(text))), None)
+def activity_partner(text: str, words=None):
+    """The listed activity of a partner they name ("a kayaking partner" -> "kayaking", "a Christian kayaking
+    buddy" -> "kayaking"), or None. Only a listed activity counts: "a pottery partner" (if pottery isn't
+    listed) or "a Muslim partner" names none, and nothing else from the phrase is ever used."""
+    return next(filter(None, (known_activity(w, words) for w in _partner_phrases(text))), None)
 
 
-def unknown_partner(text) -> bool:
-    """Do they ask for a partner for something the agent doesn't recognise ("a pottery partner")? Then it
-    asks which activity, instead of writing their words on the listing."""
-    return any(not known_activity(words) and not _activities(words) for words in _partner_phrases(text))
+def unknown_partner(text, words=None) -> bool:
+    """Do they ask for a partner for something not listed ("a pottery partner")? Then it asks which
+    activity, instead of writing their words on the listing."""
+    return any(not known_activity(w, words) for w in _partner_phrases(text))
 
 
-# Activities someone says they do or enjoy, in the first person: "I play tennis", "I go hiking", "I do
-# yoga", "I climb on weekends", "I enjoy hiking and chess". Only known activities count from these ("I love
-# dogs" names none). Read only to ask a question, never to decide anything.
+# Teaching a listed activity, stated plainly: "I'm offering ukulele lessons", "I teach ukulele" -> they're the
+# teacher; "looking for a ukulele teacher" -> they're the student. Read from a few explicit forms only.
+_TEACH = (_re.compile(r"\b(?:i'?m |i am )?(?:offering|giving|teaching|i teach|i give|i offer|i can teach)\s+"
+                      r"(?:(?:private|group|beginner|online) )?([a-z][a-z ]{1,30}?)\s*"
+                      r"(?:lessons?|classes|coaching|tutoring)\b"),
+          _re.compile(r"\bi (?:teach|coach|tutor)\s+([a-z][a-z ]{1,30}?)(?=[.!?;,]|$|\s(?:to|in|for|on|and)\b)"))
+_LEARN = _re.compile(r"\b(?:looking for|need|want|find|searching for)\s+(?:a |an )?([a-z][a-z ]{1,30}?)\s+"
+                     r"(teacher|tutor|coach|instructor|mentor)\b")
+
+
+def teaching(text, words=None):
+    """(seeking, offering, activity) when they plainly teach a listed activity or want to learn one, else None."""
+    low = _lower(text)
+    m = next(filter(None, (rx.search(low) for rx in _TEACH)), None)
+    activity = known_activity(m.group(1), words) if m else None
+    if activity:
+        return f"{_article(activity)} {activity} student", f"{_article(activity)} {activity} teacher", activity
+    m = _LEARN.search(low)
+    activity = known_activity(m.group(1), words) if m else None
+    if activity:
+        return f"{_article(activity)} {activity} {m.group(2)}", f"{_article(activity)} {activity} student", activity
+    return None
+
+
+# Activities someone says they do or enjoy, in the first person: "I play squash", "I go kayaking", "I do
+# pilates", "I enjoy kayaking and quizzes". Only listed activities count from these ("I love dogs" names none).
+# Read only to ask a question, never to decide anything.
 _I_DO = _re.compile(r"\b(?:i|we)\s+(?:could\s+|can\s+|might\s+|would\s+)?"
                     r"(?:also\s+|really\s+|often\s+|usually\s+|regularly\s+|sometimes\s+|mostly\s+)?"
-                    r"(?:play|go|do|practi[cs]e|climb|boulder|run|jog)s?\b"
-                    # up to where a new clause starts: "I play tennis | and want a girlfriend"
+                    r"(?:play|go|do|practi[cs]e)s?\b"
+                    # up to where a new clause starts: "I play squash | and want a girlfriend"
                     r"(?:(?!\s+(?:and|but|so)\s+(?:i\b|i'?m|i'?d|we\b|want|wanna|need|looking|would|am|are|hope|"
                     r"keen|trying))[^.,;!?])*")
 _I_ENJOY = _re.compile(r"\b(?:i'?m into|i am into|i (?:really |also |just )?(?:enjoy|love|like|adore)|"
                        r"my hobbies (?:are|include)|i'?m (?:a )?(?:big )?fan of)\s+([a-z][a-z ,'\-]{2,80}?)"
                        r"(?=[.!?;]|$|\s(?:but|so|because)\b|\sand i\b|\s" + HOBBY_END + ")")
-# How someone describes the person they'd like to meet: "a girlfriend who climbs", "someone that loves
-# hiking", "a date with a climber", "ideally a runner". An activity there is that person's, not something
-# they want to do together, so it is never a choice of activity.
+# How someone describes the person they'd like to meet: "a girlfriend who skis", "someone that loves
+# quizzes", "a date with a sailor", "ideally a squash player". An activity there is that person's, not
+# something they want to do together, so it is never a choice of activity, nor anything about them.
 _TRAITS = _re.compile(r"\b(?:who|that|whose)\b[^.,;!?]*"
                       r"|\bwith\s+(?:a|an|someone|somebody|people|men|women|guys|girls)\b[^.,;!?]*"
-                      r"|\b(?:a|an)\s+(?:[a-z'-]+\s+)?(?:climbers?|boulderers?|runners?|joggers?|players?)\b")
+                      r"|\b(?:a|an)\s+(?:[a-z'-]+\s+)?players?\b")
 
 
-def _first_person_activities(low: str) -> list:
+def _first_person_activities(low: str, words=None) -> list:
     spans = [m.group(0) for m in _I_DO.finditer(low)] + [m.group(1) for m in _I_ENJOY.finditer(low)]
-    return list(dict.fromkeys(a for span in spans for a in known_activities(span)))
+    return list(dict.fromkeys(a for span in spans for a in known_activities(span, words)))
 
 
-def activities_said(text: str, first_person: bool = True, anywhere: bool = False) -> list:
-    """The activities a text names, as (kind, activity) pairs, only in words the agent recognises: named
-    kinds first ("climbing" -> ("climbing", None)), then a partner for a known activity ("a tennis partner"
-    -> ("other", "tennis")), then, with first_person, known activities they say they do or enjoy ("I play
-    chess" -> ("other", "chess")), then, with anywhere, any other known activity it names (an answer to
-    "which activity?": "tennis"). Sensitive words are taken out first."""
+def activities_said(text: str, first_person: bool = True, anywhere: bool = False, words=None) -> list:
+    """The listed activities a text names, as ("other", activity) pairs: a partner for one ("a kayaking
+    partner"), then, with first_person, those they say they do or enjoy ("I play squash"), then, with
+    anywhere, any other one it names (an answer to "which activity?": "squash"). Sensitive words are
+    taken out first."""
     low = without_sensitive(text)
-    out = [(k, None) for k in _activities(low)]
-    named = [activity_partner(low)] + (_first_person_activities(low) if first_person else [])
-    for activity in filter(None, named + (known_activities(low) if anywhere else [])):
-        kind = next((k for k, pat in _KIND_PATTERNS if _re.search(pat, activity)), "other")
-        pair = (kind, activity if kind == "other" else None)
-        if pair not in out:
-            out.append(pair)
-    return out
+    named = [activity_partner(low, words)] + (_first_person_activities(low, words) if first_person else [])
+    return list(dict.fromkeys(("other", a) for a in filter(None, named + (known_activities(low, words) if anywhere
+                                                                            else []))))
 
 
 def asked_kind(low: str):
-    """The kind of match a message asks for, as the offline agent reads it: outside what they say they
-    enjoy (request_kind) and, when they'd like to meet someone, outside how they describe that person ("a
-    girlfriend who climbs" and "a date with a climber" are dating). None if it asks for no kind it knows."""
+    """"dating" when a message asks for a date, as the offline agent reads it: outside what they say they
+    enjoy and, when they'd like to meet someone, outside how they describe that person ("a girlfriend who
+    skis" and "a date with a sailor" are dating). Else None: any other request is read from its words
+    (activity_partner, teaching)."""
     purpose = without_hobbies(low)
     if _is_dating(purpose):
         if _ROMANTIC.search(_set_aside(low)):
-            # Romantic wording leaves no doubt: what they say they do ("I climb a lot") is a hobby, exactly
+            # Romantic wording leaves no doubt: what they say they do ("I sail a lot") is a hobby, exactly
             # as kind_question reads it, so the two never disagree.
             purpose = _I_DO.sub(" ", purpose)
-        return request_kind(_TRAITS.sub(" ", purpose))
-    return request_kind(low)
+        return _dating_request(_TRAITS.sub(" ", purpose))
+    return _dating_request(low)
 
 
 def wants_text(genders, ages) -> str:
@@ -407,46 +454,47 @@ def wants_text(genders, ages) -> str:
 # Keywords can't cover everything people type, so when the offline agent isn't sure, it asks instead
 # of guessing, and never writes a kind it isn't sure of. It asks one short question when a message
 # could mean more than one kind of match: wanting to meet a woman, and an activity they mention (a date,
-# or a climbing partner?); "a partner" with nothing to say whether it's romantic or for an activity; a
-# partner for an activity it doesn't know ("a pottery partner": which activity?); or an activity only
-# mentioned as something they enjoy, with nothing asking for it ("I love climbing": a climbing partner?).
+# or a kayaking partner?); "a partner" with nothing to say whether it's romantic or for an activity; a
+# partner for an activity that isn't listed ("a pottery partner": which activity?); or an activity only
+# mentioned as something they enjoy, with nothing asking for it ("I love kayaking": a kayaking partner?).
 # "Both" makes two listings, each with its own kind. Romantic words leave no doubt about wanting a date,
-# so then an activity they only say they do or enjoy ("I love climbing", "I play tennis") is a hobby; one
-# they want to do with someone ("a climbing partner") still asks. How they describe the person they'd
-# like to meet ("a girlfriend who climbs") is never an activity to choose.
-_ASK_NAMES = {"dating": "a date", "climbing": "a climbing partner", "running": "a running buddy",
-              "language": "a language exchange", "cofounder": "a cofounder", "tutoring": "tutoring",
-              "roommate": "a roommate"}
+# so then an activity they only say they do or enjoy ("I love kayaking", "I play squash") is a hobby; one
+# they want to do with someone ("a kayaking partner") still asks. How they describe the person they'd
+# like to meet ("a girlfriend who skis") is never an activity to choose. The activities it names are listed
+# ones (words_in_use).
+_DATE_LABEL = "a date"
 _PARTNER_ALONE = _re.compile(r"\b(?:a|an|my)\s+partner\b")
 ASK_HINT = "Just say which, or \"both\"."
 WHICH_ACTIVITY = "What would you like a partner for?"
-# Said when an answer names no activity the agent knows: it asks again, and says why.
-ACTIVITY_HINT = ("Name the activity in a word or two, e.g. tennis, hiking or board games. I only put activities I "
-                 "know on your listing; anything else stays in your description, which is never shown.")
 
 
-def _activities(text: str) -> list:
-    return [k for k, pat in _KIND_PATTERNS if _re.search(pat, text)]
+def activity_hint(words=None) -> str:
+    """Said when an answer names no listed activity: it asks again, and says why, with a few that are."""
+    listed = list(_words(words).activities[:3])
+    examples = f", e.g. {', '.join(listed[:-1])} or {listed[-1]}" if len(listed) > 1 else \
+        f", e.g. {listed[0]}" if listed else ""
+    return (f"Name the activity in a word or two{examples}. I only put activities other people already use on your "
+            f"listing; anything else stays in your description, which is never shown.")
 
 
 def _option(kind, activity) -> dict:
-    label = _ASK_NAMES.get(kind) or f"{_article(activity)} {activity} partner"
+    label = _DATE_LABEL if kind == "dating" else f"{_article(activity)} {activity} partner"
     return {"kind": kind, "label": label, "activity": activity if kind == "other" else None}
 
 
-def kind_question(message: str):
+def kind_question(message: str, words=None):
     """None when the kind of match is clear; otherwise {"text": one short question, "options": the
     kinds it could be, each {"kind", "label", "activity"}}. An option with kind None is a partner for
-    an activity not named yet (or not one the agent knows). Sensitive words are read as if they weren't
-    there."""
+    an activity not named yet (or not a listed one). Sensitive words are read as if they weren't there."""
+    words = _words(words)
     low = without_sensitive(message)
     purpose = without_hobbies(low)  # without what they only say they enjoy
     if _is_dating(low):
         romantic = bool(_ROMANTIC.search(_set_aside(low)))
         if romantic:  # only an activity they ask for counts, never one they do, enjoy or want in the person
-            found = activities_said(_I_DO.sub(" ", _TRAITS.sub(" ", purpose)), first_person=False)
+            found = activities_said(_I_DO.sub(" ", _TRAITS.sub(" ", purpose)), first_person=False, words=words)
         else:
-            found = activities_said(_TRAITS.sub(" ", low))
+            found = activities_said(_TRAITS.sub(" ", low), words=words)
         if found:
             other = _option(*found[0])
         elif not romantic and _PARTNER_ALONE.search(low) and not _TASK_AFTER.search(low) and not _MEETING.search(
@@ -454,18 +502,18 @@ def kind_question(message: str):
             other = {"kind": None, "label": "a partner for an activity", "activity": None}  # "a partner", nothing more
         else:
             return None
-        options = [{"kind": "dating", "label": _ASK_NAMES["dating"], "activity": None}, other]
+        options = [{"kind": "dating", "label": _DATE_LABEL, "activity": None}, other]
         which = " (which one)" if other["kind"] is None else ""
         return {"text": f"Are you looking for {options[0]['label']}, or {other['label']}{which}? Or both? I can make "
                         f"two separate listings.", "options": options}
-    if asked_kind(low) is None and activity_partner(purpose) is None:
-        # A partner for something it doesn't know ("a pottery partner", or one named only by a sensitive word,
-        # "a chemo buddy"): which activity, in words it knows. Read on their own wording too, as the note is.
-        if unknown_partner(purpose) or unknown_partner(without_hobbies(message.lower())):
-            return {"text": f"{WHICH_ACTIVITY} {ACTIVITY_HINT}",
+    if asked_kind(low) is None and activity_partner(purpose, words) is None and teaching(purpose, words) is None:
+        # A partner for something not listed ("a pottery partner", or one named only by a sensitive word,
+        # "a chemo buddy"): which activity, in listed words. Read on their own wording too, as the note is.
+        if unknown_partner(purpose, words) or unknown_partner(without_hobbies(message.lower()), words):
+            return {"text": f"{WHICH_ACTIVITY} {activity_hint(words)}",
                     "options": [{"kind": None, "label": "a partner for an activity", "activity": None}]}
         # Nothing outside their hobbies asks for a kind, but a hobby names one: a guess, so ask.
-        found = activities_said(low)
+        found = activities_said(low, words=words)
         if found:
             option = {**_option(*found[0]), "open": True}  # "or something else?": any kind they name is an answer
             return {"text": f"Are you looking for {option['label']}? Or something else? Tell me in a few words what "
@@ -488,19 +536,21 @@ _CHOICE_FILLER = {"a", "an", "the", "i", "im", "m", "am", "d", "ll", "ve", "re",
                   "or", "both", "one", "s", "it", "thanks", "thank", "you", "would", "like", "go", "do", "play",
                   "together", "activity", "in", "on", "at", "of", "some", "that", "this", "is", "be", "me", "my",
                   "really", "actually", "oh", "ok", "okay"}
-# Said with a choice, not instead of one: "climbing on weekends" still chooses climbing.
+# Said with a choice, not instead of one: "kayaking on weekends" still chooses kayaking.
 _WHEN = {"weekends", "weekend", "evenings", "evening", "mornings", "morning", "weekdays", "nights", "afternoons"}
 _WANT_WORDS = {"want", "like", "looking", "prefer", "choose", "pick", "rather", "need"}
-# A clause of an answer: "a date, I just like climbing" has two.
+# A clause of an answer: "a date, I just like kayaking" has two.
 _CLAUSE = _re.compile(r"[,.;:!?]|\b(?:but|because|since|though|although|so|as)\b")
 _PARTNER_AFTER = _re.compile(r"[a-z]*\s+(?:partners?|buddy|buddies|companions?|mates?|one|listing)\b")
 
 
-def says_what_they_want(message: str) -> bool:
+def says_what_they_want(message: str, words=None) -> bool:
     """Does this message ask for a kind of match on its own (a new request, not an answer)? Only
-    outside what it says they enjoy: "I just like climbing" asks for nothing."""
+    outside what it says they enjoy: "I just like kayaking" asks for nothing."""
     low = without_sensitive(message)
-    return asked_kind(low) is not None or activity_partner(without_hobbies(low)) is not None
+    purpose = without_hobbies(low)
+    return asked_kind(low) is not None or activity_partner(purpose, words) is not None \
+        or teaching(purpose, words) is not None
 
 
 def _chose(low: str, pattern: str) -> bool:
@@ -517,34 +567,35 @@ def _chose_dating(low: str) -> bool:
 
 
 def _named_as_choice(low: str, pattern: str) -> bool:
-    """Is this activity what the answer chooses: "a climbing partner", "the climbing one", or a clause
-    that says nothing else ("climbing", "just climbing please", "climbing on weekends")? One they only
-    mention ("I climb sometimes") isn't."""
+    """Is this activity what the answer chooses: "a kayaking partner", "the kayaking one", or a clause
+    that says nothing else ("kayaking", "just kayaking please", "kayaking on weekends")? One they only
+    mention ("I kayak sometimes") isn't."""
     for m in _re.finditer(pattern, low):
         if not _NEGATED.search(low[:m.start()]) and _PARTNER_AFTER.match(low[m.end():]):
             return True
     for clause in _CLAUSE.split(_re.sub(_ROMANTIC.pattern, " ", low)):
         if not _chose(clause, pattern):
             continue
-        # The activity, with a word that says which kind of it ("rock climbing", "trail running").
+        # The activity, with a word that says which kind of it ("sea kayaking", "blitz draughts").
         rest = _re.findall(r"[a-z]+", _re.sub(rf"(?:(?!(?:i|we|im|you|not|no|never)\b)[a-z]+\s+)?(?:{pattern})[a-z]*",
                                               " ", clause))
         if any(w in ("i", "im", "we") for w in rest) and not any(w in _WANT_WORDS for w in rest):
-            continue  # "I climb on weekends" is about them, not a choice ("I'd like climbing" is)
+            continue  # "I kayak on weekends" is about them, not a choice ("I'd like kayaking" is)
         if all(w in _CHOICE_FILLER or w in _WHEN for w in rest):
             return True
     return False
 
 
-def chosen_kinds(answer: str, options: list):
+def chosen_kinds(answer: str, options: list, words=None):
     """What the person chose, in answer to kind_question: a list of {"kind", "activity"} (in the
     order asked), or None if the answer doesn't say. "Both" (or "yes" to a question with one option) is
     every option; a negated choice ("not a date") doesn't count, and nor does an activity they only
-    mention ("a date, I just like climbing" is a date) or one that describes the person they'd like to
-    meet ("a girlfriend who climbs" is a date). A partner for an activity not named yet takes the
-    activity from the answer, only if it's one the agent knows ("tennis"; "pottery" isn't an answer, so it
-    asks again); with "both" and no activity yet, its kind stays None, to be asked. Romantic words ("love",
-    "a lover", "companionship") choose a date, even when only an activity was asked about."""
+    mention ("a date, I just like kayaking" is a date) or one that describes the person they'd like to
+    meet ("a girlfriend who skis" is a date). A partner for an activity not named yet takes the
+    activity from the answer, only if it's a listed one ("squash"; "pottery" isn't an answer unless it's
+    listed, so it asks again); with "both" and no activity yet, its kind stays None, to be asked. Romantic
+    words ("love", "a lover", "companionship") choose a date, even when only an activity was asked about."""
+    words = _words(words)
     low = without_hobbies(without_sensitive(answer))  # what they say they enjoy is never a choice
     choice = _TRAITS.sub(" ", low)  # nor how they describe the person they'd like to meet
     which_only = len(options) == 1 and options[0]["kind"] is None  # "what would you like a partner for?"
@@ -555,9 +606,9 @@ def chosen_kinds(answer: str, options: list):
         if o["kind"] == "dating":
             if dating:
                 out.append({"kind": "dating", "activity": None})
-        elif o["kind"] is None:  # which activity: a known one they name now
-            named = [(k, a) for k, a in activities_said(choice, anywhere=True)
-                     if both or _named_as_choice(choice, dict(_KIND_PATTERNS).get(k) or _re.escape(a))]
+        elif o["kind"] is None:  # which activity: a listed one they name now
+            named = [(k, a) for k, a in activities_said(choice, anywhere=True, words=words)
+                     if both or _named_as_choice(choice, _re.escape(a))]
             if named:
                 out.append({"kind": named[0][0], "activity": named[0][1]})
             elif both:
@@ -567,22 +618,22 @@ def chosen_kinds(answer: str, options: list):
     if not out and dating:  # romance answers a question that didn't offer a date too
         out.append({"kind": "dating", "activity": None})
     if not out and any(o.get("open") for o in options):  # "or something else?": the kind the answer asks for
-        kind, activity = asked_kind(low), activity_partner(choice)
+        kind, activity = asked_kind(low), activity_partner(choice, words)
         if kind or activity:
             out.append({"kind": kind or "other", "activity": None if kind else activity})
     return out or None
 
 
 def _option_pattern(option: dict) -> str:
-    """How an activity option is named in an answer: its kind's own words, or its label's."""
+    """How an activity option is named in an answer: its label's own words."""
     words = [w for w in _re.findall(r"[a-z]+", option["label"]) if w not in ("a", "an", "partner", "buddy")]
-    return dict(_KIND_PATTERNS).get(option["kind"]) or r"\b(?:" + "|".join(map(_re.escape, words)) + r")"
+    return r"\b(?:" + "|".join(map(_re.escape, words)) + r")"
 
 
 def answer_details(answer: str, options: list, chosen: list) -> str:
     """What an answer to kind_question says besides the choice, to add to the first message so nothing
     they say is lost: "a date, I'm a man, 30 to 40" -> "I'm a man, 30 to 40". The parts that only make
-    the choice ("a date", "both please", "just running, not a date") add nothing: the chosen kind goes
+    the choice ("a date", "both please", "just kayaking, not a date") add nothing: the chosen kind goes
     on the listing on its own. This goes only into the description, which is never shown."""
     names = [_ROMANTIC.pattern, _DATE_WORDS, _LOVE, _BOTH.pattern, _YES.pattern]
     names += [_option_pattern(o) for o in options if o["kind"] not in (None, "dating")]
@@ -597,91 +648,434 @@ def answer_details(answer: str, options: list, chosen: list) -> str:
     return ", ".join(keep) + "." if keep else ""
 
 
-# Diets that say something about religion: recorded when the person says so, but hidden until they choose
-# to show them (the other diets are shown by default, like any detail).
-_PRIVATE_DIETS = {"halal", "kosher"}
+# How someone says something about themselves, each form ending where what they say starts. A value said after one
+# of the first forms is a predicate of the person: "I'm (a/an)...", "I am...", "we're...". After the others it is
+# what they like or do: "I (really/also...) like / enjoy / love / play / go / do...", "I'm (a retired nurse) into...",
+# "I'm a (big) fan of...", "my hobbies are...".
+_INTO_ADVERB = r"(?:(?:really|also|just|very|so|totally|quite)\s+)"
+_MINE = _re.compile(
+    r"\b(?:(?P<likes>(?:i'?m|i am|we'?re|we are)\s+" + _INTO_ADVERB + r"?(?:(?:(?:a|an)\s+(?:[a-z'-]+\s+){1,2})?" + _INTO_ADVERB
+    + r"?into|(?:a\s+)?(?:big\s+|huge\s+)?fans?\s+of)|my hobbies (?:are|include)|"
+    r"i\s+(?:[a-z]+ly\s+|also\s+|just\s+|often\s+)?(?:enjoy|love|like|adore|play|go|do|practi[cs]e)s?)"
+    r"|(?P<is>i'?m|i am|we'?re|we are))\b")
+# Between that and the value, nothing that starts another clause (_CLAUSE), asks for something (_REQUEST), or
+# turns to someone or something else: another person (_OTHERS, "someone", "a partner") or a preposition that
+# points away from them ("I'm fine with...", "I'm open to...", "more X than Y").
+_ELSEWHERE = _re.compile(r"\b(?:someone|somebody|anyone|anybody|people|person|partners?|buddy|buddies|companions?|"
+                         r"with|for|to|about|than|after|towards?)\b")
+_MINE_GAP = 6  # words at most between the form and the value: "I'm usually only free..." has three
+# Between "I'm" (or "I am", "we're") and a value that is a predicate of the person, only these may stand: an
+# article, and adverbs or degree words that keep what is said true ("I'm usually a...", "I'm a total...", "I'm
+# kind of a..."). Closed-class words, never a verb: "I'm leading a weekend group" makes "weekend" the object of
+# what they do, so it is nothing about them. The words of the detail's own name may stand there too, as in "my
+# {name} is" ("I'm free on weekends" says the "free time" detail by its name), each followed by at most a place
+# word (in, on, at), but never an -ing or -ed form of a verb.
+_PREDICATE = {"a", "an", "the", "very", "really", "quite", "pretty", "fairly", "rather", "so", "totally", "completely",
+              "absolutely", "entirely", "fully", "truly", "definitely", "certainly", "mostly", "mainly", "largely",
+              "generally", "usually", "normally", "typically", "always", "often", "sometimes", "also", "just", "only",
+              "still", "now", "currently", "already", "actually", "basically", "honestly", "simply", "more", "most",
+              "bit", "little", "kind", "sort", "of", "real", "total", "complete", "proper", "true", "pure"}
+_NAME_THEN = {"in", "on", "at"}
+_VERB_FORM = _re.compile(r"[a-z]{2,}(?:ing|ed)")
+# The negation family, read as sentence structure: negation words and negative adverbs or pronouns ("not",
+# "never", "neither ... nor", "hardly", "barely", "no longer", "not ... yet"), phrases that deny or leave out
+# what follows ("far from", "anything but", "except", "other than", "instead of"), and the verbs of denial
+# ("doubt", "deny"). Any of them between where the person's clause starts and the value means the value isn't
+# theirs, also when the value is in a clause that depends on the denied verb ("I don't think I'm...").
+_NEGATION = (r"n't\b|\b(?:not|no|never|neither|nor|none|nowhere|without|hardly|barely|scarcely|rarely|seldom)\b(?!-)"
+             r"|\bfar from\b|\banything but\b|\b(?:except|excluding)\b|\b(?:apart|aside) from\b|\bother than\b"
+             r"|\binstead of\b|\b(?:doubt|doubts|doubted|deny|denies|denied)\b")
+# A form that says something about the person starts a new clause of its own only at the start of a phrase or
+# after a coordinating conjunction ("..., and I'm", "but I'm"); after a verb ("think I'm", "say I'm", "sure I'm")
+# it depends on that verb, and a denial of the verb reaches it.
+_NEW_CLAUSE = _re.compile(r"\b(?:and|or|but|yet|so|then|also|plus)\s+$")
+# Where a phrase ends for a denial: sentence punctuation, a conjunction that starts another clause, or "so" / "as"
+# before a new subject ("so I'm", "as we're"), never "so far as to say", where they are degree words.
+_PHRASE_END = _re.compile(r"[,.;:!?]|\b(?:but|because|since|though|although)\b"
+                          r"|\b(?:so|as)\s+(?=(?:i|i'?m|we|we'?re|you|he|she|it|they)\b)")
+_DENIAL = _re.compile(_NEGATION)
+_ANYTHING_BUT = _re.compile(r"\banything but\b")  # "but" there is part of the denial, not a new clause
+# An -ing word followed by more than a list's "and" / "or": what comes after it is that verb's object ("I like
+# coaching beginner climbers"), not what they like.
+_ING_OBJECT = _re.compile(r"\b[a-z]{2,}ing\b(?!\s+(?:(?:and|or)\b|&))")
 
 
-def draft_from_message(message: str, first_name: str, age_band: str, kind=None, activity=None) -> dict:
+# A value that describes someone else's: directly followed by a possessive ("I'm a green crew's instructor": the
+# crew is green, not them), the possessive on the value itself or on the word after it; never a contraction of "is",
+# "has" or "us" there ("it's", "that's", "let's", "he's": schema's _CONTRACTED), which starts what comes next.
+_OWNED_AFTER = _re.compile(r"(?:['’]s|s['’])(?![\w'’])|\s+(?!" + _CONTRACTED + r")[\w-]+(?:['’]s|s['’])(?![\w'’])")
+# What may not follow a value that continues a list of the same detail's values: a word that starts another clause
+# about it, a verb of being, having or seeming, a modal ("..., a pastry chef would suit me"; "..., fridays are out"),
+# the negation family ("..., fridays never work") or a request ("..., a baker is what I'm looking for"). Closed-class
+# words: then the value is what that clause is about, not one more of theirs.
+_LIST_STOPS = _re.compile(r"\s*(?:(?:is|are|was|were|be|been|being|am|would|will|could|should|can|may|might|must|"
+                          r"shall|do|does|did|has|have|had|seems?|sounds?|looks?|feels?|appears?|becomes?)\b|['’](?:s|re|d|ll)\b|"
+                          + _NEGATION + ")")
+
+
+def _denied(before: str) -> bool:
+    """Is a value, whose text before it is `before`, denied: a word of the negation family after the start of its
+    phrase and of the last form that says something about the person and starts a clause of its own (_NEW_CLAUSE:
+    "... and I'm", never "think I'm", which a "don't" before it still reaches), or one at most two words before it."""
+    scan = _ANYTHING_BUT.sub(lambda m: "anythingxbut", before)
+    phrase = max([m.end() for m in _PHRASE_END.finditer(scan)] + [0])
+    start = max([m.start() for m in _MINE.finditer(scan, phrase)  # only the few words before each form are read
+                 if not scan[phrase:m.start()].strip() or _NEW_CLAUSE.search(scan, max(phrase, m.start() - 8), m.start())]
+                + [phrase])
+    return bool(_DENIAL.search(before[start:])) or bool(_NEGATED.search(before))
+
+
+def _says_mine(before: str, name: str, earlier=(), after: str = "") -> bool:
+    """Is a value, whose text before it is `before` (and after it `after`), said of the person: right after "my
+    {name} is", as a predicate of the person (only _PREDICATE words, or the name's own, between "I'm" and the
+    value), or as what they like or do (nothing in between that starts another clause, asks for something or turns
+    to someone else, and never the object of an -ing verb)? earlier: values of the same detail already said there; a
+    list of them, joined by commas, "and" or "or", may stand in between too ("I'm free weekends and weekday
+    evenings", "I'm a trimmer and a bowman"), unless a clause starts with this value (_LIST_STOPS, _REQUEST after
+    it): a value after a comma that another clause is about ("I'm a baker, a pastry chef would suit me", "I'm free
+    mondays, fridays never work") isn't theirs."""
+    if _re.search(r"\bmy\s+" + _re.escape(_lower(name)) + r"\s+(?:is|are)\s+(?:a\s+|an\s+)?$", before):
+        return True
+    opener = None
+    for opener in _MINE.finditer(before):
+        pass
+    if opener is None:
+        return False
+    gap = before[opener.end():]
+    if earlier:  # the values listed before this one, each with the comma, "and" or "or" after it
+        listed = "|".join(_re.escape(_lower(v)) for v in sorted(earlier, key=len, reverse=True))
+        joined = _re.sub(rf"\b(?:{listed})\b\s*(?:,\s*)?(?:(?:and|or|&)\s+)?", " ", gap)
+        if joined != gap and (_LIST_STOPS.match(after) or _REQUEST.match(after.lstrip())):
+            return False  # it continues no list: it starts another clause
+        gap = joined
+    if len(gap.split()) > _MINE_GAP or any(rx.search(gap) for rx in (_CLAUSE, _REQUEST, _OTHERS, _ELSEWHERE)):
+        return False
+    if opener.group("likes"):
+        return not _ING_OBJECT.search(gap)
+    own = {w for w in _re.findall(r"[a-z]+", _lower(name)) if not _VERB_FORM.fullmatch(w)}
+    words_ = gap.split()
+    return all(w in _PREDICATE or w in own or (w in _NAME_THEN and i and words_[i - 1] in own)
+               for i, w in enumerate(words_))
+
+
+def listed_details(text: str, words=None, kind=None) -> list:
+    """The open details a message says in listed words, as draft rows (detail_row): each listed value (or step
+    of a listed scale) under the one name it's listed under, about the person, or, on a listing with a kind,
+    about the request when that's how it's listed ("both").
+
+    A value about the person counts only where they say it of themselves (_says_mine): as a predicate of the
+    person ("I'm a beginner", "I'm usually a...", "I'm only free weekday mornings"), as what they like or do ("I
+    enjoy croquet", "I'm into..."), or after "my level is...". Nothing else may stand between "I'm" and the value
+    (a verb makes the value its object: "I'm leading a weekend group" says nothing about them). None counts where
+    it describes someone else ("a partner who...", "with a..."; _TRAITS; or a value followed by a possessive, "a
+    tidy crew's ..."; _OWNED_AFTER) or where the negation family reaches it in the same phrase ("not", "hardly",
+    "far from", "neither ... nor", "doubt"; _denied), a clause that depends on a denied verb included ("I don't
+    think I'm..."), so a wish ("looking for an advanced partner") or a denial ("I'm far from tidy") is never
+    written as a fact. A list of one detail's values after "I'm" is read whole ("I'm free mondays and fridays"). On a scale, one step
+    only: two steps said is not sure which, so neither. The offline agent never writes a wish about the other
+    person; the person checks every value on their profile before anything is shown."""
+    words = _words(words)
+    if words._value_rx is None:
+        return []
+    low = _lower(text)
+    traits = [m.span() for m in _TRAITS.finditer(low)]
+    found: dict = {}  # (about, name) -> [values, in the order said]
+    for m in words._value_rx.finditer(low):
+        about, name, how, steps = words.values[m.group(1)]
+        before = low[:m.start()]
+        if about == "both" and kind is None:
+            continue
+        if any(a <= m.start() < b for a, b in traits) or _denied(before) or _OWNED_AFTER.match(low[m.end():]):
+            continue  # how they describe someone else (a value of someone's: "a green crew's"), or a denial
+        if about == "me" and not _says_mine(before, name, found.get((about, name, how, steps), []), low[m.end():]):
+            continue
+        said_ = found.setdefault((about, name, how, steps), [])
+        value = next((s for s in steps if canonical(s) == canonical(m.group(1))), m.group(1))
+        if canonical(value) not in map(canonical, said_):
+            said_.append(value)
+    rows = []
+    for (about, name, how, steps), values in found.items():
+        if how == "steps" and len(values) != 1:
+            continue  # two steps said: not sure which
+        rows.append(detail_row(about, name, how, steps, values[:MAX_VALUES[about]]))
+    return rows
+
+
+def _request(low: str, words: Words, kind=None, activity=None) -> tuple:
+    """What a message asks for, as the offline agent reads it: (kind, activity, taught, guessed). kind and activity:
+    what the person chose when asked (kind_question), else what their words ask for; taught: (seeking, offering,
+    activity) when they teach a listed activity or want to learn one; guessed: a kind read only from what they say
+    they enjoy, to ask about. A kind it isn't sure of is None ("other" needs a listed activity)."""
+    asked = asked_kind(low) if kind is None else None  # "dating", or None
+    activity = known_activity(activity, words) if activity else None
+    taught = None
+    if activity is None and kind in (None, "other") and asked is None:
+        activity = activity_partner(without_hobbies(low), words)
+        taught = None if activity else teaching(without_hobbies(low), words)
+    guessed = None  # a kind only from their hobbies: ask
+    if kind is None and asked is None and activity is None and taught is None:
+        guessed = next(iter(activities_said(low, words=words)), None)
+    kind = kind or asked or ("other" if activity or taught else None)
+    if kind == "other" and not (activity or taught):
+        kind = None  # a partner for an activity that isn't listed: ask
+    return kind, activity, taught, guessed
+
+
+def _phrases(activity, taught) -> tuple:
+    """(seeking, offering, topic) for a listing that isn't dating: a partner for the activity, or the teaching pair."""
+    if activity:
+        phrase = f"{_article(activity)} {activity} partner"
+        return phrase, phrase, activity
+    return tuple(taught) if taught else (None, None, None)
+
+
+def _seeking_of(draft) -> str:
+    return canonical(next((f.get("value") for f in (draft or {}).get("fields", []) or []
+                           if isinstance(f, dict) and f.get("key") == "seeking" and isinstance(f.get("value"), str)),
+                          "") or "")
+
+
+def other_request(new, old) -> bool:
+    """Is `new` a different request from `old` (two drafts)? Only when both say what they're for and it isn't the
+    same: another kind of match, or, on a listing that isn't dating, another "looking for" phrase. One rule for what
+    the offline agent keeps from before (draft_from_message, keep_details)."""
+    a, b = (new or {}).get("kind"), (old or {}).get("kind")
+    phrase, before = _seeking_of(new), _seeking_of(old)
+    return bool(a and b and (a != b or (phrase and before and phrase != before)))
+
+
+def _as_draft(kind, activity, taught) -> dict:
+    """A message's own request in a draft's shape, for other_request."""
+    seeking = _phrases(activity, taught)[0] if kind == "other" else None
+    return {"kind": kind, "fields": [{"key": "seeking", "value": seeking}] if seeking else []}
+
+
+# Where a clause starts, for reading whose request it is: where a phrase ends (_PHRASE_END: sentence punctuation, a
+# conjunction that starts another clause), or a coordinating conjunction before a new subject ("... and I'd like",
+# "or my cousin wants"). First-person words: where the person speaks of themselves.
+_SUBJECT = r"(?:i|we|you|he|she|they|my|our|his|her|their)\b"
+_CLAUSE_START = _re.compile(_PHRASE_END.pattern + r"|\b(?:and|or|so|then|plus|yet)\s+(?=" + _SUBJECT + ")")
+_SELF = _re.compile(r"\b(?:i|we|me|us)\b")
+# A verb that asks for someone or something, in any person ("I'm looking for", "she wants", "they'd like"): how a
+# request is said, whoever says it.
+_WISH = _re.compile(r"\b(?:look(?:s|ing)?\s+(?:for|to)|seek(?:s|ing)?|search(?:es|ing)?\s+for|need(?:s|ed)?|"
+                    r"want(?:s|ed)?|would\s+like|hop(?:e|es|ing)\s+to|to\s+(?:meet|find))\b|['’]d\s+like\b")
+
+
+def _asks(text: str, words) -> bool:
+    """Does this text ask for something: a verb that asks (_WISH, so also who and what ages: "she wants someone 30 to
+    40"), or a kind of match read from its words (a date, a partner for an activity, listed or not, or teaching)?"""
+    return bool(_WISH.search(text.lower())) or says_what_they_want(text, words) or any(
+        unknown_partner(without_hobbies(t), words) for t in (without_sensitive(text), text.lower()))
+
+
+def _not_theirs(clause: str, words) -> bool:
+    """Is what a clause asks for one the person denies, or someone else's request? Read in the clause before where it
+    is first asked for (the shortest start of the clause that asks for it): a word of the negation family that
+    reaches it (_denied: "I'd never want...", "not a..."), or someone else (_OTHERS: "my cousin is after...", "she
+    wants...") after the last place the person speaks of themselves ("my friends say I need..." is theirs). What
+    comes after it ("someone who doesn't smoke") is how they describe the request, not a denial."""
+    for t in _re.finditer(r"\S+", clause):
+        if _asks(clause[:t.end()], words):
+            before = clause[:t.start()].lower()
+            break
+    else:
+        return False
+    if _denied(before):
+        return True
+    own = [m.end() for m in _SELF.finditer(before)]
+    return bool(_OTHERS.search(before[own[-1]:] if own else before))
+
+
+_NEW_SENTENCE = _re.compile(r"\s*[.!?;]")
+_OWN_SUBJECT = _re.compile(r"[\s,;:.!?]*(?:(?:and|or|but|so|then|plus|yet|because|since|though|although|as)\s+)?"
+                           + _SUBJECT)
+
+
+def own_requests(text: str, words=None) -> str:
+    """The message as a request is read from it when it follows an earlier request: each clause that asks for
+    something the person denies, or that is someone else's (_not_theirs), blanked out, with the clauses after it in
+    the same sentence that go on with it (asking nothing of their own and starting with no subject of their own: "her
+    husband wants someone, 30 to 40"), so only what they ask for themselves can start a different request or say who
+    and what ages they'd like ("I'd never want that", "my aunt wants one" add to the request already
+    there, or change nothing). Everything else is as written, in place."""
+    words = _words(words)
+    text = str(text or "")
+    low = text.lower()
+    if len(low) != len(text):
+        text = low  # the clauses are found in lower case, so the blanks fall in the same places
+    cuts = [0, *sorted({m.start() for m in _CLAUSE_START.finditer(low)} - {0}), len(low)]
+    out, blank = [], False
+    for a, b in zip(cuts, cuts[1:]):
+        clause = text[a:b]
+        if _NEW_SENTENCE.match(clause):
+            blank = False
+        if clause.strip(" ,;:.!?") and _asks(clause, words):
+            blank = _not_theirs(clause, words)
+        elif _OWN_SUBJECT.match(clause.lower()):
+            blank = False
+        lead = len(clause) - len(clause.lstrip(" ,;:.!?"))
+        out.append(clause[:lead] + " " * (len(clause) - lead) if blank else clause)
+    return "".join(out)
+
+
+def starts_another_request(message: str, earlier, words=None) -> bool:
+    """Does this message ask for something of its own that isn't the earlier draft's request? A kind of match, a
+    partner for a listed activity, or teaching, that differs from it (other_request), or a partner for something
+    that isn't listed (which the offline agent asks about), each only where the person asks for it themselves
+    (own_requests). Anything else adds to the earlier request: where they are, a free time, something they enjoy,
+    an answer to what it asked, the same request said again, or a request they deny or that is someone else's."""
+    words = _words(words)
+    low = own_requests(" ".join(str(message or "").split())[:500], words).lower()
+    kind, activity, taught, _ = _request(low, words)
+    if kind is None:  # read as kind_question reads it
+        return any(unknown_partner(without_hobbies(t), words) for t in (without_sensitive(low), low))
+    return other_request(_as_draft(kind, activity, taught), earlier)
+
+
+# The last word of a text when a full stop after it doesn't end a sentence, as the Warden's full-name rule reads one
+# (warden.full_name_pairs): an initial or a short capitalised word without vowels, a title ("J", "Dr", "St").
+_NO_STOP = _re.compile(r"(?<![\w'’])(?:[A-Z]|[A-Z][b-df-hj-np-tv-xz]{1,2})\.?$")
+
+
+def _ended(text: str) -> str:
+    """The text ending a sentence, so a message after it starts one: as it is after "!" or "?", or a full stop that
+    ends one; else with a full stop; or, after a word a full stop doesn't end (_NO_STOP: "J. Okafor" reads as one
+    name), a semicolon. Two messages put together then never make words of one look like they run on into the
+    other's, a name of two capitalised words included ("...speaks French" and "Based in Lisbon")."""
+    text = text.rstrip(" ,;:")
+    if _NO_STOP.search(text):
+        return f"{text};"
+    return text if text.endswith(("!", "?", ".")) else f"{text}."
+
+
+def _description(before, said: str) -> str:
+    """The earlier description with a new message after it, within the 500 characters a description may have: the
+    new message whole, and as much of the earlier one as fits, cut at a word, with the earlier one ending a sentence
+    (_ended). One already in the other isn't repeated (the instant draft's description is the message itself, until
+    the agent writes one, and a request said again with more in it replaces the words it repeats)."""
+    before = " ".join(str(before or "").split())
+    if not before or said in before:
+        return before or said
+    if before.rstrip(".!?;:, ") in said:
+        return said
+    room = 500 - len(said) - 2  # the earlier text's own full stop or semicolon, and a space
+    if room <= 0:
+        return said[:500]
+    return f"{_ended(before if len(before) <= room else before[:room].rsplit(' ', 1)[0])} {said}"
+
+
+def _value(f: dict):
+    value = f.get("value")
+    return tuple(value) if isinstance(value, list) else value
+
+
+def _kept_from(old: dict, v: dict, kind, same: bool, here=(None, None)) -> dict:
+    """The built-ins on the earlier draft that stay on the new one, by key (their rows as they were, so the person's
+    choice of shown or hidden and a sensitive detail's confirmation stay too). Adding to the same request (same):
+    everything the message doesn't say, sensitive details included, and the request's own phrases (looking for,
+    what they are to them, its headline and topics) whatever the message restates, so the person's own wording stays.
+    A different request: only what's about the person and isn't sensitive (never the old request's own details),
+    as carry_over keeps for a model agent. Where they are is one place: once the message says they are somewhere
+    else (here: where_they_are, a city or a country), none of the earlier place comes over (its city, country or
+    neighbourhood). Nothing that kind can't have (carries, and a format only where it has one: has_format), as
+    fill_gaps keeps it."""
+    rows = {f["key"]: f for f in old.get("fields", []) or [] if isinstance(f, dict) and isinstance(f.get("key"), str)
+            and f["key"] in FIELD_REGISTRY and f.get("enabled", True) and f.get("value") not in (None, "", [])}
+    said = {"city": v.get("city") or here[0], "country": v.get("country") or here[1]}
+    moved = any(said[k] and k in rows and canonical(str(_value(rows[k]))) != canonical(str(said[k])) for k in said)
+    phrased = same and bool(_seeking_of(old))
+    out = {}
+    for key, f in rows.items():
+        if key in ("kind", "first_name", "age_band") or not carries(kind, key) \
+                or (key == "format" and not has_format(kind)):
+            continue
+        if moved and key in ("city", "country", "neighborhood"):
+            continue
+        if not same and (key in _KIND_SPECIFIC or f.get("sensitive") or FIELD_REGISTRY[key].sensitive):
+            continue
+        if v.get(key) not in (None, "", (), []) and not (phrased and key in _PHRASES):
+            continue  # the message says it: the latest word wins
+        out[key] = f
+    return out
+
+
+def _with_earlier(rows: list, old: dict, same: bool) -> None:
+    """An open detail the message adds values to keeps those it had, before the ones it says (the oldest left out
+    past the most it may have), and its shown or hidden, where both mean the same (the same compare and steps); a step
+    on a scale is one place, so the new one replaces it. On a different request, only one about the person."""
+    before = {f.get("key"): f for f in old.get("fields", []) or []
+              if isinstance(f, dict) and is_detail_key(f.get("key")) and f.get("enabled", True)
+              and isinstance(f.get("value"), list) and f.get("value")}
+    for row in rows:
+        f = before.get(row["key"])
+        if f is None or row["compare"] == "steps" or (not same and row["about"] != "me") \
+                or f.get("compare") != row["compare"] or list(f.get("steps") or []) != row["steps"]:
+            continue
+        said_now = {canonical(x) for x in row["value"]}
+        values = [str(x) for x in f["value"] if canonical(str(x)) not in said_now] + list(row["value"])
+        row["value"] = values[-MAX_VALUES[row["about"]]:]
+        if f.get("visibility") == HIDDEN and row["about"] == "me":
+            row["visibility"] = HIDDEN  # as they chose it (only one about them can be hidden)
+
+
+def draft_from_message(message: str, first_name: str, age_band: str, kind=None, activity=None,
+                       words=None, earlier=None) -> dict:
     """Read the person's own words and suggest a listing. Returns a plain dict the
     app shows for review; nothing is submitted until the person says so.
 
     kind: the kind of match the person chose when asked (kind_question), instead of the one their
-    words suggest. activity: for "other", the activity they want a partner for ("tennis"); only a known
-    activity is used.
+    words suggest. activity: for "other", the activity they want a partner for; only a listed one is
+    used. words: the shared list of details in use (words_in_use), the only words it writes.
+
+    earlier: the draft this message follows in the same chat (the profile as it stands, the person's own changes
+    included), so a request given in pieces comes together. A message that asks for a different request
+    (other_request), itself (own_requests: never one they deny or someone else's), starts a new draft that keeps
+    only what's about the person from it (_kept_from). Any other message adds to it: it is read as the earlier
+    request (its kind), what it says goes on the profile, everything it doesn't say stays as it was (how exact
+    too, unless it says what it's for), a value it adds to an open detail joins those there (_with_earlier), and the
+    description is the earlier one with the message after it (_description). Either way the notes ask for what the
+    draft as a whole still needs, and the message is read by the same rules as any other.
 
     It never records a kind it isn't sure of: one read only from what they say they enjoy ("I love
-    climbing", with nothing asking for it) is asked about instead. Every shown detail it writes comes from
-    words it recognises (KNOWN_ACTIVITIES, the details' fixed choices, known places): nothing else from
-    the message is copied into anything shown. A partner for an activity it doesn't know is asked about.
-    Sensitive words become a hidden detail where there is one."""
+    kayaking", with nothing asking for it) is asked about instead. Every shown detail it writes comes from
+    listed words and the fixed choices: nothing else from the message is copied into anything shown. A
+    partner for an activity that isn't listed is asked about. Sensitive words become a hidden detail
+    under their built-in category, as said."""
+    words = _words(words)
     text = " ".join(message.split())[:500]
     low = text.lower()
-    parsed = _parse_intent(text)
-    asked = asked_kind(low) if kind is None else None
-    guessed = kind is None and asked is None and parsed.kind is not None  # a kind from their hobbies alone: ask
-    activity = known_activity(activity) if activity else None
-    if activity is None and kind in (None, "other") and asked is None and not guessed:
-        activity = activity_partner(without_hobbies(low))
-    kind = kind or asked or ("other" if activity else None)
-    if kind == "other" and not activity:
-        kind = None  # a partner for an activity that isn't known: ask
+    old = earlier if isinstance(earlier, dict) and isinstance(earlier.get("fields"), list) else None
+    # What it asks for: after an earlier request, only what the person asks for themselves (own_requests), so a
+    # request they deny or someone else's never replaces theirs, nor changes who or what ages they'd like to meet.
+    asking = own_requests(text, words) if old is not None and kind is None and old.get("kind") in MATCH_KINDS \
+        else text
+    parsed = _parse_intent(asking)
+    kind, activity, taught, guessed = _request(asking.lower(), words, kind, activity)
+    states = kind is not None  # the message says what it's for itself (or the person chose it when asked)
+    same = old is not None and not other_request(_as_draft(kind, activity, taught), old)
+    if same and kind is None and old.get("kind") in MATCH_KINDS:
+        kind = old["kind"]  # it adds to the earlier request: read as that kind of listing
     if kind != parsed.kind:
-        parsed = read_listing(text, {"kind": kind}.get)  # read as that kind of listing
+        parsed = read_listing(asking, {"kind": kind}.get)  # read as that kind of listing
     v = {"first_name": first_name, "age_band": age_band}
     if kind:
         v["kind"] = kind  # what the agent understood, recorded on the listing (shown)
-    if kind == "other" and activity:
-        phrase = f"{_article(activity)} {activity} partner"
-        v["seeking"] = v["offering"] = phrase
-        v["headline"] = f"Looking for {phrase}"[:60]
-        v["topics"] = (activity,)
+    if kind == "other" and (activity or taught):
+        seeking, offering, topic = _phrases(activity, taught)
+        v["seeking"], v["offering"] = seeking, offering
+        v["headline"] = f"Looking for {seeking}"[:60]
+        v["topics"] = (topic,)
     enabled_sensitive = set()
     notes = []
 
-    city, country = known_city(low)
+    here = where_they_are(low, words)  # where they say they are now: a known city (and its country), or a country
+    city, country = here if here[0] else (None, None)  # the draft records a place only with its city (known_city)
     if city:
         v["city"] = city
         if country:
             v["country"] = country
-    for pat, sched in [(r"weekend", "weekends"), (r"evening", "weekday evenings"),
-                       (r"morning", "weekday mornings"), (r"flexible|whenever|any ?time", "flexible")]:
-        if _re.search(pat, low):
-            v["schedule"] = sched
-            break
-    # Interests: the usual ones, and the known activities they say they enjoy ("I enjoy rock climbing and tennis").
-    interests = list(dict.fromkeys([i for i in known_activities(low) if i in _vocab.INTERESTS]
-                                   + quick_facts(text).get("interests", [])))
-    if interests:
-        v["interests"] = interests[:8]
-    level = next((l for l in _vocab.LEVELS if l in low), None)
-    if kind == "climbing" and level:
-        v["level"] = level
-    if kind == "running":
-        for pat, pace in [(r"\b(easy|slow|relaxed)\b", "easy"), (r"\b(moderate|steady)\b", "moderate"),
-                          (r"\b(fast|quick)\b", "fast")]:
-            if _re.search(pat, low):
-                v["pace"] = pace
-                break
-    if kind == "language":
-        native = _find_language(r"speak (\w+) natively|native (\w+) speaker|i'm a native (\w+)|trade (\w+) for", low)
-        learning = _find_language(r"(?:practice|practise|learning|learn|for) (\w+)", low)
-        if native:
-            v["native_language"] = native
-        if learning and learning != native:
-            v["learning_language"] = learning
-    if kind == "cofounder" and parsed.seeks_role:
-        v["role"] = "business" if parsed.seeks_role == "technical" else "technical"
-    if kind == "tutoring":
-        if parsed.seeks_role:
-            v["role"] = "student" if parsed.seeks_role == "tutor" else "tutor"
-        subject = next((s for s in _vocab.SUBJECTS if s in low), None)
-        if subject:
-            v["subject"] = subject
-    if kind == "roommate":
-        month = next((m for m in ALL_MONTHS if m.lower() in low), None)
-        if month:
-            v["move_in"] = month
+    ages = note = None
     if kind == "dating":
         if gender := own_gender(low):
             v["gender"] = gender
@@ -689,25 +1083,20 @@ def draft_from_message(message: str, first_name: str, age_band: str, kind=None, 
         # them and the person can check them on their profile).
         if parsed.seeking:
             v["wants_gender"] = tuple(g for g in GENDERS if g in parsed.seeking)
-        ages, note = wanted_ages(text, age_band)
+        ages, note = wanted_ages(asking, age_band)
         if ages:
             v["wants_age"] = ages
-        if note:
-            notes.append(note)
-    diet = next((d for d in _vocab.DIET if _re.search(r"\b" + d + r"\b", low)), None)
-    if diet:
-        v["diet"] = diet
-    if _re.search(r"non-smoker|don't smoke|do not smoke", low):
-        v["smoking"] = "doesn't smoke"
+    age_note = len(notes)  # where a note about the ages goes, once it's known what ages the draft has
     fmt = format_from_text(low)
     if fmt and kind != "dating":  # dating is always in person
         v["format"] = fmt
     travel = travel_from_text(low)
     if travel:
         v["travel"] = travel
+    details = listed_details(text, words, kind)
 
     # Sensitive things typed into the free text: move them to a hidden detail and warn.
-    found = sensitive_details(low, kind)
+    found = sensitive_details(text, kind)
     for key, value in found.items():
         v[key] = value
         enabled_sensitive.add(key)
@@ -717,8 +1106,22 @@ def draft_from_message(message: str, first_name: str, age_band: str, kind=None, 
     if not found and mentions_sensitive(low):
         notes.append("You mentioned something sensitive. I've kept it out of everything shown on your listing. Your "
                      "description is never shown either, but you may prefer to take it out of there.")
-    # An extra safeguard: nothing shown is ever built from a sensitive word (none is a known word anyway).
-    for key in ("seeking", "offering", "headline", "topics", "interests"):
+    # What stays from the earlier draft: what this message doesn't say (or, for a different request, what's about
+    # the person), each row as it was.
+    kept = _kept_from(old, v, kind, same, here) if old is not None else {}
+    for key, f in kept.items():
+        v[key] = _value(f)
+        if f.get("sensitive") or FIELD_REGISTRY[key].sensitive:
+            enabled_sensitive.add(key)
+    if old is not None:
+        _with_earlier(details, old, same)
+    if note and (ages or "wants_age" not in v):
+        # About the ages this message set, or that none are set: never said when the ages it couldn't place leave
+        # those already on the profile as they were.
+        notes.insert(age_note, note)
+    # An extra safeguard: nothing shown is ever built from a sensitive word (none is listed anyway). What stays from
+    # before is as it was.
+    for key in [k for k in ("seeking", "offering", "headline", "topics") if k not in kept]:
         value = v.get(key)
         if isinstance(value, (list, tuple)):
             value = [x for x in value if not mentions_sensitive(x)]
@@ -726,22 +1129,37 @@ def draft_from_message(message: str, first_name: str, age_band: str, kind=None, 
             v.pop(key, None)
         else:
             v[key] = value
+    details = [d for d in details
+               if not any(mentions_sensitive(x, in_detail=True) for x in [d["name"], *d["value"], *d["steps"]])]
 
-    exactness = 0.6
-    if _re.search(r"\b(exactly|must|only|strictly)\b", low):
+    # How exact: read from a message that says what it's for (states), as the request is said or said again; a message
+    # that only adds to it ("I'm only free...") leaves it as the profile has it, the person's own setting included.
+    exactness, own_low = 0.6, asking.lower()
+    before = old.get("exactness") if same else None
+    before = before if isinstance(before, (int, float)) and not isinstance(before, bool) and 0 <= before <= 1 else None
+    if before is not None and not states:
+        exactness = before
+    elif _re.search(r"\b(exactly|must|only|strictly)\b", own_low):
         exactness = 0.9
-    elif _re.search(r"\b(open to|flexible|anyone|whatever|wide)\b", low):
+    elif _re.search(r"\b(open to|flexible|anyone|whatever|wide)\b", own_low):
         exactness = 0.3
+    elif before is not None:
+        exactness = before
+    city = v.get("city")
+    # Meeting online, said now or already on the profile: then no place is needed.
+    remote_ok = parsed.remote_ok or _value(kept.get("format") or {}) in ("Online", "In person or online")
 
-    if guessed:
-        notes.insert(0, f"Are you looking for {_option(parsed.kind, None)['label']}, or something else? I haven't set "
+    if guessed and kind is None:
+        notes.insert(0, f"Are you looking for {_option(*guessed)['label']}, or something else? I haven't set "
                         f"the kind of match yet: tell me in a few words what you'd like to meet someone for.")
-    elif kind is None and unknown_partner(without_hobbies(low)):
-        notes.insert(0, f"{WHICH_ACTIVITY} {ACTIVITY_HINT}")
+    elif kind is None and unknown_partner(without_hobbies(low), words):
+        notes.insert(0, f"{WHICH_ACTIVITY} {activity_hint(words)}")
     elif kind is None:
         notes.insert(0, "I couldn't tell what kind of match you want. Could you say a bit more about what you'd "
                         "like to meet someone for?")
-    if not city and not parsed.remote_ok:
+    elif kind == "other" and not (v.get("seeking") and v.get("offering")):  # kept from before, with nothing it's for
+        notes.insert(0, f"{WHICH_ACTIVITY} {activity_hint(words)}")
+    if not city and not remote_ok:
         notes.append("Which city? I couldn't tell, so please tell me where you are.")
     if kind == "dating" and "wants_gender" not in v:
         notes.append("Who would you like to meet: a woman, a man, or anyone?")
@@ -754,21 +1172,26 @@ def draft_from_message(message: str, first_name: str, age_band: str, kind=None, 
 
     keys = (["kind"] if kind else []) + _COMMON + _BY_KIND.get(kind, [])
     keys += [k for k in ("headline", "topics") if k in v]
-    options = field_options(kind, v.get("city"))
+    keys += [k for k in kept if k not in keys]  # nothing that stays is dropped
+    options = field_options()
     fields = []
     for key in keys:
         spec = FIELD_REGISTRY[key]
         value = v.get(key)
+        if key in kept:
+            fields.append({**kept[key], "value": list(value) if isinstance(value, (list, tuple)) else value,
+                           "options": list(kept[key].get("options") or options.get(key, []))})
+            continue
         fields.append({
             "key": key, "label": LABELS[key], "value": list(value) if isinstance(value, (list, tuple)) else value,
-            "visibility": HIDDEN if key == "diet" and value in _PRIVATE_DIETS else spec.default,
-            "sensitive": spec.sensitive, "multi": spec.multi,
+            "visibility": spec.default, "sensitive": spec.sensitive, "multi": spec.multi,
             "enabled": (key in enabled_sensitive) if spec.sensitive else True,
             "locked": key == "age_band", "options": options.get(key, []),
         })
+    fields += details
 
     understood = [f"Looking for {_KIND_NAMES[kind]}" if kind else "Kind of match: not sure yet"]
-    if kind == "other" and activity:
+    if kind == "other" and v.get("seeking"):
         understood = [f"Looking for {v['seeking']}"]
     if city:
         understood.append(f"in {city}")
@@ -776,23 +1199,22 @@ def draft_from_message(message: str, first_name: str, age_band: str, kind=None, 
         understood.append("with " + wants_text(v.get("wants_gender"), v.get("wants_age")))
     if v.get("format") == "Online":
         understood.append("(online only)")
-    elif parsed.remote_ok:
+    elif remote_ok:
         understood.append("(online/remote is fine)")
-    if v.get("travel") and TRAVEL[v["travel"]]:
+    if v.get("travel") in TRAVEL and TRAVEL[v["travel"]]:
         understood.append(f"(will travel {v['travel'].lower()})")
-    # "listed": the details this agent chose shown or hidden for on purpose (only a diet it keeps hidden). Every
-    # other visibility here is a default, so a choice the person already made stays (keep_visibility).
-    return {"intent_text": text, "exactness": exactness, "kind": kind, "fields": fields,
-            "understood": " ".join(understood), "notes": notes,
-            "listed": ["diet"] if v.get("diet") in _PRIVATE_DIETS else []}
+    # "listed": the details this agent chose shown or hidden for on purpose. It chooses none: every visibility
+    # here is a default, so a choice the person already made stays (keep_visibility).
+    return {"intent_text": _description(old.get("intent_text"), text) if same else text, "exactness": exactness,
+            "kind": kind, "fields": fields, "understood": " ".join(understood), "notes": notes, "listed": []}
 
 
 # --------------------------------------------------------------------------------------
 # Instant profile updates (used by the demo while the agent is still replying).
 #
-# Picks out only facts stated plainly enough to be sure of ("I live in Osaka", "free on
-# weekends", "I'm into chess and hiking"), and only in words it recognises: a place it knows, a
-# fixed choice, a known activity. Anything else is left for the agent (and the person).
+# Picks out only facts stated plainly enough to be sure of ("I live in Osaka", "I'm a woman",
+# "within 30 km"), and only in words it recognises: a place it knows, a fixed choice, a listed
+# activity they teach or want to learn. Anything else is left for the agent (and the person).
 # --------------------------------------------------------------------------------------
 
 COUNTRIES = [
@@ -819,15 +1241,10 @@ def _title(place: str) -> str:
     return " ".join(w if w.isupper() else w[:1].upper() + w[1:] for w in place.split())
 
 
-# The cities the agent knows: the demo's own and every city with a known centre (schema.CITY_COORDS), each
-# with its country when it has only one ("Cambridge" is in two, so its country is left to the person).
-_CITY_COUNTRIES: dict = {}
-for _city, _where in CITY_COORDS:
-    _CITY_COUNTRIES.setdefault(_city, set()).add(_country(_where) or _title(_where))
-for _city, (_code, _) in _vocab.CITIES.items():
-    _CITY_COUNTRIES.setdefault(plain_place(_city), set()).add(_vocab.COUNTRY_NAMES[_code])
-_CITY_NAMES = {plain_place(c): c for c in _vocab.CITIES}  # the demo's own spelling
-_KNOWN_CITY = _re.compile(r"\b(" + "|".join(map(_re.escape, sorted(_CITY_COUNTRIES, key=len, reverse=True))) + r")\b")
+def city_country(city, words=None):
+    """The country of a known city, when it is in only one ("Cambridge" is in two: None)."""
+    countries = _words(words).cities.get((plain_place(city) or "").lower(), set()) if city else set()
+    return next(iter(countries)) if len(countries) == 1 else None
 
 
 # Where someone is (the offline agent; the instant first draft only when there's no model agent). People can
@@ -835,7 +1252,7 @@ _KNOWN_CITY = _re.compile(r"\b(" + "|".join(map(_re.escape, sorted(_CITY_COUNTRI
 # leaves the place blank otherwise (the agent then asks "Where are you based?"):
 #   "I live in Osaka", "I'm (now) based/living/staying in Osaka", "I'm in Osaka", "I (just) moved to Spain",
 #   "Born in Kyoto, based in Berlin" (a clause starting "based/living in"), "Visiting Osaka",
-#   and a request with a place, "Looking for a climbing partner in (or at, around, near) Osaka", in a sentence that mentions nobody
+#   and a request with a place, "Looking for a squash partner in (or at, around, near) Osaka", in a sentence that mentions nobody
 #   else and nothing past ("my parents live in Nigeria", "I grew up in Munich" give nothing).
 # A country merely named ("turkey sandwiches", "I'd love to visit Japan") is never read. Two places: none.
 # Someone else: family (never what people look for here), anyone with "my/our/his/her/their" (a boyfriend,
@@ -865,9 +1282,9 @@ _PLACE_THEN_COUNTRY = _re.compile(r"(?:\b(?:i|we)\s+(?:now\s+)?live\s+in|\b(?:i'
 _FROM = _re.compile(r"\bfrom\s+(?:the\s+)?(?:[a-z]+\s+)?$")  # "from Brazil", "from northern Spain": not where they are
 
 
-def _places_in(sentence: str) -> list:
+def _places_in(sentence: str, words: Words) -> list:
     """(kind, name, where it starts) for the known cities and countries a sentence names."""
-    found = [("city", m.group(1), m.start()) for m in _KNOWN_CITY.finditer(sentence)]
+    found = [("city", m.group(1), m.start()) for m in words._city_rx.finditer(sentence)] if words._city_rx else []
     for c in COUNTRIES:
         if len(c) > 3:
             found += [("country", c, m.start()) for m in _re.finditer(r"\b" + _re.escape(c.lower()) + r"\b", sentence)]
@@ -880,29 +1297,30 @@ def _counts(sentence: str, before: str, kind: str) -> bool:
         return False
     if _HERE_FORMS.search(before) or (kind == "country" and _PLACE_THEN_COUNTRY.search(before)):
         return True
-    # A request with a place: "Looking for a tennis partner in Osaka", nobody else and nothing past in it.
+    # A request with a place: "Looking for a squash partner in Osaka", nobody else and nothing past in it.
     return bool(_re.search(r"\b(?:in|at|around|near|nearby|across|within)\s+(?:the\s+)?$", before) and _REQUEST.search(sentence)
                 and not _OTHERS.search(sentence) and not _PAST.search(sentence))
 
 
-def where_they_are(text) -> tuple:
-    """(city or None, country or None) for where the person is, only from the explicit forms above."""
+def where_they_are(text, words=None) -> tuple:
+    """(city or None, country or None) for where the person is, only from the explicit forms above, among
+    the known cities (schema.CITY_COORDS and the listed places, words_in_use) and countries."""
+    words = _words(words)
     low = plain_place(" ".join(str(text or "").lower().split())) or ""
     cities, countries = [], []
     for sentence in _re.split(r"(?<=[.!?;])\s+|\n", low):
-        for kind, name, at in _places_in(sentence):
+        for kind, name, at in _places_in(sentence, words):
             if not _counts(sentence, sentence[:at], kind):
                 continue
             if kind == "city":
-                cities.append(_CITY_NAMES.get(name) or _title(name))
+                cities.append(_title(name))
             else:
                 countries.append(_country(name) or _title(name))
     cities, countries = list(dict.fromkeys(cities)), list(dict.fromkeys(countries))
     if len(cities) > 1 or len(countries) > 1:
         return None, None  # two places: not sure which, so none (the agent asks)
     city = cities[0] if cities else None
-    city_countries = _CITY_COUNTRIES.get(plain_place(city).lower(), set()) if city else set()
-    country = next(iter(city_countries)) if len(city_countries) == 1 else None
+    country = city_country(city, words)
     if countries:
         if country and countries[0] != country:
             return None, None  # a city in one country, another country named: not sure
@@ -910,49 +1328,30 @@ def where_they_are(text) -> tuple:
     return city, country
 
 
-def known_city(text) -> tuple:
+def known_city(text, words=None) -> tuple:
     """(city, country or None) where the person is, if the text names a known city for them; see where_they_are.
     A city is never read from anything else the person writes ("I'm in recovery" is not a place)."""
-    city, country = where_they_are(text)
+    city, country = where_they_are(text, words)
     return (city, country) if city else (None, None)
 
 
-def quick_facts(text: str) -> dict:
-    """Facts stated plainly in one message, as field -> value, only in words the agent recognises: a
-    known city and its country, a country, the fixed choices (schedule, level, gender, languages, format,
-    travel), an amount of pay, a known activity they teach or want to learn, and known activities they
-    enjoy. Nothing else from the message is copied: "I live in Galway" or "I'm in therapy" sets no city,
-    "I'm into pottery and BDSM" adds no interest, "I'm offering bible study lessons" no teaching phrase."""
+def quick_facts(text: str, words=None) -> dict:
+    """Built-in facts stated plainly in one message, as field -> value, only in words the agent recognises:
+    a known city and its country, a country, their gender, an amount of pay, how they'll meet and how far
+    they'll travel (fixed choices), and a listed activity they teach or want to learn. Nothing else from the
+    message is copied: "I live in Galway" (not a known city) or "I'm in therapy" sets no city, "I'm offering
+    bible study lessons" no teaching phrase."""
     low = " ".join(text.lower().split())
     out = {}
 
     # Where they are: a known city and its country, or a country, only when said about them now (where_they_are).
-    city, country = where_they_are(low)
+    city, country = where_they_are(low, words)
     if city:
         out["city"] = city
     if country:
         out["country"] = country
-
-    # When they're free.
-    for pattern, sched in [(r"\bweekends?\b", "weekends"), (r"\b(?:weekday )?evenings?\b|\bafter work\b", "weekday evenings"),
-                           (r"\b(?:weekday )?mornings?\b", "weekday mornings"), (r"\bflexible\b|\bany ?time\b|\bwhenever\b", "flexible")]:
-        if _re.search(pattern, low):
-            out["schedule"] = sched
-            break
-
-    level = next((l for l in _vocab.LEVELS if _re.search(r"\b" + l + r"\b", low)), None)
-    if level:
-        out["level"] = level
     if gender := own_gender(low):
         out["gender"] = gender  # "I'm a woman", "I am non-binary"
-
-    native = _find_language(r"speak (\w+) natively|native (\w+) speaker|my native language is (\w+)|fluent (\w+) speaker|"
-                            r"i'm a native (\w+)|i speak fluent (\w+)", low)
-    learning = _find_language(r"(?:learning|learn|practice|practise|improve my) (\w+)", low)
-    if native:
-        out["native_language"] = native
-    if learning and learning != native:
-        out["learning_language"] = learning
 
     # Pay: "4000 yen per hour", "¥4,000/hr", "$30 an hour", "€500 a month".
     m = _re.search(r"(?:(?P<sym>[¥$€£])\s?(?P<a1>\d[\d,]*(?:\.\d+)?)(?P<k1>k)?|(?P<a2>\d[\d,]*(?:\.\d+)?)(?P<k2>k)?\s?"
@@ -967,43 +1366,20 @@ def quick_facts(text: str) -> dict:
         unit = {"hr": "hour", "h": "hour"}.get(m.group("unit"), m.group("unit"))
         out["pay"] = f"{symbol}{amount:,.0f}" + (f" per {unit}" if unit else "")
     fmt = format_from_text(low)
-    if fmt and has_format(_parse_intent(low).kind):  # "climbing in Osaka, online works for me": no format
+    if fmt and has_format(_parse_intent(low).kind):  # "a date in Osaka, online works for me": no format
         out["format"] = fmt
     travel = travel_from_text(low)
     if travel:
         out["travel"] = travel
 
-    # Teaching a known activity, stated plainly: "I'm offering piano lessons", "I teach guitar" -> they're
-    # the teacher; "looking for a beginner hockey coach" -> they're the student.
-    m = _re.search(r"\b(?:i'?m |i am )?(?:offering|giving|teaching|i teach|i give|i offer|i can teach)\s+"
-                   r"(?:(?:private|group|beginner|online) )?([a-z][a-z ]{1,30}?)\s*(?:lessons?|classes|coaching|tutoring)\b", low) \
-        or _re.search(r"\bi (?:teach|coach|tutor)\s+([a-z][a-z ]{1,30}?)(?=[.!?;,]|$|\s(?:to|in|for|on|and)\b)", low)
-    activity = known_activity(m.group(1)) if m else None
-    if activity:
-        out["offering"], out["seeking"] = f"{_article(activity)} {activity} teacher", f"{_article(activity)} {activity} student"
-    m = _re.search(r"\b(?:looking for|need|want|find|searching for)\s+(?:a |an )?([a-z][a-z ]{1,30}?)\s+"
-                   r"(teacher|tutor|coach|instructor|mentor)\b", low)
-    activity = known_activity(m.group(1)) if m else None
-    if activity and "offering" not in out:
-        out["seeking"] = f"{_article(activity)} {activity} {m.group(2)}"
-        out["offering"] = f"{_article(activity)} {activity} student"
-
-    # Interests, only when introduced plainly, and only the known activities: "I'm into chess and hiking".
-    m = _re.search(r"\b(?:i'm into|i am into|into|i enjoy|i love|who loves|who enjoys|my hobbies are|i'm interested in|i like)\s+"
-                   r"([a-z][a-z ,'\-]{2,80}?)(?=[.!?;]|$)", low)
-    if m and not _re.match(r"(?:to |meeting|meet |you|people)", m.group(1)):
-        items = known_activities(m.group(1))
-        if items:
-            out["interests"] = items[:6]
-    # An extra safeguard: shown details never carry a sensitive word (none is a known word anyway).
-    for key in ("city", "interests", "offering", "seeking"):
-        value = out.get(key)
-        if isinstance(value, list):
-            value = [x for x in value if not mentions_sensitive(x)]
-        if not value or (isinstance(value, str) and mentions_sensitive(value)):
-            out.pop(key, None)
-        else:
-            out[key] = value
+    # Teaching a listed activity, or wanting to learn one (teaching): the two phrases, as a pair.
+    taught = teaching(low, words)
+    if taught:
+        out["seeking"], out["offering"] = taught[:2]
+    # An extra safeguard: shown details never carry a sensitive word (none is listed anyway).
+    for key in ("city", "offering", "seeking"):
+        if key in out and mentions_sensitive(out[key]):
+            out.pop(key)
     if ("offering" in out) != ("seeking" in out):  # the two phrases come as a pair
         out.pop("offering", None)
         out.pop("seeking", None)
@@ -1019,9 +1395,9 @@ _IN_PERSON_WORDS = r"in[- ]person|face to face|meet up|meetups?"
 
 
 def has_format(kind) -> bool:
-    """Does a listing of this kind say how people meet (a "format" field)? Climbing, running,
-    roommates and dating don't; a kind not known yet might."""
-    return kind not in _BY_KIND or "format" in _BY_KIND[kind]
+    """Does a listing of this kind say how people meet (a "format" field)? Only dating doesn't: it is
+    always in person. A kind not known yet might."""
+    return kind != "dating"
 
 
 def format_from_text(low: str):
@@ -1079,28 +1455,50 @@ def dating_wants(draft) -> dict | None:
             "said": {"genders": [g for g in GENDERS if g in said.seeking], "ages": years(said.age_range)}}
 
 
+def ready(draft) -> bool:
+    """Can this draft go live: what it's for (dating: who they'd like to meet; anything else: both phrases, who
+    they're looking for and what they are to them, since matching compares the two), and where unless it can meet
+    online. One rule for Start matching on every page (demo.html canSave, DemoSession._ready), for when the phone
+    first shows a new listing's profile (demo.html profileShown), and for what a model agent is told after a save
+    (agent_llm._summary)."""
+    if not draft:
+        return False
+    shown = {f["key"]: f["value"] for f in draft.get("fields", [])
+             if f.get("enabled") and f.get("visibility") != HIDDEN and f.get("value") not in (None, "", [])}
+    if draft.get("kind") == "dating":
+        said = (dating_wants(draft) or {}).get("said") or {}
+        who = bool(shown.get("wants_gender") or said.get("genders"))
+    else:
+        who = bool(shown.get("seeking") and shown.get("offering"))
+    online = shown.get("format") in ("Online", "In person or online")
+    return who and bool(shown.get("city") or shown.get("country") or online)
+
+
 def empty_draft(first_name: str, age_band: str) -> dict:
     """A blank work-in-progress profile, shown before the agent has drafted anything."""
     fields = []
+    options = field_options()
     for key in _COMMON:
         spec = FIELD_REGISTRY[key]
         value = {"first_name": first_name, "age_band": age_band}.get(key)
         fields.append({"key": key, "label": LABELS[key], "value": value, "visibility": spec.default,
                        "sensitive": spec.sensitive, "multi": spec.multi, "enabled": not spec.sensitive,
-                       "locked": key == "age_band", "options": field_options(None, None).get(key, [])})
+                       "locked": key == "age_band", "options": options.get(key, [])})
     return {"intent_text": "", "exactness": 0.6, "kind": None, "fields": fields, "understood": "",
             "notes": [], "missing": [], "complete": False, "by": "quick"}
 
 
 def fill_gaps(draft: dict, facts: dict, visibilities=None) -> list:
-    """Put facts into empty fields of a draft (never overwriting anything set). Returns the
+    """Put built-in facts into empty fields of a draft (never overwriting anything set). Returns the
     keys filled. Fields the draft doesn't have yet are added, except a format on a kind that has
-    none (has_format): a climbing listing isn't made online only by "online works for me". The kind
-    of match is the agent's to record, never carried over, and a detail only another kind has (carries)
-    never goes on: who someone would like to meet only on a dating draft, a level only where it means one. visibilities: the shown or hidden each filled detail
-    takes, where known (the person's choice, or the one it had on the draft it came from)."""
+    none (has_format): a dating listing isn't made online only by "online works for me". The kind
+    of match is the agent's to record, never carried over, and a detail only dating has (carries) never
+    goes on another kind. Open details are never filled in: an agent writes them in full each time.
+    visibilities: the shown or hidden each filled detail takes, where known (the person's choice, or the
+    one it had on the draft it came from)."""
     filled = []
     by_key = {f["key"]: f for f in draft["fields"]}
+    options = field_options()
     for key, value in facts.items():
         spec = FIELD_REGISTRY.get(key)
         if spec is None or spec.sensitive or key == "kind" or not carries(draft.get("kind"), key):
@@ -1110,8 +1508,7 @@ def fill_gaps(draft: dict, facts: dict, visibilities=None) -> list:
             continue
         if f is None:
             f = {"key": key, "label": LABELS[key], "value": None, "visibility": spec.default, "sensitive": False,
-                 "multi": spec.multi, "enabled": True, "locked": False,
-                 "options": field_options(draft.get("kind"), None).get(key, [])}
+                 "multi": spec.multi, "enabled": True, "locked": False, "options": options.get(key, [])}
             draft["fields"].append(f)
             by_key[key] = f
         if f["value"] in (None, "", []):
@@ -1139,7 +1536,8 @@ def keep_visibility(new: dict, old, choices=None) -> None:
     draft chose one on purpose ("listed": the keys its agent gave a value and a visibility of its own;
     build_draft records them). A default never decides, so a detail the person hid is never shown again
     just because a later draft left it out, or brought it back with the default. A sensitive detail is
-    never made shown here (showing one needs the person's own confirmation in the editor)."""
+    never made shown here (showing one needs the person's own confirmation in the editor). Open details
+    are keyed the same way (about:name), so the person's choice for one stays too."""
     chose = set(new.get("listed") or ())
     before = _prior_visibility(old, choices)
     for f in new.get("fields", []):
@@ -1151,14 +1549,16 @@ def keep_visibility(new: dict, old, choices=None) -> None:
 
 
 def carry_over(new: dict, old, choices=None) -> list:
-    """Keep what's already on the profile when a new agent draft replaces it: anything the new draft
+    """Keep what's already on the profile when a new agent draft replaces it: any built-in the new draft
     left empty (fill_gaps, never a sensitive detail or the kind, and after a change of kind only what's
-    about the person), each with the shown or hidden it had,
-    then the person's choices of shown or hidden for the rest (keep_visibility). Returns the keys filled."""
+    about the person), each with the shown or hidden it had, then the person's choices of shown or hidden
+    for the rest (keep_visibility). Open details are not carried over: a model agent restates them in full
+    with every save (build_draft tells it about one the person chose shown or hidden that it left out), and
+    the offline agent keeps those it can't write (keep_details). Returns the keys filled."""
     if not old and not choices:
         return []
-    # A change of kind is a new request: only what's about the person carries over (where they are, when they're
-    # free, their interests), never the old request's own details (a level, a role, its phrases, its pay).
+    # A change of kind is a new request: only what's about the person carries over (where they are, how far
+    # they'll travel), never the old request's own details (its phrases, its pay, who they'd like to meet).
     changed = bool((old or {}).get("kind") and new.get("kind") and old.get("kind") != new.get("kind"))
     filled = fill_gaps(new, {f["key"]: f["value"] for f in (old or {}).get("fields", [])
                              if f.get("enabled") and f.get("value") not in (None, "", [])
@@ -1169,17 +1569,38 @@ def carry_over(new: dict, old, choices=None) -> list:
     return filled
 
 
-# The details that belong to a kind of match: its own (_BY_KIND), and for every kind except dating the
+def keep_details(new: dict, old) -> list:
+    """The offline agent writes only listed words, so the open details already on the profile that its draft
+    doesn't have are kept as they were: ones a model agent wrote before it became unavailable, the person's own,
+    or ones read from an earlier message. A new request (other_request: another kind, or other phrases) keeps
+    only those about the person: what they'd like in the other person (them) and what the request needs (both)
+    belonged to the old one. Returns the keys kept."""
+    if not old:
+        return []
+    have = {f["key"] for f in new.get("fields", [])}
+    another = other_request(new, old)
+    kept = []
+    for f in old.get("fields", []):
+        about = split_key(f.get("key"))[0]
+        if not about or f["key"] in have or f.get("value") in (None, "", []) or not f.get("enabled", True) \
+                or (another and about != "me"):
+            continue
+        new["fields"].append({**f, "value": list(f["value"]), "steps": list(f.get("steps") or []),
+                              "options": list(f.get("options") or [])})
+        have.add(f["key"])
+        kept.append(f["key"])
+    return kept
+
+
+# The built-ins that belong to a kind of match: its own (_BY_KIND), and for every kind except dating the
 # phrases matching compares ("looking for", "you are") with the headline and topics. Dating uses who and
-# what ages instead. Everything in _COMMON belongs to every kind.
+# what ages instead. Everything in _COMMON belongs to both kinds.
 _PHRASES = ("headline", "seeking", "offering", "topics")
 _KIND_SPECIFIC = sorted({k for keys in _BY_KIND.values() for k in keys} | set(_PHRASES))
-# Details whose choices differ from one kind to another (worked out from field_options, not listed by hand).
-_PER_KIND = {k for k in FIELD_REGISTRY if len({tuple(field_options(kind, None).get(k) or ()) for kind in _BY_KIND}) > 1}
 
 
 def kind_keys(kind) -> list:
-    """The details a listing of this kind has, in order (with no kind yet, just the common ones)."""
+    """The built-ins a listing of this kind has, in order (with no kind yet, just the common ones)."""
     own = [k for k in _BY_KIND.get(kind, []) if k not in _COMMON]
     phrases = [] if kind in (None, "dating") else [k for k in _PHRASES if k not in own]
     return ["kind"] + _COMMON + own + phrases
@@ -1188,24 +1609,24 @@ def kind_keys(kind) -> list:
 def carries(kind, key) -> bool:
     """Can a listing of this kind have this detail? One rule for every way a draft is built or merged (an
     agent's save, details carried over, the instant draft, a save from the phone). Most details mean the same
-    on any listing, so an agent sets them wherever they apply (a level, a native language). Who someone would
-    like to meet and their ages are only for dating, and a detail whose choices belong to a kind (_PER_KIND:
-    a role is tutor or student, or technical or business) is only for the kinds that have those choices."""
+    on any listing, so an agent sets them wherever they apply, and every open detail goes on either kind (the
+    Warden keeps intimacy to dating, schema.detail_problems). Who someone would like to meet and their ages are
+    only for dating; their own gender and intimacy preferences only for dating too, once the kind is known."""
     if key in DATING_ONLY:
         return kind == "dating"
-    if key in _PER_KIND:
-        return bool(field_options(kind, None).get(key))
+    if key in ("gender", "kinks"):
+        return kind in (None, "dating")
     return True
 
 
 def kind_layout(kind, city=None) -> dict:
     """The profile's rows for a kind of match, for the editor when the person changes the kind: "rows"
-    (each detail of this kind, empty, with its options and default visibility) and "drop" (details
-    another kind has that this one doesn't: a climbing listing has no "Looking for" a woman or a man,
-    and a dating listing has no climbing level)."""
+    (each built-in of this kind, empty, with its options and default visibility) and "drop" (built-ins
+    the other kind has that this one doesn't: a listing that isn't dating has no "Looking for" a woman or
+    a man, and a dating listing has no "You are (to them)"). Open details stay on either kind."""
     kind = kind if kind in MATCH_KINDS else None
     keys = kind_keys(kind)
-    options = field_options(kind, city)
+    options = field_options()
     rows = []
     for key in keys:
         spec = FIELD_REGISTRY[key]
@@ -1216,3 +1637,476 @@ def kind_layout(kind, city=None) -> dict:
         return {"rows": rows, "drop": []}
     allowed = set(keys) | ({"headline"} if kind == "dating" else set())  # a dating headline may stay, hidden or not
     return {"rows": rows, "drop": [k for k in _KIND_SPECIFIC if k not in allowed]}
+
+
+# --------------------------------------------------------------------------------------
+# A change the person makes on their profile themselves (SPEC §3: the person approves, and edits, the listing)
+#
+# The parts of a profile can say the same thing (the "looking for" phrase, the headline, an open detail, a wish), so
+# a change made directly to one can leave the others saying the old thing. A kept change (a detail sheet closed, the
+# editor done, Save draft) is read part by part (changes_made) and word by word, compared as schema.canonical compares
+# text (replacements). One general rule, no word list, decides which other parts still say what was replaced: a part
+# depends on the change when it has a word the person replaced (replaced_words). A model agent may update those, and
+# only those, to match (keep_edit, the fixed rule its save is held to); without one the phone offers the same words
+# changed in them (offers), one tap each. A change the person made on a copy older than the draft (their agent updated
+# it meanwhile) is made on the draft as it now is (rebase), and read from the copy they changed (edited), so it never
+# puts back what the agent had just brought in line.
+# --------------------------------------------------------------------------------------
+
+import copy as _copy
+import difflib as _difflib
+import unicodedata as _unicodedata
+
+DESCRIPTION = "intent_text"  # the description is a part too: never shown, and matching reads it
+_NOT_PARTS = ("first_name", "age_band")  # from the ID check: nobody changes them on the profile
+# A word of this many letters or fewer is grammar (an article that changed with the word after it), and so is one a
+# letter longer among several replaced together (the conjunction between two of them).
+SHORT_WORD = 2
+_WORD = _re.compile(r"[^\W_]+")
+# What a part is called in a sentence the person reads; a built-in not here is "your <its label>".
+_PART_WORDS = {"seeking": "who you're looking for", "offering": "what you offer", "headline": "your headline",
+               "topics": "your related topics", DESCRIPTION: "your description", "kind": "the kind of match",
+               "wants_gender": "who you'd like to meet", "wants_age": "their ages", "travel": "how far you'll travel",
+               "format": "how you'll meet", "income_band": "your income"}
+
+
+def _nfc(text) -> str:
+    return _unicodedata.normalize("NFC", str(text))
+
+
+def _text_words(text) -> list:
+    """The words of a text, each as (start, end, canonical form), positions in its NFC form (_nfc)."""
+    return [(m.start(), m.end(), canonical(m.group())) for m in _WORD.finditer(_nfc(text))]
+
+
+def _items(value) -> list:
+    return [] if value is None else list(value) if isinstance(value, list) else [value]
+
+
+def _is_wording(word: str, run: tuple) -> bool:
+    """Is this word, replaced in this run, wording rather than grammar (SHORT_WORD)."""
+    return len(word) > SHORT_WORD + (len(run) > 1)
+
+
+def _grammar(word: str) -> bool:
+    """A word short enough to be grammar when an agent writes it new (an article that goes with a new word): SHORT_WORD
+    letters or fewer, and no digit (a number is never grammar)."""
+    return len(word) <= SHORT_WORD and not any(ch.isdigit() for ch in word)
+
+
+def same_word(a: str, b: str) -> bool:
+    """Two canonical words that are one word in two forms (a plural, another tense): the same, or one starts with the
+    other (with all but its last letter, when that has more than SHORT_WORD + 1 letters and the other is longer), the
+    shorter has more than SHORT_WORD letters, and the longer has at most SHORT_WORD + 1 more. A fixed length rule, no
+    word list, so it reads every language the same way."""
+    if a == b:
+        return True
+    short, long = sorted((a, b), key=len)
+    if len(short) <= SHORT_WORD or len(long) - len(short) > SHORT_WORD + 1:
+        return False
+    return long.startswith(short) or (len(short) > SHORT_WORD + 1 and len(long) > len(short)
+                                      and long.startswith(short[:-1]))
+
+
+def _any_form(words, of) -> set:
+    """The words that are some form (same_word) of a word in `of`."""
+    return {w for w in words if any(same_word(w, x) for x in of)}
+
+
+def _all_words(value) -> set:
+    return {w for x in _items(value) for *_, w in _text_words(x)}
+
+
+def _same(a, b) -> bool:
+    """The same value as schema.canonical compares it: a change of case, accents or spacing is no change."""
+    return [canonical(x) for x in _items(a)] == [canonical(x) for x in _items(b)]
+
+
+def _row(draft, key):
+    return next((f for f in (draft or {}).get("fields", []) if f.get("key") == key), None)
+
+
+def part_value(draft, key):
+    """A part as the profile says it: the description's text, or a detail's value while it's on (a list for a multi
+    or open detail), else None."""
+    if key == DESCRIPTION:
+        return str((draft or {}).get("intent_text") or "") or None
+    f = _row(draft, key)
+    if f is None or not f.get("enabled", True) or f.get("value") in (None, "", []):
+        return None
+    v = f["value"]
+    return [str(x) for x in v] if isinstance(v, (list, tuple)) else str(v)
+
+
+def parts(draft) -> list:
+    """A profile's parts by key, in its order: every detail but those from the ID check, then the description."""
+    return [*dict.fromkeys(f["key"] for f in (draft or {}).get("fields", []) if f.get("key") not in _NOT_PARTS),
+            DESCRIPTION]
+
+
+def _private(draft, key) -> bool:
+    """A detail that is hidden, or sensitive: its words never go into a part that is shown."""
+    f = _row(draft, key) if key != DESCRIPTION else None
+    return f is not None and (f.get("visibility") == HIDDEN or bool(f.get("sensitive")))
+
+
+def _shown(draft, key) -> bool:
+    """A part a match can see (the description never is)."""
+    return key != DESCRIPTION and not _private(draft, key)
+
+
+def changes_made(before, after) -> list:
+    """What a kept change did, part by part: each part whose value differs (as schema.canonical compares) between the
+    draft before and the one after, as {"key", "before", "after", "private"} (None where there was no value; private:
+    the part is hidden or sensitive on either draft, so its words never go into a shown part). Shown or hidden alone
+    changes nothing the profile says."""
+    out = []
+    for key in dict.fromkeys(parts(after) + parts(before)):
+        old, new = part_value(before, key), part_value(after, key)
+        if not _same(old, new):
+            out.append({"key": key, "before": old, "after": new,
+                        "private": _private(before, key) or _private(after, key)})
+    return out
+
+
+def _text_pairs(old: str, new: str) -> list:
+    """What replaced what in a text, word by word (difflib's longest matching blocks over canonical words): a run of
+    words replaced by as many is read word for word, any other replaced run whole; words only taken away pair with
+    None."""
+    a, b, new = _text_words(old), _text_words(new), _nfc(new)
+    out = []
+    for tag, i1, i2, j1, j2 in _difflib.SequenceMatcher(None, [w for *_, w in a], [w for *_, w in b],
+                                                         autojunk=False).get_opcodes():
+        if tag == "delete":
+            out.append((tuple(w for *_, w in a[i1:i2]), None))
+        elif tag == "replace" and i2 - i1 == j2 - j1:
+            out += [((a[i][2],), new[b[j][0]:b[j][1]]) for i, j in zip(range(i1, i2), range(j1, j2))]
+        elif tag == "replace":
+            out.append((tuple(w for *_, w in a[i1:i2]), new[b[j1][0]:b[j2 - 1][1]]))
+    return out
+
+
+def _item_pairs(old: list, new: list) -> list:
+    """What replaced what in a list: each item taken away, paired in order with an item put in its place and read
+    against it word by word, as a text is (_text_pairs), or whole with None when nothing took its place."""
+    was, now = {canonical(x) for x in old}, {canonical(x) for x in new}
+    gone, came = [x for x in old if canonical(x) not in now], [x for x in new if canonical(x) not in was]
+    out = []
+    for n, x in enumerate(gone):
+        out += _text_pairs(x, came[n]) if n < len(came) else [(tuple(w for *_, w in _text_words(x)), None)]
+    return out
+
+
+def _edit_of(change: dict) -> tuple:
+    """What the person changed in a part, from what to what: the draft's values, or, when they changed a copy older
+    than the draft (rebase), that copy's value and theirs ("edited")."""
+    return tuple(change.get("edited") or (change["before"], change["after"]))
+
+
+def replacements(change: dict) -> list:
+    """The words one change replaced, as pairs: (the replaced words in a row, canonical; the wording that took their
+    place as the person wrote it, or None where words were only taken away). A pair whose words all still appear in
+    the new value replaced nothing, nor does one of grammar alone (_is_wording). The kind of match is a choice, not
+    wording: it replaces no words."""
+    old, new = _edit_of(change)
+    if change["key"] == "kind" or old is None:
+        return []
+    if isinstance(old, list) or isinstance(new, list):
+        pairs = _item_pairs(_items(old), _items(new))
+    elif new is None:
+        pairs = [(tuple(w for *_, w in _text_words(old)), None)]
+    else:
+        pairs = _text_pairs(old, new)
+    kept = _all_words(new)
+    return [(run, to) for run, to in pairs if any(w not in kept and _is_wording(w, run) for w in run)]
+
+
+def replaced_words(changes: list) -> set:
+    """Every word the person replaced (replacements), canonical: a part with one of them depends on the change."""
+    out = set()
+    for c in changes:
+        kept = _all_words(_edit_of(c)[1])
+        for run, _ in replacements(c):
+            out |= {w for w in run if w not in kept and _is_wording(w, run)}
+    return out
+
+
+def says(value, words: set) -> bool:
+    """Does a part's value have any of these (canonical) words."""
+    return bool(_all_words(value) & words)
+
+
+def depends(draft, changes: list) -> bool:
+    """Does any other part of the draft still say a word the person replaced: is there anything to bring in line."""
+    words, changed = replaced_words(changes), {c["key"] for c in changes}
+    return bool(words) and any(says(part_value(draft, k), words) for k in parts(draft) if k not in changed)
+
+
+def _hunks(a: list, b: list) -> tuple:
+    """What changed from one run of words to another: difflib's changed stretches of a, as (start, end), and where each
+    word of a that stayed is in b."""
+    hunks, at = [], {}
+    for tag, i1, i2, j1, j2 in _difflib.SequenceMatcher(None, a, b, autojunk=False).get_opcodes():
+        if tag == "equal":
+            at.update({i1 + n: j1 + n for n in range(i2 - i1)})
+        else:
+            hunks.append((i1, i2))
+    return hunks, at
+
+
+def _swapped(old: list, new: list) -> tuple:
+    """A list's items taken away and put in, compared canonically, each taken away paired in order with one put in
+    (as _item_pairs reads them): ({taken away: what took its place, or None}, items put in with nothing taken away)."""
+    was, now = {canonical(x) for x in old}, {canonical(x) for x in new}
+    gone, came = [x for x in old if canonical(x) not in now], [x for x in new if canonical(x) not in was]
+    return ({canonical(x): (came[n] if n < len(came) else None) for n, x in enumerate(gone)}, came[len(gone):])
+
+
+def _rebase_items(base: list, mine: list, theirs: list) -> list:
+    """rebase for a list, item by item: an item the person took away comes off the agent's list, an item they put in its
+    place takes its place there (or the place of what the agent put in for it), and one they only added is added."""
+    mine_swaps, added = _swapped(base, mine)
+    their_swaps, _ = _swapped(base, theirs)
+    out = [str(x) for x in theirs]
+    for gone, put in mine_swaps.items():
+        at = next((n for n, x in enumerate(out) if canonical(x) == gone), None)
+        if at is None and their_swaps.get(gone) is not None:  # the agent changed it too: the person's wins
+            at = next((n for n, x in enumerate(out) if canonical(x) == canonical(their_swaps[gone])), None)
+        if at is not None:
+            del out[at]
+        if put is not None:
+            out.insert(len(out) if at is None else at, str(put))
+    out += [str(x) for x in added]
+    seen = set()
+    return [x for x in out if x.strip() and not (canonical(x) in seen or seen.add(canonical(x)))]
+
+
+def rebase(base, mine, theirs, choices=None):
+    """A part the person changed on a copy older than the draft (from base to mine) that their agent changed meanwhile
+    (from base to theirs): the person's change made on the draft as it now is, compared as schema.canonical compares.
+    In a text, each stretch of words they changed replaces the same stretch of the agent's value, and the agent's
+    changes elsewhere in it stay; where both changed the same words, or words side by side, the person's change wins
+    there. In a list, item by item (_rebase_items). A part with fixed choices, or one either of them emptied, takes the
+    person's value whole. One fixed rule, no word list."""
+    if _same(base, mine):
+        return theirs
+    if _same(base, theirs) or _same(mine, theirs) or None in (base, mine, theirs) or choices is not None:
+        return mine
+    if any(isinstance(v, list) for v in (base, mine, theirs)):
+        return _rebase_items(_items(base), _items(mine), _items(theirs)) or mine
+    m, t = _nfc(mine), _nfc(theirs)
+    wm, wt = _text_words(m), _text_words(t)
+    tb = [w for *_, w in _text_words(base)]
+    mine_hunks, mine_at = _hunks(tb, [w for *_, w in wm])
+    their_hunks, their_at = _hunks(tb, [w for *_, w in wt])
+    # Stretches that share or border a word go together: the words either side of a group stayed in both values, so
+    # they place it in each. Only a group with a change of the person's is theirs.
+    groups = [[lo, hi, ours] for ours, hunks in ((True, mine_hunks), (False, their_hunks)) for lo, hi in hunks]
+    joined = True
+    while joined:
+        joined = False
+        for x, y in ((x, y) for x in range(len(groups)) for y in range(x + 1, len(groups))):
+            (a1, a2, a_ours), (b1, b2, b_ours) = groups[x], groups[y]
+            if max(a1, b1) <= min(a2, b2):
+                groups[x] = [min(a1, b1), max(a2, b2), a_ours or b_ours]
+                del groups[y]
+                joined = True
+                break
+    out, n = t, len(tb)
+    try:
+        for lo, hi, ours in sorted(groups, reverse=True):
+            if ours:
+                ms, me = (wm[mine_at[lo - 1]][1] if lo else 0), (wm[mine_at[hi]][0] if hi < n else len(m))
+                ts, te = (wt[their_at[lo - 1]][1] if lo else 0), (wt[their_at[hi]][0] if hi < n else len(t))
+                out = out[:ts] + m[ms:me] + out[te:]
+    except KeyError:  # never expected (see above); the person's value, if so
+        return mine
+    return out if _text_words(out) else mine
+
+
+def _swap(text: str, pairs: list) -> str:
+    """text with every run of words a pair replaced (the same words in a row, compared canonically) written as the
+    person wrote what took their place. Words only taken away are left in a sentence: cutting them out could leave
+    it broken."""
+    text = _nfc(text)
+    for run, to in pairs:
+        if to is None:
+            continue
+        words, spans, i = _text_words(text), [], 0
+        canon = [w for *_, w in words]
+        while i + len(run) <= len(canon):
+            if tuple(canon[i:i + len(run)]) == run:
+                spans.append((words[i][0], words[i + len(run) - 1][1]))
+                i += len(run)
+            else:
+                i += 1
+        for start, end in reversed(spans):
+            text = text[:start] + to + text[end:]
+    return text
+
+
+def _choices(draft, key):
+    """A part's fixed choices, if it has any: a built-in's (field_options) or an open detail's steps."""
+    f = _row(draft, key)
+    if f is not None and is_detail_key(key):
+        return list(f.get("steps") or []) if f.get("compare") == "steps" else None
+    return field_options().get(key)
+
+
+def _offered(value, pairs: list, choices):
+    """A part's value with the pairs' words replaced (_swap); in a list, an item that was exactly what the person took
+    away comes off. None when nothing is left, or when a part with fixed choices would get one that isn't one of
+    them."""
+    items = []
+    for x in _items(value):
+        if not any(to is None and tuple(w for *_, w in _text_words(x)) == run for run, to in pairs):
+            items.append(_swap(x, pairs))
+    seen = set()
+    items = [x for x in items if x.strip() and not (canonical(x) in seen or seen.add(canonical(x)))]
+    if not items:
+        return None
+    if choices is not None:
+        items = [next((c for c in choices if canonical(c) == canonical(x)), None) for x in items]
+        if None in items:
+            return None
+    return items if isinstance(value, list) else items[0]
+
+
+def offers(draft, changes: list) -> list:
+    """Without a model agent, what the phone offers to change too after a kept change (nothing changes without the
+    person's tap): every other part that still has words the person replaced, with them replaced the same way
+    (replacements, _swap), and an item they took away taken off a list (never its last one). A part with fixed
+    choices or steps is offered only one of them; the kind of match and their ages, never. A hidden or sensitive
+    part's words are offered only to parts that are never shown (other hidden details, the description). Each offer is
+    {"key", "before", "after"}, values as the draft holds them."""
+    changed = {c["key"] for c in changes}
+    out = []
+    for key in parts(draft):
+        value = part_value(draft, key)
+        if key in changed or key in ("kind", "wants_age") or value is None:
+            continue
+        pairs = [p for c in changes if not (c["private"] and _shown(draft, key)) for p in replacements(c)]
+        new = _offered(value, pairs, _choices(draft, key)) if pairs else None
+        if new is not None and not _same(new, value):
+            out.append({"key": key, "before": value, "after": new})
+    return out
+
+
+def _definition(row) -> tuple:
+    """How an open detail compares, as its agent wrote it (a change of wording never changes it)."""
+    return (row or {}).get("about"), (row or {}).get("compare"), tuple(canonical(s) for s in (row or {}).get("steps") or ()), \
+        (row or {}).get("required", True) is not False
+
+
+def keep_edit(new: dict, saved: dict, changes: list) -> tuple:
+    """The fixed rule a model agent's save after a kept change is held to. From the draft the person kept (saved), the
+    only parts taken from the agent's save (new) are those that still said a word the person replaced
+    (replaced_words), as the agent reworded them, and only in words the part already had or the person just wrote
+    (each in any form, same_word), with grammar (_grammar). So what the person changed keeps their value, a part with
+    no value gets none, a part brought in line gets no word from anywhere else (nothing they didn't give), every other
+    part stays as it was, no part is taken off, an open detail keeps how it compares, shown or hidden stays as it was,
+    and no word of a hidden or sensitive part's new value, in any form, goes into a part that is shown. A save with
+    another kind of match changes nothing. The agent's save is refused for any of these (agent_llm.build_draft), so it
+    can fix it, and whatever comes back is corrected by the same rule. Two are corrected without a word, since neither
+    says anything the agent may have claimed: an unrelated part it left out (kept), and a sensitive detail's shown,
+    which only the person can choose (it saves one hidden). Returns (draft, fixes): fixes are (key, why) for each part
+    of the agent's save that wasn't taken, why one of "theirs", "new", "unrelated", "kept", "compare", "hidden",
+    "added", "visibility", "kind"."""
+    out = _copy.deepcopy(saved)
+    if new.get("kind") != saved.get("kind"):
+        return out, [("kind", "kind")]
+    changed = {c["key"] for c in changes}
+    words = replaced_words(changes)
+    private = set().union(*(_all_words(c["after"]) for c in changes if c["private"]))
+    given = set().union(*(_all_words(c["after"]) for c in changes))  # the person's own new wording
+    mine = {f["key"]: f for f in out.get("fields", [])}
+    theirs = {f["key"]: f for f in new.get("fields", [])}
+    fixes, taken = [], False
+    for key in dict.fromkeys(parts(new) + parts(saved)):
+        was, now = part_value(saved, key), part_value(new, key)
+        old_row, new_row = mine.get(key), theirs.get(key)
+        both = old_row is not None and new_row is not None and now is not None
+        if both and not old_row.get("sensitive") and new_row.get("visibility") != old_row.get("visibility"):
+            fixes.append((key, "visibility"))
+        if both and is_detail_key(key) and _definition(new_row) != _definition(old_row):
+            fixes.append((key, "compare"))
+            continue
+        if _same(was, now):
+            continue
+        dependent = was is not None and says(was, words)
+        if now is None and key not in changed and not dependent:
+            continue  # left out, and it didn't say what they replaced: kept as it was
+        extra = _all_words(now) - _all_words(was)  # every word the agent brought into the part
+        why = ("theirs" if key in changed else "new" if was is None else "unrelated" if not dependent
+               else "kept" if now is None
+               else "hidden" if _shown(saved, key) and _any_form(extra, private)
+               else "added" if {w for w in extra if not _grammar(w)} - _any_form(extra, _all_words(was) | given)
+               else None)
+        if why:
+            fixes.append((key, why))
+            continue
+        taken = True
+        if key == DESCRIPTION:
+            out["intent_text"] = now
+        else:
+            old_row["value"] = _copy.deepcopy(new_row["value"])
+    if taken:
+        out["by"] = new.get("by", out.get("by"))
+    return out, fixes
+
+
+def keep_meanwhile(result: dict, start: dict, now: dict) -> tuple:
+    """An agent's draft (result), made from the draft as it was when its turn began (start), with every part that
+    changed on the draft since (now: a change the person kept, or saved live, while it was replying) as it is now: what
+    the person did meanwhile wins over what their agent wrote from an older copy. With another kind of match since, the
+    draft as it is now, whole. Returns (draft, keys): keys are the parts the agent had changed whose update gave way."""
+    if (start or {}).get("kind") != (now or {}).get("kind"):
+        return _copy.deepcopy(now), [c["key"] for c in changes_made(start, result)]
+    out, lost = _copy.deepcopy(result), []
+    theirs = {c["key"] for c in changes_made(start, result)}
+    for c in changes_made(start, now):
+        key = c["key"]
+        if key in theirs:
+            lost.append(key)
+        if key == DESCRIPTION:
+            out["intent_text"] = (now or {}).get("intent_text", "")
+            continue
+        row = _row(now, key)
+        fields = [f for f in out.get("fields", []) if f.get("key") != key]
+        at = next((n for n, f in enumerate(out.get("fields", [])) if f.get("key") == key), len(fields))
+        out["fields"] = fields[:at] + ([_copy.deepcopy(row)] if row is not None else []) + fields[at:]
+    return out, lost
+
+
+def part_words(key: str) -> str:
+    """A part in plain words, for a sentence the person reads."""
+    if key in _PART_WORDS:
+        return _PART_WORDS[key]
+    about, name = split_key(key)
+    if about:
+        return {"me": f"your {name}", "them": f"the {name} you'd like", "both": f"the {name}"}[about]
+    return "your " + LABELS.get(key, key).lower()
+
+
+def part_label(key: str) -> str:
+    """A part's label on the phone (the description's too)."""
+    return "Description" if key == DESCRIPTION else label_for(key)
+
+
+def _listed(words: list) -> str:
+    return words[0] if len(words) == 1 else ", ".join(words[:-1]) + " and " + words[-1]
+
+
+def change_line(changes: list) -> str:
+    """The short line the person's chat shows when their agent is told about a change they made: which parts, never
+    their values (an old hidden value never stays on screen)."""
+    return f"You changed {_listed([part_words(c['key']) for c in changes])} on your profile."
+
+
+NOTHING_ELSE = "Nothing else on your profile needed changing, so the rest is as it was."
+
+
+def updated_line(saved, result) -> str:
+    """What a consistency update did, said from what actually changed (never from what an agent says it did)."""
+    done = [part_words(c["key"]) for c in changes_made(saved, result)]
+    return f"I've updated {_listed(done)} to match." if done else NOTHING_ELSE

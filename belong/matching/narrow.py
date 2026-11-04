@@ -11,13 +11,14 @@
      both people show, each city's centre read in that country: a city whose centre isn't
      known there (or a listing that shows no country) is only in reach of a city of the same
      name. In the same country, someone who gives no city is open to anywhere in it.
-  3. What, by meaning. Listings of a structured kind (dating, language, ...) are compared
-     with their own kind: the kind the listing shows, else the one read from its description
-     (matcher.understood, the same reading every decision uses). Listings compared by their
-     "looking for" / "you are" phrases are
-     found through an inverted index of the words in their phrases, topics and what they show
-     about themselves, inside the place groups of steps 1-2: a guitarist is never compared
-     with a plumber, nor anyone with people they could never meet.
+  3. What, by meaning. Dating, which has rules of its own, is compared with dating (the kind the
+     listing shows, else the one read from its description: matcher.understood, the same reading
+     every decision uses). Every other listing is compared by its "looking for" / "you are"
+     phrases, found through an inverted index of the words in its phrases, its topics and the
+     values of the details it shows about itself (matcher.about), inside the place groups of
+     steps 1-2: a beekeeper is never compared with an accountant, nor anyone with people they could
+     never meet. What a listing would like the other person's details to be (its "them" and
+     "both" details) only ever removes a pair, so it needs no key in the index.
 
 The groups always contain every pair the decisions that follow (matcher.intent_met, and
 matcher.nearly for close matches and questions) could accept. Then the hard filters apply as
@@ -29,29 +30,38 @@ shortlisted, so they can't become the reason two people meet.
 from __future__ import annotations
 
 from collections import defaultdict
+from typing import Optional
 
-from ..schema import (CITY_COORDS, MAX_TRAVEL_KM, TRAVEL, TRAVEL_DEFAULT, UNDERSTOOD_FIELDS, Listing, km_between,
-                      meeting_format, plain_place, travel_choice, value_strings)
+from ..schema import (ANY, CITY_COORDS, MAX_TRAVEL_KM, TRAVEL, TRAVEL_DEFAULT, UNDERSTOOD_FIELDS, Field, Listing,
+                      canonical, km_between, meeting_format, own, plain_place, split_key, travel_choice, value_strings)
 from .intent import ParsedIntent
 from .text import TfIdf, cosine
 
 ONLINE, IN_PERSON = "online", "in person"
 _MODES = {"In person": frozenset({IN_PERSON}), "Online": frozenset({ONLINE}),
           "In person or online": frozenset({IN_PERSON, ONLINE})}
-# Kinds with a rule of their own (matcher.intent_met), compared with their own kind. Everything
-# else ("other") is compared by its phrases.
-STRUCTURED_KINDS = frozenset({"dating", "language", "cofounder", "tutoring", "climbing", "running", "roommate"})
+# The kind with rules of its own (matcher.intent_met), compared with its own kind. Everything else
+# ("other") is compared by its phrases.
+STRUCTURED_KINDS = frozenset({"dating"})
 
 
 class ShownView:
     """Read-only view of a listing that exposes shown fields only.
 
     Matching logic that decides *whether* a pair qualifies receives this, never the
-    full listing, so it cannot read a hidden value even by mistake.
+    full listing, so it cannot read a hidden value even by mistake. That includes its open
+    details: only the shown ones are here.
     """
 
     def __init__(self, listing: Listing):
         self._shown = listing.shown()
+        self._fields = listing.shown_fields()
+        by_about = defaultdict(list)
+        for key in sorted(self._fields):
+            by_about[split_key(key)[0]].append(self._fields[key])
+        self._own = tuple(by_about["me"] + by_about["both"])
+        self._wishes = tuple(by_about["them"] + by_about["both"])
+        self._own_values = tuple(v for f in self._own for v in f.strings() if canonical(v) != ANY)
         self.person_id = listing.person_id
         self.intent_text = listing.intent_text
         self.exactness = listing.exactness
@@ -59,10 +69,32 @@ class ShownView:
     def get(self, key: str):
         return self._shown.get(key)
 
+    @property
+    def fields(self) -> dict:
+        """The shown fields themselves, by key (what schema's detail comparisons read)."""
+        return dict(self._fields)
+
+    def own(self, name: str) -> Optional[Field]:
+        """This listing's own shown value of an open detail (its me: or both: detail), or None."""
+        return own(self._fields, name)
+
+    def own_details(self) -> tuple:
+        """Its shown open details about the person or the request itself (me: and both:)."""
+        return self._own
+
+    def own_values(self) -> tuple:
+        """The values of those details, but "any", which is no value of its own (matcher.about)."""
+        return self._own_values
+
+    def wishes(self) -> tuple:
+        """What it would like the other person's own values to be: its shown them: and both: details."""
+        return self._wishes
+
     def profile_text(self) -> str:
-        """The description and shown values, as words for text similarity. What the person's agent
-        understood (UNDERSTOOD_FIELDS) is left out: it already decides who qualifies, and as words
-        ("dating", "other") it would only blur how alike two listings read."""
+        """The description and shown values, as words for text similarity: open details' values come
+        in too, but never a detail's name or scale. What the person's agent understood
+        (UNDERSTOOD_FIELDS) is left out: it already decides who qualifies, and as words ("dating",
+        "other") it would only blur how alike two listings read."""
         parts = [self.intent_text]
         for key, value in self._shown.items():
             if key not in UNDERSTOOD_FIELDS:
@@ -168,11 +200,6 @@ def location_ok(a: ParsedIntent, av: ShownView, b: ParsedIntent, bv: ShownView) 
     return how_they_meet(a, av, b, bv) is not None
 
 
-def _cross_kind_ok(a: ParsedIntent, av: ShownView, b: ParsedIntent, bv: ShownView) -> bool:
-    """Listings filed under different kinds can still be compared by their phrases."""
-    return _by_phrase(a, av) and _by_phrase(b, bv)
-
-
 def _by_phrase(p: ParsedIntent, view: ShownView) -> bool:
     """Compared by its "looking for" / "you are" phrases: it has both, and it isn't dating."""
     return view.get("seeking") is not None and view.get("offering") is not None and p.kind != "dating"
@@ -233,12 +260,13 @@ OPEN = "open to company"  # listings whose "looking for" may be met without a sh
 
 def shortlists(parsed: dict, views: dict, size: int, focus=None, words=None) -> tuple[dict, TfIdf]:
     """For each listing (or only those in `focus`): the `size` most similar candidates that pass
-    the hard filters (same kind of match, or both compared by phrase; a way to meet).
+    the hard filters (the same kind of match; a way to meet).
 
     Top down: listings are put in place groups once (how and where they can meet, steps 1-2), and
-    each listing only looks in the groups it could meet in. In those groups, structured kinds are
-    found by kind, and phrase listings through a word index (step 3), built for a group only when
-    a phrase listing first looks in it, so a run for a few listings never indexes the whole board.
+    each listing only looks in the groups it could meet in. In those groups, dating is found by
+    kind, and every other listing through the word index of its phrases (step 3), built for a group
+    only when a phrase listing first looks in it, so a run for a few listings never indexes the whole
+    board.
 
     words(view) -> (want, have, open): a listing's index keys, read the way the Matchmaker's own
     decisions read it (matcher.index_words): `want` from what it looks for, `have` from what it is
@@ -321,8 +349,7 @@ def shortlists(parsed: dict, views: dict, size: int, focus=None, words=None) -> 
                         pool.update(idx.get(key, ()))
         pool.discard(a)
         cands = [b for b in sorted(pool, key=order.__getitem__)
-                 if (parsed[b].kind == ap.kind or _cross_kind_ok(ap, av, parsed[b], views[b]))
-                 and location_ok(ap, av, parsed[b], views[b])]
+                 if parsed[b].kind == ap.kind and location_ok(ap, av, parsed[b], views[b])]
         intent_vec = index.embed(av.intent_text)
         cands.sort(key=lambda b: -cosine(intent_vec, index.vectors[b]))
         out[a] = cands[:size]

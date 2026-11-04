@@ -4,16 +4,26 @@ from __future__ import annotations
 import json
 import unittest
 
+from dataclasses import replace
+
 from belong.leaks import leak_report
 from belong.matching.contract import Proposal
 from belong.schema import HIDDEN
 from belong.sim import run
 from belong.warden import verify_chain
-from tests.helpers import fld, person, roommates_board
+from tests.helpers import ROOMMATE_REFS, detail, fld, listing, person, roommates_board
 
 
-def proposal(reasons=("city", "move_in"), used=(), a_met=True, b_met=True):
+def proposal(reasons=("city", *ROOMMATE_REFS), used=(), a_met=True, b_met=True):
     return Proposal("pa", "pb", a_met, b_met, 0.9, 0.9, 0.2, tuple(reasons), tuple(used))
+
+
+def crowd(w, board, n, field, start=0):
+    """n more people (one listing each) who have this field, so it can count in a crowd."""
+    for i in range(start, start + n):
+        pid = f"crowd{i:02d}"
+        assert w.admit(person(pid), listing(pid, "Looking for a quiet flat in Kyoto.", [fld("city", "Kyoto"), field]),
+                       board).accepted
 
 
 class FullRunHasNoLeaks(unittest.TestCase):
@@ -39,25 +49,69 @@ class WardenExitBlocksLeaks(unittest.TestCase):
         self.assertEqual(intro.a_view["fields"]["first_name"], "Ren")
 
     def test_a_reissued_introduction_shows_current_details_and_nothing_since_hidden(self):
-        from dataclasses import replace
         w, board = roommates_board()
         intro = w.exit_introduction(proposal(), board)
+        self.assertIn("chess", json.dumps(intro.a_view))  # shown at first
         b = board.listing("pb")
         fields = tuple(replace(f, value="Rennie") if f.key == "first_name" else
-                       replace(f, visibility=HIDDEN) if f.key == "interests" else f for f in b.fields)
+                       replace(f, visibility=HIDDEN) if f.key == "me:interests" else f for f in b.fields)
         self.assertTrue(w.admit(person("pb"), replace(b, fields=fields, version=b.version + 1), board).accepted)
-        new = w.refresh_introduction(intro.intro_id, ["city", "interests"], board)
+        new = w.refresh_introduction(intro.intro_id, ["city", *ROOMMATE_REFS], board)
         self.assertEqual(new.intro_id, intro.intro_id)
         self.assertEqual(new.a_view["fields"]["first_name"], "Rennie")
-        self.assertNotIn("interests", new.a_view["fields"])          # hidden now, so gone
+        self.assertNotIn("me:interests", new.a_view["fields"])       # hidden now, so gone
         self.assertNotIn("chess", json.dumps(new.to_dict()))          # and not in the reason either
+        self.assertNotIn("interests", new.a_view["reason"])           # nor the detail itself
 
     def test_hidden_field_as_a_reason_is_rejected(self):
         """Never in the reason: a hidden key can't be a reason field."""
         w, board = roommates_board()
-        self.assertIsNone(w.exit_introduction(proposal(reasons=("city", "religion")), board))
+        self.assertIsNone(w.exit_introduction(proposal(reasons=("city", "religion", *ROOMMATE_REFS)), board))
         self.assertEqual(w.receipts[-1].check, "reason_fields_shown")
         self.assertEqual(w.receipts[-1].result, "fail")
+
+    def test_a_hidden_open_detail_as_a_reason_is_rejected(self):
+        """Never in the reason: a ref to an open detail one of them hides isn't one the Warden works out."""
+        w, board = roommates_board(extra_a=[detail("night shifts", "every week", visibility=HIDDEN)],
+                                   extra_b=[detail("night shifts", "every week")])
+        intro = w.exit_introduction(proposal(reasons=("city", *ROOMMATE_REFS, "agree:night shifts")), board)
+        self.assertIsNone(intro)
+        self.assertEqual((w.receipts[-1].check, w.receipts[-1].result), ("reason_details_true", "fail"))
+
+    def test_the_matchmaker_must_cite_every_open_detail_in_common(self):
+        """Choosing which details to cite could carry a hidden value out, so a subset is refused."""
+        w, board = roommates_board()
+        for reasons in (("city",), ("city", *ROOMMATE_REFS[:2]), ("city", *ROOMMATE_REFS, "wants:interests")):
+            self.assertIsNone(w.exit_introduction(proposal(reasons=reasons), board), reasons)
+            self.assertEqual((w.receipts[-1].check, w.receipts[-1].result), ("reason_details_true", "fail"))
+        self.assertIsNotNone(w.exit_introduction(proposal(), board))
+
+    def test_open_detail_reasons_are_worded_from_both_shown_details(self):
+        w, board = roommates_board()
+        intro = w.exit_introduction(proposal(), board)
+        self.assertEqual(intro.a_view["reason"], "You're in Osaka; they're in Osaka. You share the same free time: "
+                                                 "weekends. You share the same interests: jazz. You share the same "
+                                                 "move in month: November.")
+        self.assertEqual(intro.a_view["fields"]["me:interests"],
+                         {"values": ["jazz", "chess"], "compare": "same", "steps": [], "required": True})
+
+    def test_a_hidden_value_raises_a_score_only_in_a_crowd_of_other_people(self):
+        """Only counts in a crowd: k people besides the two of them, counted as people."""
+        w, board = roommates_board()
+        crowd(w, board, 19, fld("religion", "buddhist", HIDDEN))  # written differently: the same value
+        self.assertIsNone(w.exit_introduction(proposal(used=("religion",)), board))
+        self.assertEqual((w.receipts[-1].check, w.receipts[-1].result), ("hidden_crowd", "fail"))
+        crowd(w, board, 1, fld("religion", "Buddhist", HIDDEN), start=19)
+        self.assertIsNotNone(w.exit_introduction(proposal(used=("religion",)), board))
+
+    def test_a_used_hidden_field_must_be_hidden_shared_and_never_a_wish(self):
+        w, board = roommates_board(extra_a=[detail("pets", "cats", about="them")],
+                                   extra_b=[detail("pets", "cats", visibility=HIDDEN)])
+        crowd(w, board, 20, fld("employer", "Nintendo", HIDDEN))
+        crowd(w, board, 20, detail("pets", "cats", about="them"), start=20)
+        for used in (("employer",), ("them:pets",), ("city",), ("me:pets",)):
+            self.assertIsNone(w.exit_introduction(proposal(used=used), board), used)
+            self.assertEqual((w.receipts[-1].check, w.receipts[-1].result), ("hidden_crowd", "fail"))
 
     def test_proposal_with_no_shown_reason_is_rejected(self):
         """Never the only reason: there must be at least one shared shown reason."""
@@ -72,11 +126,18 @@ class WardenExitBlocksLeaks(unittest.TestCase):
     def test_hidden_values_stay_out_even_when_one_side_shows_the_same_key(self):
         """A hides diet=vegan, B shows diet=vegan. A sees B's diet (B chose to show it);
         B must not learn A's."""
-        w, board = roommates_board(extra_a=[fld("diet", "vegan", HIDDEN)], extra_b=[fld("diet", "vegan")])
+        w, board = roommates_board(extra_a=[detail("diet", "vegan", visibility=HIDDEN)], extra_b=[detail("diet", "vegan")])
         intro = w.exit_introduction(proposal(), board)
-        self.assertEqual(intro.a_view["fields"]["diet"], "vegan")
-        self.assertNotIn("diet", intro.b_view["fields"])
+        self.assertEqual(intro.a_view["fields"]["me:diet"]["values"], ["vegan"])
+        self.assertNotIn("me:diet", intro.b_view["fields"])
         self.assertNotIn("vegan", json.dumps(intro.b_view))
+        self.assertNotIn("diet", json.dumps(intro.b_view))
+
+    def test_a_hidden_detail_name_never_reaches_the_other_person(self):
+        """A hidden open detail's name can say as much as its value."""
+        w, board = roommates_board(extra_a=[detail("night shifts", "every week", visibility=HIDDEN)])
+        intro = w.exit_introduction(proposal(), board)
+        self.assertNotIn("night shifts", json.dumps(intro.to_dict()))
 
     def test_approach_limit_is_enforced(self):
         w, board = roommates_board()
@@ -143,6 +204,27 @@ class LeakReportCatchesPlantedLeaks(unittest.TestCase):
         audits = {f["audit"] for f in self._report(board, [d])["findings"]}
         self.assertEqual(audits, {"A1", "A2"})
 
+    def test_hidden_open_detail_in_view_is_caught(self):
+        w, board = roommates_board(extra_b=[detail("diet", "pescatarian", visibility=HIDDEN)])
+        d = self._intro(board, w)
+        d["a_view"]["fields"]["me:diet"] = {"values": ["pescatarian"], "compare": "same", "steps": [], "required": True}
+        audits = {f["audit"] for f in self._report(board, [d])["findings"]}
+        self.assertEqual(audits, {"A1", "A2"})
+
+    def test_a_shown_open_detail_changed_in_a_view_is_caught(self):
+        w, board = roommates_board()
+        d = self._intro(board, w)
+        d["a_view"]["fields"]["me:interests"]["required"] = False
+        self.assertEqual({f["audit"] for f in self._report(board, [d])["findings"]}, {"A1"})
+
+    def test_a_hidden_detail_name_in_a_reason_is_caught(self):
+        w, board = roommates_board(extra_a=[detail("night shifts", "every week", visibility=HIDDEN)])
+        d = self._intro(board, w)
+        self.assertTrue(self._report(board, [d])["ok"])
+        d["b_view"]["reason"] += " They work night shifts."
+        report = self._report(board, [d])
+        self.assertEqual([(f["audit"], "'night shifts'" in f["detail"]) for f in report["findings"]], [("A2", True)])
+
     def test_receipt_with_content_is_caught(self):
         w, board = roommates_board()
         bad = {**w.receipts[0].to_dict(), "note": "Buddhist"}
@@ -157,11 +239,63 @@ class LeakReportCatchesPlantedLeaks(unittest.TestCase):
         report = self._report(board, [d], reveals=[rv], connections=[pair], consents=consents)
         self.assertFalse(report["ok"])
 
+    def test_a_reveal_of_a_wish_or_of_something_neither_hides_is_caught(self):
+        w, board = roommates_board(extra_a=[detail("pets", "cats", about="them")],
+                                   extra_b=[detail("pets", "cats", about="them")])
+        d = self._intro(board, w)
+        pair = frozenset(("pa", "pb"))
+        for key, values in (("them:pets", ["cats"]), ("me:interests", ["jazz"])):
+            consents = {(d["intro_id"], p): {key} for p in pair}
+            rv = {"person_a": "pa", "person_b": "pb", "key": key, "values": values}
+            report = self._report(board, [d], reveals=[rv], connections=[pair], consents=consents)
+            self.assertEqual({f["audit"] for f in report["findings"]}, {"A4"}, key)
+
     def test_hidden_field_below_crowd_threshold_is_caught(self):
         """Only counts in a crowd: two people sharing 'Buddhist' is far below k = 20."""
         w, board = roommates_board()
         report = self._report(board, proposals=[proposal(used=("religion",))])
         self.assertEqual(report["findings"][0]["audit"], "R2")
+
+    def test_one_person_with_many_listings_is_one_person_in_the_crowd(self):
+        """The audit counts people, not listings: 21 listings of one person are one person."""
+        w, board = roommates_board()
+        for i in range(21):
+            board.put(person("crowd"), replace(listing(f"crowd-{i}", "Looking for a flat.",
+                                                       [fld("religion", "Buddhist", HIDDEN)]), owner_id="crowd"))
+        report = self._report(board, proposals=[proposal(used=("religion",))])
+        self.assertEqual([f["audit"] for f in report["findings"]], ["R2"])
+        for i in range(20):
+            board.put(person(f"other{i}"), listing(f"other{i}", "Looking for a flat.", [fld("religion", "Buddhist", HIDDEN)]))
+        self.assertTrue(self._report(board, proposals=[proposal(used=("religion",))])["ok"])
+
+    def test_open_detail_reasons_that_differ_from_the_shown_details_are_caught(self):
+        w, board = roommates_board(extra_a=[detail("night shifts", "every week", visibility=HIDDEN)],
+                                   extra_b=[detail("night shifts", "every week")])
+        for reasons in (("city", *ROOMMATE_REFS[:2]), ("city", *ROOMMATE_REFS, "agree:night shifts")):
+            report = self._report(board, proposals=[proposal(reasons=reasons)])
+            self.assertEqual({f["audit"] for f in report["findings"]}, {"R1"}, reasons)
+        self.assertTrue(self._report(board, proposals=[proposal()])["ok"])
+
+
+class CrowdCounts(unittest.TestCase):
+    def test_counted_once_per_board_change_and_read_only(self):
+        """The crowd is counted once per change to the board and shared, read-only, until the next change, so
+        the Warden's exit and every match read the same counts without recounting the board each time."""
+        w, board = roommates_board()
+        counts = board.value_counts()
+        self.assertIs(board.value_counts(), counts)
+        self.assertEqual(counts[("religion", "buddhist")], 2)
+        self.assertEqual(counts[("religion", "nothing like it")], 0)
+        for change in (lambda c: c.__setitem__(("religion", "buddhist"), 99), lambda c: c.update({"x": 1}),
+                       lambda c: c.pop(("religion", "buddhist")), lambda c: c.clear()):
+            with self.assertRaises(TypeError):
+                change(counts)
+        self.assertEqual(counts[("religion", "buddhist")], 2)
+        crowd(w, board, 1, fld("religion", "Buddhist", HIDDEN))
+        self.assertIsNot(board.value_counts(), counts)
+        self.assertEqual(board.value_counts()[("religion", "buddhist")], 3)
+        w.withdraw(person("crowd00"), "crowd00", board)
+        self.assertEqual(board.value_counts()[("religion", "buddhist")], 2)
 
 
 class MutualReveal(unittest.TestCase):
@@ -177,6 +311,18 @@ class MutualReveal(unittest.TestCase):
         self.assertEqual(w.exit_reveal(intro.intro_id, {"religion"}, set(), board), [])
         out = w.exit_reveal(intro.intro_id, {"religion", "employer"}, {"religion", "income_band"}, board)
         self.assertEqual([(r.key, r.values) for r in out], [("religion", ["Buddhist"])])
+
+    def test_open_details_are_compared_canonically_and_wishes_never_revealed(self):
+        w, board = roommates_board(extra_a=[detail("diet", "Pescatarian", visibility=HIDDEN),
+                                            detail("pets", "cats", about="them")],
+                                   extra_b=[detail("diet", "pescatarian", visibility=HIDDEN),
+                                            detail("pets", "cats", about="them")])
+        intro = w.exit_introduction(proposal(), board)
+        w.record_decision(intro.intro_id, "pa", True)
+        w.record_decision(intro.intro_id, "pb", True)
+        keys = {"me:diet", "them:pets", "me:interests"}  # a wish, and a detail both show, are never revealed
+        out = w.exit_reveal(intro.intro_id, keys, keys, board)
+        self.assertEqual([(r.key, r.values) for r in out], [("me:diet", ["Pescatarian"])])  # as A wrote it
 
     def test_nothing_revealed_before_both_say_yes(self):
         w, board, intro = self._connected()

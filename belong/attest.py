@@ -18,11 +18,14 @@ import json
 from datetime import datetime, timezone
 from pathlib import Path
 
+from .schema import (K_CROWD, LIST_CAPS, LIST_LONG_RUN, LIST_LONG_RUN_CHARS, LIST_MIN_AGE_DAYS, LIST_PHRASE_WORDS,
+                     LIST_UNSPACED_CHARS, LIST_VALUE_WORDS, MAX_LISTINGS_PER_OWNER)
+
 PKG = Path(__file__).resolve().parent
 
 # The Warden agent: the boundary every listing and introduction passes through.
 WARDEN_FILES = [
-    "schema.py",          # data model, field registry, follow-up menu
+    "schema.py",          # built-in fields, open-detail rules, sensitive words, follow-up menu
     "warden.py",          # entry + exit checks, sealed outputs, receipt chain
     "leaks.py",           # independent leak audit
     "attest.py",          # this file
@@ -34,6 +37,8 @@ WARDEN_FILES = [
 # so the privacy guarantee holds even if someone runs a modified Matchmaker.
 MATCHMAKER_FILES = [
     "matching/matcher.py",
+    "matching/hybrid.py",  # the hybrid: the rules narrow, an injected judge judges the fuzzy part
+    "matchmaker_openai.py",  # that judge: a model over a Chat Completions API (OpenAI's, as a mock), outside matching/
     "matching/intent.py",
     "matching/narrow.py",
     "matching/text.py",
@@ -45,10 +50,42 @@ POLICY = {
     "matching_output": "Warden exit checks only",
     "matching_allowed_imports": ["__future__", "collections", "dataclasses", "math", "re", "typing", "unicodedata",
                                  "belong.schema"],
-    "k_crowd_threshold": 20,
+    # A hidden value counts only if this many people besides the two being matched share it (counted
+    # as different people, not listings).
+    "k_crowd_threshold": K_CROWD,
     "approach_limit_per_day": 15,
     "listing_updates_per_day": 5,
-    "output_types": ["Introduction", "FollowUpOut", "Reveal", "Receipt"],
+    "listings_per_person": MAX_LISTINGS_PER_OWNER,
+    "output_types": ["Introduction", "FollowUpOut", "Reveal", "DetailsInUse", "Receipt"],
+    "details_in_use": {
+        "built_by": "the Warden alone, from the board (no Matchmaker input), at most once a day",
+        "min_people": K_CROWD,
+        "counted_by": "different people",
+        "from": "shown, non-sensitive fields of active listings unchanged for at least "
+                f"{LIST_MIN_AGE_DAYS} days",
+        "text": f"short plain text: a phrase at most {LIST_PHRASE_WORDS} words, anything else at most "
+                f"{LIST_VALUE_WORDS} (a word is a run of letters and digits, whatever joins them, and a capital "
+                f"after a lower-case letter starts one; in a script written without spaces, one word per "
+                f"{LIST_UNSPACED_CHARS} letters; in any other, a run longer than {LIST_LONG_RUN} letters is one word "
+                f"per {LIST_LONG_RUN_CHARS} letters), no sentence punctuation, "
+                "no contact details, no sensitive words",
+        "max_items": LIST_CAPS,
+        "order": "alphabetical, no counts",
+    },
+    # The Matchmaker AI (matching/hybrid.py, matchmaker_openai.py): whether it is on right now is at
+    # /api/trust/matchmaker; what it may receive and answer is fixed.
+    "matchmaker_ai": {
+        "status": "MOCK: when it is on, OpenAI's API (or a self-hosted model at the endpoint set) stands in for the "
+                  "model that will run enclosed; synthetic and test profiles only",
+        "receives": "for each pair the hard rules allow, what both listings show and their descriptions, with every "
+                    "first name, id and hidden text taken out, under labels of one request; each request checked by "
+                    "the Warden against the board as it is just before it goes (warden.exit_judge_request), then "
+                    "audited again (leaks.py, A8: the last 2000 requests kept; the model client's record compared "
+                    "with every request the Warden passed)",
+        "answers": "verdicts only, read strictly: match, close or no each way, a fit from 0 to 1, and, asked about "
+                   "one listing alone, whether it seems to hunt one person (which can only drop its pairs); it never "
+                   "adds a pair the hard rules refuse",
+    },
 }
 
 

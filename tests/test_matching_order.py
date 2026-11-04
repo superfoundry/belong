@@ -6,18 +6,17 @@ import unittest
 from dataclasses import replace
 from unittest import mock
 
-from belong import agent
 from belong.evaluate import can_meet, compare_narrowing
 from belong.leaks import leak_report
 from belong.matching.contract import Proposal
 from belong.matching.marketboard import Marketboard
-from belong.matching.matcher import (OfflineMatcher, ShownView, _minutes, effective_kind, index_words,
-                                     parse_intent, recently_updated)
+from belong.matching.matcher import (OfflineMatcher, ShownView, _minutes, index_words, parse_intent,
+                                     recently_updated, understood)
 from belong.matching.narrow import meeting_modes, shortlists, within_reach
 from belong.schema import HIDDEN, km_between, meeting_format, travel_choice
-from belong.synth import generate
+from belong.synth import draft_listing, generate
 from belong.warden import reason_text
-from tests.helpers import fld, listing, person, warden
+from tests.helpers import detail, fld, listing, person, warden
 
 SAME_NAME = "Cite two cities with the same name in different countries to make them sound close"
 HIDDEN_COUNTRY = "Word where two people are from a country one of them hides"
@@ -36,7 +35,7 @@ def web(pid, role, city, country, fmt, intent=None):
     seeking, offering = ("a web design client", "a web designer") if role == "designer" else \
         ("a web designer", "a web design client")
     headline = "Offering web design" if role == "designer" else "Looking for a web designer"
-    fields = [fld("first_name", pid.title()), fld("city", city), fld("country", country), fld("schedule", "weekends"),
+    fields = [fld("first_name", pid.title()), fld("city", city), fld("country", country), detail("free time", "weekends"),
               fld("seeking", seeking), fld("offering", offering), fld("headline", headline),
               fld("topics", ("web design", "websites"))]
     if fmt:
@@ -46,8 +45,10 @@ def web(pid, role, city, country, fmt, intent=None):
 
 
 def roommate(pid, city, travel=None, country="Japan"):
-    fields = [fld("first_name", pid.title()), fld("city", city), fld("country", country), fld("move_in", "November"),
-              fld("schedule", "weekends")]
+    """Someone looking for a roommate, moving in November (what the request itself is about: "both")."""
+    fields = [fld("first_name", pid.title()), fld("city", city), fld("country", country), fld("kind", "other"),
+              fld("seeking", "a roommate"), fld("offering", "a roommate"), detail("move in month", "November", "both"),
+              detail("free time", "weekends")]
     if travel:
         fields.append(fld("travel", travel))
     return listing(pid, f"Looking for a roommate in {city}, moving in November.", fields)
@@ -122,11 +123,11 @@ class HowTheyMeet(unittest.TestCase):
                                         in_person_text)[1]), set())
 
     def test_any_kind_but_dating_may_meet_online(self):
-        def runner(pid, city, country):
-            return listing(pid, f"Running buddy for a virtual running club, easy weekend runs online.", [
-                fld("city", city), fld("country", country), fld("pace", "easy"), fld("schedule", "weekends"),
-                fld("format", "Online")])
-        self.assertEqual(pairs(board_of(runner("ana", "Berlin", "Germany"), runner("tom", "London", "United Kingdom"))[1]),
+        def reader(pid, city, country):
+            return listing(pid, "Book club buddy for a virtual reading circle, weekend calls online.", [
+                fld("city", city), fld("country", country), fld("seeking", "a book club partner"),
+                fld("offering", "a book club partner"), detail("free time", "weekends"), fld("format", "Online")])
+        self.assertEqual(pairs(board_of(reader("ana", "Berlin", "Germany"), reader("tom", "London", "United Kingdom"))[1]),
                          {frozenset(("ana", "tom"))})
         dating = listing("x", "Looking for a relationship with a woman, aged 25 to 34.", [fld("format", "Online")])
         self.assertEqual(meeting_modes(parse_intent(dating.intent_text), ShownView(dating)), {"in person"})
@@ -195,13 +196,14 @@ class TravelDistance(unittest.TestCase):
         # Narrowing looks only at cities in reach in the shown country.
         _, board = board_of(us("cam", "Cambridge"), uk("lon", "London"), us("bos", "Boston"), uk("camuk", "Cambridge"))
         views = {l.person_id: ShownView(l) for l in board.listings()}
-        parsed = {pid: effective_kind(parse_intent(v.intent_text), v) for pid, v in views.items()}
+        parsed = {pid: understood(v) for pid, v in views.items()}
         lists, _ = shortlists(parsed, views, 10, focus={"cam", "camuk"}, words=index_words)
         self.assertEqual((set(lists["cam"]), set(lists["camuk"])), ({"bos"}, {"lon"}))
 
     def test_no_city_is_still_open_to_anywhere_in_the_country(self):
         anywhere = listing("pa", "Looking for a roommate anywhere in Japan, moving in November.",
-                           [fld("country", "Japan"), fld("move_in", "November"), fld("schedule", "weekends")])
+                           [fld("country", "Japan"), fld("seeking", "a roommate"), fld("offering", "a roommate"),
+                            detail("move in month", "November", "both"), detail("free time", "weekends")])
         self.assertEqual(pairs(board_of(anywhere, roommate("pb", "Kyoto"))[1]), {frozenset(("pa", "pb"))})
         self.assertEqual(pairs(board_of(anywhere, roommate("pb", "Berlin", country="Germany"))[1]), set())
 
@@ -215,7 +217,7 @@ class TravelDistance(unittest.TestCase):
         _, board = board_of(roommate("osaka", "Osaka", "Up to 30 km"), roommate("kobe", "Kobe", "Up to 30 km"),
                             roommate("kyoto", "Kyoto", "Up to 100 km"), roommate("tokyo", "Tokyo", "Up to 100 km"))
         views = {l.person_id: ShownView(l) for l in board.listings()}
-        parsed = {pid: effective_kind(parse_intent(v.intent_text), v) for pid, v in views.items()}
+        parsed = {pid: understood(v) for pid, v in views.items()}
         lists, _ = shortlists(parsed, views, 10, focus={"osaka"}, words=index_words)
         self.assertEqual(set(lists["osaka"]), {"kobe"})
 
@@ -282,7 +284,7 @@ class WhereInTheReason(unittest.TestCase):
         def placed(pid, city, country, visibility=None):
             return listing(pid, "Looking for a roommate, moving in November.", [
                 fld("first_name", pid.title()), fld("city", city), fld("country", country, visibility),
-                fld("move_in", "November"), fld("schedule", "weekends")])
+                fld("seeking", "a roommate"), fld("offering", "a roommate")])
         cases = [
             (placed("pa", "Cambridge", "United Kingdom", HIDDEN), placed("pb", "London", "United Kingdom"),
              "You're in Cambridge; they're in London.", "You're in London; they're in Cambridge."),
@@ -347,7 +349,7 @@ class WordIndex(unittest.TestCase):
     def _shortlisted(self, a, b, words=index_words):
         _, board = board_of(a, b)
         views = {l.person_id: ShownView(l) for l in board.listings()}
-        parsed = {pid: effective_kind(parse_intent(v.intent_text), v) for pid, v in views.items()}
+        parsed = {pid: understood(v) for pid, v in views.items()}
         lists, _ = shortlists(parsed, views, 10, words=words)
         return b.person_id in lists[a.person_id] and a.person_id in lists[b.person_id]
 
@@ -356,7 +358,7 @@ class WordIndex(unittest.TestCase):
         if topics:
             fields.append(fld("topics", tuple(topics)))
         if interests:
-            fields.append(fld("interests", tuple(interests)))
+            fields.append(detail("interests", tuple(interests)))
         # The description names no kind ("partner" would read as dating), so the phrases decide.
         return listing(pid, "Hoping to meet people in Tokyo.", fields, exactness=exactness)
 
@@ -367,21 +369,34 @@ class WordIndex(unittest.TestCase):
             # only the topics connect them
             (("a beginner ice hockey coach", "an ice hockey student", ("ice skating", "hockey")),
              ("a figure skating student", "a figure skating coach", ("ice skating", "figure skating"))),
-            # what one shows about themselves (interests) meets what the other looks for, with a wide net
+            # what one shows about themselves (their interests) meets what the other looks for, with a wide net
             (("a French and chess teacher", "a French and chess student", (), (), 0.3),
              ("a social hangout partner", "a social hangout partner", (), ("chess", "languages"), 0.3)),
-            # a role word alone carries a short phrase with a wide net
-            (("a chess partner", "a chess partner", (), (), 0.3), ("a hiking partner", "a hiking partner", (), (), 0.3)),
+            # with a wide net, a partner who shows they kayak is a kayaking partner
+            (("a kayaking partner", "a kayaking partner", (), (), 0.3),
+             ("a crossword partner", "a crossword partner", (), ("kayaking",), 0.3)),
         ]
-        from belong.matching.matcher import about, nearly, phrase_satisfies
+        from belong.matching.matcher import nearly, phrases_ok
         for a, b in cases:
             la, lb = self._phrases("pa", *a), self._phrases("pb", *b)
             va, vb = ShownView(la), ShownView(lb)
             # The decisions would accept something here (so the pair must stay a candidate)...
-            self.assertTrue(phrase_satisfies(va.get("seeking"), vb.get("offering"), va.exactness, about(vb))
-                            or nearly(va.get("seeking"), vb.get("offering"), va.get("topics"), vb.get("topics")), (a, b))
+            self.assertTrue(phrases_ok(va, vb) or nearly(va.get("seeking"), vb.get("offering"), va.get("topics"),
+                                                         vb.get("topics"), va.get("offering")), (a, b))
             # ...and narrowing keeps it.
             self.assertTrue(self._shortlisted(la, lb), (a, b))
+
+    def test_shared_role_words_alone_are_no_reason_to_compare(self):
+        """A role word in common ("partner") never meets a request that says what it is about, so two
+        such listings needn't be compared."""
+        from belong.matching.matcher import nearly, phrases_ok
+        a = self._phrases("pa", "a kayaking partner", "a kayaking partner", exactness=0.3)
+        b = self._phrases("pb", "a crossword partner", "a crossword partner", exactness=0.3)
+        va, vb = ShownView(a), ShownView(b)
+        self.assertFalse(phrases_ok(va, vb) or phrases_ok(vb, va))
+        self.assertFalse(nearly(va.get("seeking"), vb.get("offering"), (), (), va.get("offering")))
+        self.assertFalse(self._shortlisted(a, b))
+        self.assertTrue(self._shortlisted(a, b, words=None))  # the old catch-all group compared them
 
     def test_someone_who_just_wants_company_is_compared_with_everyone_nearby(self):
         """'A hangout partner' with a wide net can be met by any teacher or student, without a word in common."""
@@ -407,7 +422,7 @@ class FairRanking(unittest.TestCase):
 
     def plumbers(self, z_updated="2026-10-12T09:00:00Z"):
         def phr(pid, seeking, offering, intent):
-            return listing(pid, intent, [fld("city", "Tokyo"), fld("country", "Japan"), fld("schedule", "weekends"),
+            return listing(pid, intent, [fld("city", "Tokyo"), fld("country", "Japan"), detail("free time", "weekends"),
                                          fld("seeking", seeking), fld("offering", offering)])
         customer = phr("pc", "a plumber", "a plumbing customer", "Need a plumber in Tokyo.")
         y = phr("py", "a plumbing customer", "a plumber", "I'm a plumber in Tokyo, looking for new customers.")
@@ -437,16 +452,24 @@ class FairRanking(unittest.TestCase):
         self.assertEqual(self.first(board), {"pz"})
 
     def test_fair_ranking_only_reorders(self):
+        """With no limit on matches per person, load changes nothing but the order of exact matches. A
+        listing hears about at most one close match (TRUST.md #27), and fair ranking may pick which one,
+        but only among close matches that passed every check: the Warden accepts each one picked."""
         w, board = warden(), Marketboard()
         for p in generate(300, 7):
-            w.admit(p.person, agent.draft_listing(p, "2026-10-12T09:00:00Z"), board)
+            w.admit(p.person, draft_listing(p, "2026-10-12T09:00:00Z"), board)
         everyone = OfflineMatcher(max_per_person=10_000)
         load = {l.person_id: i % 16 for i, l in enumerate(board.listings())}
         plain = everyone.match(board).proposals
         busy = everyone.match(board, load=load).proposals
-        self.assertEqual(sorted(plain, key=lambda p: (p.person_a, p.person_b)),
-                         sorted(busy, key=lambda p: (p.person_a, p.person_b)))  # the same pairs, the same scores
+        exact = lambda props: sorted((p for p in props if not p.close), key=lambda p: (p.person_a, p.person_b))
+        self.assertEqual(exact(plain), exact(busy))  # the same pairs, the same scores
         self.assertNotEqual(plain, busy)  # in another order
+        close = lambda props: [p for p in props if p.close]
+        self.assertTrue(close(plain))
+        self.assertEqual(sorted(p.close for p in close(plain)), sorted(p.close for p in close(busy)))
+        for p in close(plain) + close(busy):
+            self.assertIsNotNone(warden().exit_introduction(p, board), p)
         for p in OfflineMatcher().match(board, load=load).proposals:  # and with the usual limit, every pick qualifies
             self.assertGreaterEqual(p.shown_score, p.shown_threshold)
             self.assertTrue(p.reason_fields)

@@ -1,7 +1,17 @@
-"""Command line.
+"""Command line (SPEC §8).
 
-  python3 -m belong run    [--n 300] [--seed 7]   simulate, write out/run.json, print summary
-  python3 -m belong serve  [--port 8000] [--host 127.0.0.1]   run (if needed) and serve the demo
+  python3 -m belong run    [--n 300] [--seed 7]   simulate, write out/run.json, print summary; then the same
+                                                  week with agent dialects (synth.DIALECTS), summary only
+                           [--matcher ai] [--ai-pairs 80]   opt-in: the Matchmaker AI judges the fuzzy part of up to
+                                                  that many pairs a round (a mock of the enclosed model: it calls the
+                                                  API BELONG_MATCHMAKER_URL names, OpenAI's by default, and costs
+                                                  money); without it, the rules alone and no network, as in CI
+                           [--matcher hostile]    a stand-in Matchmaker AI that says yes to every pair and answers out
+                                                  of shape (probe.hostile_judge; no model, no network, every pair
+                                                  unless --ai-pairs): the leak reports, which then audit every request
+                                                  it was sent, still pass. Writes nothing.
+  python3 -m belong serve  [--port 8000] [--host 127.0.0.1]   run (if needed) and serve the demo; its Matchmaker is
+                                                  the AI or the rules by BELONG_MATCHMAKER (demo.DemoSession)
 """
 from __future__ import annotations
 
@@ -11,22 +21,27 @@ import os
 import sys
 from pathlib import Path
 
-from .sim import run
+from .matching.hybrid import MAX_PAIRS_PER_RUN
+from .matchmaker_openai import JudgeUnavailable, OpenAIJudge
+from .sim import RUN_FORMAT, run
+from .synth import DIALECT_SHARE
 
 ROOT = Path(__file__).resolve().parent.parent
 OUT = ROOT / "out" / "run.json"
 
 
 def _current(n: int) -> bool:
-    """Is there already a batch run for n people (the demo's own), so the inspector matches the demo?"""
+    """Is there already a batch run for n people (the demo's own) in today's layout, so the inspector
+    matches the demo?"""
     try:
-        return json.loads(OUT.read_text())["meta"]["n"] == n
-    except (OSError, ValueError, KeyError):
+        meta = json.loads(OUT.read_text())["meta"]
+        return meta["n"] == n and meta.get("format") == RUN_FORMAT
+    except (OSError, ValueError, KeyError, TypeError):
         return False
 
 
-def _run(n: int, seed: int) -> dict:
-    result = run(n=n, seed=seed)
+def _run(n: int, seed: int, **options) -> dict:
+    result = run(n=n, seed=seed, **options)
     OUT.parent.mkdir(exist_ok=True)
     tmp = OUT.with_suffix(".tmp")
     tmp.write_text(json.dumps(result, ensure_ascii=False))
@@ -34,17 +49,39 @@ def _run(n: int, seed: int) -> dict:
     return result
 
 
-def _summary(result: dict) -> None:
+def _summary(result: dict, dialects: dict = None, wrote: bool = True) -> None:
     m, lr = result["metrics"], result["leak_report"]
     print(f"People: {result['meta']['n']}   admitted: {m['admitted']}   rejected at entry: {m['entry_rejections']}")
     print(f"Proposals: {m['proposals']}   correct by ground truth: {m['proposals_correct']}   "
           f"precision: {m['precision']}   coverage: {m['coverage']}")
     print(f"Introductions: {m['introductions']}   connections: {m['connections']}   reveals: {m['reveals']}")
+    used = result["details_in_use"]
+    print("Details in use (shared list): " + "   ".join(f"{section}: {len(used[section])}" for section in
+                                                       ("details", "scales", "values", "phrases", "places")))
+    _leaks(lr)
+    if dialects is not None:
+        d = dialects["metrics"]
+        print(f"With agent dialects ({dialects['meta']['dialects']:.0%} of people): proposals: {d['proposals']}   "
+              f"correct by ground truth: {d['proposals_correct']}   precision: {d['precision']}   "
+              f"coverage: {d['coverage']}")
+        _leaks(dialects["leak_report"], "  ")
+    if wrote:
+        print(f"Wrote {OUT.relative_to(ROOT)}")
+
+
+def _leaks(lr: dict, indent: str = "") -> None:
     status = "PASS - no hidden detail was revealed" if lr["ok"] else f"FAIL - {len(lr['findings'])} finding(s)"
-    print(f"Leak report: {status}   checked: {lr['checked']}")
+    print(f"{indent}Leak report: {status}   checked: {lr['checked']}")
     for f in lr["findings"][:20]:
-        print(f"  [{f['audit']}] {f['detail']}")
-    print(f"Wrote {OUT.relative_to(ROOT)}")
+        print(f"{indent}  [{f['audit']}] {f['detail']}")
+
+
+def _ai_summary(judge) -> None:
+    """What the Matchmaker AI did over both runs: requests, how many failed (their pairs decided by the rules), tokens."""
+    u = judge.usage
+    print(f"Matchmaker AI: {judge.describe()} (a mock of the enclosed model; synthetic profiles only)   requests: "
+          f"{u['calls']}   answered: {u['answered']}   failed, decided by the rules: {u['failed']}   tokens: "
+          f"{u['prompt_tokens']} in, {u['completion_tokens']} out ({u['reasoning_tokens']} reasoning)")
 
 
 def load_dotenv(path: Path = ROOT / ".env") -> None:
@@ -67,6 +104,9 @@ def main(argv=None) -> int:
     r = sub.add_parser("run")
     r.add_argument("--n", type=int, default=300)
     r.add_argument("--seed", type=int, default=7)
+    # The rules alone unless asked: the simulation and CI stay network-free.
+    r.add_argument("--matcher", choices=("rules", "ai", "hostile"), default="rules")
+    r.add_argument("--ai-pairs", type=int, default=None)
     s = sub.add_parser("serve")
     s.add_argument("--port", type=int, default=int(os.environ.get("PORT", 8000)))
     # Loopback only unless told otherwise (the hosted container sets BELONG_HOST=0.0.0.0).
@@ -74,9 +114,31 @@ def main(argv=None) -> int:
     args = ap.parse_args(argv)
 
     if args.cmd == "run":
-        result = _run(args.n, args.seed)
-        _summary(result)
-        return 0 if result["leak_report"]["ok"] else 1
+        options = {}
+        if args.matcher == "ai":
+            load_dotenv()
+            try:
+                judge = OpenAIJudge()
+            except JudgeUnavailable as e:
+                print(f"The Matchmaker AI can't run: {e}", file=sys.stderr)
+                return 2
+            options = {"judge": judge, "max_pairs": max(0, MAX_PAIRS_PER_RUN if args.ai_pairs is None else args.ai_pairs)}
+        elif args.matcher == "hostile":
+            from .probe import hostile_judge  # a stand-in, no network: it costs nothing to send it every pair
+            options = {"judge": hostile_judge, "max_pairs": 10 ** 9 if args.ai_pairs is None else max(0, args.ai_pairs)}
+        hostile = args.matcher == "hostile"
+        # A hostile stand-in's week isn't the inspector's: it's printed, never written.
+        result = (run if hostile else _run)(n=args.n, seed=args.seed, **options)
+        dialects = run(n=args.n, seed=args.seed, dialects=DIALECT_SHARE, **options)
+        _summary(result, dialects, wrote=not hostile)
+        if hostile:
+            print("Matchmaker AI: a hostile stand-in (no model, no network) that says yes to every pair and answers out "
+                  "of shape. Proposals and precision above are what the rules' hard rules let it make; the leak reports "
+                  f"audited every request it was sent ({result['leak_report']['checked'].get('judge_requests', 0)} and "
+                  f"{dialects['leak_report']['checked'].get('judge_requests', 0)}).")
+        elif options:
+            _ai_summary(options["judge"])
+        return 0 if result["leak_report"]["ok"] and dialects["leak_report"]["ok"] else 1
     load_dotenv()
     if os.environ.get("BELONG_REQUIRE_PASSWORD") and not os.environ.get("BELONG_PASSWORD"):
         # Hosted (deploy/belong.service, Dockerfile): never start open to everyone by mistake.

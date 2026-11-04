@@ -11,19 +11,19 @@ from belong.leaks import leak_report
 from belong.matching.contract import FollowUp, Proposal
 from belong.matching.marketboard import Marketboard
 from belong.matching.matcher import OfflineMatcher
-from belong.schema import HIDDEN
-from tests.helpers import fld, listing, person, warden
+from belong.schema import HIDDEN, detail_reasons
+from tests.helpers import detail, fld, listing, person, warden
 
 
 def repair_board(customer_close=True, fixer_questions=True):
     """Someone wants an AC repair technician; a repairman nearby wants repair customers."""
     w, board = warden(), Marketboard()
     customer = replace(listing("pc", "Need my air conditioner fixed in Tokyo this weekend.", [
-        fld("first_name", "Mia"), fld("country", "Japan"), fld("city", "Tokyo"), fld("schedule", "weekends"),
+        fld("first_name", "Mia"), fld("country", "Japan"), fld("city", "Tokyo"), detail("free time", "weekends"),
         fld("seeking", "an air conditioner repair technician"), fld("offering", "an air conditioner repair customer"),
         fld("religion", "Buddhist", HIDDEN)]), notify_close=customer_close, notify_questions=True)
     fixer = replace(listing("pf", "I'm a repairman in Tokyo looking for repair jobs.", [
-        fld("first_name", "Ken"), fld("country", "Japan"), fld("city", "Tokyo"), fld("schedule", "flexible"),
+        fld("first_name", "Ken"), fld("country", "Japan"), fld("city", "Tokyo"), detail("free time", "any"),
         fld("seeking", "a repair customer"), fld("offering", "a repairman")]),
         notify_close=False, notify_questions=fixer_questions)
     for l in (customer, fixer):
@@ -63,12 +63,12 @@ def skating_board():
     """A beginner wants an ice hockey coach; a figure skater wants to teach."""
     w, board = warden(), Marketboard()
     hockey = replace(listing("ph", "I'm a beginner and want an ice hockey coach in Toronto.", [
-        fld("first_name", "Sam"), fld("country", "Canada"), fld("city", "Toronto"), fld("schedule", "weekends"),
+        fld("first_name", "Sam"), fld("country", "Canada"), fld("city", "Toronto"), detail("free time", "weekends"),
         fld("seeking", "a beginner ice hockey coach"), fld("offering", "an ice hockey student"),
         fld("topics", ("ice skating", "hockey"))]),
         notify_close=True, notify_questions=True)
     skater = replace(listing("ps", "Figure skater in Toronto, happy to teach.", [
-        fld("first_name", "Lea"), fld("country", "Canada"), fld("city", "Toronto"), fld("schedule", "flexible"),
+        fld("first_name", "Lea"), fld("country", "Canada"), fld("city", "Toronto"), detail("free time", "any"),
         fld("seeking", "a figure skating student"), fld("offering", "a figure skating coach"),
         fld("topics", ("ice skating", "figure skating"))]),
         notify_close=False, notify_questions=True)
@@ -139,15 +139,22 @@ class Headlines(unittest.TestCase):
                          "They're selling 100 cardboard boxes.")
 
 
+def reasons(board, a="pc", b="pf"):
+    """The reasons a proposal for this pair must give: a shown built-in they both have, and exactly the open
+    details the Warden finds they have in common (schema.detail_reasons)."""
+    return ("city", *detail_reasons(board.listing(a).shown_fields(), board.listing(b).shown_fields(), False))
+
+
 class CloseMatches(unittest.TestCase):
-    def proposal(self, **kw):
+    def proposal(self, board, **kw):
         return Proposal(**{"person_a": "pc", "person_b": "pf", "a_intent_met": False, "b_intent_met": True,
-                           "score": 1.0, "shown_score": 1.0, "shown_threshold": 0.1, "reason_fields": ("city",),
+                           "score": 1.0, "shown_score": 1.0, "shown_threshold": 0.1, "reason_fields": reasons(board),
                            "used_hidden_fields": (), "close": "pc", **kw})
 
     def test_a_close_match_goes_one_way(self):
         w, board = repair_board()
-        intro = w.exit_introduction(self.proposal(), board)
+        self.assertEqual(reasons(board), ("city",))  # an own "any" says nothing in common: no reason
+        intro = w.exit_introduction(self.proposal(board), board)
         self.assertEqual(intro.one_way_to, "pc")
         with self.assertRaises(PermissionError):
             w.record_decision(intro.intro_id, "pf", True)  # the repairman can't see it yet
@@ -157,7 +164,8 @@ class CloseMatches(unittest.TestCase):
 
     def test_only_for_someone_who_opted_in(self):
         w, board = repair_board(customer_close=False)
-        self.assertIsNone(w.exit_introduction(self.proposal(), board))
+        self.assertIsNone(w.exit_introduction(self.proposal(board), board))
+        self.assertEqual([r.check for r in w.receipts if r.result == "fail"], ["close_match_opted_in"])
 
 
 def lonely_board(**prefs):
@@ -187,7 +195,7 @@ class IncludeCloseMatches(unittest.TestCase):
 
     def test_not_asked_with_a_match(self):
         w, board = repair_board(customer_close=False, fixer_questions=False)
-        intro = w.exit_introduction(Proposal("pc", "pf", True, True, 1.0, 1.0, 0.1, ("city",), ()), board)
+        intro = w.exit_introduction(Proposal("pc", "pf", True, True, 1.0, 1.0, 0.1, reasons(board), ()), board)
         self.assertIsNotNone(intro)
         self.assertIsNone(w.exit_followup(FollowUp("pf", "broaden"), board))
         self.assertEqual(w.receipts[-1].check, "broaden_no_match_yet")

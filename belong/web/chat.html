@@ -10,13 +10,13 @@
   /* A mockup of Belong. as an app inside ChatGPT, built to OpenAI's Apps SDK UI guidelines
      (developers.openai.com/apps-sdk/concepts/ui-guidelines):
      - the system font and system colours for text, icons, dividers and backgrounds;
-     - Belong.'s colour only on primary buttons and small badges, never on backgrounds or text;
+     - our colour only on primary buttons and small badges, never on backgrounds or text;
      - inline cards appear before the model's reply, with at most two actions at the bottom,
        no tabs or drill-ins, no nested scrolling, and no logo inside (ChatGPT adds the app's
        name and icon above the card);
      - the model's follow-up is short and doesn't repeat the card.
      The chat app itself is plain dark greys with no logos: it isn't the real ChatGPT.
-     The sign-in popup is Belong.'s own website, so it uses the Belong. design system. */
+     The sign-in popup is our own website, so it uses the Belong. design system. */
   :root {
     --sys-bg: #212121; --sys-side: #181818; --sys-raise: #2f2f2f; --sys-card: #272727;
     --sys-line: rgba(255, 255, 255, 0.10); --sys-line-2: rgba(255, 255, 255, 0.16);
@@ -133,7 +133,7 @@
   .sheet label { display: flex; gap: 8px; align-items: center; font-size: 14px; color: var(--sys-text-2); }
   .sheet .actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
 
-  /* The sign-in popup is Belong.'s own website (OAuth), so it uses the Belong. design system. */
+  /* The sign-in popup is our own website (OAuth), so it uses the Belong. design system. */
   .popup { width: min(420px, 94vw); background: var(--surface-card); color: var(--text-primary); border-radius: 14px; overflow: hidden;
            box-shadow: 0 12px 40px rgba(0,0,0,.5); font: var(--text-body-s); }
   .popup .chrome { background: #ececec; color: #555; font: 12px var(--sys-font); padding: 8px 12px; display: flex; gap: 8px; align-items: center; }
@@ -185,6 +185,15 @@ const $ = id => document.getElementById(id);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const cap = t => t ? t.charAt(0).toUpperCase() + t.slice(1) : t;
 const val = v => Array.isArray(v) ? v.join(", ") : v;
+// A list of choices in a sentence, as on the phone: "a, b or c".
+const orList = v => { const a = [].concat(v).map(String); return a.length > 1 ? `${a.slice(0, -1).join(", ")} or ${a.at(-1)}` : a[0] || ""; };
+// An open detail's key is about:name (me: about the person, them: what they'd like the other person's to be,
+// both: something both share), as on the phone; null for a built-in detail.
+const detailParts = key => { const m = /^(me|them|both):(.+)$/.exec(key || ""); return m ? { about: m[1], name: m[2] } : null; };
+const isDetail = v => !!v && typeof v === "object" && !Array.isArray(v);
+// An open detail's values, read by whom it is about, as on the phone: the person's own are all theirs ("a, b"),
+// a wish or what both share is met by any one of them ("a, b or c").
+const detailValues = (about, values) => about === "me" ? [].concat(values).map(String).join(", ") : orList(values);
 function toast(msg) { const t = $("toast"); t.textContent = msg; t.style.display = "block"; clearTimeout(t._h); t._h = setTimeout(() => t.style.display = "none", 3000); }
 
 async function api(action, body = {}) {
@@ -232,14 +241,19 @@ function listingCard(l = listing()) {
   // Whether it can go live is the server's (the phone's rule), not a copy kept here.
   const ready = !!l.ready;
   // Every shown detail, with the server's label: where first, then the rest, minus what the title and the
-  // matching phrases already say (as on the phone).
+  // matching phrases already say (as on the phone). What you'd like in the other person is a group of its own.
   const skip = ["first_name", "age_band", "city", "country", "seeking", "offering", "headline", "kind", "wants_gender", "wants_age"];
+  const wish = f => (detailParts(f.key) || {}).about === "them";
+  const shownRows = l.draft.fields.filter(f => !skip.includes(f.key) && f.key in s);
+  const shownText = f => { const d = detailParts(f.key); return d ? detailValues(d.about, s[f.key]) : val(s[f.key]); };
   const meta = [["Where", [s.city, s.country].filter(Boolean).join(", ")],
-    ...l.draft.fields.filter(f => !skip.includes(f.key) && f.key in s).map(f => [f.label, s[f.key]])].filter(([, v]) => v);
+    ...shownRows.filter(f => !wish(f)).map(f => [f.label, shownText(f)])].filter(([, v]) => v);
+  const wishes = shownRows.filter(wish).map(f => [f.label, shownText(f) + (f.required === false ? " (ideally)" : "")]);
   const badge = paused ? '<span class="badge plain">Paused</span>' : live ? '<span class="badge">Live</span>' : '<span class="badge plain">Draft</span>';
   return `<div class="card"><p class="title">${esc(cap(s.headline || l.title))}${badge}</p>
     <p class="sub">Shown to people you're introduced to. Hidden details are never shown.</p>
-    ${meta.length ? `<dl class="meta">${meta.map(([k, v]) => `<dt>${k}</dt><dd>${esc(val(v))}</dd>`).join("")}</dl>` : ""}
+    ${meta.length ? `<dl class="meta">${meta.map(([k, v]) => `<dt>${esc(k)}</dt><dd>${esc(val(v))}</dd>`).join("")}</dl>` : ""}
+    ${wishes.length ? `<p class="sub" style="margin-top: 12px">What you'd like</p><dl class="meta">${wishes.map(([k, v]) => `<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join("")}</dl>` : ""}
     ${live ? matchingStatus(l) : ready ? `<div class="actions"><button class="btn primary" onclick="ask('start_matching','${l.id}')">${l.listed ? "Save changes" : "Start matching"}</button>
         ${l.listed ? `<button class="btn secondary" onclick="openSettings('${l.id}')">Settings</button>` : ""}</div>`
       : `<p class="sub" style="margin-top: 12px">Tell me who you're looking for and where, and you can start matching.</p>`}</div>`;
@@ -250,11 +264,20 @@ function introCard(id) {
   if (!i) return "";
   const name = i.view.fields.first_name || "Someone";
   // What their agent understood (the kind of match, who and what ages they'd like to meet) isn't a fact about them.
-  const facts = Object.entries(i.view.fields).filter(([k]) => !["first_name", "seeking", "offering", "headline", "topics",
-    "kind", "wants_gender", "wants_age"].includes(k)).map(([, v]) => val(v));
+  // Their open details read with their names; what they'd like in the other person is a group of its own.
+  const shown = Object.entries(i.view.fields).filter(([k]) => !["first_name", "seeking", "offering", "headline", "topics",
+    "kind", "wants_gender", "wants_age"].includes(k));
+  const facts = [], wishes = [];
+  for (const [k, v] of shown) {
+    const d = detailParts(k);
+    if (!d || !isDetail(v)) facts.push(val(v));
+    else if (d.about === "them") wishes.push(`${cap(d.name)}: ${detailValues(d.about, v.values || [])}${v.required === false ? " (ideally)" : ""}`);
+    else facts.push(`${cap(d.name)}: ${detailValues(d.about, v.values || [])}`);
+  }
   const status = { pending: "", waiting: '<span class="badge plain">You said yes</span>', connected: '<span class="badge">Introduced</span>', closed: '<span class="badge plain">Not this time</span>' }[i.status] || "";
   return `<div class="card"><p class="for">For “${esc(cap(owner.title))}”</p><p class="title">${esc(name)}${status}</p><p class="sub">${esc(facts.slice(0, 5).join(" · "))}</p>
-    <p class="quote">${esc(i.view.reason)}</p>
+    ${wishes.length ? `<p class="sub">What they'd like: ${esc(wishes.join(" · "))}</p>` : ""}
+    ${i.view.reason ? `<p class="quote">${esc(i.view.reason)}</p>` : ""}
     ${i.status === "pending" ? `<div class="actions"><button class="btn primary" onclick="ask('say_yes','${id}')">Say yes</button>
       <button class="btn secondary" onclick="ask('not_now','${id}')">Not now</button></div>` : ""}</div>`;
 }
@@ -267,9 +290,6 @@ function questionCard(qid, lid) {
     ? `<input class="i" id="qa-min-${k}" type="number" min="18" max="99" value="${lo}" aria-label="From age"> to
        <input class="i" id="qa-max-${k}" type="number" min="18" max="99" value="${hi}" aria-label="To age">
        <button class="btn primary" onclick="answerAges('${lid}','${qid}')">Answer</button>`
-    : a.type === "choice"
-    ? `<select class="i" id="qa-c-${k}" aria-label="${esc(q.question_text)}">${a.options.map(o => `<option>${esc(o)}</option>`).join("")}</select>
-       <button class="btn primary" onclick="answerChoice('${lid}','${qid}')">Answer</button>`
     : `<button class="btn primary" onclick="ask('answer_yes','${lid}:${qid}')">Yes</button>
        <button class="btn secondary" onclick="ask('answer_no','${lid}:${qid}')">No</button>`;
   return `<div class="card"><p class="for">For “${esc(cap(l.title))}”</p><p class="title">Question from Belong.</p><p class="sub">${esc(q.question_text)}</p>
@@ -279,10 +299,6 @@ function answerAges(lid, qid) {
   const k = `${lid}-${qid}`, min = parseInt($(`qa-min-${k}`).value, 10), max = parseInt($(`qa-max-${k}`).value, 10);
   if (!(min >= 18 && max >= min && max <= 99)) return toast("Pick an age range from 18 up.");
   ask("answer_value", { lid, qid, answer: { min, max }, said: max >= 99 ? `${min} or older` : `${min} to ${max}` });
-}
-function answerChoice(lid, qid) {
-  const v = $(`qa-c-${lid}-${qid}`).value;
-  ask("answer_value", { lid, qid, answer: { [qid]: v }, said: v });
 }
 // Once live, the listing card is also the live matching card: while the chat is open it keeps
 // checking with Belong. (a widget can call the app's tools itself) and offers to show what's new.
@@ -304,7 +320,7 @@ function matchingStatus(l) {
   const broaden = l.followups.find(q => q.question_id === "broaden");
   if (broaden) {
     return `<div class="status"><p class="title" style="margin:0">${esc(broaden.question_text)}</p>
-      <p class="sub" style="margin-top: 4px">People who are almost what you asked for. It's one-way: they aren't told about you. Belong. may also ask you a short question that could find you a match.</p>
+      <p class="sub" style="margin-top: 4px">People who are almost what you asked for. It's one-way: they aren't told about you.</p>
       <div class="actions"><button class="btn primary" onclick="ask('answer_yes','${l.id}:broaden')">Yes, include them</button>
         <button class="btn secondary" onclick="ask('answer_no','${l.id}:broaden')">No thanks</button></div></div>`;
   }
@@ -312,7 +328,7 @@ function matchingStatus(l) {
     <p class="sub" style="margin-top: 8px; font-size: 12px">Mockup: updates while this chat is open. Real ChatGPT may only allow this while the chat is on screen.</p>
     <div class="actions">${settings}</div></div>`;
 }
-function emptyCard() { return `<div class="card"><p class="title">No introductions yet</p><p class="sub">Belong. matches in private. Nobody, including ChatGPT, sees the other listings.</p></div>`; }
+function emptyCard() { return `<div class="card"><p class="title">No introductions yet</p><p class="sub">This chat never sees other people's listings: only introductions the Warden checked reach you here.</p></div>`; }
 
 // ---- rendering ----
 function render() {
@@ -418,7 +434,7 @@ async function showNew(id) {
   L.log.push({ me: "Show me what's new from Belong." }); L.sending = true; L.jump = true; render();
   try { await checkMatches(id); } finally { L.sending = false; L.jump = true; render(); }
 }
-// Belong.'s Matchmaker runs on its own (every few seconds in the demo); the page's state check
+// The Matchmaker runs on its own (every few seconds in the demo); the page's state check
 // (every 3 seconds, below) is how the live cards notice something new.
 
 // ---- changing anything goes through ChatGPT's confirmation ----
@@ -428,9 +444,9 @@ const ACTIONS = {
   delete_listing: { tool: "delete_listing", ask: id => `Delete “${cap(byId(id).title)}”?`, args: id => ({ listing: byId(id).title }) },
   say_yes: { tool: "say_yes", ask: id => `Say yes to ${nameOf(id)}?`, args: id => ({ introduction: nameOf(id) }) },
   not_now: { tool: "not_now", ask: id => `Pass on ${nameOf(id)} for now?`, args: id => ({ introduction: nameOf(id) }) },
-  answer_yes: { tool: "answer_question", ask: a => a.endsWith(":broaden") ? "Include close matches for this listing?" : `Answer “Yes” to the question from Belong.?`, args: () => ({ answer: "yes" }) },
-  answer_no: { tool: "answer_question", ask: a => a.endsWith(":broaden") ? "Keep to exact matches for this listing?" : `Answer “No” to the question from Belong.?`, args: () => ({ answer: "no" }) },
-  answer_value: { tool: "answer_question", ask: a => `Answer “${a.said}” to the question from Belong.?`, args: a => ({ answer: a.said }) },
+  answer_yes: { tool: "answer_question", ask: a => a.endsWith(":broaden") ? "Include close matches for this listing?" : `Answer “Yes” to this question?`, args: () => ({ answer: "yes" }) },
+  answer_no: { tool: "answer_question", ask: a => a.endsWith(":broaden") ? "Keep to exact matches for this listing?" : `Answer “No” to this question?`, args: () => ({ answer: "no" }) },
+  answer_value: { tool: "answer_question", ask: a => `Answer “${a.said}” to this question?`, args: a => ({ answer: a.said }) },
 };
 const byId = id => ME.listings.find(l => l.id === id) || listing();
 const nameOf = id => (ME.listings.flatMap(l => l.intros).find(x => x.intro_id === id) || { view: { fields: {} } }).view.fields.first_name || "this person";
@@ -458,7 +474,8 @@ async function run(kind, arg) {
   } else if (kind === "start_matching") {
     const d = l.draft, body = { intent_text: d.intent_text, exactness: d.exactness,
       fields: d.fields.filter(f => f.enabled && f.value !== null && f.value !== "" && !(Array.isArray(f.value) && !f.value.length))
-        .map(f => ({ key: f.key, value: f.value, visibility: f.visibility, confirmed: !!f.confirmed })) };
+        .map(f => ({ key: f.key, value: f.value, visibility: f.visibility, confirmed: !!f.confirmed,
+                     ...(detailParts(f.key) ? { about: f.about, name: f.name, compare: f.compare, steps: f.steps, required: f.required } : {}) })) };
     if (await api("submit", { listing_id: l.id, listing: body })) {
       for (const t of L.log) for (const c of t.cards || []) if (c.kind === "listing" || c.kind === "status") c.latest = false;
       L.log.push({ app: true, cards: [], bot: "Your listing is live. I'll update its card when Belong. finds someone, or ask me any time." });
@@ -476,13 +493,13 @@ async function run(kind, arg) {
     const [lid, qid] = arg.split(":");
     await api("answer", { listing_id: lid, question_id: qid, answer: { yes: kind === "answer_yes" } });
     L.log.push({ bot: qid === "broaden"
-      ? (kind === "answer_yes" ? "Done: you'll hear about close matches too, and Belong. may ask you a short question that could find you one. You can turn this off in the listing's settings." : "No problem: exact matches only.")
+      ? (kind === "answer_yes" ? "Done: you'll hear about close matches too. You can turn this off in the listing's settings." : "No problem: exact matches only.")
       : kind === "answer_yes" ? "Thanks, I've updated your listing. Ask me for matches again in a bit." : "No problem." });
   }
   L.jump = true; render();
 }
 
-// ---- overlays: the confirmation sheet, and the sign-in popup on Belong.'s site ----
+// ---- overlays: the confirmation sheet, and the sign-in popup on our own site ----
 function renderLayer() {
   const c = L.confirm, layer = $("layer");
   if (!c && L.thread) {
@@ -507,14 +524,15 @@ function renderLayer() {
     return;
   }
   if (!c && L.settings) {
-    const l = byId(L.settings), pr = l.prefs || {};
+    const l = byId(L.settings), pr = (pendingPrefs[l.id] || {}).values || l.prefs || {};
     const row = (label, on, change) => `<label class="srow"><span>${label}</span><input type="checkbox" class="sw" ${on ? "checked" : ""} onchange="${change}"></label>`;
     layer.innerHTML = `<div class="full" role="dialog" aria-modal="true" aria-label="Listing settings">
       <div class="full-head"><button class="btn secondary" onclick="L.settings=null; renderLayer(); render()">Close</button>
         <span class="app-label" style="margin:0"><span class="app-icon" aria-hidden="true">B.</span>Belong.</span></div>
       <div class="full-body"><p class="title" style="font-weight:600; margin:0 0 4px">${esc(cap(l.title))}</p><p class="sub" style="margin:0 0 16px">Listing settings</p>
         ${row("Active", l.active !== false, `setActive('${l.id}', this.checked)`)}
-        ${row("Close matches", pr.notify_close, `setCloseMatches('${l.id}', this.checked)`)}
+        ${row("Close matches", pr.notify_close, `setPref('${l.id}', 'notify_close', this.checked)`)}
+        ${row("Questions", pr.notify_questions, `setPref('${l.id}', 'notify_questions', this.checked)`)}
         <button class="btn secondary danger" onclick="ask('delete_listing','${l.id}')">Delete listing</button></div></div>`;
     return;
   }
@@ -540,7 +558,7 @@ function renderLayer() {
           <li>Ask before it changes anything. Saying yes is always your tap.</li></ul>
         <p>Your hidden details are never shown to matches. What you tell ChatGPT goes to OpenAI under their terms.</p>
         <button class="go" onclick="popupDone()">Allow and connect</button>`}
-      <p class="fine">Mockup of the sign-in a real connector would open (OAuth) on Belong.'s own site.</p></div></div></div>`;
+      <p class="fine">Mockup of the sign-in a real connector would open (OAuth) on our own site.</p></div></div></div>`;
   } else layer.innerHTML = "";
 }
 function openThread(id) { L.thread = id; L.msg = ""; renderLayer(); setTimeout(() => $("msg") && $("msg").focus(), 0); }
@@ -552,8 +570,16 @@ function sendToMatch(id) {
 }
 function openSettings(id) { L.settings = id; renderLayer(); }
 async function setActive(id, active) { await api("set_active", { listing_id: id, active }); renderLayer(); render(); }
-// One switch for both: close matches come with follow-up questions that could find one.
-async function setCloseMatches(id, on) { await api("set_prefs", { listing_id: id, prefs: { notify_close: on, notify_questions: on } }); renderLayer(); render(); }
+// One switch each: close matches, and questions that could find a match. The other choice stays as the screen shows it:
+// until the server has answered every switch tapped since, a tap's choice is kept here, so a second switch tapped
+// before the first is answered never sends the first one's older value.
+const pendingPrefs = {};
+async function setPref(id, key, on) {
+  const p = pendingPrefs[id] ||= { values: { ...(byId(id).prefs || {}) }, n: 0 };
+  p.values = { ...p.values, [key]: on }; p.n++;
+  try { await api("set_prefs", { listing_id: id, prefs: { ...p.values } }); } finally { if (--p.n === 0) delete pendingPrefs[id]; }
+  renderLayer(); render();
+}
 // "New chat" is just a new conversation: your listings and their live cards carry on. To add a listing,
 // ask in any chat ("I'm also looking for...") and the agent starts a separate one.
 function newChat() {

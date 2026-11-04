@@ -25,7 +25,7 @@ print(f"{r['listings']} listings (generate({n}, {seed})), {time.perf_counter() -
 print(f"Candidates, no size limit: {r['candidates_before']} with the catch-all group, "
       f"{r['candidates_after']} with the word index; only dropped: {r['subset']}")
 print(f"  of which for the {r['phrase_listings']} listings compared by phrase: {r['phrase_candidates_before']} -> "
-      f"{r['phrase_candidates_after']} (structured kinds keep their kind groups)")
+      f"{r['phrase_candidates_after']} (dating keeps its own group)")
 print(f"Pairs a decision could accept: {r['acceptable_pairs_kept']} kept, {len(r['lost'])} lost {r['lost'][:5]}")
 print(f"Proposals at the usual shortlist size: before {r['proposals_before']} ({r['correct_before']} correct), "
       f"after {r['proposals_after']} ({r['correct_after']} correct); correct pairs found only before: "

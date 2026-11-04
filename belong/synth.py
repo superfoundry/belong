@@ -3,26 +3,36 @@
 Names come from each person's region (most people in Japan have Japanese names), and every listing
 is in the format a person's agent writes now: a headline, topics, the format (in person, online, or
 both; some web designers and CV reviewers work online only), how far they'll travel to meet in person
-(most stay in their city), a price where there is one, and "looking for" / "offering" phrases for
-services, things to sell or give away, and open-ended requests. Like any agent's listing, each also
-records what the agent understood: the kind of match and, for dating, who they'd like to meet and
-those people's ages. The demo serves 5,000 of them; tests and the batch run use 300.
+(most stay in their city), a price where there is one, "looking for" / "offering" phrases on every
+listing but dating's, and open details the agent names on the spot (schema.Field: a name, about the
+person, the other person or the request itself, compared as "same" or on a scale of steps it writes
+out). Like any agent's listing, each also records what the agent understood: the kind of match
+(dating, or "other" for everything else) and, for dating, who they'd like to meet and those people's
+ages. The sensitive and default-hidden categories are the built-in ones. The demo serves 5,000 of
+them; tests and the batch run use 300.
 
 Each Persona carries:
   - the Person record (as the KYC provider would report it),
-  - every value the person *has* (shown or not),
+  - every value the person *has* (shown or not): built-ins by key, open details by detail key,
   - the person's visibility choices,
-  - a Truth: what they really want, in structured form. Truth never enters the room;
-    it is used only to grade the Matchmaker and to simulate answers and decisions.
+  - how long ago their listing last changed, and how their agent's way of writing details differs
+    from most agents' (a dialect, for a share of people when asked for: see DIALECTS),
+  - a Truth: what they really want, in structured form, as one of the stories below (climbing,
+    a language exchange, a roommate...). The stories are test data, never kinds of match. Truth
+    never enters the room; it is used only to grade the Matchmaker and to simulate answers and
+    decisions.
 """
 from __future__ import annotations
 
+import hashlib
 import random
 from dataclasses import dataclass, field
+from datetime import datetime, timedelta
 from typing import Optional
 
-from .schema import (AGE_BAND_BOUNDS, AGE_BANDS, FIELD_REGISTRY, GENDERS, HIDDEN, MATCH_KINDS, SHOWN, TRAVEL, Person,
-                     age_band_index)
+from .schema import (AGE_BAND_BOUNDS, AGE_BANDS, ANY, FIELD_REGISTRY, GENDERS, HIDDEN, MAX_VALUES, SHOWN,
+                     STRICT_EXACTNESS, TRAVEL, Field, Listing, Person, age_band_index, detail_key, is_detail_key,
+                     mentions_sensitive, split_key)
 
 CITIES = {
     "Osaka": ("JP", ["Namba", "Umeda", "Tennoji", "Nakazakicho"]),
@@ -127,7 +137,9 @@ ITEMS = {
 }
 TUTOR_RATES = {"JP": "¥4,000 per hour", "DE": "€35 per hour", "GB": "£30 per hour", "PT": "€25 per hour"}
 
-KINDS = [  # (kind, weight)
+# The stories people's truths tell, with their weights. Only dating is also a kind of match; every other
+# story is listed as "other" (understood_kind), with phrases and open details.
+KINDS = [  # (story, weight)
     ("dating", 0.30), ("climbing", 0.08), ("running", 0.07), ("language", 0.09),
     ("cofounder", 0.05), ("tutoring", 0.08), ("roommate", 0.06),
     ("other", 0.09),  # open-ended: bands and musicians, chess partners, photo-walk buddies
@@ -139,11 +151,30 @@ TRAVEL_SHARE = [("Same city", 0.75), ("Up to 30 km", 0.17), ("Up to 100 km", 0.0
 ONLINE_ONLY_SHARE = 0.4  # of providers of a service done online who are open to online at all
 GENRES = ["ska", "punk", "jazz", "indie"]
 INSTRUMENTS = ["guitarist", "drummer", "bassist", "singer"]
+# Each listing last changed this many days before the start (inclusive), so the shared list of details in
+# use (which counts only listings unchanged for a week) has entries from the first day.
+LISTED_DAYS = (8, 90)
+
+# Agent dialects. Different people's agents won't all write a detail the same way, however clear the
+# shared list is: asked for, a share of people (DIALECT_SHARE) get one difference each, so the batch run
+# shows that a detail written differently costs a match but never makes a wrong one. The ways: another
+# name for a detail, another scale (overlapping the usual one), a detail about the person left out or
+# hidden, or someone free whenever written as "flexible" instead of "any".
+DIALECT_SHARE = 0.25
+DIALECTS = ("other name", "other scale", "left out", "hidden", "no any")
+OTHER_NAMES = {"level": "ability", "pace": "speed", "language": "spoken language", "subject": "lesson subject",
+               "move in month": "moving month", "free time": "availability", "interests": "hobbies",
+               "smoking": "smoker", "diet": "eating"}
+OTHER_SCALES = {"level": ("novice", "intermediate", "advanced", "expert"),
+                "pace": ("very easy", "easy", "moderate", "fast")}
+# The details a dialect changes, the ones matching depends on most first.
+_DIALECT_ORDER = ("level", "pace", "language", "subject", "move in month", "free time", "interests", "smoking",
+                  "diet")
 
 
 @dataclass
 class Truth:
-    kind: str
+    kind: str  # the story (KINDS), not the listing's kind of match
     city: str
     exactness: float
     schedule: str
@@ -162,8 +193,19 @@ class Truth:
     sub: Optional[str] = None  # "other": music / chess / photo
     genre: Optional[str] = None  # "other" music
     seeks: Optional[str] = None  # "other" music band: the instrument it needs
+    move_in: Optional[str] = None  # roommate: the month they move in (both people's)
     bad_intent: bool = False  # intent names a specific person (Warden must reject)
     omit_age: bool = False  # dating intent leaves out the age range (follow-up needed)
+
+
+@dataclass(frozen=True)
+class Detail:
+    """An open detail as the person's agent writes it: schema.Field without its key and visibility
+    (the person's choice, in Persona.visibility)."""
+    values: tuple
+    compare: str = "same"
+    steps: tuple = ()
+    required: bool = True
 
 
 @dataclass
@@ -171,10 +213,12 @@ class Persona:
     person: Person
     truth: Truth
     intent_text: str
-    values: dict  # key -> value, everything the person has
+    values: dict  # key -> value, everything the person has: a built-in's text, or an open detail's Detail
     sensitive_on: set  # sensitive keys the person turned on
     visibility: dict  # key -> SHOWN/HIDDEN, the person's choices
     confirmed_shown: set = field(default_factory=set)
+    listed_days: int = 0  # how many days before the start their listing last changed
+    dialect: str = ""  # how their agent writes details unlike most ("other name: level"), or ""
 
 
 def _weighted(rng: random.Random, pairs):
@@ -199,7 +243,7 @@ def _sched_phrase(s):
             "weekday mornings": "weekday mornings", "flexible": "whenever works"}[s]
 
 
-def write_intent(t: Truth, v: dict, rng: random.Random) -> str:
+def write_intent(t: Truth, rng: random.Random) -> str:
     city = t.city
     sched = _sched_phrase(t.schedule)
     if t.bad_intent:
@@ -301,7 +345,7 @@ def write_intent(t: Truth, v: dict, rng: random.Random) -> str:
         return {"seller": f"Selling {thing} in {city}.", "buyer": f"Want to buy {thing} in {city}.",
                 "giver": f"Giving away {thing} in {city}, free to anyone who can pick it up.",
                 "taker": f"Looking for {thing} for free in {city}."}[t.role]
-    month = v["move_in"]
+    month = t.move_in
     return rng.choice([
         f"Looking for a roommate in {city}, moving in {month}.",
         f"Need a flatmate in {city} from {month}.",
@@ -376,9 +420,9 @@ def _art(word: str) -> str:
 
 def _write_listing(t: Truth, v: dict, country: str, rng) -> None:
     """What a person's agent adds to every listing now: a headline (starts with an -ing word, no
-    place or price), broader topics, the format, a price where there is one, and "looking for" /
-    "offering" phrases for listings that are compared by phrase (services, things, open-ended), and
-    how far they'll travel to meet in person."""
+    place or price), broader topics, the format, a price where there is one, "looking for" /
+    "offering" phrases on every listing but dating's (which has fixed rules of its own), and how far
+    they'll travel to meet in person. The phrases use no randomness."""
     k = t.kind
     if t.in_person:
         v["travel"] = t.travel
@@ -396,19 +440,24 @@ def _write_listing(t: Truth, v: dict, country: str, rng) -> None:
         v["headline"] = rng.choice([f"Looking for {_art(lvl)} {lvl} climbing partner", "Seeking a belay partner",
                                     "Finding a bouldering buddy"])
         v["topics"] = ("climbing", "bouldering")
+        v["seeking"] = v["offering"] = "a climbing partner"
     elif k == "running":
         v["headline"] = rng.choice(["Looking for a running buddy", "Seeking company on runs"])
         v["topics"] = ("running", "fitness")
+        v["seeking"] = v["offering"] = "a running partner"
     elif k == "language":
         v["headline"] = rng.choice([f"Trading {t.native} for {t.learning} practice",
                                     f"Practising {t.learning}, offering {t.native}"])
         v["topics"] = (f"{t.native} language", f"{t.learning} language", "language exchange")
         v["format"] = remote_format
+        v["seeking"] = v["offering"] = "a language exchange partner"  # the languages are open details
     elif k == "cofounder":
         v["headline"] = ("Looking for a business cofounder" if t.role == "technical"
                          else "Looking for a technical cofounder")
         v["topics"] = ("startups", "cofounders")
         v["format"] = remote_format
+        technical, business = "a technical cofounder", "a business cofounder"
+        v["seeking"], v["offering"] = (business, technical) if t.role == "technical" else (technical, business)
     elif k == "tutoring":
         if t.role == "tutor":
             v["headline"] = rng.choice([f"Teaching {t.subject} to new students", f"Offering {t.subject} lessons"])
@@ -417,9 +466,12 @@ def _write_listing(t: Truth, v: dict, country: str, rng) -> None:
             v["headline"] = f"Looking for {_art(t.subject)} {t.subject} tutor"
         v["topics"] = (t.subject, "lessons")
         v["format"] = remote_format
+        tutor, student = f"{_art(t.subject)} {t.subject} tutor", f"{_art(t.subject)} {t.subject} student"
+        v["seeking"], v["offering"] = (student, tutor) if t.role == "tutor" else (tutor, student)
     elif k == "roommate":
-        v["headline"] = f"Looking for a roommate from {v['move_in']}"
+        v["headline"] = f"Looking for a roommate from {t.move_in}"
         v["topics"] = ("flatshare", "housing")
+        v["seeking"] = v["offering"] = "a roommate"
     elif k == "other":
         if t.sub == "music":
             v["headline"] = (f"Looking for {_art(t.genre)} {t.genre} {t.seeks}" if t.role == "band"
@@ -461,9 +513,9 @@ def _write_listing(t: Truth, v: dict, country: str, rng) -> None:
 
 
 def understood_kind(kind: str) -> str:
-    """A truth kind as the "kind" field records it: services and things are matched by their
-    phrases, as "other"."""
-    return kind if kind in MATCH_KINDS else "other"
+    """A story as the "kind" field records it: dating keeps its own rules; every other story is
+    matched by its phrases and open details, as "other"."""
+    return "dating" if kind == "dating" else "other"
 
 
 def _write_understanding(t: Truth, v: dict) -> None:
@@ -483,11 +535,48 @@ def ages_in_years(age_range: tuple) -> str:
     return f"{AGE_BAND_BOUNDS[age_range[0]][0]}-{AGE_BAND_BOUNDS[age_range[1]][1]}"
 
 
-def generate(n: int = 300, seed: int = 7) -> list[Persona]:
+def _write_details(t: Truth, v: dict) -> None:
+    """The open details a person's agent writes for what their story needs, each named for what it
+    measures: a climber's level or a runner's pace on a scale it writes out, with the steps they'd
+    accept in the other person (and, if strict, when the other person must be free); the language
+    someone speaks and the one they'd like the other person to speak; what the lessons are in, and the
+    month to move in, which both people must share. The roles of cofounders and of tutors and students
+    are in their phrases. Uses no randomness."""
+    if t.kind in ("climbing", "running"):
+        name, scale = ("level", LEVELS) if t.kind == "climbing" else ("pace", PACES)
+        v[detail_key("me", name)] = Detail((scale[t.level],), "steps", tuple(scale))
+        v[detail_key("them", name)] = Detail(_accepted_steps(scale, t.level, t.exactness), "steps", tuple(scale))
+        if t.exactness >= STRICT_EXACTNESS and t.schedule != "flexible":
+            v[detail_key("them", "free time")] = Detail((t.schedule,))
+    elif t.kind == "language":
+        v[detail_key("me", "language")] = Detail((t.native,))
+        v[detail_key("them", "language")] = Detail((t.learning,))
+    elif t.kind == "tutoring":
+        v[detail_key("both", "subject")] = Detail((t.subject,))
+    elif t.kind == "roommate":
+        v[detail_key("both", "move in month")] = Detail((t.move_in,))
+
+
+def _accepted_steps(scale, at: int, exactness: float) -> tuple:
+    """The steps someone at scale[at] accepts in the other person: one either side of their own. A
+    strict person accepts only their own; so does a wide net (exactness under 0.5) as written, because
+    matching already looks one step either side for a wide net."""
+    if exactness >= STRICT_EXACTNESS or exactness < 0.5:
+        return (scale[at],)
+    return tuple(scale[max(0, at - 1):at + 2])
+
+
+def generate(n: int = 300, seed: int = 7, dialects: float = 0.0) -> list[Persona]:
+    """n synthetic people. dialects: the share of them whose agent writes details unlike most agents
+    (DIALECT_SHARE in the batch run's second pass, none by default); everything else about everyone,
+    those people included, is the same either way."""
     rng = random.Random(seed)
     # How far each person travels, and who works online only, come from a stream of their own, so
-    # everything else about each person is the same as before these details existed.
+    # everything else about each person is the same as before these details existed. So do how long
+    # ago each listing last changed, and the dialects.
     meet = random.Random(seed * 1_000_003 + 17)
+    since = random.Random(seed * 1_000_003 + 29)
+    speech = random.Random(seed * 1_000_003 + 31)
     personas = []
     for i in range(n):
         pid = f"p{i:03d}"
@@ -509,8 +598,10 @@ def generate(n: int = 300, seed: int = 7) -> list[Persona]:
             "city": city,
             "country": COUNTRY_NAMES[country],
             "age_band": AGE_BANDS[age_idx],
-            "interests": tuple(rng.sample(INTERESTS, rng.randint(2, 4))),
-            "schedule": t.schedule,
+            # Open details everyone's agent writes: a few interests, and when they're free ("any" for
+            # someone free whenever).
+            "me:interests": Detail(tuple(rng.sample(INTERESTS, rng.randint(2, 4)))[:MAX_VALUES["me"]]),
+            "me:free time": Detail((ANY,) if t.schedule == "flexible" else (t.schedule,)),
             "neighborhood": rng.choice(hoods),
             "income_band": rng.choice(INCOME[country]),
             "religion": _weighted(rng, [(r, 4 if r == "not religious" else 1) for r in RELIGION]),
@@ -519,9 +610,9 @@ def generate(n: int = 300, seed: int = 7) -> list[Persona]:
         if rng.random() < 0.7:
             v["employer"] = rng.choice(EMPLOYERS[country])
         if rng.random() < 0.7:
-            v["diet"] = _weighted(rng, [(d, 5 if d == "eats everything" else 1) for d in DIET])
+            v["me:diet"] = Detail((_weighted(rng, [(d, 5 if d == "eats everything" else 1) for d in DIET]),))
         if rng.random() < 0.8:
-            v["smoking"] = _weighted(rng, [("doesn't smoke", 6), ("smokes", 1), ("smokes socially", 1)])
+            v["me:smoking"] = Detail((_weighted(rng, [("doesn't smoke", 6), ("smokes", 1), ("smokes socially", 1)]),))
         if rng.random() < 0.12:
             v["health"] = rng.choice(HEALTH)
         if kind == "dating":
@@ -529,19 +620,8 @@ def generate(n: int = 300, seed: int = 7) -> list[Persona]:
             v["children"] = rng.choice(CHILDREN)
             if rng.random() < 0.3:
                 v["kinks"] = tuple(rng.sample(KINKS, rng.randint(1, 2)))
-        elif kind == "climbing":
-            v["level"] = LEVELS[t.level]
-        elif kind == "running":
-            v["pace"] = PACES[t.level]
-        elif kind == "language":
-            v["native_language"] = t.native
-            v["learning_language"] = t.learning
-        elif kind in ("cofounder", "tutoring"):
-            v["role"] = t.role
-            if t.subject:
-                v["subject"] = t.subject
         elif kind == "roommate":
-            v["move_in"] = rng.choice(MONTHS)
+            t.move_in = rng.choice(MONTHS)
         elif kind == "other":
             art = "an" if (t.genre or "x")[0] in "aeiou" else "a"
             if t.sub == "music" and t.role == "band":
@@ -555,30 +635,99 @@ def generate(n: int = 300, seed: int = 7) -> list[Persona]:
 
         _write_listing(t, v, country, rng)
         _write_understanding(t, v)
+        _write_details(t, v)
 
         # Visibility choices. Sensitive categories start hidden + off; some people turn
-        # them on, and a few choose to show one.
+        # them on, and a few choose to show one. Open details start shown; some people hide their diet
+        # or smoking. Nobody hides a detail someone's wish is compared with, and a wish is always shown.
         sensitive_on, visibility, confirmed = set(), {}, set()
         for key in v:
-            spec = FIELD_REGISTRY[key]
-            vis = spec.default
-            if spec.sensitive:
+            spec = FIELD_REGISTRY.get(key)
+            vis = spec.default if spec else SHOWN
+            if spec and spec.sensitive:
                 if rng.random() < 0.55:
                     sensitive_on.add(key)
                     if rng.random() < 0.05:
                         vis = SHOWN
                         confirmed.add(key)
-            elif key in ("diet", "smoking") and rng.random() < 0.3:
+            elif key in ("me:diet", "me:smoking") and rng.random() < 0.3:
                 vis = HIDDEN
             elif key in ("children", "neighborhood", "employer") and rng.random() < 0.1:
                 vis = SHOWN
             elif key == "gender" and rng.random() < 0.03:
                 vis = HIDDEN
             visibility[key] = vis
+        # A detail that says something sensitive (a halal or kosher diet says what someone believes) can't
+        # be an open detail (schema.detail_problems), and the hidden religion detail already holds what the
+        # person chose to record: the agent leaves it out. Only now, so everyone's draws are as before.
+        for key in [k for k, d in v.items() if isinstance(d, Detail) and any(map(mentions_sensitive, d.values))]:
+            del v[key], visibility[key]
 
         person = Person(id=pid, verified=rng.random() > 0.03, age_band=AGE_BANDS[age_idx],
                         created_at="2026-10-01T00:00:00Z")
-        personas.append(Persona(person=person, truth=t, intent_text=write_intent(t, v, rng),
-                                values=v, sensitive_on=sensitive_on, visibility=visibility,
-                                confirmed_shown=confirmed))
+        p = Persona(person=person, truth=t, intent_text=write_intent(t, rng), values=v, sensitive_on=sensitive_on,
+                    visibility=visibility, confirmed_shown=confirmed, listed_days=since.randint(*LISTED_DAYS))
+        if dialects and speech.random() < dialects:
+            _speak_dialect(p, speech)
+        personas.append(p)
     return personas
+
+
+def _speak_dialect(p: Persona, rng: random.Random) -> None:
+    """Change how this person's agent wrote one detail: one of DIALECTS, picked at random from those that
+    apply, on the detail matching depends on most (_DIALECT_ORDER). Never a wish left out or hidden: that
+    would be a person wanting something their listing never says, which no matching can know."""
+    names = [n for n in _DIALECT_ORDER if any(split_key(k)[1] == n for k in p.values if is_detail_key(k))]
+    mine = [n for n in names if detail_key("me", n) in p.values]
+    options = {
+        "other name": names[:1],
+        "other scale": [n for n in names if n in OTHER_SCALES][:1],
+        "left out": mine[:1],
+        "hidden": [n for n in mine if p.visibility[detail_key("me", n)] == SHOWN][:1],
+        "no any": ["free time"] if p.values.get("me:free time") == Detail((ANY,)) else [],
+    }
+    how = rng.choice([d for d in DIALECTS if options[d]])
+    name = options[how][0]
+    if how == "other name":
+        def rename(key):
+            about, n = split_key(key)
+            return detail_key(about, OTHER_NAMES[name]) if about and n == name else key
+        p.values = {rename(k): d for k, d in p.values.items()}
+        p.visibility = {rename(k): vis for k, vis in p.visibility.items()}
+    elif how == "other scale":
+        new = OTHER_SCALES[name]
+        for key in (detail_key("me", name), detail_key("them", name)):
+            d = p.values[key]
+            # Each step by its own label where the new scale has one, else the new scale's step in its place.
+            p.values[key] = Detail(tuple(s if s in new else new[d.steps.index(s)] for s in d.values), "steps", new)
+    elif how == "left out":
+        del p.values[detail_key("me", name)], p.visibility[detail_key("me", name)]
+    elif how == "hidden":
+        p.visibility[detail_key("me", name)] = HIDDEN
+    else:
+        p.values["me:free time"] = Detail(("flexible",))
+    p.dialect = f"{how}: {name}"
+
+
+def draft_listing(p: Persona, now: str) -> Listing:
+    """The listing a synthetic person's agent wrote: their details with their visibility choices, last
+    changed p.listed_days before `now`. Sensitive categories the person did not turn on are left out
+    entirely."""
+    fields = []
+    for key, value in p.values.items():
+        if isinstance(value, Detail):
+            fields.append(Field(key, value.values, p.visibility[key], False, compare=value.compare,
+                                steps=value.steps, required=value.required))
+            continue
+        spec = FIELD_REGISTRY[key]
+        if spec.sensitive and key not in p.sensitive_on:
+            continue
+        fields.append(Field(key=key, value=value, visibility=p.visibility[key], sensitive=spec.sensitive))
+    # Synthetic people's notification choices, fixed per person: most take questions, about
+    # half want close matches.
+    pick = int(hashlib.sha256(p.person.id.encode()).hexdigest()[:4], 16)
+    changed = datetime.fromisoformat(now.rstrip("Z")) - timedelta(days=p.listed_days)
+    return Listing(person_id=p.person.id, intent_text=p.intent_text, exactness=p.truth.exactness,
+                   fields=tuple(fields), updated_at=changed.isoformat() + "Z",
+                   confirmed_shown=tuple(sorted(p.confirmed_shown)),
+                   notify_questions=pick % 10 < 8, notify_close=pick % 2 == 0)

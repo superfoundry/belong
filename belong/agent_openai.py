@@ -1,9 +1,12 @@
 """Personal agent powered by OpenAI (used by the two-person demo).
 
 Same job, same instructions and the same draft checks as the Claude agent
-(agent_llm.py): the model talks with the person and fills in the listing through the
-`update_listing` tool, and every tool call goes through `build_draft` before it touches
-the draft. Only the API plumbing differs.
+(agent_llm.py; SPEC §3, §4): the model talks with the person and fills in the listing through
+the `update_listing` tool, and every tool call goes through `build_draft` before it touches
+the draft. The model's own judgement that a request singles out one particular person (the tool's
+singles_out) refuses a save the same way, and the person is told in the same fixed words
+(agent_llm.honest). The shared list of details in use reaches it the same way too, as data in a message
+of its own (agent_llm.with_list), never in its instructions. Only the API plumbing differs.
 
 Calls the OpenAI Chat Completions API directly with the standard library, so no extra
 package is needed. Configuration (environment variables, or a .env file in the project
@@ -22,7 +25,10 @@ import urllib.error
 import urllib.request
 
 from .agent_llm import (MAX_TOOL_ROUNDS, SAVE_CHECK, SYSTEM_PROMPT, UPDATE_LISTING_TOOL, AgentUnavailable, _summary,
-                        build_draft, builds_on, honest, profile_so_far, turn_drafts)
+                        build_draft, builds_on, honest, not_saved, profile_so_far, quiet_reply, refused_reply,
+                        request_key, singles_out, turn_drafts, with_list)
+# A change the person made on their profile themselves reaches this agent as the same turn (agent_llm.EDIT_TURN,
+# written by the demo), with `edit` for build_draft: the same text and the same fixed rule as the Claude agent.
 
 API_URL = "https://api.openai.com/v1/chat/completions"
 DEFAULT_MODEL = "gpt-5"
@@ -56,30 +62,34 @@ class OpenAIAgent:
         self.chat_model = os.environ.get("OPENAI_CHAT_MODEL") or CHAT_MODEL
         self._post = post
 
-    def respond(self, conversation: list, user_text: str, first_name: str, age_band: str, current=None) -> tuple:
+    def respond(self, conversation: list, user_text: str, first_name: str, age_band: str, current=None,
+                in_use=None, edit=None) -> tuple:
         """Append the person's message, run the agent, and return (reply, draft or None).
         `conversation` is this person's message history; it is only ever appended to,
-        except that a turn which fails part-way is removed again."""
+        except that a turn which fails part-way is removed again. `in_use` is the shared list of
+        details in use (Warden.details_in_use(...).vocabulary()), given to the model as data.
+        `edit`: what the person changed on their profile themselves, when user_text is the app's turn about it
+        (agent_llm.EDIT_TURN): every save is held to agent.keep_edit, and a reply without one is fine."""
         start = len(conversation)
         conversation.append({"role": "user", "content": user_text})
         try:
-            return self._run(conversation, first_name, age_band, current)
+            return self._run(conversation, first_name, age_band, current, in_use, edit)
         except AgentUnavailable:
             del conversation[start:]
             raise
 
-    def _run(self, conversation: list, first_name: str, age_band: str, current=None) -> tuple:
+    def _run(self, conversation: list, first_name: str, age_band: str, current=None, in_use=None, edit=None) -> tuple:
         system = (SYSTEM_PROMPT + f"\nThe person you work for: first name {first_name}, age band {age_band}.\n"
                   + profile_so_far(current))
-        replies, draft, attempted, saved, checked = [], None, False, [], None
+        replies, draft, attempted, saved, checked, singled, refused = [], None, False, [], None, False, set()
         rounds = 0
         while rounds < MAX_TOOL_ROUNDS + (checked is not None):  # the save check is one round more
             rounds += 1
-            choice = self._call(system, conversation)["choices"][0]
+            choice = self._call(system, with_list(conversation, in_use))["choices"][0]
             message = choice.get("message") or {}
             if choice.get("finish_reason") == "content_filter" or message.get("refusal"):
                 conversation.append({"role": "assistant", "content": "I can't help with that one."})
-                return "Sorry, I can't help with that. Tell me about the kind of person you'd like to meet?", draft
+                return honest(refused_reply(draft), attempted, draft is not None, singled, bool(edit)), draft
             tool_calls = message.get("tool_calls") or []
             entry = {"role": "assistant", "content": message.get("content") or ""}
             if tool_calls:
@@ -88,7 +98,7 @@ class OpenAIAgent:
             if (message.get("content") or "").strip() and checked is None:  # after the save check, only its save counts
                 replies.append(message["content"].strip())
             if not tool_calls:
-                if attempted or checked is not None:
+                if attempted or checked is not None or edit:  # after a kept change, no save is a fine answer
                     break
                 checked = len(conversation)  # asked once more to save (agent_llm.SAVE_CHECK)
                 conversation.append({"role": "user", "content": SAVE_CHECK})
@@ -106,11 +116,14 @@ class OpenAIAgent:
                     if not isinstance(args, dict):
                         result = "ERROR: the arguments weren't valid JSON. Call update_listing again."
                     else:
+                        singled = singled or singles_out(args)
                         new_draft, problems, _ = build_draft(args, first_name, age_band,
-                                                             builds_on(args, saved, current))
+                                                             builds_on(args, saved, current), in_use, refused,
+                                                             {"changes": edit, "saved": current} if edit else None)
+                        if singles_out(args):
+                            refused.add(request_key(args))
                         if problems:
-                            result = ("ERROR: Not saved. Fix these and call update_listing again:\n- "
-                                      + "\n- ".join(problems))
+                            result = "ERROR: " + not_saved(problems)
                         else:
                             saved.append(new_draft)
                             result = _summary(new_draft)
@@ -118,9 +131,8 @@ class OpenAIAgent:
             draft = turn_drafts(saved)
         if checked is not None and not attempted:
             del conversation[checked:]  # nothing to save: the check leaves no trace
-        reply = "\n\n".join(replies).strip() or ("I've drafted your listing. Take a look at your profile."
-                                                  if draft else "Sorry, could you say that another way?")
-        return honest(reply, attempted, draft is not None), draft
+        reply = "\n\n".join(replies).strip() or quiet_reply(draft, bool(edit))
+        return honest(reply, attempted, draft is not None, singled, bool(edit)), draft
 
     def chat_json(self, system: str, messages: list, schema: dict) -> dict:
         """One plain reply as JSON matching `schema` (used for simulated people's chat replies)."""
@@ -151,10 +163,10 @@ class OpenAIAgent:
         except ValueError:
             return {}
 
-    def _call(self, system: str, conversation: list) -> dict:
+    def _call(self, system: str, messages: list) -> dict:
         payload = {
             "model": self.model,
-            "messages": [{"role": "system", "content": system}] + conversation,
+            "messages": [{"role": "system", "content": system}] + messages,
             "tools": [OPENAI_TOOL],
         }
         if self.model.startswith(("gpt-5", "o")):

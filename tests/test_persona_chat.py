@@ -1,13 +1,27 @@
 """Simulated people reply in the demo (belong/persona_chat.py, DemoSession._persona_turn): a hello
 when a real person matches with them, then answers to that person's messages, written only from what
-they'd know. Never anyone's hidden details. Tests use a stub model (no network)."""
+they'd know. Never anyone's hidden details, open details among them. Tests use a stub model (no network)."""
 from __future__ import annotations
 
 import unittest
 
 from belong.demo import PERSONA_REPLIES, REACTIONS, DemoSession
-from belong.schema import HIDDEN
-from tests.test_demo import climbers
+from belong.persona_chat import context
+from belong.schema import HIDDEN, SHOWN
+from tests.test_demo import fill
+
+
+def climbers(s: DemoSession):
+    """Two phones, each drafted by the rule-based agent in words on the demo's shared list of details in use
+    ("a climbing partner", a level, free time, interests), each with hidden details of their own."""
+    s.verify("A", "Yuki", 27)
+    s.agent_message("A", "Looking for a climbing partner in Osaka. I'm free on weekends, I'm an intermediate "
+                         "climber and I'm into bouldering and ramen.")
+    s.submit("A", fill(s.slots["A"].draft, hidden={"religion": "Buddhist", "me:interests": ["ramen"]}))
+    s.verify("B", "Ren", 29)
+    s.agent_message("B", "Looking for a climbing partner at Osaka gyms. I'm free weekends, I'm an intermediate "
+                         "climber and I also like jazz and ramen.")
+    s.submit("B", fill(s.slots["B"].draft, hidden={"religion": "Buddhist", "health": "ADHD"}))
 
 
 class StubModel:
@@ -70,6 +84,7 @@ class SimulatedReplies(unittest.TestCase):
         shown = {v for listing in both for f in listing.fields if f.visibility != HIDDEN for v in f.strings()}
         hidden -= shown  # a value one of them shows openly (e.g. both don't smoke) may appear
         self.assertIn("Buddhist", hidden)
+        self.assertIn("me:interests", {f.key for f in both[0].fields if f.visibility == HIDDEN})  # an open detail
         for system, messages in self.model.calls:
             sent = system + " ".join(m["content"] for m in messages)
             for value in hidden:
@@ -112,6 +127,24 @@ class SimulatedReplies(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class WhatTheModelIsTold(unittest.TestCase):
+    def test_open_details_read_as_plain_words_and_hidden_ones_never_appear(self):
+        """Shown open details are told by name and whose they are (never a raw key), from the person's own
+        shown fields and the introduction view the Warden made; hidden ones are never passed in at all."""
+        mine = {"first_name": "Yuki", "city": "Osaka", "me:instrument": ("drums",), "both:genre": ("ska",)}
+        view = {"fields": {"first_name": "Ren", "me:instrument": {"values": ["bass guitar"], "compare": "same",
+                                                                   "steps": [], "required": True},
+                           "them:noise tolerance": {"values": ["quiet", "moderate"], "compare": "steps",
+                                                    "steps": ["quiet", "moderate", "lively"], "required": False}},
+                "reason": "You share the same genre: ska."}
+        ctx = context("Yuki", mine, "Looking for a bassist.", view)
+        self.assertEqual(ctx["about_me"], "city: Osaka; instrument: drums; the genre: ska")
+        self.assertEqual(ctx["about_them"], "instrument: bass guitar; would like their noise tolerance to be: quiet, "
+                                            "moderate")
+        self.assertEqual(ctx["their"], "Ren")
+        self.assertNotIn("me:", ctx["about_me"] + ctx["about_them"])
 
 
 class OpenAIChatModel(unittest.TestCase):
