@@ -2024,7 +2024,7 @@ function renderRoom() {
       <select class="select" id="scenario" aria-label="Scenario" onchange="scenario=this.value; resetLocal(false); render(['A','B'])">${Object.entries(SCENARIOS).map(([k, s]) => `<option value="${k}" ${k === scenario ? "selected" : ""}>${esc(s.label)}</option>`).join("")}</select>
       <button class="btn secondary sm" ${ffBusy ? "disabled" : ""} ${scenario === "blank" ? 'title="Pick a scenario first"' : ""} onclick="fastForward()">${ffBusy ? "Fast-forwarding…" : "Fast-forward both phones"}</button>
       <button class="btn secondary sm" onclick="api('attack')">Simulate a compromised Matchmaker</button>
-      <button class="btn ghost sm" onclick="reset()">Reset</button>
+      <button class="btn ghost sm" ${resetBusy ? "disabled" : ""} onclick="reset()">${resetBusy ? "Resetting…" : "Reset"}</button>
     </div>
     <p class="caption secondary" style="margin: var(--space-2) 0 0">The Matchmaker runs on its own while this page is open: whenever something changes, and once a minute${r.matchmaker_last_run ? ` (last run at ${esc(r.matchmaker_last_run.slice(11, 16))} demo time)` : ""}. The log shows only runs that send something or are held back.${aiLine(r.matchmaker)}</p>
     <div class="audit">${lr.ok ? badge("success", "Passing") : badge("error", "Failed")}<div>
@@ -2080,7 +2080,14 @@ function resetLocal(clearForms = true) {
     else { Object.assign(local[s], { tab: null, view: null, form: {} }); for (const c of Object.values(local[s].ls)) c.chatText = ""; }
   }
 }
-async function reset() { resetLocal(); await api("reset"); }
+// A reset builds the synthetic board again, which takes a few seconds: the button says so meanwhile, and once.
+let resetBusy = false;
+async function reset() {
+  if (resetBusy) return;
+  resetBusy = true; renderRoom();
+  try { resetLocal(); if (await api("reset")) toast("The demo is reset."); }
+  finally { resetBusy = false; renderRoom(); }
+}
 // Fast-forward: each phone gets the scenario's listing, written with its agent and made live,
 // then the Matchmaker runs. Phones that are already set up keep everything and gain a listing.
 let ffBusy = false;
@@ -2127,7 +2134,7 @@ function render(force = []) {
     if (force.includes(slot) || snap !== last[slot]) { last[slot] = snap; renderPhone(slot); }
   }
   if (SINGLE) return;  // the presenter panel isn't on a single-phone page
-  const roomSnap = JSON.stringify(S.room) + scenario + ffBusy;
+  const roomSnap = JSON.stringify(S.room) + scenario + ffBusy + resetBusy;
   if (roomSnap !== last.room) { last.room = roomSnap; renderRoom(); }
 }
 fetch(STATE_URL).then(r => r.json()).then(d => { S = d; render(VIEW); });
