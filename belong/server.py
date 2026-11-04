@@ -50,6 +50,7 @@ FILES = {
     "/trust/TRUST.md": (ROOT / "TRUST.md", "text/plain; charset=utf-8"),
     "/inspector": (WEB / "index.html", "text/html; charset=utf-8"),
     "/nav.js": (WEB / "nav.js", "text/javascript; charset=utf-8"),
+    "/apple-touch-icon.png": (WEB / "apple-touch-icon.png", "image/png"),
     "/run.json": (ROOT / "out" / "run.json", "application/json"),
 }
 MAX_BODY = 64 * 1024
@@ -116,7 +117,8 @@ PROBES = {"canary": probe.canary_test, "attacks": probe.attack_suite}
 
 COOKIE = "belong_session"
 SIGNED_IN_FOR = 30 * 24 * 3600  # seconds
-OPEN_PATHS = {"/login"}  # and the design files (/ds/...), which the sign-in page needs
+OPEN_PATHS = {"/login", "/apple-touch-icon.png"}  # and the design files (/ds/...), which the sign-in page needs;
+# the icon, because a phone fetches it for its home screen without the cookie
 LOGIN_LIMIT = 20  # failed attempts a minute, from anyone; then sign-in pauses for that minute
 _failures: list = []
 _failures_lock = threading.Lock()

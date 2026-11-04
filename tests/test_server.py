@@ -95,6 +95,20 @@ class Password(unittest.TestCase):
         for target in ("//evil.example", "https://evil.example", "/\\evil.example"):
             self.assertEqual(self.sign_in("tide-42", target)[1]["Location"], "/", target)
 
+    def test_a_phone_can_add_the_demo_to_its_home_screen(self):
+        # The icon comes without the cookie (a phone fetches it on its own), and the page opened from the home screen
+        # signs in once, then lands back on the same phone.
+        with urllib.request.urlopen(self.base + "/apple-touch-icon.png") as r:
+            self.assertEqual((r.status, r.headers["Content-Type"]), (200, "image/png"))
+            self.assertEqual(r.read()[:8], b"\x89PNG\r\n\x1a\n")
+        status, headers, _ = self.request("/demo?phone=A")
+        self.assertEqual((status, headers["Location"]), (303, "/login?next=/demo%3Fphone%3DA"))
+        self.assertEqual(self.sign_in("tide-42", "/demo?phone=A")[1]["Location"], "/demo?phone=A")
+        for page in ("demo.html", "login.html"):
+            html = (server.WEB / page).read_text()
+            self.assertIn('<meta name="apple-mobile-web-app-capable" content="yes">', html)
+            self.assertIn('<link rel="apple-touch-icon" href="/apple-touch-icon.png">', html)
+
     def test_guessing_is_limited(self):
         for _ in range(server.LOGIN_LIMIT):
             self.sign_in("wrong")
