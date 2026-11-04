@@ -174,11 +174,24 @@ class _JudgeOffLock:
             self.refused += 1
         return allowed
 
+    def _locked_screen(self, request) -> bool:
+        if self._session_lock is None:
+            return self._screened(request)
+        with self._session_lock:  # the board as it is now
+            return self._screened(request)
+
+    def _ask(self, request, recheck):
+        """Hand the request to the judge, which runs recheck (the Warden's check again, against the board then) before
+        every later attempt of its own (a retry, another response format), if it can (OpenAIJudge)."""
+        if "recheck" in inspect.signature(self.judge).parameters:
+            return self.judge(request, recheck=recheck)
+        return self.judge(request)
+
     def __call__(self, request):
         if self._inline():
             if not self._screened(request):  # (the session lock is the caller's)
                 raise RefusedByWarden("refused by the Warden's check")
-            return self.judge(request)
+            return self._ask(request, self._screened)
         key = json.dumps(request, ensure_ascii=False, sort_keys=True)
         with self._lock:
             if key in self._answers:
@@ -227,7 +240,8 @@ class _JudgeOffLock:
                             allowed = self._screened(request)
                     else:
                         allowed = self._screened(request)
-                    got = self.judge(request) if allowed else RefusedByWarden("refused by the Warden's check")
+                    got = self._ask(request, self._locked_screen) if allowed else RefusedByWarden(
+                        "refused by the Warden's check")
                 except Exception as e:  # its failure is the answer: the rules decide those pairs
                     got = e
                 except BaseException as e:  # (one that would end the thread: an answer too, then the thread ends)
@@ -486,7 +500,7 @@ class DemoSession:
                              approach_limit_per_day=APPROACH_LIMIT)
         self.board = Marketboard()
         for p in self.personas.values():
-            self.warden.admit(p.person, draft_listing(p, self.clock.now()), self.board)
+            self.warden.admit(p.person, draft_listing(p, self.clock.now()), self.board, history=True)
         self.events = []
         self.outputs = {"followups": [], "reveals": [], "details_in_use": []}
         self._event("inside", "Matching service started",

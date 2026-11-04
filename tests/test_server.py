@@ -109,6 +109,27 @@ class Password(unittest.TestCase):
             self.assertIn('<meta name="apple-mobile-web-app-capable" content="yes">', html)
             self.assertIn('<link rel="apple-touch-icon" href="/apple-touch-icon.png">', html)
 
+    def test_a_bad_length_is_refused_before_reading_and_probes_run_a_few_at_once(self):
+        """Security review F05: a negative or garbled Content-Length gets 400 at once, never a read that waits; a
+        probe past PROBE_SLOTS running gets 503."""
+        import http.client
+        cookie = self.sign_in("tide-42")[1]["Set-Cookie"].split(";")[0]
+        for bad in ("-5", "abc", "1e3"):
+            c = http.client.HTTPConnection("127.0.0.1", self.httpd.server_address[1], timeout=5)
+            c.putrequest("POST", "/api/verify")
+            c.putheader("Cookie", cookie)
+            c.putheader("Content-Length", bad)
+            c.endheaders()
+            self.assertEqual(c.getresponse().status, 400, bad)
+            c.close()
+        taken = [server._PROBE_SLOTS.acquire(blocking=False) for _ in range(server.PROBE_SLOTS)]
+        try:
+            self.assertTrue(all(taken))
+            self.assertEqual(self.request("/api/probe/attacks", b"{}", cookie)[0], 503)
+        finally:
+            for _ in taken:
+                server._PROBE_SLOTS.release()
+
     def test_guessing_is_limited(self):
         for _ in range(server.LOGIN_LIMIT):
             self.sign_in("wrong")

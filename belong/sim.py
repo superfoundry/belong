@@ -97,7 +97,7 @@ def run(n: int = 300, seed: int = 7, matcher=None, k_crowd: int = 20, approach_l
         if ground:
             listing, ideally = said_listing(listing, p, answers, quote_any)
             kept_ideally += len(ideally)
-        entry_log[pid] = warden.admit(p.person, listing, board)
+        entry_log[pid] = warden.admit(p.person, listing, board, history=True)  # the synthetic history's own times
     admitted = {pid for pid, r in entry_log.items() if r.accepted}
     # Each description as it went live, which is what the live demo has: answers to this run's
     # follow-up questions are added to it below, and the inspector marks them as such.

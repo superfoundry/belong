@@ -265,7 +265,12 @@ class OpenAIJudge:
 
     # -- one call ----------------------------------------------------------------------------------------------------
 
-    def __call__(self, request: dict) -> dict:
+    def __call__(self, request: dict, recheck=None) -> dict:
+        """recheck: optional check(request) -> bool run again just before every later attempt (a retry, or the next
+        response format), as screen is before the first: the caller's permission as it is then (the Warden's check
+        against the board now), so a request someone has since hidden, paused or deleted listings of is never sent
+        again (security review F02). Without it, screen is run again instead."""
+        self._recheck = recheck if recheck is not None else self._screen
         started = self._clock()
         entry = {"outcome": "failed", "why": "", "attempts": 0, "format": "", "status": 0, "seconds": 0.0,
                  "prompt_tokens": 0, "completion_tokens": 0, "kept": False}
@@ -335,6 +340,13 @@ class OpenAIJudge:
         raise _Failure("no answer")  # not reached
 
     def _send(self, payload: dict, request: dict, entry: dict) -> dict:
+        if entry["attempts"] > 1 and getattr(self, "_recheck", None) is not None:
+            try:
+                allowed = bool(self._recheck(request))
+            except Exception:
+                allowed = False
+            if not allowed:  # no longer permitted: never sent again, and nothing to retry
+                raise _Failure("refused before sending again")
         if not entry.get("kept"):
             self._keep(request)  # once per call: every attempt sends the same listings
             entry["kept"] = True

@@ -123,6 +123,17 @@ class WardenExitBlocksLeaks(unittest.TestCase):
         w, board = roommates_board()
         self.assertIsNone(w.exit_introduction(proposal(b_met=False), board))
 
+    def test_a_malformed_proposal_is_dropped(self):
+        """The contract's shape exactly (security review F08): a string flag is truthy, NaN compares false."""
+        w, board = roommates_board()
+        nan = float("nan")
+        for bad in (replace(proposal(), a_intent_met="false"), replace(proposal(), b_intent_met=1),
+                    replace(proposal(), score=nan), replace(proposal(), shown_score=float("inf")),
+                    replace(proposal(), shown_threshold=True), replace(proposal(), reason_fields="city"),
+                    replace(proposal(), close=None)):
+            self.assertIsNone(w.exit_introduction(bad, board), bad)
+        self.assertIsNotNone(w.exit_introduction(proposal(), board))  # the well-formed control still goes
+
     def test_hidden_values_stay_out_even_when_one_side_shows_the_same_key(self):
         """A hides diet=vegan, B shows diet=vegan. A sees B's diet (B chose to show it);
         B must not learn A's."""

@@ -154,7 +154,7 @@
         <div class="card check">
           <span class="caption tertiary">Check 3</span>
           <h3 class="heading-l">Nobody has deleted or edited a receipt</h3>
-          <p class="what">Every check the Warden agent runs writes a receipt: the check, the result, the time and a hash, never content. Each receipt's hash covers the one before it, so removing or changing any receipt breaks the chain from that point on. Not even Belong can quietly rewrite history.</p>
+          <p class="what">Every check the Warden agent runs writes a receipt: the check, the result, the time and a hash, never content. Each receipt's hash covers the one before it, so removing or changing any receipt breaks the chain from that point on. Whoever runs the server could still replace the whole log with a recomputed one, or cut off its end: checkpoints held by someone else, which would stop that, are production work.</p>
           <div class="actions">
             <button class="btn secondary" id="btn-chain" onclick="verifyChain(false)">Verify the receipt chain</button>
             <button class="btn ghost" onclick="verifyChain(true)">Show a tampered copy failing</button>
@@ -233,7 +233,8 @@ const PROMISES = [
   ["No one can search for one specific person", "Attack suite, plus your own test intents", NOW],
   ["A hidden detail is shared only if both of you have it and both choose to compare it", "Canary test: canaries never agree, so their secrets must never appear", NOW],
   ["Both agents' code is open and is what was measured", "Check 1 (hashes computed in your browser)", NOW],
-  ["Receipts can't be quietly deleted or edited, even by us", "Check 3 (recomputed in your browser)", NOW],
+  ["A receipt can't be edited or removed from the middle of the log without breaking the chain", "Check 3 (recomputed in your browser, every page)", NOW],
+  ["Not even we can replace the whole log or cut off its end", "Checkpoints held by someone else", LATER],
   ["The Matchmaker AI is never given a hidden detail, a first name or an id", "The Warden agent's check on every request before it goes, and an independent audit after; attack suite: a modified Matchmaker that tries to send one, an AI that a listing tells to copy someone's details", NOW],
   ["Whatever the Matchmaker AI answers, it can't add a match the hard rules refuse, go past the daily limit of introductions, or put words in an introduction", "Attack suite: an AI that says yes to every pair, answers out of shape, or does what a listing tells it", NOW],
   ["The measured code is what's actually running", "A hardware-signed attestation document", SIM],
@@ -325,8 +326,15 @@ async function getAttestation() {
 async function verifyChain(tamper) {
   const out = $("res-chain"); $("btn-chain").disabled = true; out.innerHTML = `<p class="secondary">Downloading the log…</p>`;
   try {
+    // Every page of the log, up to the length it had when we began: the server sends at most 5,000 receipts a page.
     const log = await (await fetch("/api/trust/receipts?from=0")).json();
-    let receipts = log.receipts, note = "";
+    let receipts = log.receipts.slice(), note = "";
+    while (receipts.length < log.total) {
+      out.innerHTML = `<p class="secondary">Downloading the log… ${receipts.length.toLocaleString()} of ${log.total.toLocaleString()}</p>`;
+      const page = await (await fetch("/api/trust/receipts?from=" + receipts.length)).json();
+      if (!page.receipts.length) break;
+      receipts.push(...page.receipts.slice(0, log.total - receipts.length));
+    }
     if (tamper && receipts.length > 10) {
       receipts = receipts.map(r => ({ ...r }));
       const i = Math.floor(receipts.length / 2);
@@ -337,13 +345,16 @@ async function verifyChain(tamper) {
     for (let i = 0; i < receipts.length; i++) {
       const r = receipts[i];
       const h = await sha256(`${prev}|${r.seq}|${r.check}|${r.result}|${r.timestamp}|${r.commitment}`);
-      if (h !== r.hash) { bad = i; break; }
+      if (r.seq !== i || h !== r.hash) { bad = i; break; }  // in order, none missing or repeated, each linking
       prev = r.hash;
     }
     const passes = receipts.filter(r => r.result === "pass").length;
-    out.innerHTML = note + (bad < 0
-      ? `<p>${badge("success", "Chain intact")} All ${receipts.length.toLocaleString()} receipts link correctly (${passes.toLocaleString()} passed, ${(receipts.length - passes).toLocaleString()} failed). Latest: <span class="mono">${prev.slice(0, 20)}…</span></p>`
-      : `<p>${badge("error", "Chain broken")} at receipt ${receipts[bad].seq}: its hash doesn't match what it should be, given everything before it.</p>`)
+    const whole = receipts.length === log.total;
+    out.innerHTML = note + (bad >= 0 ? "" : !whole
+      ? `<p>${badge("warning", "Incomplete")} Checked ${receipts.length.toLocaleString()} of ${log.total.toLocaleString()} receipts: they link correctly, but the rest couldn't be downloaded, so the chain isn't proven.</p>`
+      : "") + (bad < 0 && whole
+      ? `<p>${badge("success", "Chain intact")} All ${receipts.length.toLocaleString()} of ${log.total.toLocaleString()} receipts link correctly (${passes.toLocaleString()} passed, ${(receipts.length - passes).toLocaleString()} failed). Latest: <span class="mono">${prev.slice(0, 20)}…</span></p>`
+      : bad >= 0 ? `<p>${badge("error", "Chain broken")} at receipt ${receipts[bad].seq}: it is out of place, or its hash doesn't match what it should be, given everything before it.</p>` : "")
       + `<details><summary>Last 5 receipts</summary><pre>${esc(JSON.stringify(receipts.slice(-5), null, 2))}</pre></details>`;
   } catch (e) { out.innerHTML = `<p>${badge("error", "Error")} ${esc(e.message)}</p>`; }
   $("btn-chain").disabled = false;
