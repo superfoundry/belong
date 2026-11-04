@@ -338,11 +338,11 @@
   .signin-foot { padding-top: var(--space-6); }
   .start { position: relative; height: 100%; display: flex; align-items: center; justify-content: center; }
   .start .wordmark { font-size: 56px; }
-  /* The title screen's way in is orange text alone, not a button shape (the user's choice): the coral line's deeper
-     orange, large and bold, where it is readable on the phone's ground (text-accent reads as rust). */
+  /* The title screen's way in is orange text alone, not a button shape, in the coral line's deeper orange at regular
+     weight (the user's choice, knowing it is lighter than the contrast the design system asks of small text). */
   .start .start-link { position: absolute; left: 0; right: 0; bottom: var(--space-6); margin: 0 auto; width: max-content;
                        padding: var(--space-2) var(--space-3); background: none; border: 0; cursor: pointer;
-                       font: inherit; font-size: 19px; font-weight: 700; color: var(--border-accent); }
+                       font: inherit; font-size: 19px; font-weight: 400; color: var(--border-accent); }
   .start .start-link:hover { text-decoration: underline; text-underline-offset: 2px; }
   .start .start-link:focus-visible { outline: 2px solid var(--border-accent); outline-offset: 2px; border-radius: var(--radius-sm); }
   .welcome { text-align: center; padding: var(--space-10) var(--space-2) var(--space-8); }
