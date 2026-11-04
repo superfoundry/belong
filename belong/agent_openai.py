@@ -26,7 +26,7 @@ import urllib.request
 
 from .agent_llm import (MAX_TOOL_ROUNDS, SAVE_CHECK, SYSTEM_PROMPT, UPDATE_LISTING_TOOL, AgentUnavailable, _summary,
                         build_draft, builds_on, honest, not_saved, profile_so_far, quiet_reply, refused_reply,
-                        request_key, singles_out, turn_drafts, with_list)
+                        request_key, singles_out, turn_drafts, turn_start, with_list)
 # A change the person made on their profile themselves reaches this agent as the same turn (agent_llm.EDIT_TURN,
 # written by the demo), with `edit` for build_draft: the same text and the same fixed rule as the Claude agent. So does
 # what the person typed themselves (`said`), with which build_draft keeps a wish they didn't say as ideally.
@@ -124,7 +124,7 @@ class OpenAIAgent:
                         new_draft, problems, _ = build_draft(args, first_name, age_band,
                                                              builds_on(args, saved, current), in_use, refused,
                                                              {"changes": edit, "saved": current} if edit else None,
-                                                             said)
+                                                             said, turn_start(args, current))
                         if singles_out(args):
                             refused.add(request_key(args))
                         if problems:

@@ -6,8 +6,10 @@ words (agent.ground_wishes, TRUST.md #45), and the musts said in other words of 
 person's yes to their agent's question and by values alone."""
 from __future__ import annotations
 
+import io
 import re
 import unittest
+from contextlib import redirect_stdout
 from collections import Counter
 from datetime import datetime, timedelta
 
@@ -365,6 +367,37 @@ class MustsInOtherWords(unittest.TestCase):
                          1.0)
         self.assertLess(run(n=300, seed=3, dialects=DIALECT_SHARE, other_words=OTHER_WORDS_SHARE,
                             answers=False)["metrics"]["precision"], 1.0)
+
+    def test_the_batch_run_counts_the_musts_nothing_they_typed_says(self):
+        """Nobody in the last pass types a message with the values of their musts, but their descriptions are unchanged
+        and still say most of them: the run counts musts, not people, so it says how many only their yes keeps. Counted
+        here apart from the run: each must a person has on their agent's draft (never a made-up one), and whether
+        anything they typed says it. By values alone, exactly those are kept as ideally, and with their answers none."""
+        for seed in (5, 9):
+            people = generate(240, seed, DIALECT_SHARE, 0.0, OTHER_WORDS_SHARE)
+            musts = unsaid = 0
+            for p in people:
+                typed = said_words([p.intent_text, *p.said])
+                for f in draft_listing(p, NOW).fields:
+                    if is_detail_key(f.key) and split_key(f.key)[0] in ("them", "both") and f.required:
+                        musts, unsaid = musts + 1, unsaid + (not wish_said(f, typed))
+            answered = run(n=240, seed=seed, dialects=DIALECT_SHARE, other_words=OTHER_WORDS_SHARE)["metrics"]
+            alone = run(n=240, seed=seed, dialects=DIALECT_SHARE, other_words=OTHER_WORDS_SHARE, answers=False)["metrics"]
+            for m in (answered, alone):
+                self.assertEqual((m["musts"], m["musts_unsaid"]), (musts, unsaid), seed)
+            self.assertLess(0, unsaid)
+            self.assertLess(unsaid, musts - unsaid)  # their descriptions still say most of them
+            self.assertEqual(alone["wishes_kept_ideally"], unsaid)
+            self.assertEqual(answered["wishes_kept_ideally"], 0)
+        # What the command line prints next to the musts kept as ideally is that count, in musts.
+        from belong import __main__ as cli
+        week = run(n=240, seed=5, dialects=DIALECT_SHARE, other_words=OTHER_WORDS_SHARE, answers=False)
+        out = io.StringIO()
+        with redirect_stdout(out):
+            cli._summary(week, wrote=False, other=[("Last pass", week, week)])
+        m = week["metrics"]
+        self.assertIn(f"musts: {m['musts']}   not in what they typed: {m['musts_unsaid']}   kept as ideally: "
+                      f"{m['wishes_kept_ideally']}", out.getvalue())
 
 
 if __name__ == "__main__":

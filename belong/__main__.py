@@ -8,10 +8,12 @@
                                                   and without it, to show what it wins back, and with it while their
                                                   agent quotes the person's answer whatever it says (a no too), to show
                                                   what it doesn't; then the dialects' week
-                                                  with every must said in other words than its value
-                                                  (synth.OTHER_WORDS_SHARE), with the person's yes to their agent's
-                                                  question and by values alone, to show what reading values alone
-                                                  would cost (neither with --matcher ai)
+                                                  with nobody typing their musts with their values
+                                                  (synth.OTHER_WORDS_SHARE): their descriptions still say most of
+                                                  them, and the rest (counted in musts: sim.unsaid_musts) only their
+                                                  yes to their agent's question keeps; with that yes and by values
+                                                  alone, to show what reading values alone would cost on those musts
+                                                  (neither with --matcher ai)
                            [--matcher ai] [--ai-pairs 80]   opt-in: the Matchmaker AI judges the fuzzy part of up to
                                                   that many pairs a round (a mock of the enclosed model: it calls the
                                                   API BELONG_MATCHMAKER_URL names, OpenAI's by default, and costs
@@ -33,8 +35,8 @@ from pathlib import Path
 
 from .matching.hybrid import MAX_PAIRS_PER_RUN
 from .matchmaker_openai import JudgeUnavailable, OpenAIJudge
-from .sim import INVENTED_SHARE, OTHER_WORDS_SHARE, RUN_FORMAT, run
-from .synth import DIALECT_SHARE
+from .sim import RUN_FORMAT, run
+from .synth import DIALECT_SHARE, INVENTED_SHARE, OTHER_WORDS_SHARE
 
 ROOT = Path(__file__).resolve().parent.parent
 OUT = ROOT / "out" / "run.json"
@@ -62,7 +64,8 @@ def _run(n: int, seed: int, **options) -> dict:
 def _summary(result: dict, dialects: dict = None, wrote: bool = True, invented=(), other=()) -> None:
     """invented: (title, with the rule, without it, with it while their agent quotes every answer, a no too) for each
     invented-wish pass, printed after the first two; other: (title, with the person's answers, by values alone) for the
-    pass with musts said in other words, printed last."""
+    pass where nobody types their musts with their values, printed last, with how many musts the people have and how
+    many of them nothing they typed says (sim.unsaid_musts)."""
     m, lr = result["metrics"], result["leak_report"]
     print(f"People: {result['meta']['n']}   admitted: {m['admitted']}   rejected at entry: {m['entry_rejections']}")
     print(f"Proposals: {m['proposals']}   correct by ground truth: {m['proposals_correct']}   "
@@ -93,8 +96,8 @@ def _summary(result: dict, dialects: dict = None, wrote: bool = True, invented=(
                                                alone)):
             m = run_["metrics"]
             print(f"{line}: proposals: {m['proposals']}   correct by ground truth: {m['proposals_correct']}   "
-                  f"precision: {m['precision']}   coverage: {m['coverage']}   people saying their musts in other words: "
-                  f"{m['musts_in_other_words']}   kept as ideally: {m['wishes_kept_ideally']}")
+                  f"precision: {m['precision']}   coverage: {m['coverage']}   musts: {m['musts']}   "
+                  f"not in what they typed: {m['musts_unsaid']}   kept as ideally: {m['wishes_kept_ideally']}")
             _leaks(run_["leak_report"], "  ")
     if wrote:
         print(f"Wrote {OUT.relative_to(ROOT)}")
@@ -171,10 +174,10 @@ def main(argv=None) -> int:
             for title, share in ((f"With invented wishes ({INVENTED_SHARE:.0%} of listings that aren't dating)", 0.0),
                                  (f"With invented wishes and agent dialects ({DIALECT_SHARE:.0%} of people)",
                                   DIALECT_SHARE))]
-        # The dialects' week with every must said in other words than the value its agent writes, with the person's yes
-        # when their agent asks whether it must be met, and by values alone.
+        # The dialects' week with nobody typing their musts with their values (their descriptions still say most), with
+        # the person's yes when their agent asks whether one their words don't say must be met, and by values alone.
         other = [] if args.matcher == "ai" else [
-            (f"With every must said in other words than its value, and agent dialects ({DIALECT_SHARE:.0%} of people)",
+            (f"With no must typed with its value, and agent dialects ({DIALECT_SHARE:.0%} of people)",
              *(run(n=args.n, seed=args.seed, dialects=DIALECT_SHARE, other_words=OTHER_WORDS_SHARE, answers=answers,
                    **options) for answers in (True, False)))]
         _summary(result, dialects, wrote=not hostile, invented=invented, other=other)

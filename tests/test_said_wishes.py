@@ -14,19 +14,20 @@ was reported. No test calls the network: model agents are scripted stand-ins."""
 from __future__ import annotations
 
 import copy
+import json
 import unittest
 from unittest import mock
 
 from belong import agent, agent_llm, server
 from belong.agent import (THEIR_WORDS_MAX, UNSTRICT, answered, detail_row, ground_exactness, ground_wishes, said_words,
                           wish_said)
-from belong.agent_llm import (EXACTNESS_LOWERED, KEPT_IDEALLY, SAVE_CHECK, WISH_IDEALLY, ClaudeAgent, _clean_details,
-                              build_draft, profile_so_far)
+from belong.agent_llm import (EXACTNESS_LOWERED, KEPT_IDEALLY, SAVE_CHECK, WISH_ASKED, WISH_IDEALLY, ClaudeAgent,
+                              _clean_details, build_draft, profile_so_far)
 from belong.agent_openai import OpenAIAgent
 from belong.demo import DemoSession
 from belong.schema import HIDDEN, SHOWN, STRICT_EXACTNESS, Field, is_detail_key, split_key
 from tests.test_agent_llm import ScriptedClient, ScriptedPost, det, oa_text, oa_tool, reply, text, tool
-from tests.test_demo import box_people, fill
+from tests.test_demo import _Node, box_people, fill
 from tests.test_kept_changes import args, kept
 
 GHENT = "Looking for a sourdough baking partner in Ghent on Sundays."
@@ -57,6 +58,7 @@ HIKER = args(intent="Looking for a hiking buddy around Innsbruck on Saturdays.",
                      ("offering", "a hiking buddy", SHOWN), ("headline", "Hiking around Innsbruck", SHOWN)],
              details=[must("transport", "has a car", "have a car")])
 PORTO = "Looking for a flatmate in Porto."
+BERGEN = "Looking for a choir to sing with in Bergen."
 FLAT = args(intent=PORTO,
             fields=[("city", "Porto", SHOWN), ("country", "Portugal", SHOWN), ("seeking", "a flatmate", SHOWN),
                     ("offering", "a room", SHOWN), ("headline", "Sharing a flat in Porto", SHOWN)])
@@ -194,6 +196,55 @@ class TheRule(unittest.TestCase):
         self.assertTrue(self.said(wish("them", "距離", "5キロ"), "毎朝5キロ一緒に走りたい"))
         self.assertFalse(self.said(wish("them", "距離", "5キロ"), "毎朝15キロ一緒に走りたい"))
         self.assertFalse(self.said(wish("them", "距離", "1キロ"), "毎朝10キロ一緒に走りたい"))
+
+    def test_a_short_word_between_two_numbers_joins_neither(self):
+        """A word of SHORT_WORD letters or fewer between two numbers connects them: it isn't what the first one counts,
+        so a range written with one is said by the same range written with a dash, and never by one of its numbers."""
+        for value, typed, said in (("7 to 9 people", "A team of 7-9 people for five-a-side.", True),
+                                   ("10 or 12", "We sing in groups of 10–12 on Thursdays.", True),
+                                   ("5 a 7 personas", "Buscamos 5-7 personas para jugar al rol.", True),
+                                   ("7 to 9 people", "A team of 7 people for five-a-side.", False),
+                                   ("10 or 12", "We sing in groups of 12 on Thursdays.", False),
+                                   ("6 km", "Free after 6 on Fridays, happy to run.", False),
+                                   ("6 km", "A 6 km loop on Fridays.", True)):
+            self.assertEqual(self.said(wish("them", "x", value), typed), said, (value, typed))
+
+    def test_the_word_after_a_number_is_compared_by_its_own_letters(self):
+        """A number's digits are never letters of the word joined to it: a word after the same number that only
+        starts like it is another word ("12 cups" is not "12 cm"), while its own forms still count."""
+        for value, typed, said in (("12 cm", "Bring 12 cups for the picnic.", False),
+                                   ("15 lb", "We swim 15 laps every morning.", False),
+                                   ("12 cm", "Strips of 12 cm for the frame.", True),
+                                   ("3 hours", "A walk of about 3 hour, then lunch.", True),
+                                   ("30 minutes", "A 30-minute warm-up before we spar.", True)):
+            self.assertEqual(self.said(wish("them", "x", value), typed), said, (value, typed))
+
+    def test_a_word_or_number_written_inside_a_run_without_spaces_counts(self):
+        """A typed run that mixes scripts is read as its pieces too: a Latin word or a number written inside a
+        Japanese or Chinese run is a word they typed, never part of a longer number."""
+        for value, typed, said in (("Kotlin", "Kotlinが書ける人を探しています", True),
+                                   ("Haskell", "想找一起学Haskell的同学", True),
+                                   ("3", "我想每周跑3次", True),
+                                   ("10 km", "週末に10kmを走る仲間を探しています", True),
+                                   ("3", "我想每周跑13次", False),
+                                   ("10 km", "週末に110kmを走る仲間を探しています", False),
+                                   ("Kotlin", "Swiftが書ける人を探しています", False)):
+            self.assertEqual(self.said(wish("them", "x", value), typed), said, (value, typed))
+
+    def test_a_decimal_a_time_or_a_numeral_is_one_number(self):
+        """A number written with a point, comma or colon inside it is one number, and a numeral written as a character
+        is never inside a longer one: only the same number says it."""
+        for value, typed, said in (("5 l", "Bring a 1.5 l bottle of water.", False),
+                                   ("1.5 l", "Bring a 1.5 l bottle of water.", True),
+                                   ("6 m", "A 2,6 m canoe is all I have.", False),
+                                   ("1.5 l", "One dog, 5 l of water.", False),
+                                   ("9:15", "Between 9 and 15 of us come along.", False),
+                                   ("9:15", "We start at 9:15 sharp.", True),
+                                   ("15", "We start at 9:15 sharp.", False),
+                                   ("八キロ", "毎朝十八キロ走る仲間を探しています", False),
+                                   ("八キロ", "毎朝八キロ走る仲間を探しています", True),
+                                   ("三公里", "每天跑二十三公里", False)):
+            self.assertEqual(self.said(wish("them", "x", value), typed), said, (value, typed))
 
     def test_their_answer_is_the_message_they_type_next(self):
         """Only the first message typed after the latest save that kept a wish as ideally is their answer to the
@@ -392,7 +443,7 @@ class WithAModelAgent(unittest.TestCase):
         s.agent_message("A", "It's a two-person boat.", mine.id)
         self.assertIn({"role": "user", "content": SAVE_CHECK}, mine.agent_conversation)
         self.assertFalse(rows_of(mine.draft)["both:start"]["required"])
-        self.assertIn(WISH_IDEALLY.format(name="start (about both)"), told(client, 4))
+        self.assertIn(WISH_ASKED.format(name="start (about both)"), told(client, 4))  # asked once already
 
     def test_a_change_typed_on_the_profile_and_the_apps_turn_about_it_dont_count_yet(self):
         """Values typed by hand on the profile aren't their words in a message (not yet), and nor is the turn the app
@@ -476,13 +527,14 @@ class WithAModelAgent(unittest.TestCase):
 
     def test_a_quote_from_before_the_save_that_kept_it_as_ideally_never_counts(self):
         """Their answer is the message typed next after the save that kept the wish as ideally: a quote of anything they
-        typed before it counts for nothing, in that turn or any later one. A save that keeps it as ideally again has
-        their agent told again, so it asks again, and their answer to that counts."""
+        typed before it counts for nothing, in that turn or any later one. A save that keeps the same wish as ideally
+        again has their agent told they were already asked, never to ask again, so their answer stays the message they
+        typed after the question, and quoted later it still counts."""
         ask = flat(must("pets", "no pets"))
         before = flat(must("pets", "no pets", words="Looking for a flatmate"))
-        answer = flat(must("pets", "no pets", words="Yes, it has to be"))
+        answer = flat(must("pets", "no pets", words="Yes, it must"))
         client = ScriptedClient(reply(tool(ask)), reply(text("Must they have no pets?")),
-                                reply(tool(before)), reply(text("Saved. Must they have no pets?")),
+                                reply(tool(before)), reply(text("Saved.")),
                                 reply(tool(answer)), reply(text("Saved.")))
         s = self.session(ClaudeAgent(client=client))
         s.agent_message("A", PORTO)
@@ -490,10 +542,10 @@ class WithAModelAgent(unittest.TestCase):
         self.assertEqual(mine.ideally_since, {"them:pets": 1})  # after their first message
         s.agent_message("A", "Yes, it must.")
         self.assertFalse(rows_of(mine.draft)["them:pets"]["required"])  # their request, quoted: not their answer
-        self.assertIn(WISH_IDEALLY.format(name="pets (about them)"), told(client, 3))
-        self.assertEqual(mine.ideally_since, {"them:pets": 2})  # kept so again: asked again, as of their second message
-        s.agent_message("A", "Yes, it has to be.")
-        self.assertTrue(rows_of(mine.draft)["them:pets"]["required"])  # their answer to the question asked again
+        self.assertIn(WISH_ASKED.format(name="pets (about them)"), told(client, 3))
+        self.assertEqual(mine.ideally_since, {"them:pets": 1})  # not asked again: still as of their first message
+        s.agent_message("A", "Thanks.")
+        self.assertTrue(rows_of(mine.draft)["them:pets"]["required"])  # their answer to the one question, quoted
         self.assertEqual(mine.ideally_since, {})  # a must now: nothing is waiting for an answer
 
     def test_their_answer_is_the_message_they_type_next_after_they_were_asked(self):
@@ -565,7 +617,8 @@ class WithAModelAgent(unittest.TestCase):
         self.assertTrue(rows_of(mine.draft)["them:pets"]["required"])
 
     def test_which_wishes_were_kept_as_ideally_stays_on_their_own_listing(self):
-        """Remembered on the listing only: never on the draft, so never on the phone or anywhere else."""
+        """The record of which wishes were kept as ideally, and when, is kept on the listing only: never on the draft,
+        so never on the phone or anywhere else. (The note that told their agent stays on their own draft: below.)"""
         client = ScriptedClient(reply(tool(flat(must("pets", "no pets")))), reply(text("Saved.")))
         s = self.session(ClaudeAgent(client=client))
         s.agent_message("A", PORTO)
@@ -575,6 +628,34 @@ class WithAModelAgent(unittest.TestCase):
         for state in (s.phone_state("A"), s.room_state()):
             self.assertNotIn(KEPT_IDEALLY, str(state))
             self.assertNotIn("ideally_since", str(state))
+
+    def test_the_note_naming_a_wish_kept_as_ideally_goes_only_to_their_own_phone(self):
+        """The note a save gives their agent, naming each wish it kept as ideally (and the wishes for which it made the
+        listing less exact), stays on their own draft like the agent's other notes until its next save: their own phone
+        is sent it, never another phone or the presenter panel; the record of which and when (ideally_since,
+        KEPT_IDEALLY) reaches none of them."""
+        choir = args(intent=BERGEN, fields=[("city", "Bergen", SHOWN), ("country", "Norway", SHOWN),
+                                            ("seeking", "a choir", SHOWN), ("offering", "a singer", SHOWN),
+                                            ("headline", "Singing in Bergen", SHOWN)],
+                     details=[must("voice part", "alto")])
+        client = ScriptedClient(reply(tool({**choir, "exactness": 0.9})), reply(text("Saved.")))
+        s = self.session(ClaudeAgent(client=client))
+        s.verify("B", "Ilse", 41)
+        s.agent_message("A", BERGEN)
+        mine = s.slots["A"].listing()
+        notes = [WISH_IDEALLY.format(name="voice part (about them)"),
+                 EXACTNESS_LOWERED.format(exactness=UNSTRICT, asked=0.9, strict=STRICT_EXACTNESS,
+                                          names="'voice part (about them)'")]
+        self.assertEqual(mine.ideally_since, {"them:voice part": 1})
+        self.assertEqual(mine.draft["notes"], notes)
+        own, other, room = (json.dumps(state) for state in (s.phone_state("A"), s.phone_state("B"), s.room_state()))
+        for note in notes:
+            self.assertIn(json.dumps(note), own)
+            self.assertNotIn(note, other)
+            self.assertNotIn(note, room)
+        for state in (own, other, room):
+            self.assertNotIn(KEPT_IDEALLY, state)
+            self.assertNotIn("ideally_since", state)
 
     def test_a_yes_to_the_agents_question_makes_it_a_must(self):
         """Told a wish was kept as ideally, the agent asks whether it must be met; their yes, quoted, makes it one."""
@@ -594,6 +675,64 @@ class WithAModelAgent(unittest.TestCase):
         s.agent_message("A", "Early starts are fine.")
         self.assertTrue(rows_of(s.slots["A"].listing().draft)["them:transport"]["required"])
         self.assertNotIn("was saved as ideally", told(client, 5))
+
+    def test_once_asked_the_agent_is_never_told_to_ask_again(self):
+        """The demo passes which wishes a save kept as ideally and what the person typed since: a wish they were already
+        asked about is noted without asking again, whatever the agent saves next (a must again, or ideally at an
+        exactness that is too high), and the note says what to do on a no. The profile the agent builds on says the
+        exactness that is saved."""
+        exact = lambda details: {**SAILOR, "exactness": 0.9, "details": SAILOR["details"] + details}  # noqa: E731
+        guess = must("crew size", "two crew")
+        ideally = {**guess, "required": False}
+        for later in (guess, ideally):
+            with self.subTest(required=later is guess):
+                client = ScriptedClient(reply(tool(exact([guess]))), reply(text("Saved. Must they be two crew?")),
+                                        reply(tool(exact([later]))), reply(text("Fine.")),
+                                        reply(tool(exact([later]))), reply(text("Saved.")))
+                s = self.session(ClaudeAgent(client=client))
+                mine = s.slots["A"].listing(s.new_listing("A"))
+                s.agent_message("A", CASCAIS + " Exactly that, please.", mine.id)
+                self.assertIn("Ask them whether it must be met", told(client))
+                self.assertIn("don't ask again", told(client))  # what to do on a no
+                self.assertIn(f"exactness: {UNSTRICT}", profile_so_far(mine.draft))
+                for n, said in ((3, "No, that doesn't matter, but keep the listing exact."), (5, "I sail on Sundays.")):
+                    s.agent_message("A", said, mine.id)
+                    self.assertEqual(mine.draft["exactness"], UNSTRICT)
+                    self.assertFalse(rows_of(mine.draft)["them:crew size"]["required"])
+                    self.assertNotIn("Ask them", told(client, n))
+                    self.assertNotIn("ask them", told(client, n))
+                    self.assertIn("already asked", told(client, n))
+                    self.assertIn("don't ask again", told(client, n))
+
+    def test_a_must_on_the_profile_the_turn_began_with_stays_through_the_turns_saves(self):
+        """The rule compares each save with the profile the turn began from, never only with the turn's previous save:
+        a must the person confirmed, and the exactness it allowed, stay when a later save of the same turn puts the wish
+        back as it was after an earlier one left it out (or saved it less exact)."""
+        exact = lambda details, exactness=0.9: {**SAILOR, "exactness": exactness,  # noqa: E731
+                                                "details": SAILOR["details"] + details}
+        skill = lambda words="": must("sailing skill", "can trim a jib", words=words)  # noqa: E731
+        turns = [(exact([skill()]), "Saved. Must they be able to trim a jib?"),
+                 (exact([skill("Yes, that matters")]), "Saved.")]
+        for name in ("claude", "openai"):
+            with self.subTest(agent=name):
+                if name == "claude":
+                    earlier = (r for call, said in turns for r in (reply(tool(call)), reply(text(said))))
+                    client = ScriptedClient(*earlier, reply(tool(exact([], 0.6))), reply(tool(exact([skill()]))),
+                                            reply(text("Saved.")))
+                    s = self.session(ClaudeAgent(client=client))
+                    last = lambda: told(client, len(client.requests) - 1)  # noqa: E731
+                else:
+                    post = ScriptedPost(*(r for call, said in turns for r in (oa_tool(call), oa_text(said))),
+                                        oa_tool(exact([], 0.6)), oa_tool(exact([skill()])), oa_text("Saved."))
+                    s = self.session(OpenAIAgent(api_key="test", post=post))
+                    last = lambda: post.requests[-1]["messages"][-1]["content"]  # noqa: E731
+                mine = s.slots["A"].listing(s.new_listing("A"))
+                for said in (CASCAIS + " Exactly that, please.", "Yes, that matters.", "Weekends suit me best."):
+                    s.agent_message("A", said, mine.id)
+                self.assertTrue(rows_of(mine.draft)["them:sailing skill"]["required"])
+                self.assertEqual(mine.draft["exactness"], 0.9)
+                self.assertEqual(mine.ideally_since, {})
+                self.assertNotIn("Ask them", last())
 
     def test_both_counts_the_request_it_answers(self):
         """Asked "a date, or a partner for that? Or both?", their "both" makes two listings, each from the request it
@@ -665,6 +804,43 @@ class WithAModelAgent(unittest.TestCase):
         self.assertTrue(rows_of(second.draft)["them:boat"]["required"])
         self.assertNotIn("was saved as ideally", told(client, 3))
         self.assertEqual(DemoSession._said(second), [both, "On the river, near Ghent."])
+
+    def test_a_save_after_a_change_on_the_profile_never_counts_as_the_listings_last_save(self):
+        """The turn the app writes after a change the person made on their profile can save the listing, but no message
+        of theirs led to that save: a new listing still counts what they typed from the message that led to the last
+        save that answered one of theirs, so a must typed in the request for both stays."""
+        both = ("Looking for crew for my dinghy in Cascais. And separately, someone to play chess with, they must bring "
+                "their own board.")
+        renamed = {**SAILOR, "intent_text": "Looking for crew for my catamaran in Cascais.",
+                   "fields": [f if f["key"] != "headline" else {**f, "values": ["Sailing a catamaran off Cascais"]}
+                              for f in SAILOR["fields"]],
+                   "details": [det("boat type", "catamaran")]}
+        chess = {**args(intent="Someone to play chess with in Lisbon who brings their own board.",
+                        fields=[("city", "Lisbon", SHOWN), ("country", "Portugal", SHOWN),
+                                ("seeking", "a chess partner", SHOWN), ("offering", "a chess partner", SHOWN),
+                                ("headline", "Playing chess in Lisbon", SHOWN)],
+                        details=[must("board", "own board")]), "separate_listing": True}
+        client = ScriptedClient(reply(tool(SAILOR)), reply(text("Saved the sailing one. Where would you play chess?")),
+                                reply(text("Take your time.")), reply(text("Not yet.")),
+                                reply(tool(renamed)), reply(text("I've updated the rest to match.")),
+                                reply(tool(chess)), reply(text("Started.")))
+        s = self.session(ClaudeAgent(client=client))
+        s.agent_message("A", both)
+        s.agent_message("A", "Let me check my week.")
+        first = s.slots["A"].listing()
+        s.keep_change("A", kept(first.draft, {"me:boat type": ["catamaran"]}))
+        self.assertTrue(first.chat[-1]["draft_updated"])  # the app's turn saved it
+        s.agent_message("A", "Evenings, in Lisbon.")
+        first, second = s.slots["A"].listings
+        self.assertTrue(rows_of(second.draft)["them:board"]["required"])
+        self.assertEqual(DemoSession._said(second), [both, "Let me check my week.", "Evenings, in Lisbon."])
+        # A line in the chat between the app's turn and its save (a notice) changes nothing.
+        chat = [{"from": "me", "text": "one"}, {"from": "agent", "text": "Saved.", "draft_updated": True},
+                {"from": "me", "text": "two"}, {"from": "change", "text": "You changed your headline on your profile."},
+                {"from": "agent", "text": "A new match.", "notice": "matches", "count": 1},
+                {"from": "agent", "text": "I've updated it to match.", "draft_updated": True},
+                {"from": "me", "text": "three"}]
+        self.assertEqual(DemoSession._said_since(mock.Mock(chat=chat)), ["one", "two", "three"])
 
     def test_a_separate_save_that_lands_on_this_listing_counts_all_of_its_chat(self):
         """A listing with no draft yet: a save marked separate goes on it, so everything typed in its chat counts."""
@@ -751,6 +927,33 @@ class WithAModelAgent(unittest.TestCase):
         wishes = rows_of(s.slots["A"].listing().draft)
         self.assertEqual((wishes["both:bake day"]["required"], wishes["them:oven type"]["required"]), (True, False))
 
+    def test_an_agent_of_its_own_is_held_to_it_without_being_told(self):
+        """An agent that doesn't take what they typed gets no note when its draft is held to the rule: nothing it is
+        handed next says a wish was kept as ideally or the listing made less exact, and the chat holds only what the
+        person and the agent wrote. It can see the change only on the profile it builds on."""
+        handed = []
+        choir = args(intent=BERGEN, fields=[("city", "Bergen", SHOWN), ("country", "Norway", SHOWN),
+                                            ("seeking", "a choir", SHOWN), ("offering", "a singer", SHOWN),
+                                            ("headline", "Singing in Bergen", SHOWN)],
+                     details=[must("voice part", "alto")])
+
+        class OwnAgent:
+            def respond(self, conversation, text, name, band, current, in_use=None):
+                handed.append(repr((conversation, text, current, in_use)))
+                draft, problems, _ = build_draft({**choir, "exactness": 0.9}, name, band, current, in_use)
+                assert not problems, problems
+                return "Saved.", draft
+
+        s = self.session(OwnAgent())
+        s.agent_message("A", BERGEN)
+        draft = s.slots["A"].listing().draft
+        self.assertEqual((rows_of(draft)["them:voice part"]["required"], draft["exactness"]), (False, UNSTRICT))
+        s.agent_message("A", "Rehearsals in the evening suit me.")
+        self.assertIn("'required': False", handed[1])  # on the profile it builds on
+        for told_it in ("saved as ideally", "Exactness was saved"):
+            self.assertNotIn(told_it, handed[1])
+            self.assertNotIn(told_it, json.dumps(s.slots["A"].listing().chat))
+
     def test_an_agent_of_its_own_is_made_less_exact_too(self):
         class OwnAgent:
             def respond(self, conversation, text, name, band, current, in_use=None):
@@ -764,6 +967,43 @@ class WithAModelAgent(unittest.TestCase):
         s = self.session(OwnAgent())
         s.agent_message("A", GHENT + " They need a wood-fired oven.")
         self.assertEqual(s.slots["A"].listing().draft["exactness"], 0.9)
+
+    def test_an_agent_of_its_owns_exactness_is_read_as_a_model_agents_is(self):
+        """Its exactness is read as build_draft reads a model agent's (a number from 0 to 1, else the default) before
+        it is held to the rule: none at all is the default, so Save draft and Start matching work, and a number written
+        as text is held to the rule like any other."""
+        def own(exactness):
+            class OwnAgent:
+                def respond(self, conversation, text, name, band, current, in_use=None):
+                    draft, problems, _ = build_draft(SAILOR, name, band, current, in_use)
+                    assert not problems, problems
+                    draft = {k: v for k, v in draft.items() if k != "exactness"}
+                    if exactness is not None:
+                        draft["exactness"] = exactness
+                    draft["fields"] += [{**detail_row("them", "crew role", "same", (), ["helm"]), "required": True}]
+                    return "Saved.", draft
+            return OwnAgent()
+
+        s = self.session(own(None))
+        s.agent_message("A", CASCAIS)
+        mine = s.slots["A"].listing()
+        self.assertEqual(mine.draft["exactness"], 0.6)
+        s.save_draft("A", copy.deepcopy(mine.draft))  # the phone sends back what it was given
+        self.assertEqual(mine.draft["exactness"], 0.6)
+        s = self.session(own("0.9"))
+        s.agent_message("A", CASCAIS)
+        mine = s.slots["A"].listing()
+        self.assertEqual(mine.draft["exactness"], UNSTRICT)
+        self.assertFalse(rows_of(mine.draft)["them:crew role"]["required"])
+
+    def test_save_draft_keeps_a_number_for_exactness(self):
+        """A stored exactness that isn't a number never breaks Save draft: the default stands in for it."""
+        s = self.session(None)
+        mine = s.slots["A"].listing(s.new_listing("A"))
+        mine.draft, problems, _ = build_draft(SAILOR, "Noor", s.slots["A"].person.age_band)
+        mine.draft["exactness"] = None
+        s.save_draft("A", {**copy.deepcopy(mine.draft), "exactness": None})
+        self.assertEqual(mine.draft["exactness"], 0.6)
 
     def test_what_the_rule_based_agent_keeps_from_before_stays_as_it_was(self):
         """A model agent's save was held to the rule when it was kept; once it becomes unavailable, the rule-based
@@ -1034,6 +1274,49 @@ class WithoutEachPart(unittest.TestCase):
             s.agent_message("A", "On the river, near Ghent.")
         self.assertFalse(rows_of(s.slots["A"].listings[1].draft)["them:boat"]["required"])
 
+
+
+class OnThePhone(_Node, unittest.TestCase):
+    """demo.html (run with node), as TRUST.md limit 28 says: a wish about the other person that the rule kept as
+    ideally reads "Ideally, I'd like..." on the person's own profile, and a match sees "(ideally)" next to it; a wish
+    about what both share reads the same either way. The page has no control that sets whether a wish must be met."""
+
+    def test_a_wish_kept_as_ideally_shows_as_ideally_about_them_and_the_same_about_both(self):
+        choir = args(intent=BERGEN, fields=[("city", "Bergen", SHOWN), ("country", "Norway", SHOWN),
+                                            ("seeking", "a choir", SHOWN), ("offering", "a singer", SHOWN),
+                                            ("headline", "Singing in Bergen", SHOWN)],
+                     details=[must("voice part", "alto"), must("rehearsal night", "thursday", about="both")])
+        s = DemoSession(seed=7, agent=ClaudeAgent(client=ScriptedClient(reply(tool(choir)), reply(text("Saved.")))))
+        s.run_inline = True
+        s.verify("A", "Noor", 36)
+        s.agent_message("A", BERGEN)
+        rows = [f for f in s.phone_state("A")["listings"][0]["draft"]["fields"] if is_detail_key(f["key"])]
+        self.assertEqual({f["key"]: f["required"] for f in rows}, {"them:voice part": False, "both:rehearsal night": False})
+        must_rows = [{**f, "required": True} for f in rows]
+        sentence = "console.log(JSON.stringify(%s.map(f => detailSentence(f, (k, t) => t).join(''))));"
+        names = ("const detailParts", "const andList", "const orList", "function detailSentence")
+        self.assertEqual(self.run_js(names, sentence % json.dumps(rows)),
+                         ["Ideally, I'd like their voice part to be alto", "The rehearsal night is thursday"])
+        self.assertEqual(self.run_js(names, sentence % json.dumps(must_rows)),
+                         ["I'd like their voice part to be alto", "The rehearsal night is thursday"])
+        card = {"city": "Bergen", **{f["key"]: {"values": f["value"], "compare": f["compare"], "steps": f["steps"],
+                                                "required": f["required"]} for f in rows}}
+        out = self.run_js(("const val", "const orList", "const cap", "const GENDER_WORDS", "const spanOf", "const agesText",
+                           "function wantsText", "const UNDERSTOOD", "const detailParts", "const isDetail",
+                           "const detailValues", "function matchFacts"),
+                          f"console.log(JSON.stringify(matchFacts({json.dumps(card)}, false)));")
+        self.assertEqual(out["wishes"], ["Voice part: alto (ideally)"])
+        self.assertIn("Rehearsal night: thursday", out["facts"])
+        self.assertNotIn("(ideally)", " ".join(out["facts"]))
+        self.assertNotIn("required", self._setter_free_page())
+
+    @staticmethod
+    def _setter_free_page() -> str:
+        """Every assignment in the page's script that sets a field's `required` (none: the phone can't change it)."""
+        import re
+        from pathlib import Path
+        page = (Path(__file__).resolve().parent.parent / "belong" / "web" / "demo.html").read_text()
+        return " ".join(re.findall(r"\.required\s*=(?!=)[^;]*", page))
 
 if __name__ == "__main__":
     unittest.main()

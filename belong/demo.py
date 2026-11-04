@@ -36,9 +36,10 @@ those from the message that led to this one's last save: _said_since), or their 
 question about it (the message they typed next after the latest save that kept it as ideally: the listing remembers
 which wishes and when, ideally_since, and _answers gives what came after), or its draft already had it as a must; and
 at exactness 0.8 or more, where every wish shuts people out, a listing with a wish that passes none of these is made
-less exact (agent.ground_exactness). A model agent is given those words, for where each of its saves lands, and told
-(agent_llm.build_draft, typed_for); the draft of an agent that doesn't take them is held to the rule by its values
-before it is kept (agent_message). TRUST.md #45.
+less exact (agent.ground_exactness). Each save of a model agent is checked against those words, for where it lands (they
+go to the check, not into the model's prompt: it has their messages only as its own conversation), and the agent is
+told (agent_llm.build_draft, typed_for); the draft of an agent that doesn't take them is held to the rule by its values
+before it is kept, without being told (agent_message, _grounded). TRUST.md #45.
 
 A person's account settings (set_settings; SPEC §3) only set each listing's own close matches and questions, which the
 Warden enforces: where a new listing's questions start, and whether a listing with no match yet has its close matches
@@ -76,7 +77,8 @@ from dataclasses import replace
 
 from . import agent, persona_chat
 from .agent_llm import (EDIT_UNSAVED_NOTE, KEPT_IDEALLY, SINGLED_OUT_NOTE, AgentUnavailable, ClaudeAgent,
-                        description_save_problems, detail_save_problems, edit_message, edit_note, listed_name_problems)
+                        description_save_problems, detail_save_problems, edit_message, edit_note, listed_name_problems,
+                        read_exactness)
 from .agent_openai import OpenAIAgent
 from .leaks import leak_report
 from .matching.marketboard import Marketboard
@@ -905,8 +907,14 @@ class DemoSession:
         """What the person typed for a separate listing their agent starts from this one: their messages in this
         listing's chat from the one that led to its last save (all of them if it was never saved), so the request the
         new listing is for, even when one message asked for both and this listing was saved from it first, and never
-        what came before, which was about this one."""
-        last = max((i for i, m in enumerate(listing.chat) if m.get("draft_updated")), default=None)
+        what came before, which was about this one. Only a save that answered a message of theirs counts: one from the
+        turn the app writes after a change they made on their profile (its "change" line came after their last
+        message) was led by none of theirs, so it never moves where their request starts."""
+        def answered(i: int) -> bool:
+            led = next((m.get("from") for m in reversed(listing.chat[:i]) if m.get("from") in ("me", "change")), None)
+            return led != "change"
+
+        last = max((i for i, m in enumerate(listing.chat) if m.get("draft_updated") and answered(i)), default=None)
         start = 0 if last is None else max((i for i, m in enumerate(listing.chat[:last]) if m.get("from") == "me"),
                                            default=last)
         return [m["text"] for m in listing.chat[start:] if m.get("from") == "me"]
@@ -920,9 +928,11 @@ class DemoSession:
 
     @staticmethod
     def _note_ideally(listing: _Listing, keys, n: int) -> None:
-        """Remember each wish this save kept as ideally (keys) as of n messages typed, the latest time (their agent was
-        told again, so asks again, and the message they type next is their answer), and forget each that is no longer on
-        the draft as ideally (a must now, or taken off): nothing is waiting for an answer about it."""
+        """Remember each wish this save kept as ideally and had their agent ask about (keys: never one they were already
+        asked about, agent.asked_about) as of n messages typed, the latest time (the message they type next is their
+        answer), and forget each that is no longer on the draft as ideally (a must now, or taken off): nothing is
+        waiting for an answer about it. A wish they were already asked about keeps when it was asked, so their answer
+        stays the message they typed after that question."""
         for key in keys or ():
             listing.ideally_since[key] = n
         ideally = {f.get("key") for f in (listing.draft or {}).get("fields", [])
@@ -1088,11 +1098,13 @@ class DemoSession:
         typed words (said) don't say kept as ideally, and each must the draft it replaces (before) already had, as wide
         or wider, as it is (agent.ground_wishes); and at exactness 0.8 or more, where every wish shuts people out, made
         less exact if any wish passes neither (agent.ground_exactness). It only ever lowers. Such an agent quotes
-        nothing, so no answer counts for it."""
+        nothing, so no answer counts for it. Its exactness is read first as build_draft reads a model agent's (a number
+        from 0 to 1, else the default: agent_llm.read_exactness), so every draft has one rule for it."""
         if isinstance(draft.get("fields"), list):
             words, was = agent.said_words(said), (before or {}).get("fields")
             draft["fields"], _ = agent.ground_wishes(draft["fields"], words, before=was)
-            draft["exactness"], _ = agent.ground_exactness(draft.get("exactness"), draft["fields"], words, before=was,
+            draft["exactness"], _ = agent.ground_exactness(read_exactness(draft.get("exactness")), draft["fields"],
+                                                           words, before=was,
                                                            before_exactness=(before or {}).get("exactness"))
         return draft
 
@@ -1378,13 +1390,14 @@ class DemoSession:
         problems = self._save_problems(mine, fields, kind, intent, before)
         if problems:
             raise DemoError("; ".join(problems))
+        kept = read_exactness(mine.draft.get("exactness"))  # what's stored, always a number
         try:
-            exactness = float(body.get("exactness", mine.draft.get("exactness", 0.6)))
+            exactness = float(body.get("exactness", kept))
         except (TypeError, ValueError):
-            exactness = mine.draft.get("exactness", 0.6)
+            exactness = kept
         mine.choices.update({key: HIDDEN for key in hide})
         mine.draft = {**copy.deepcopy(mine.draft), "fields": fields, "kind": kind, "intent_text": intent,
-                      "exactness": exactness if 0.0 <= exactness <= 1.0 else mine.draft.get("exactness", 0.6)}
+                      "exactness": exactness if 0.0 <= exactness <= 1.0 else kept}
         mine.provisional -= changed  # a guessed place they changed is theirs now; one they left stays a guess
 
     def _save_problems(self, mine: _Listing, fields: list, kind, intent: str, before: dict) -> list:
@@ -1452,10 +1465,13 @@ class DemoSession:
     def _rebased(self, mine: _Listing, body: dict, base: dict, live: bool = False) -> tuple:
         """The phone's body with each part the person changed on an older copy (base) that the draft has changed since
         made on the draft as it now is (agent.rebase), and each part they didn't change as the draft has it (live: for
-        a listing going live, one the draft has off or empty is left out, as the phone leaves it out). Returns (body,
-        {key: (the copy's value, theirs)}) for the parts it made again, so keep_change reads what they replaced from
-        what they saw."""
+        a listing going live, one the draft has off or empty is left out, as the phone leaves it out). Exactness too:
+        as the copy had it, it is the draft's as it now is (their agent may have lowered it meanwhile:
+        agent.ground_exactness), and moved on the copy, it is theirs. Returns (body, {key: (the copy's value, theirs)})
+        for the parts it made again, so keep_change reads what they replaced from what they saw."""
         body = {**body, "fields": [dict(f) for f in body.get("fields") or [] if isinstance(f, dict)]}
+        if "exactness" in mine.draft and body.get("exactness") == base.get("exactness"):
+            body["exactness"] = mine.draft["exactness"]
         edited = {}
         for key in [f.get("key") for f in body["fields"] if isinstance(f.get("key"), str)] + [agent.DESCRIPTION]:
             was, sent, now = self._body_value(base, key), self._body_value(body, key), agent.part_value(mine.draft, key)

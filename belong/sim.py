@@ -22,10 +22,11 @@ one, and a run with the rule matches exactly as one without it. With invented wi
 that aren't dating add a must the person never had (synth.INVENTED), quoting the first words of their description for
 it: truth is unchanged, so it costs matches and never makes a wrong one, and the rule wins most of them back, unless
 their agent then quotes the person's no as their answer (quote_any), which a word rule can't tell from a yes. With
-musts said in other words, a share of people type
-no value of their musts (synth.OTHER_WORDS_SHARE): with their answers, every one stays a must; read by its values alone
-(answers=False, to measure it) it would be kept as ideally, and with dialects, where the other listing doesn't show
-that detail, that makes wrong matches.
+musts said in other words, a share of people type no message with the values of their musts
+(synth.OTHER_WORDS_SHARE); their descriptions still say most of them, so only the rest depend on their answers (the
+run counts both, in musts: unsaid_musts). With their answers, every one stays a must; read by its values alone
+(answers=False, to measure it) each of the rest would be kept as ideally, and with dialects, where the other listing
+doesn't show that detail, that makes wrong matches.
 
 With a judge (`belong run --matcher ai`, or `--matcher hostile` for a stand-in that answers as badly as it can; never by
 default), the Matchmaker is the hybrid (matching/hybrid.py): the same rules narrow and decide everything hard, and the
@@ -49,7 +50,6 @@ from .matching.marketboard import Marketboard
 from .matching.matcher import OfflineMatcher
 from .schema import value_to_json
 from .synth import ANSWER_YES, answer, draft_listing, generate
-from .synth import INVENTED_SHARE, OTHER_WORDS_SHARE  # the shares, for the command line
 from .warden import Clock, Warden, checked_judge
 
 # The layout of out/run.json; a file in another layout is rebuilt rather than shown (__main__._current).
@@ -64,7 +64,8 @@ def run(n: int = 300, seed: int = 7, matcher=None, k_crowd: int = 20, approach_l
     invented: the share of listings that aren't dating whose agent adds a must the person never had (synth.INVENTED;
     INVENTED_SHARE in the batch run's invented-wish passes). ground: a must stays one only if the person's own words
     say it (agent.ground_wishes), as in the product; False only to measure what that rule wins back. other_words: the
-    share of people who say each must in other words than its value (OTHER_WORDS_SHARE in the batch run's last pass).
+    share of people who type no message with the values of their musts (OTHER_WORDS_SHARE in the batch run's last
+    pass; their descriptions still say most of them: metrics musts and musts_unsaid).
     answers: their answers to their agent's question whether a wish kept as ideally must be met count, as in the
     product; False only to measure what reading values alone would cost. quote_any: their agent quotes their answer
     whatever it says, a no too (said_listing), to measure what the rule wins back from an agent that stays
@@ -88,9 +89,11 @@ def run(n: int = 300, seed: int = 7, matcher=None, k_crowd: int = 20, approach_l
         matcher.judge = checked_judge(warden, judge, lambda: board, lambda: matcher.payloads, lambda: matcher.labels)
 
     # Day 0: entry
-    entry_log, kept_ideally = {}, 0
+    entry_log, kept_ideally, musts, unsaid = {}, 0, 0, 0
     for pid, p in personas.items():
         listing = draft_listing(p, clock.now())
+        had, missing = unsaid_musts(listing, p)
+        musts, unsaid = musts + had, unsaid + missing
         if ground:
             listing, ideally = said_listing(listing, p, answers, quote_any)
             kept_ideally += len(ideally)
@@ -159,6 +162,9 @@ def run(n: int = 300, seed: int = 7, matcher=None, k_crowd: int = 20, approach_l
     metrics["wishes_kept_ideally"] = kept_ideally
     # People who said their musts in other words than the values their agent writes (synth.OTHER_WORDS_SHARE).
     metrics["musts_in_other_words"] = sum(1 for p in personas.values() if p.other_words)
+    # Counted in musts, not people: every must the people have on their agents' drafts, and those nothing they typed
+    # says (unsaid_musts), which only their yes to their agent's question keeps (their descriptions still say the rest).
+    metrics["musts"], metrics["musts_unsaid"] = musts, unsaid
 
     return {
         "meta": {"n": n, "seed": seed, "k_crowd": k_crowd, "approach_limit": approach_limit,
@@ -181,6 +187,17 @@ def run(n: int = 300, seed: int = 7, matcher=None, k_crowd: int = 20, approach_l
         "receipts_total": len(receipt_dicts),
         "receipt_tally": _tally(receipt_dicts),
     }
+
+
+def unsaid_musts(listing, p) -> tuple:
+    """(musts, unsaid): how many wishes (about them or both) their agent's draft has as musts that the person has (never
+    one their agent made up, synth.INVENTED), and how many of those nothing they typed (their description and their
+    words for each must, synth.say_musts) says (agent.wish_said). Only the person's yes to their agent's question keeps
+    an unsaid one (said_listing); with musts said in other words (synth.OTHER_WORDS_SHARE) their description still says
+    the rest."""
+    typed = agent.said_words([p.intent_text, *p.said])
+    had = [f for f in listing.fields if f.about in agent.WISHES and f.required and f.key != p.invented]
+    return len(had), sum(1 for f in had if not agent.wish_said(f, typed))
 
 
 def said_listing(listing, p, answers: bool = True, quote_any: bool = False) -> tuple:

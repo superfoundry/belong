@@ -57,9 +57,10 @@ their region, and plain Python; secure hardware comes in Step 3.
   Then it runs both again with a quarter of the agents of listings that aren't dating adding a must the
   person never had, with and without the rule that a must comes from the person's own words, to show
   what that rule wins back, and with it while those agents quote the person's "no" as their answer, to
-  show what a word rule can't win back; and last the second week with every must said in other words
-  than the value its agent writes, with the person's yes to their agent's question and by values alone,
-  to show what reading values alone would cost (TRUST.md #45).
+  show what a word rule can't win back; and last the second week with nobody typing their musts with
+  their values (their descriptions still say most of them; it counts, in musts, how many nothing they
+  typed says), with the person's yes to their agent's question and by values alone, to show what reading
+  values alone would cost on those musts (TRUST.md #45).
 - **[TRUST.md](TRUST.md)** lists every privacy promise with the code that enforces it,
   the test that proves it, and what isn't guaranteed yet. Start there.
 - **[SPEC.md](SPEC.md)** is the product spec.

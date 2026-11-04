@@ -17,8 +17,8 @@ Each Persona carries:
   - the person's visibility choices,
   - what they typed besides their description: for each wish they have that must be met, their words
     saying so, its value among them, as a person telling their agent would (see say_musts); asked for,
-    a share of people say it in other words than the value their agent writes (see OTHER_WORDS_SHARE),
-    and answer yes when their agent asks whether it must be met (see answer),
+    a share of people type none of that (see OTHER_WORDS_SHARE: their description still says most of
+    their musts), and answer yes when their agent asks whether one it doesn't say must be met (see answer),
   - how long ago their listing last changed, and how their agent's way of writing details differs
     from most agents' (a dialect, for a share of people when asked for: see DIALECTS), and, also
     when asked for, a wish their agent made up that they never had (the invented-wish dialect: see
@@ -187,10 +187,10 @@ INVENTED_SHARE = 0.25
 INVENTED_QUOTE_WORDS = 5
 # Musts said in other words. Each person says every wish they have that must be met, in a message of their own with
 # its value (Persona.said), as a person telling their agent would. Asked for, a share of people (OTHER_WORDS_SHARE: in
-# the batch run, everyone, as agents write values in their plainest common form whatever words the person used) say
-# each must without the value their agent writes, so their agent's save keeps it as ideally, asks them whether it must
-# be met, and quotes their yes (answer): the batch run measures what the rule that a must comes from the person's own
-# words would cost if it read the values alone, without their answers.
+# the batch run, everyone) type none of those messages. Their description is unchanged and still says most of their
+# musts; for each it doesn't say, their agent's save keeps it as ideally, asks them whether it must be met, and quotes
+# their yes (answer): the batch run measures what the rule that a must comes from the person's own words would cost on
+# those musts if it read the values alone, without their answers (sim.unsaid_musts counts them).
 OTHER_WORDS_SHARE = 1.0
 # A person's answer when their agent asks whether a wish must be met: yes for a must they have, no for any other.
 ANSWER_YES = "Yes, that has to match, it's a must."
@@ -606,9 +606,9 @@ def generate(n: int = 300, seed: int = 7, dialects: float = 0.0, invented: float
     """n synthetic people. dialects: the share of them whose agent writes details unlike most agents
     (DIALECT_SHARE in the batch run's second pass, none by default). invented: the share of those whose
     listing isn't dating whose agent adds a wish they never had (INVENTED_SHARE in the batch run's
-    invented-wish passes, none by default). other_words: the share of them who say each must in other
-    words than the value their agent writes (OTHER_WORDS_SHARE in the batch run's last pass, none by
-    default). Everything else about everyone, those people included, is the same either way."""
+    invented-wish passes, none by default). other_words: the share of them who type no message with the
+    values of their musts (OTHER_WORDS_SHARE in the batch run's last pass, none by default; their description
+    still says most of them). Everything else about everyone, those people included, is the same either way."""
     rng = random.Random(seed)
     # How far each person travels, and who works online only, come from a stream of their own, so
     # everything else about each person is the same as before these details existed. So do how long
@@ -722,8 +722,9 @@ def generate(n: int = 300, seed: int = 7, dialects: float = 0.0, invented: float
 def say_musts(p: Persona, other_words: bool = False) -> None:
     """What the person types besides their description: for each wish they have that must be met, a message saying
     so with its values, as a person telling their agent would ("Their pace has to be easy or moderate."). other_words:
-    none of that is typed (they said each in other words than the value their agent writes), so their agent asks, and
-    they answer yes (answer). Before any dialect, so it is what they want, however their agent writes it."""
+    none of that is typed (they said each in other words than the value their agent writes); their description, which
+    this never changes, still says most of their musts, and for each it doesn't, their agent asks and they answer yes
+    (answer). Before any dialect, so it is what they want, however their agent writes it."""
     musts = [(key, d) for key, d in p.values.items() if isinstance(d, Detail) and is_detail_key(key)
              and split_key(key)[0] in ("them", "both") and d.required]
     said = [] if other_words else [f"{'Their' if split_key(key)[0] == 'them' else 'The'} {split_key(key)[1]} has to be "

@@ -438,13 +438,24 @@ class AHostileMatchmakerAIOnASyntheticBoard(unittest.TestCase):
         self.assertEqual(code, 0)
         self.assertIn("hostile stand-in", out.getvalue())
         # Both weeks, then both again with invented wishes, with the rule that a must comes from the person, without,
-        # and with it while the agent quotes every answer, then the dialects' week with every must said in other words,
-        # with the person's answers and by values alone: every one audited.
+        # and with it while the agent quotes every answer, then the dialects' week with nobody typing their musts with
+        # their values, with the person's answers and by values alone: every one audited.
         self.assertEqual(out.getvalue().count("Leak report: PASS"), 10)
         self.assertEqual(out.getvalue().count("Without the rule that a must comes from the person's own words"), 2)
         self.assertEqual(out.getvalue().count("their agent quoting the person's answer whatever it says"), 2)
         self.assertEqual(out.getvalue().count("Reading only the values, not the person's yes to their agent's question"),
                          1)
+
+    def test_no_doc_puts_a_count_on_the_runs_of_belong_run(self):
+        """How many times `python3 -m belong run` simulates the week is pinned above (one leak report each). A doc's
+        command line never states it, so adding a run can't leave a wrong count there."""
+        import re
+        root = Path(__file__).resolve().parent.parent
+        for doc in ("README.md", "TRUST.md", "SPEC.md", "CLAUDE.md"):
+            for line in (root / doc).read_text().splitlines():
+                if line.strip().startswith("python3 -m belong run") and "#" in line:
+                    comment = line.split("#", 1)[1]
+                    self.assertIsNone(re.search(r"\b(?:twice|thrice|\w+ (?:weeks|runs|times))\b", comment), (doc, line))
 
 
 def _compare_tool():
