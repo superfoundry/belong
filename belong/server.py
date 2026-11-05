@@ -54,6 +54,9 @@ FILES = {
     "/run.json": (ROOT / "out" / "run.json", "application/json"),
 }
 MAX_BODY = 64 * 1024
+# How many sandbox probes (/api/probe/...) may run at once; more are told to try again (security review F05).
+PROBE_SLOTS = 2
+_PROBE_SLOTS = threading.BoundedSemaphore(PROBE_SLOTS)
 
 # How many synthetic people the demo starts with (BELONG_PEOPLE; tests use DemoSession's own 300).
 PEOPLE = int(os.environ.get("BELONG_PEOPLE", "5000"))
@@ -174,11 +177,17 @@ class _Handler(BaseHTTPRequestHandler):
         else:
             # Read (and drop) any body first: answering before it's read can cut the connection
             # before the answer arrives.
-            length = int(self.headers.get("Content-Length") or 0)
-            if 0 < length <= MAX_BODY:
+            length = self._body_length()
+            if length and length <= MAX_BODY:
                 self.rfile.read(length)
             self._json(401, {"error": "This demo needs its password. Sign in at /login."})
         return True
+
+    def _body_length(self):
+        """The request's Content-Length: a plain whole number, never negative; None if it is anything else, which is
+        refused before any of the body is read (security review F05)."""
+        raw = (self.headers.get("Content-Length") or "0").strip()
+        return int(raw) if raw.isascii() and raw.isdigit() else None
 
     def _login_page(self, code: int = 200, next_path: str = "/", error: str = "") -> None:
         page = (WEB / "login.html").read_text()
@@ -189,7 +198,9 @@ class _Handler(BaseHTTPRequestHandler):
 
     def _login(self) -> None:
         from urllib.parse import parse_qs
-        length = int(self.headers.get("Content-Length") or 0)
+        length = self._body_length()
+        if length is None:
+            return self._json(400, {"error": "Bad request: Content-Length"})
         if length > MAX_BODY:
             return self._json(413, {"error": "Request too large."})
         form = {k: v[0] for k, v in parse_qs(self.rfile.read(length).decode("utf-8", "replace")).items()}
@@ -322,16 +333,26 @@ class _Handler(BaseHTTPRequestHandler):
             fn = PROBES.get(path.removeprefix("/api/probe/"))
             if fn is None:
                 return self.send_error(404)
-            length = int(self.headers.get("Content-Length") or 0)
+            length = self._body_length()
+            if length is None:
+                return self._json(400, {"error": "Bad request: Content-Length"})
             if length > MAX_BODY:
                 return self._json(413, {"error": "Request too large."})
             try:
                 body = json.loads(self.rfile.read(length) or b"{}")
                 if not isinstance(body, dict):
                     raise ValueError
+            except (ValueError, TypeError) as e:
+                return self._json(400, {"error": f"Bad request: {e}"})
+            # Each probe builds a sandbox of its own: only a few at once (security review F05).
+            if not _PROBE_SLOTS.acquire(blocking=False):
+                return self._json(503, {"error": "Busy running other tests. Try again in a minute."})
+            try:
                 return self._json(200, fn(body))
             except (ValueError, TypeError) as e:
                 return self._json(400, {"error": f"Bad request: {e}"})
+            finally:
+                _PROBE_SLOTS.release()
         session, shape = SESSION, lambda s: s.state()
         if path.startswith("/api/chat/"):
             name = path.removeprefix("/api/chat/")
@@ -342,7 +363,9 @@ class _Handler(BaseHTTPRequestHandler):
         action = ACTIONS.get(path.removeprefix("/api/"))
         if not path.startswith("/api/") or action is None:
             return self.send_error(404)
-        length = int(self.headers.get("Content-Length") or 0)
+        length = self._body_length()
+        if length is None:
+            return self._json(400, {"error": "Bad request: Content-Length"})
         if length > MAX_BODY:
             return self._json(413, {"error": "Request too large."})
         try:

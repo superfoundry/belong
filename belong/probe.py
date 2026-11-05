@@ -59,7 +59,7 @@ def _sandbox(seed: int):
     warden = Warden(clock, key=secrets.token_bytes(32))
     board = Marketboard()
     for p in personas.values():
-        warden.admit(p.person, draft_listing(p, clock.now()), board)
+        warden.admit(p.person, draft_listing(p, clock.now()), board, history=True)
     return personas, clock, warden, board
 
 
@@ -742,13 +742,14 @@ def attack_suite(body: dict) -> dict:
     # people show it, on listings unchanged for days; one person can't put anything there.
     def shared_list(owners: list, field: Field, days_old: int = 30) -> str:
         """The shared list a fresh Warden builds from copies of a's listing, one per entry of owners (a person
-        may appear more than once), each with this field and last changed days_old days ago."""
+        may appear more than once), each with this field and last changed days_old days ago (by the Warden's own
+        clock: the time on a listing is never trusted)."""
         scratch_clock = Clock()
         w, scratch = Warden(scratch_clock, key=secrets.token_bytes(32)), Marketboard()
-        then = (datetime.fromisoformat(scratch_clock.now().rstrip("Z")) - timedelta(days=days_old)).isoformat() + "Z"
         for i, owner in enumerate(owners):
-            w.admit(replace(me, id=owner), replace(a_listing, person_id=f"{owner}-{i}", owner_id=owner, updated_at=then,
+            w.admit(replace(me, id=owner), replace(a_listing, person_id=f"{owner}-{i}", owner_id=owner,
                                                    fields=_set_field(a_listing, field)), scratch)
+        scratch_clock.advance(days=days_old)
         return json.dumps(w.details_in_use(scratch).vocabulary(), ensure_ascii=False)
     word = _token()
     shown_word = detail(_token(), (word,))
