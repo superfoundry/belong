@@ -518,7 +518,7 @@ class NeverASpecificPerson(unittest.TestCase):
             other = replace(listing(f"sf{i}", intent="Looking for a sketching partner.",
                                     fields=[fld("city", "Santa Fe"), fld("country", "United States")]),
                             updated_at="2026-10-01T00:00:00Z")
-            self.assertTrue(w.admit(person(f"sf{i}"), other, board).accepted)
+            self.assertTrue(w.admit(person(f"sf{i}"), other, board, history=True).accepted)  # a week old, seeded
         receipts = len(w.receipts)
         self.assertFalse(w.admit(person("me1"), mine, Marketboard()).accepted)  # entry built nothing
         self.assertEqual(len(w.receipts) - receipts, len(ENTRY_CHECKS))  # its own checks' receipts, no more
@@ -589,7 +589,7 @@ class NeverASpecificPerson(unittest.TestCase):
             other = replace(listing(f"pl{i}", intent="Looking for a sketching partner.",
                                     fields=[fld("city", "Port Louis"), fld("country", "Mauritius")]),
                             updated_at="2026-10-01T00:00:00Z")
-            self.assertTrue(w.admit(person(f"pl{i}"), other, board).accepted)
+            self.assertTrue(w.admit(person(f"pl{i}"), other, board, history=True).accepted)  # a week old, seeded
         w.details_in_use(board)
         text = "Day trips to the Port Louis Market, any Saturday."
         mine = listing("me1", intent=text, fields=[fld("city", "Curepipe")])

@@ -25,7 +25,7 @@ HIDDEN_COUNTRY = "Word where two people are from a country one of them hides"
 def board_of(*listings):
     w, board = warden(), Marketboard()
     for l in listings:
-        result = w.admit(person(l.person_id), l, board)
+        result = w.admit(person(l.person_id), l, board, history=True)  # each fixture's own time, as seeded history
         assert result.accepted, (l.person_id, result.problems)
     return w, board
 
