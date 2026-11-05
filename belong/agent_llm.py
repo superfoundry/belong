@@ -1179,6 +1179,11 @@ EDIT_TOPICS = (" What the listing is about changed, so write the topics again fo
                "areas, as always), even where they share no word with what they replaced, using only words a match "
                "can already see on the profile (its shown parts, their new wording among them) or that the topics "
                "already have, in any form.")
+# When the person changed what the listing is about themselves (agent.reviews): the whole profile, not only its words.
+EDIT_REVIEW = (" They changed what the listing is about, so instead of only rewording, read the whole profile again: "
+               "rewrite any shown part that no longer fits what it's about now (the headline, seeking and offering, "
+               "intent_text, and shown details about them), in any words, but never their change, a hidden part, a "
+               "wish, a fixed choice like the city, or the wording of anything hidden.")
 EDIT_NOTE = "(From the app, not typed by the person.) The person changed {names} on their profile themselves."
 # The reply when the agent wrote none: true to whether it saved.
 EDIT_SAVED = "I've updated the rest of your profile to match."
@@ -1192,14 +1197,15 @@ def _quoted(value) -> str:
     return '"' + (", ".join(value) if isinstance(value, list) else str(value)) + '"'
 
 
-def edit_message(changes: list, reread: bool = False) -> str:
+def edit_message(changes: list, reread: bool = False, review: bool = False) -> str:
     """The turn that tells the agent what the person changed, from what to what (agent.changes_made: values from the
     draft they had saved and the one they kept, nothing else); reread: the topics are to be read again
-    (agent.rereads)."""
+    (agent.rereads); review: they changed what the listing is about, so the whole profile is read again
+    (agent.reviews)."""
     said = "; ".join(f"{_named(c['key'])} from {_quoted(c['before'])} to {_quoted(c['after'])}" for c in changes)
     hidden = [_named(c["key"]) for c in changes if c["private"]]
     return EDIT_TURN.format(said=said, hidden=EDIT_HIDDEN.format(names=", ".join(hidden)) if hidden else "",
-                            topics=EDIT_TOPICS if reread else "")
+                            topics=(EDIT_REVIEW if review else "") + (EDIT_TOPICS if reread else ""))
 
 
 def edit_note(changes: list) -> str:

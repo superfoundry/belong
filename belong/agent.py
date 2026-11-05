@@ -1848,8 +1848,16 @@ def replaced_words(changes: list) -> set:
 
 
 def says(value, words: set) -> bool:
-    """Does a part's value have any of these (canonical) words."""
+    """Does a part's value have any of these (canonical) words, exactly: what the phone itself offers to replace word
+    for word (offers), where another form would be the wrong word ("large" is no form of "largely")."""
     return bool(_all_words(value) & words)
+
+
+def says_in_some_form(value, words: set) -> bool:
+    """Does a part's value have any of these words in some form (same_word: "baking" for "bake"): what the person's
+    agent may bring in line after a change, and is asked to, since it reads what the words mean, so a part that says a
+    word they replaced in another form isn't left saying the old thing."""
+    return bool(_any_form(_all_words(value), words))
 
 
 # The parts that say what a listing is about, in the person's words or their agent's, and the one part their agent
@@ -1876,12 +1884,18 @@ def rereads(draft, changes: list) -> bool:
             or any(says(part_value(draft, k), words) for k in _WHAT if k not in changed))
 
 
+def reviews(draft, changes: list) -> bool:
+    """Did the person change what the listing is about itself (the headline, seeking, offering or the description, not
+    hidden), so their agent reviews the whole profile (keep_edit): a change of subject, not a word in a detail."""
+    return any(c["key"] in _ABOUT and replacements(c) for c in changes if not c["private"])
+
+
 def depends(draft, changes: list) -> bool:
-    """Is there anything to bring in line: another part of the draft still says a word the person replaced, or the
-    topics are to be read again (rereads)."""
+    """Is there anything to bring in line: another part of the draft still says a word the person replaced, the
+    topics are to be read again (rereads), or the person changed what the listing is about (reviews)."""
     words, changed = replaced_words(changes), {c["key"] for c in changes}
-    return (bool(words) and any(says(part_value(draft, k), words) for k in parts(draft) if k not in changed)) \
-        or rereads(draft, changes)
+    return (bool(words) and any(says_in_some_form(part_value(draft, k), words) for k in parts(draft) if k not in changed)) \
+        or rereads(draft, changes) or reviews(draft, changes)
 
 
 def _private_texts(draft, changes: list) -> list:
@@ -2081,8 +2095,11 @@ def keep_edit(new: dict, saved: dict, changes: list) -> tuple:
     part with no value gets none, a part brought in line gets no word from anywhere else (nothing they didn't give),
     every other part stays as it was, no part is taken off, an open detail keeps whom it's about, how it compares and
     its steps, a wish keeps whether it must be met, shown or hidden stays as it was, and no word of a hidden or
-    sensitive part's new value, in any form, goes into a part that is shown. The one part read again rather than
-    reworded: when what the listing is about changed (rereads), the agent's topics are taken in any words a match can
+    sensitive part's new value, in any form, goes into a part that is shown. When the person changed what the listing
+    is about themselves (reviews), the agent reviews the whole profile: any shown part that says what the listing is (the headline, seeking,
+    offering, the description) or shown detail about the person, other than what the person just changed, may be
+    rewritten in any words, never a new word of anything hidden or sensitive (as below); hidden parts, built-ins with
+    fixed choices and wishes stay as the rules above keep them. And the agent's topics are taken in any words a match can
     already see on the profile (its shown parts, the person's new wording among them) or that the topics had, each in
     any form, with grammar; never with a new word, in any form, of anything hidden or sensitive (_private_words) that
     no shown part says word for word; and never with one topic that says every word of a hidden or sensitive value of
@@ -2101,6 +2118,7 @@ def keep_edit(new: dict, saved: dict, changes: list) -> tuple:
     words = replaced_words(changes)
     private = set().union(*(_all_words(c["after"]) for c in changes if c["private"]))
     reread = rereads(saved, changes)
+    review = reviews(saved, changes)
     # Read again, the topics are made of what a match can already see: words of the profile's shown parts and the
     # topics' own, each in any form, and grammar. Never a new word, in any form, of anything hidden or sensitive that
     # no shown part says, however short (a word a shown part says word for word tells a match nothing new, whatever it
@@ -2110,10 +2128,10 @@ def keep_edit(new: dict, saved: dict, changes: list) -> tuple:
     # for it) is beyond a word rule (TRUST.md limit 26).
     seen = {w for k in parts(saved) if _shown(saved, k) for w in _all_words(part_value(saved, k))}
     topics_were = part_value(saved, _READING)
-    secret = _private_words(saved, changes) - seen - _all_words(topics_were) if reread else set()
+    secret = _private_words(saved, changes) - seen - _all_words(topics_were) if reread or review else set()
     shown_items = [x for k in parts(saved) if _shown(saved, k) for x in _items(part_value(saved, k))] + _items(topics_were)
     together = [ws for ws in ({w for w in _all_words(x) if not _grammar(w)} for x in _private_texts(saved, changes))
-                if len(ws) > 1 and not any(_says_all(x, ws) for x in shown_items)] if reread else []
+                if len(ws) > 1 and not any(_says_all(x, ws) for x in shown_items)] if reread or review else []
     given = set().union(*(_all_words(c["after"]) for c in changes))  # the person's own new wording
     mine = {f["key"]: f for f in out.get("fields", [])}
     theirs = {f["key"]: f for f in new.get("fields", [])}
@@ -2132,11 +2150,22 @@ def keep_edit(new: dict, saved: dict, changes: list) -> tuple:
             continue
         if _same(was, now):
             continue
-        dependent = was is not None and says(was, words)
+        dependent = was is not None and says_in_some_form(was, words)
         if now is None and key not in changed and not dependent:
             continue  # left out, and it didn't say what they replaced: kept as it was
         extra = _all_words(now) - _all_words(was)  # every word the agent brought into the part
-        if key == _READING and reread and was is not None and key not in changed:
+        if review and was is not None and key not in changed and _shown(saved, key) and key != _READING and (
+                key in _ABOUT or (is_detail_key(key) and split_key(key)[0] not in WISHES)):
+            # What the listing is about changed, so the agent reviews the whole profile: a shown part that says what
+            # it is (the headline, seeking, offering, description) or a shown detail about the person may be rewritten
+            # in any words but the wording of anything hidden or sensitive, as the topics are. Never a hidden part,
+            # one the person just changed, a built-in with fixed choices, or a wish (what they want in the other
+            # person stays theirs, so no must is written for them).
+            why = ("kept" if now is None
+                   else "hidden" if _any_form(extra - seen, secret)
+                   or any(_says_all(x, ws) for x in _items(now) for ws in together)
+                   else None)
+        elif key == _READING and reread and was is not None and key not in changed:
             # Read again for what the listing is about now, from what a match can already see.
             why = ("kept" if now is None
                    else "hidden" if _any_form(extra - seen, secret)

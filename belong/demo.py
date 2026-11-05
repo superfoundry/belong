@@ -1535,7 +1535,7 @@ class DemoSession:
             current = {**self._without_guesses(mine), "choices": dict(mine.choices)}
             chosen_before = dict(mine.choices)
             in_use = self.details_in_use()
-            text, start = edit_message(changes, agent.rereads(saved, changes)), len(conversation)
+            text, start = edit_message(changes, agent.rereads(saved, changes), agent.reviews(saved, changes)), len(conversation)
         reply = draft = None
         try:
             if "edit" in inspect.signature(llm.respond).parameters:

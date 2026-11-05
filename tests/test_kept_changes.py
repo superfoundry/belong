@@ -142,6 +142,54 @@ class TheRule(unittest.TestCase):
         self.assertFalse(agent.rereads(draft, [hidden_headline]))
         self.assertFalse(agent.depends(draft, [hidden_headline]))
 
+    def test_a_part_that_says_a_replaced_word_in_another_form_is_brought_in_line(self):
+        """The agent may bring in line a part that says a word the person replaced in another form ("painting" after
+        "paint" was replaced), and is asked to; the phone's own word-for-word offers still take whole words only."""
+        call = args(intent="Learning to carve wood in Bergen, at weekends.",
+                    fields=[("city", "Bergen", SHOWN), ("country", "Norway", SHOWN),
+                            ("headline", "Learning to carve wood", SHOWN)],
+                    details=[det("medium", "painting")])
+        saved, problems, _ = build_draft(call, "Noor", "35-44")
+        self.assertEqual(problems, [])
+        renamed = self.change("headline", "Learning to paint landscapes", "Learning to carve wood")
+        self.assertTrue(agent.depends(saved, [renamed]))
+        self.assertFalse(agent.says("painting", agent.replaced_words([renamed])))  # offers: whole words only
+        new = copy.deepcopy(saved)
+        for f in new["fields"]:
+            if f["key"] == "me:medium":
+                f["value"] = ["carving"]
+        out, fixes = agent.keep_edit(new, saved, [renamed])
+        self.assertEqual(fixes, [])
+        self.assertEqual(agent.part_value(out, "me:medium"), ["carving"])
+
+    def test_a_change_of_subject_has_the_agent_review_the_whole_shown_profile(self):
+        """When the person changes what the listing is about themselves, a shown detail about them that no longer fits
+        may be rewritten in new words, though it shares none with what they replaced; a wish, a built-in with fixed
+        choices, a hidden part and a new word of something hidden never are. A word in a detail is no change of
+        subject."""
+        call = args(intent="Learning to sail in Kiel, at weekends.",
+                    fields=[("city", "Kiel", SHOWN), ("country", "Germany", SHOWN), ("headline", "Learning to sail", SHOWN)],
+                    details=[det("equipment", "bow and rosin"), det("teacher style", "patient", about="them"),
+                             det("home port", "Lindqvist Harbour", visibility=HIDDEN)])
+        saved, problems, _ = build_draft(call, "Noor", "35-44")
+        self.assertEqual(problems, [])
+        renamed = self.change("headline", "Learning to play cello", "Learning to sail")
+        self.assertTrue(agent.reviews(saved, [renamed]))
+        self.assertFalse(agent.reviews(saved, [self.change("me:equipment", ["bow"], ["bow and rosin"])]))
+
+        def with_(key, value):
+            new = copy.deepcopy(saved)
+            for f in new["fields"]:
+                if f["key"] == key:
+                    f["value"] = value
+            return new
+        out, fixes = agent.keep_edit(with_("me:equipment", ["life jacket"]), saved, [renamed])
+        self.assertEqual((fixes, agent.part_value(out, "me:equipment")), ([], ["life jacket"]))
+        for key, value, why in (("them:teacher style", ["strict"], "unrelated"), ("city", "Hamburg", "unrelated"),
+                                ("me:home port", ["Baltic Marina"], "unrelated"),
+                                ("me:equipment", ["Lindqvist gear"], "hidden")):
+            self.assertEqual(agent.keep_edit(with_(key, value), saved, [renamed])[1], [(key, why)], key)
+
     def test_read_again_the_topics_take_any_words_but_never_a_hidden_one(self):
         saved, _, _ = build_draft(json.loads(json.dumps(MOPED).replace("vintage moped", "vintage scooter")), "Noor",
                                   "35-44")
