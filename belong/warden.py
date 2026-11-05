@@ -26,6 +26,7 @@ import calendar
 import hashlib
 import hmac
 import json
+import math
 import re
 import unicodedata
 from dataclasses import dataclass, field, replace
@@ -1237,8 +1238,11 @@ class Warden:
 
     # -- ENTRY -----------------------------------------------------------------
 
-    def admit(self, person: Person, listing: Listing, board: Marketboard) -> EntryResult:
-        """Entry check (SPEC §7). On success the listing goes onto the Marketboard."""
+    def admit(self, person: Person, listing: Listing, board: Marketboard, history: bool = False) -> EntryResult:
+        """Entry check (SPEC §7). On success the listing goes onto the Marketboard, timed by the Warden's own clock:
+        the time an agent writes on a listing is never trusted, so a backdated one can't skip the shared list's wait
+        (LIST_MIN_AGE_DAYS). history: the operator's own synthetic history (the demo's and the simulation's seeded
+        people, and test fixtures of an aged board), whose times stand; no person's or agent's entry is ever one."""
         subject = {"person": person.id, "version": listing.version}
         failed, problems = [], []
 
@@ -1284,6 +1288,8 @@ class Warden:
 
         if failed:
             return EntryResult(False, failed, problems)
+        if not history:
+            listing = replace(listing, updated_at=self.clock.now())
         board.put(person, listing)
         self._kept_places[listing.person_id] = places
         return EntryResult(True)
@@ -1371,6 +1377,9 @@ class Warden:
         Matchmaker contributes nothing but the pair and the reason field keys (and its open-detail refs
         must be exactly the ones the Warden works out itself, so it has nothing to choose).
         """
+        if not self._receipt("proposal_well_formed", _well_formed(proposal),
+                             {"a": str(getattr(proposal, "person_a", ""))[:64], "b": str(getattr(proposal, "person_b", ""))[:64]}):
+            return None  # the contract's shape, exactly: plain booleans and finite numbers, never "false" or NaN
         a_id, b_id = proposal.person_a, proposal.person_b
         subject = {"a": a_id, "b": b_id}
         close = proposal.close
@@ -1854,6 +1863,20 @@ def _list_items(listings: list, now: datetime, k_crowd: int) -> dict:
         for kind in kinds:
             out[kind] = [_list_entry(i, chosen[i][1]) for i in sorted(i for i in kept if i[0] == kind)]
     return out
+
+
+def _well_formed(p) -> bool:
+    """Is this Proposal the contract's shape, exactly (security review F08)? Ids and close as text, the intent flags
+    plain booleans (a string "false" is truthy), the scores finite numbers that aren't booleans, and the reason and
+    hidden keys tuples or lists. Its shape only: whether the pair suits each other is never the Warden's to judge."""
+    number = lambda x: isinstance(x, (int, float)) and not isinstance(x, bool) and math.isfinite(x)
+    try:
+        return (isinstance(p, Proposal) and all(isinstance(x, str) for x in (p.person_a, p.person_b, p.close))
+                and all(type(x) is bool for x in (p.a_intent_met, p.b_intent_met))
+                and all(number(x) for x in (p.score, p.shown_score, p.shown_threshold))
+                and all(isinstance(x, (tuple, list)) for x in (p.reason_fields, p.used_hidden_fields)))
+    except AttributeError:
+        return False
 
 
 def _unchanged_since(updated_at, cutoff: datetime) -> bool:

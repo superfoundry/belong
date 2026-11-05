@@ -260,6 +260,19 @@ class WhenThereIsNoAnswer(unittest.TestCase):
         self.assertEqual(j.sent, [REQUEST])
         self.assertTrue(all(c["timeout"] == mm.TIMEOUT for c in stub.calls))
 
+    def test_a_retry_or_another_format_goes_only_if_still_permitted(self):
+        """Security review F02: the caller's check runs again before every later attempt, so a request whose listing
+        was hidden, paused or deleted while the first attempt failed is never sent again."""
+        for first in (socket.timeout("slow"), http_error(400)):  # a retry, then the next response format
+            j, stub, clock = judge(first, reply())
+            checks = []
+            with self.assertRaises(JudgeUnavailable):
+                j(REQUEST, recheck=lambda r: checks.append(r) or False)
+            self.assertEqual((len(stub.calls), checks), (1, [REQUEST]))
+        j, stub, clock = judge(socket.timeout("slow"), reply())
+        self.assertEqual(j(REQUEST, recheck=lambda r: True), ANSWER)  # still permitted: the retry goes
+        self.assertEqual(len(stub.calls), 2)
+
     def test_a_rate_limits_retry_after_is_followed_up_to_a_cap(self):
         j, stub, clock = judge(http_error(429, {"Retry-After": "7"}), http_error(429, {"Retry-After": "999"}), reply())
         j(REQUEST)

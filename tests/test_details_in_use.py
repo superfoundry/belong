@@ -41,7 +41,7 @@ class Board:
             place = [fld("city", city[0]), fld("country", city[1])] if city else []
             l = replace(listing(pid, "Looking for someone to play duets with.", [*place, *fields]),
                         updated_at=ago(days), owner_id=who, active=active)
-            result = self.w.admit(person(who), l, self.board)
+            result = self.w.admit(person(who), l, self.board, history=True)  # an aged board, as the operator seeds one
             assert result.accepted, result.problems
             ids.append(pid)
         return ids
@@ -96,7 +96,7 @@ class TheCrowd(unittest.TestCase):
             pid = f"c{confirmed.n}"
             l = replace(listing(pid, fields=[fld("religion", "Zoroastrian", SHOWN)], confirmed=("religion",)),
                         updated_at=ago(30))
-            self.assertTrue(confirmed.w.admit(person(pid), l, confirmed.board).accepted)
+            self.assertTrue(confirmed.w.admit(person(pid), l, confirmed.board, history=True).accepted)
         for v in (b.vocabulary(), confirmed.vocabulary()):
             for secret in ("Zoroastrian", "Acme", "Old Town", "wants children"):
                 self.assertNotIn(secret, words(v))
@@ -117,6 +117,17 @@ class TheCrowd(unittest.TestCase):
         edited = replace(b.board.listing(ids[0]), updated_at=ago(0), version=2)
         self.assertTrue(b.w.admit(person(edited.owner), edited, b.board).accepted)
         self.assertNotIn("tempo", words(b.vocabulary()))
+
+    def test_a_backdated_listing_never_skips_the_week(self):
+        """An agent writes its listing's time, so the Warden never trusts it: K_CROWD people who date new listings
+        years back still wait the week (security review F06)."""
+        b = Board()
+        for i in range(K_CROWD + 2):
+            l = replace(listing(f"n{i}", "Looking for someone to play duets with.", [fld("city", "Lyon"), TEMPO]),
+                        updated_at="2000-01-01T00:00:00Z", owner_id=f"n{i}")
+            self.assertTrue(b.w.admit(person(f"n{i}"), l, b.board).accepted)
+        self.assertNotIn("tempo", words(b.vocabulary()))
+        self.assertEqual(b.board.listing("n0").updated_at, b.w.clock.now())
 
     def test_scales_and_values_are_counted_on_their_own(self):
         """A name many people use doesn't carry one person's scale or value onto the list."""
