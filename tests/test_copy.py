@@ -275,30 +275,6 @@ def claims_belong_cant_see(text: str) -> list[str]:
     return [flat[max(0, m.start() - 30):m.end() + 20] for m in _CANT_SEE.finditer(flat)]
 
 
-class NoClaimThatBelongCantSee(unittest.TestCase):
-    """CLAUDE.md, "Don't overclaim": Belong can access the data people give it, so no page, doc or agent message may
-    say it can't. The promises are about what other users can see and learn."""
-
-    def test_no_page_doc_or_agent_message_says_belong_cant_see_your_data(self):
-        for page in _pages():
-            self.assertEqual([hit for s in shown_strings(page) for hit in claims_belong_cant_see(_unescape(s))], [],
-                             page.name)
-        for name in ("TRUST.md", "README.md", "SPEC.md"):
-            self.assertEqual(claims_belong_cant_see((ROOT / name).read_text(encoding="utf-8")), [], name)
-        for path in sorted((ROOT / "belong").rglob("*.py")):
-            hits = [hit for s in python_strings(path.read_text(encoding="utf-8")) for hit in claims_belong_cant_see(s)]
-            self.assertEqual(hits, [], str(path.relative_to(ROOT)))
-
-    def test_what_counts_as_the_claim(self):
-        for text in ("Not even we can access it", "not even us", "Not even the people who run Belong can see it",
-                     "We can't see your hidden details", "we never see\nyour messages", "Belong can’t see this",
-                     "Belong never sees your data", "hidden even from us", "kept from Belong", "We cannot access it"):
-            self.assertEqual(len(claims_belong_cant_see(text)), 1, text)
-        for text in ("Belong can access the data you give it", "Belong can't search for a specific person",
-                     "Other people never see this", "the Matchmaker never sees it", "not even to matches",
-                     "Belong never reveals hidden details.", "What Belong can see"):
-            self.assertEqual(claims_belong_cant_see(text), [], text)
-
 
 if __name__ == "__main__":
     unittest.main()

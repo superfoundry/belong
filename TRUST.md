@@ -330,8 +330,7 @@ Adding `import logging` to a matching file failed the isolation test. Both guard
 The promises above are about what other people can see and learn. Belong itself, the company that runs
 the service, can access the data you give it: your listings (shown and hidden details and your
 description), your chats with your agent, your messages with the people you're matched with, and your
-choices. It uses that data to run the service and to improve it. No page, doc or agent message may say
-otherwise: `NoClaimThatBelongCantSee` in [test_copy.py](tests/test_copy.py) fails if one does.
+choices. It uses that data to run the service and to improve it.
 
 Some of it is processed by AI providers on Belong's behalf:
 

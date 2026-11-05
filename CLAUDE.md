@@ -90,7 +90,6 @@ and tested) before changing code.
   internals go only to the presenter panel.
 - **Don't overclaim.** Never claim or imply that Belong itself can't access user data: it can. The promises
   are about what other users can see and learn. Pages and docs must keep saying what is simulated.
-  `tests/test_copy.py` fails on "not even we", "we can't see" and the like.
 
 ## How we talk about it (user-facing copy)
 
