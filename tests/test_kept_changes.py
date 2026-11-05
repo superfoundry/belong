@@ -142,6 +142,26 @@ class TheRule(unittest.TestCase):
         self.assertFalse(agent.rereads(draft, [hidden_headline]))
         self.assertFalse(agent.depends(draft, [hidden_headline]))
 
+    def test_a_part_that_says_a_replaced_word_in_another_form_is_brought_in_line(self):
+        """The agent may bring in line a part that says a word the person replaced in another form ("painting" after
+        "paint" was replaced), and is asked to; the phone's own word-for-word offers still take whole words only."""
+        call = args(intent="Learning to carve wood in Bergen, at weekends.",
+                    fields=[("city", "Bergen", SHOWN), ("country", "Norway", SHOWN),
+                            ("headline", "Learning to carve wood", SHOWN)],
+                    details=[det("medium", "painting")])
+        saved, problems, _ = build_draft(call, "Noor", "35-44")
+        self.assertEqual(problems, [])
+        renamed = self.change("headline", "Learning to paint landscapes", "Learning to carve wood")
+        self.assertTrue(agent.depends(saved, [renamed]))
+        self.assertFalse(agent.says("painting", agent.replaced_words([renamed])))  # offers: whole words only
+        new = copy.deepcopy(saved)
+        for f in new["fields"]:
+            if f["key"] == "me:medium":
+                f["value"] = ["carving"]
+        out, fixes = agent.keep_edit(new, saved, [renamed])
+        self.assertEqual(fixes, [])
+        self.assertEqual(agent.part_value(out, "me:medium"), ["carving"])
+
     def test_read_again_the_topics_take_any_words_but_never_a_hidden_one(self):
         saved, _, _ = build_draft(json.loads(json.dumps(MOPED).replace("vintage moped", "vintage scooter")), "Noor",
                                   "35-44")

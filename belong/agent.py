@@ -1848,8 +1848,16 @@ def replaced_words(changes: list) -> set:
 
 
 def says(value, words: set) -> bool:
-    """Does a part's value have any of these (canonical) words."""
+    """Does a part's value have any of these (canonical) words, exactly: what the phone itself offers to replace word
+    for word (offers), where another form would be the wrong word ("large" is no form of "largely")."""
     return bool(_all_words(value) & words)
+
+
+def says_in_some_form(value, words: set) -> bool:
+    """Does a part's value have any of these words in some form (same_word: "baking" for "bake"): what the person's
+    agent may bring in line after a change, and is asked to, since it reads what the words mean, so a part that says a
+    word they replaced in another form isn't left saying the old thing."""
+    return bool(_any_form(_all_words(value), words))
 
 
 # The parts that say what a listing is about, in the person's words or their agent's, and the one part their agent
@@ -1880,7 +1888,7 @@ def depends(draft, changes: list) -> bool:
     """Is there anything to bring in line: another part of the draft still says a word the person replaced, or the
     topics are to be read again (rereads)."""
     words, changed = replaced_words(changes), {c["key"] for c in changes}
-    return (bool(words) and any(says(part_value(draft, k), words) for k in parts(draft) if k not in changed)) \
+    return (bool(words) and any(says_in_some_form(part_value(draft, k), words) for k in parts(draft) if k not in changed)) \
         or rereads(draft, changes)
 
 
@@ -2132,7 +2140,7 @@ def keep_edit(new: dict, saved: dict, changes: list) -> tuple:
             continue
         if _same(was, now):
             continue
-        dependent = was is not None and says(was, words)
+        dependent = was is not None and says_in_some_form(was, words)
         if now is None and key not in changed and not dependent:
             continue  # left out, and it didn't say what they replaced: kept as it was
         extra = _all_words(now) - _all_words(was)  # every word the agent brought into the part
