@@ -88,8 +88,7 @@ and tested) before changing code.
 - **The receipt log is append-only and hash-chained.** Never rewrite or drop receipts.
 - **Phones see only what their person may know** (`DemoSession.phone_state`). Matching
   internals go only to the presenter panel.
-- **Don't overclaim.** Never claim or imply that Belong itself can't access user data: it can. The promises
-  are about what other users can see and learn. Pages and docs must keep saying what is simulated.
+- **Don't overclaim.** Pages and docs must keep saying what is simulated.
 
 ## How we talk about it (user-facing copy)
 
