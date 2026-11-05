@@ -5,7 +5,7 @@ and tested) before changing code.
 
 ## Priorities (in order; the higher one wins a conflict)
 
-1. Perfect privacy
+1. Privacy between users: nobody learns anything about anyone, or finds them, without a two-way match
 2. No spam, no fakes
 3. Efficiency
 
@@ -44,8 +44,10 @@ and tested) before changing code.
   `_JudgeOffLock` screen in front of it), every request is kept, and `leaks.py` audits each one (A8).
   Whether a listing hunts one person is asked about it alone; a verdict counts only while every listing of
   its request is unchanged.
-- **The Matchmaker AI is a mock while it runs on OpenAI.** Synthetic and test profiles only, and every
-  security check runs as if it were enclosed; TRUST.md and the trust page must keep saying so. It only
+- **The Matchmaker AI is the matchmaker, on OpenAI's API, and is still treated as hostile.** Every request
+  is checked by the Warden before it goes (`Warden.exit_judge_request`), every proposal is checked as the
+  rules' own, `leaks.py` audits each request (A8), and tests use stub judges only. The demo itself still
+  runs on synthetic profiles; keep saying so where it's true. It only
   judges inside the rules (the hard rules, the Proposal contract, the Warden's checks) and its answer is
   read strictly (`hybrid.read_answer`). Any new way it could misbehave gets a stub-judge attack in
   `belong/probe.py` with a remove-the-rule case in `tests/test_trust.py`.
@@ -86,11 +88,19 @@ and tested) before changing code.
 - **The receipt log is append-only and hash-chained.** Never rewrite or drop receipts.
 - **Phones see only what their person may know** (`DemoSession.phone_state`). Matching
   internals go only to the presenter panel.
-- **Don't overclaim.** "Not even we can access it" needs the Step 3 enclave work
-  (see TRUST.md §5). Pages and docs must keep saying what is simulated.
+- **Don't overclaim.** Never claim or imply that Belong itself can't access user data: it can. The promises
+  are about what other users can see and learn. Pages and docs must keep saying what is simulated.
+  `tests/test_copy.py` fails on "not even we", "we can't see" and the like.
 
 ## How we talk about it (user-facing copy)
 
+- **User-to-user privacy is the headline.** Nobody can see your profile, find you or learn anything about
+  you (hidden details above all) without a two-way match: your shown details reach only someone you're
+  looking for who is looking for someone like you, your hidden details only if you both choose to compare,
+  and contact only once you've both said yes; until then you're anonymous to each other. Say only what the
+  code does. The code is open so anyone can check that. What Belong can see (the data people give it, used
+  to run and improve the service; matching goes through OpenAI's API) is stated plainly in TRUST.md ("What
+  Belong can see") and on the trust page, never hidden and never a selling point: no banners, no emphasis.
 - In text the name is **Belong**, with no full stop: page copy, shown attributes, page titles, agent
   messages, docs and comments. "Belong." with its full stop is the logo only: the wordmark, and the
   phone's tab labels "Belong." and "Found.", which keep the logo style (both the user's choice). A

@@ -1,4 +1,4 @@
-"""Security checks for the Matchmaker AI, run as if it were enclosed (TRUST.md #39 to #41): the independent audit of
+"""Security checks for the Matchmaker AI, treated as hostile (TRUST.md #39 to #41): the independent audit of
 every request its judge is sent (leaks.py, A8), tested on planted leaks; the audit in the demo's presenter leak report;
 and whole simulated weeks with stand-in judges that answer as badly as they can (probe.hostile_judge, obedient_judge).
 Every judge here is a stub: no network. The examples (telescope making and beekeeping in Graz) are new ones."""

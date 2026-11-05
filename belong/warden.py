@@ -9,7 +9,7 @@ Fixed rules, no AI judgment. The Warden never decides who matches; it only check
          exit_reveal()           consents          -> Reveal(s) of shared hidden details
          details_in_use()        the Marketboard   -> DetailsInUse (the shared list every agent sees)
          exit_judge_request()    a request to the  -> handed to the model's client, or refused (SPEC §8.3: with the
-                                 Matchmaker AI        Matchmaker AI on, a mock; checked just before it goes)
+                                 Matchmaker AI        Matchmaker AI on; checked just before it goes)
 
 Every check writes a Receipt {check, result, timestamp, hash}. The hash commits to
 what was checked (keyed HMAC) without containing it, so receipts can be published

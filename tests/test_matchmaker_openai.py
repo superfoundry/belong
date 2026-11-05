@@ -401,8 +401,8 @@ class WhichMatchmakerRuns(unittest.TestCase):
         s = self.choose({"OPENAI_API_KEY": "sk-test"})
         self.assertIsInstance(s.matcher, LLMMatcher)
         self.assertIsInstance(s.matcher.judge.judge, OpenAIJudge)
-        self.assertEqual(s.matchmaker_status, f"Matchmaker AI: OpenAI {mm.DEFAULT_MODEL} (a mock of the enclosed "
-                                              "model; synthetic and test profiles only)")
+        self.assertEqual(s.matchmaker_status, f"Matchmaker AI: OpenAI {mm.DEFAULT_MODEL} (synthetic and test "
+                                              "profiles only)")
         self.assertEqual(s.room_state()["matchmaker_status"], s.matchmaker_status)
         for env, label in (({"OPENAI_API_KEY": "sk-test", "BELONG_MATCHMAKER": "rules"},
                             "Matchmaker: rules (BELONG_MATCHMAKER=rules)"),

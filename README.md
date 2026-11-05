@@ -1,11 +1,13 @@
 # Belong prototype
 
-Belong connects two people, for dating or practical needs, through AI agents: private
-details can improve a match without ever being revealed.
+Belong connects two people, for dating or practical needs, through AI agents, with privacy
+between users: nobody can see your profile, find you or learn anything about you until you're a
+two-way match, and your hidden details can improve a match without ever being shown to anyone you
+meet. It's open source, so anyone can check that.
 
 This repository is the Step 2 prototype from [SPEC.md](SPEC.md). It uses synthetic people
 (5,000 in the demo, set with `BELONG_PEOPLE`; 300 in tests and the batch run), with names from
-their region, and plain Python; secure hardware comes in Step 3.
+their region, and plain Python.
 
 - **Any kind of match.** A listing is for dating, which has fixed rules of its own (who each
   person would like to meet, and their ages), or for anything else: a short "looking for" phrase
@@ -62,7 +64,7 @@ their region, and plain Python; secure hardware comes in Step 3.
   typed says), with the person's yes to their agent's question and by values alone, to show what reading
   values alone would cost on those musts (TRUST.md #45).
 - **[TRUST.md](TRUST.md)** lists every privacy promise with the code that enforces it,
-  the test that proves it, and what isn't guaranteed yet. Start there.
+  the test that proves it, what Belong itself can see, and what isn't guaranteed yet. Start there.
 - **[SPEC.md](SPEC.md)** is the product spec.
 
 ## How matching works
@@ -205,15 +207,15 @@ above):
   you want. These rules are a fallback: what people type has no end, which is why your agent records
   what it understood instead.
 
-**The Matchmaker AI** ([hybrid.py](belong/matching/hybrid.py), [matchmaker_openai.py](belong/matchmaker_openai.py))
-is a mock of the model that will run enclosed: OpenAI's API stands in for it, for synthetic and test profiles
-only. The rules above still narrow and decide everything hard and exact; the AI judges only the fuzzy part of
-each pair they allow (does each give what the other wants, also where two agents named or scaled a detail
-differently), from what both listings show and their descriptions, with every first name, id and hidden text
-taken out. Its answer is read as verdicts and a number only, the proposal is the rules' own contract, and the
-Warden checks it as before. Every request goes only once the Warden's check passes it, against the board as it
-is just before it goes (`warden.exit_judge_request`), and is kept and audited again by the leak report
-(`leaks.py`, A8); every security check runs as if it were enclosed (TRUST.md #39 to #44, limit 27).
+**The Matchmaker AI** ([hybrid.py](belong/matching/hybrid.py),
+[matchmaker_openai.py](belong/matchmaker_openai.py)) runs on OpenAI's API (the demo's profiles are synthetic)
+and is treated as hostile. The rules above still narrow and decide everything hard and exact; the AI judges only
+the fuzzy part of each pair they allow (does each give what the other wants, also where two agents named or
+scaled a detail differently), from what both listings show and their descriptions, with every first name, id and
+hidden text taken out. Its answer is read as verdicts and a number only, the proposal is the rules' own
+contract, and the Warden checks it as before. Every request goes only once the Warden's check passes it, against
+the board as it is just before it goes (`warden.exit_judge_request`), and is kept and audited again by the leak
+report (`leaks.py`, A8; TRUST.md #39 to #44, limit 27).
 
 ## Run it
 
@@ -227,7 +229,7 @@ git-ignored. To use Claude instead, `pip install -r requirements.txt`, set
 `ANTHROPIC_API_KEY`, and leave `OPENAI_API_KEY` empty (or set `BELONG_AGENT=claude`).
 
 **The Matchmaker AI in the demo** is on when `OPENAI_API_KEY` is set (the presenter panel says
-"Matchmaker AI: OpenAI ... (a mock of the enclosed model; synthetic and test profiles only)", or
+"Matchmaker AI: OpenAI ... (synthetic and test profiles only)", or
 "Matchmaker: rules"). `BELONG_MATCHMAKER=rules` turns it off, `BELONG_MATCHMAKER=ai` on. Its settings:
 `OPENAI_MATCHMAKER_MODEL` (else `OPENAI_MODEL`, else gpt-5); `BELONG_MATCHMAKER_URL` to use another
 server that speaks the Chat Completions format (a self-hosted open-weights model behind vLLM, llama.cpp
@@ -332,7 +334,7 @@ belong/                                    [open] = published as open source
                    and draft checks shared by every model-powered agent
   agent_openai.py  personal agent powered by OpenAI (standard library only)
   matchmaker_openai.py [open] the Matchmaker AI's judge over a Chat     §3, §8.3
-                   Completions API (OpenAI's, as a mock; standard library only)
+                   Completions API (OpenAI's by default; standard library only)
   synth.py         synthetic people (regional names) + ground truth §8.1
   evaluate.py      match quality vs ground truth; narrowing's word index
                    vs the catch-all group it replaced

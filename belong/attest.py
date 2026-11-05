@@ -1,15 +1,14 @@
 """Measurements and a (simulated) attestation document. OPEN SOURCE.
 
-What "attestation" means in production (Step 3): matching runs in a hardware enclave
-(e.g. AWS Nitro). The hardware measures the exact code it booted and signs those
-measurements. Anyone can fetch the signed document and compare the measurements with
-builds they made themselves from the open-source code.
+What attestation is for: showing that the code running is the published open-source code, so anyone can
+check that no one learns about someone else without a two-way match. A signed document, compared with builds
+anyone makes from the open-source code, is still to come.
 
 Both agents are open source. What this prototype can do: compute the same
 measurements (SHA-256 of the files), one for the Warden agent and one for the
 Matchmaker agent, and publish them with the code, so a verifier can see that the code
 it downloaded is the code that was measured. It CANNOT prove that this code is what is actually running; only
-the hardware signature does that. The document says so in `signed_by`.
+a signature over the measurements would. The document says so in `signed_by`.
 """
 from __future__ import annotations
 
@@ -38,7 +37,7 @@ WARDEN_FILES = [
 MATCHMAKER_FILES = [
     "matching/matcher.py",
     "matching/hybrid.py",  # the hybrid: the rules narrow, an injected judge judges the fuzzy part
-    "matchmaker_openai.py",  # that judge: a model over a Chat Completions API (OpenAI's, as a mock), outside matching/
+    "matchmaker_openai.py",  # that judge: a model over a Chat Completions API (OpenAI's by default), outside matching/
     "matching/intent.py",
     "matching/narrow.py",
     "matching/text.py",
@@ -75,8 +74,8 @@ POLICY = {
     # The Matchmaker AI (matching/hybrid.py, matchmaker_openai.py): whether it is on right now is at
     # /api/trust/matchmaker; what it may receive and answer is fixed.
     "matchmaker_ai": {
-        "status": "MOCK: when it is on, OpenAI's API (or a self-hosted model at the endpoint set) stands in for the "
-                  "model that will run enclosed; synthetic and test profiles only",
+        "status": "OPENAI: when it is on, a model over OpenAI's API (or a self-hosted model at the endpoint set), "
+                  "treated as hostile; this demo runs on synthetic and test profiles only",
         "receives": "for each pair the hard rules allow, what both listings show and their descriptions, with every "
                     "first name, id and hidden text taken out, under labels of one request; each request checked by "
                     "the Warden against the board as it is just before it goes (warden.exit_judge_request), then "
@@ -119,9 +118,8 @@ def attestation(nonce: str) -> dict:
         "measurements": measurements(),
         "policy": POLICY,
         "signed_by": None,
-        "status": ("SIMULATED: prototype running outside an enclave. Measurements are real file hashes, "
-                   "but nothing proves this code is what is running. In production this document is "
-                   "signed by the enclave hardware (e.g. the AWS Nitro attestation PKI)."),
+        "status": ("SIMULATED: prototype. Measurements are real file hashes, but nothing proves this "
+                   "code is what is running: this document is unsigned, and a signed one is still to come."),
     }
 
 

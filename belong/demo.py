@@ -51,8 +51,8 @@ whether it's shown, and "them" details are always shown. The shared list of deta
 built by the Warden and handed only to agents; phones never get it.
 
 The Matchmaker (SPEC §8.3; _make_matchmaker): the rules alone, or the hybrid (matching/hybrid.py) with the Matchmaker
-AI judging the fuzzy part of each pair the rules allow, a mock of the enclosed model (OpenAI's API,
-matchmaker_openai.py; synthetic and test profiles only). BELONG_MATCHMAKER=ai|rules picks one; otherwise the AI when
+AI judging the fuzzy part of each pair the rules allow (OpenAI's API, matchmaker_openai.py; the demo's profiles
+are synthetic). BELONG_MATCHMAKER=ai|rules picks one; otherwise the AI when
 OPENAI_API_KEY is set. Only the phones' listings are matched (run_matchmaker's focus), so only their pairs reach the
 AI; the rest of the board isn't matched in the demo. A model takes seconds to answer and the Matchmaker runs with the
 session lock held, so its requests go out on a thread of their own (_JudgeOffLock) and their pairs wait for a later
@@ -405,8 +405,8 @@ class DemoSession:
 
     def _make_matchmaker(self) -> tuple:
         """(the Matchmaker, what the presenter's panel says about it). BELONG_MATCHMAKER=ai|rules forces one; otherwise
-        the Matchmaker AI when OPENAI_API_KEY is set, else the rules. The AI is a mock of the enclosed model (OpenAI's
-        API, or any server BELONG_MATCHMAKER_URL names), for synthetic and test profiles only: the rules still narrow
+        the Matchmaker AI when OPENAI_API_KEY is set, else the rules. The AI runs on OpenAI's API (or any server
+        BELONG_MATCHMAKER_URL names) and is treated as hostile; the demo's profiles are synthetic: the rules still narrow
         and decide everything hard, and the Warden checks every proposal the same way. If it can't be set up, the
         rules run and the panel says why."""
         rules = OfflineMatcher(k_crowd=K_CROWD, max_per_person=LOOK_PAST, shortlist_size=SHORTLIST)
@@ -427,8 +427,8 @@ class DemoSession:
                 self._judge = self._off_lock(OpenAIJudge())
             except JudgeUnavailable as e:
                 return rules, f"Matchmaker: rules (the Matchmaker AI is off: {e})"
-        return LLMMatcher(self._judge, rules=rules), (f"Matchmaker AI: {self._judge.judge.describe()} (a mock of the "
-                                                      "enclosed model; synthetic and test profiles only)")
+        return LLMMatcher(self._judge, rules=rules), (f"Matchmaker AI: {self._judge.judge.describe()} (synthetic "
+                                                      "and test profiles only)")
 
     def _off_lock(self, judge) -> _JudgeOffLock:
         """The judge as the demo calls it (off the session lock), behind the Warden's check (_judge_screen)."""
