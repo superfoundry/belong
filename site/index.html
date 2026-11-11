@@ -19,59 +19,66 @@
   .hero .lead { font: var(--text-body-l); color: var(--text-secondary); margin: 0 0 var(--space-8); max-width: 38ch; }
   .hero .small { flex-basis: 100%; margin: var(--space-2) 0 0; }
 
-  /* The scene: two people, everyone else as a field of dots, Belong bringing the two together. One loop of
-     twelve seconds; every part's resting style is the last frame, so with reduced motion the whole story is
-     there at once. */
-  .scene { position: relative; margin: 0; aspect-ratio: 600 / 480; }
+  /* The scene: what Belong does, not how. One person asks for something specific; Belong looks past
+     each near miss to the one person who fits all of it, and the two meet: the two halves of one disc. One loop
+     of fourteen seconds, no pause button by the owner's choice; every part's resting style is the last frame, so
+     with reduced motion the whole story is there at once. */
+  .scene { position: relative; margin: 0; aspect-ratio: 600 / 460; }
   .scene svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
-  .field circle { fill: var(--text-primary); opacity: 0.16; }
-  .field circle.c { fill: var(--accent-default); opacity: 0.5; }
-  .field circle.p { fill: var(--accent-ai); opacity: 0.5; }
-  .field circle.m { fill: var(--accent-olive); opacity: 0.6; }
+  .field circle { fill: var(--text-primary); opacity: 0.14; }
+  .field circle.c { fill: var(--accent-default); opacity: 0.45; }
+  .field circle.p { fill: var(--accent-ai); opacity: 0.45; }
+  .field circle.m { fill: var(--accent-olive); opacity: 0.55; }
   .person-disc { fill: var(--surface-raised); }
   .person-shape { fill: var(--text-primary); }
-  .listing-dot { fill: var(--accent-ai); }
-  .meet-line { stroke: var(--accent-ai); stroke-width: 2.5; stroke-linecap: round; stroke-dasharray: 4 7; fill: none; }
-  .meet-ground { fill: var(--surface-card); }
+  .look { stroke: var(--border-strong); stroke-width: 1.5; stroke-dasharray: 3 5; opacity: 0; }
+  .fit { stroke: var(--accent-ai); stroke-width: 2.5; stroke-linecap: round; fill: none; }
+  .who-dot { fill: var(--text-primary); }
   .half-a { fill: var(--accent-ai); }
   .half-b { fill: var(--accent-default); }
-  .bubble { position: absolute; width: 44%; margin: 0; padding: var(--space-3) var(--space-4); background: var(--surface-card);
-    border-radius: var(--radius-lg); box-shadow: var(--shadow-md); font: var(--text-body-m); color: var(--text-primary); }
-  .bubble.a { left: 23%; bottom: 0; }
-  .bubble.b { right: 23%; top: 0; }
-  .tag-yes { position: absolute; margin: 0; }
-  .tag-yes.a { left: 9%; top: 68%; }
-  .tag-yes.b { right: 9%; top: 26%; }
-  .tag-yes span { display: inline-block; padding: 4px 12px; border-radius: var(--radius-pill); background: var(--accent-muted);
-    color: var(--text-accent); font: var(--text-label); font-weight: 600; }
-  .met { position: absolute; margin: 0; left: 50.8%; top: 59%; transform: translateX(-50%); }
-  .scene-foot { position: absolute; right: 0; bottom: -40px; }
+  .meet-ground { fill: var(--surface-app); }
+  .ask { position: absolute; left: 0; top: 4%; width: 46%; margin: 0; padding: var(--space-3) var(--space-4);
+    background: var(--surface-card); border-radius: var(--radius-lg); box-shadow: var(--shadow-md);
+    font: var(--text-body-m); color: var(--text-primary); }
+  .one { position: absolute; margin: 0; max-width: 46%; padding: 6px 12px; border-radius: var(--radius-md);
+    background: var(--surface-card); border: 1px solid var(--border-subtle); font: var(--text-body-s); color: var(--text-secondary);
+    transform: translateY(-50%); }
+  .one.near { opacity: 0.4; }
+  .one.fits { color: var(--text-primary); font-weight: 600; border-color: var(--border-strong); box-shadow: var(--shadow-md); }
   @media (max-width: 640px) {
-    .bubble { width: 58%; font: var(--text-body-s); padding: var(--space-2) var(--space-3); }
+    .ask { width: 49%; font: var(--text-body-s); padding: var(--space-2) var(--space-3); }
+    .one { font: var(--text-caption); font-size: 11px; line-height: 1.3; padding: 3px 7px; max-width: 47%; }
   }
-
   @media (prefers-reduced-motion: no-preference) {
     .scene .field circle { animation: twinkle var(--p) ease-in-out var(--d) infinite alternate; }
-    @keyframes twinkle { to { opacity: 0.05; } }
-    .scene .bubble.a { animation: bubble-a 12s var(--ease-standard) infinite; }
-    .scene .bubble.b { animation: bubble-b 12s var(--ease-standard) infinite; }
-    .scene .listing-dot.a { animation: fly-a 12s var(--ease-standard) infinite; }
-    .scene .listing-dot.b { animation: fly-b 12s var(--ease-standard) infinite; }
-    .scene .meet-line { animation: draw 12s var(--ease-standard) infinite; }
-    .scene .tag-yes.a { animation: yes-a 12s var(--ease-standard) infinite; }
-    .scene .tag-yes.b { animation: yes-b 12s var(--ease-standard) infinite; }
-    .scene .meet, .scene .met { animation: meet 12s var(--ease-standard) infinite; }
-    .scene.paused * { animation-play-state: paused; }
-    @keyframes bubble-a { 0% { opacity: 0; transform: translateY(8px); } 5%, 88% { opacity: 1; transform: none; } 94%, 100% { opacity: 0; } }
-    @keyframes bubble-b { 0%, 9% { opacity: 0; transform: translateY(8px); } 14%, 88% { opacity: 1; transform: none; } 94%, 100% { opacity: 0; } }
-    @keyframes fly-a { 0%, 20% { opacity: 0; transform: translate(-172px, 132px); } 22% { opacity: 1; transform: translate(-172px, 132px); }
-      34%, 88% { opacity: 1; transform: none; } 94%, 100% { opacity: 0; transform: none; } }
-    @keyframes fly-b { 0%, 24% { opacity: 0; transform: translate(162px, -136px); } 26% { opacity: 1; transform: translate(162px, -136px); }
-      38%, 88% { opacity: 1; transform: none; } 94%, 100% { opacity: 0; transform: none; } }
-    @keyframes draw { 0%, 42% { opacity: 0; stroke-dashoffset: 60; } 46% { opacity: 1; } 52%, 88% { opacity: 1; stroke-dashoffset: 0; } 94%, 100% { opacity: 0; } }
-    @keyframes yes-a { 0%, 54% { opacity: 0; transform: scale(0.9); } 58%, 88% { opacity: 1; transform: none; } 94%, 100% { opacity: 0; } }
-    @keyframes yes-b { 0%, 61% { opacity: 0; transform: scale(0.9); } 65%, 88% { opacity: 1; transform: none; } 94%, 100% { opacity: 0; } }
-    @keyframes meet { 0%, 70% { opacity: 0; } 76%, 88% { opacity: 1; } 94%, 100% { opacity: 0; } }
+    @keyframes twinkle { to { opacity: 0.04; } }
+    .scene .ask { animation: ask 14s var(--ease-standard) infinite; }
+    @keyframes ask { 0% { opacity: 0; transform: translateY(8px); } 5%, 90% { opacity: 1; transform: none; } 96%, 100% { opacity: 0; } }
+    .scene .one, .scene .who-dot { animation: arrive 14s var(--ease-standard) infinite; }
+    @keyframes arrive { 0%, 6% { opacity: 0; } 12%, 90% { opacity: 1; } 96%, 100% { opacity: 0; } }
+    .scene .l0 { animation: look0 14s linear infinite; }
+    @keyframes look0 { 0%, 16% { opacity: 0; } 17%, 22% { opacity: 1; } 23%, 100% { opacity: 0; } }
+    .scene .one.c0 { animation: near0 14s var(--ease-standard) infinite; }
+    @keyframes near0 { 0%, 6% { opacity: 0; } 12%, 22% { opacity: 1; } 24%, 90% { opacity: 0.4; } 96%, 100% { opacity: 0; } }
+    .scene .l1 { animation: look1 14s linear infinite; }
+    @keyframes look1 { 0%, 25% { opacity: 0; } 26%, 31% { opacity: 1; } 32%, 100% { opacity: 0; } }
+    .scene .one.c1 { animation: near1 14s var(--ease-standard) infinite; }
+    @keyframes near1 { 0%, 6% { opacity: 0; } 12%, 31% { opacity: 1; } 33%, 90% { opacity: 0.4; } 96%, 100% { opacity: 0; } }
+    .scene .l2 { animation: look2 14s linear infinite; }
+    @keyframes look2 { 0%, 34% { opacity: 0; } 35%, 40% { opacity: 1; } 41%, 100% { opacity: 0; } }
+    .scene .one.c2 { animation: near2 14s var(--ease-standard) infinite; }
+    @keyframes near2 { 0%, 6% { opacity: 0; } 12%, 40% { opacity: 1; } 42%, 90% { opacity: 0.4; } 96%, 100% { opacity: 0; } }
+    .scene .l4 { animation: look4 14s linear infinite; }
+    @keyframes look4 { 0%, 43% { opacity: 0; } 44%, 49% { opacity: 1; } 50%, 100% { opacity: 0; } }
+    .scene .one.c4 { animation: near4 14s var(--ease-standard) infinite; }
+    @keyframes near4 { 0%, 6% { opacity: 0; } 12%, 49% { opacity: 1; } 51%, 90% { opacity: 0.4; } 96%, 100% { opacity: 0; } }
+    .scene .fit { stroke-dasharray: 400; animation: fit 14s var(--ease-standard) infinite; }
+    @keyframes fit { 0%, 54% { stroke-dashoffset: 400; opacity: 1; } 62%, 90% { stroke-dashoffset: 0; opacity: 1; } 96%, 100% { opacity: 0; stroke-dashoffset: 0; } }
+    .scene .one.fits { animation: fits 14s var(--ease-standard) infinite; }
+    @keyframes fits { 0%, 6% { opacity: 0; } 12%, 58% { opacity: 1; font-weight: 400; color: var(--text-secondary); box-shadow: none; border-color: var(--border-subtle); }
+      62%, 90% { opacity: 1; font-weight: 600; color: var(--text-primary); box-shadow: var(--shadow-md); border-color: var(--border-strong); } 96%, 100% { opacity: 0; } }
+    .scene .meet { animation: meet 14s var(--ease-standard) infinite; transform-origin: 210px 285px; }
+    @keyframes meet { 0%, 64% { opacity: 0; transform: scale(0.6); } 70%, 90% { opacity: 1; transform: none; } 96%, 100% { opacity: 0; } }
   }
 
   /* How it works: three steps, a number and a sentence each. */
@@ -119,7 +126,7 @@
     <div class="wrap hero-grid">
       <div class="rise">
         <h1 id="hero-title" class="display-xl">Meet the people looking for you <span class="drop-coral">too</span></h1>
-        <p class="lead">Tell your AI what you're looking for. Belong finds the people looking for you, and you meet only when you both say yes.</p>
+        <p class="lead">Tell your AI what you're looking for, and what to keep hidden. Belong finds the people looking for you, and you meet only when you both say yes.</p>
         <div class="actions">
           <a class="btn lg" href="use.html">Use Belong</a>
           <a class="btn lg secondary" href="#how">How it works</a>
@@ -127,8 +134,8 @@
         </div>
       </div>
 
-      <figure class="scene rise later" role="img" aria-label="Two people each tell their AI what they're looking for. Belong finds that they fit, they both say yes, and they're introduced.">
-        <svg viewBox="0 0 600 480" aria-hidden="true">
+      <figure class="scene rise later" role="img" aria-label="One person asks for a technical co-founder for a health-tech start-up in Berlin, full time. Among many people, Belong passes over an engineer in Munich, a designer in Berlin, an engineer in fintech and one who can only do weekends, and finds the engineer in health tech in Berlin who can go full time. The two meet.">
+        <svg viewBox="0 0 600 460" aria-hidden="true">
           <g class="field">
             <circle cx="138" cy="242" r="4.0" style="--d: 1.5s; --p: 6.4s"/>
             <circle cx="264" cy="97" r="2.7" style="--d: 1.4s; --p: 5.7s"/>
@@ -177,33 +184,34 @@
             <circle cx="471" cy="344" r="3.6" style="--d: 4.5s; --p: 7.9s"/>
             <circle cx="151" cy="159" r="3.0" style="--d: 4.7s; --p: 6.4s"/>
           </g>
-          <!-- The two people: a head and shoulders on a cream disc. -->
-          <g transform="translate(90 410)">
+          <line class="look l0" x1="92" y1="250" x2="300" y2="50"/>
+          <line class="look l1" x1="92" y1="250" x2="328" y2="140"/>
+          <line class="look l2" x1="92" y1="250" x2="340" y2="230"/>
+          <line class="fit" x1="92" y1="250" x2="328" y2="320"/>
+          <line class="look l4" x1="92" y1="250" x2="300" y2="410"/>
+            <circle class="who-dot" cx="300" cy="50" r="6"/>
+            <circle class="who-dot" cx="328" cy="140" r="6"/>
+            <circle class="who-dot" cx="340" cy="230" r="6"/>
+            <circle class="who-dot" cx="328" cy="320" r="6"/>
+            <circle class="who-dot" cx="300" cy="410" r="6"/>
+          <!-- The one who asks: a head and shoulders on a cream disc. -->
+          <g transform="translate(92 250)">
             <circle class="person-disc" r="40"/>
             <circle class="person-shape" cy="-10" r="11"/>
             <path class="person-shape" d="M-20 22c0-12 9-19 20-19s20 7 20 19z"/>
           </g>
-          <g transform="translate(510 70)">
-            <circle class="person-disc" r="40"/>
-            <circle class="person-shape" cy="-10" r="11"/>
-            <path class="person-shape" d="M-20 22c0-12 9-19 20-19s20 7 20 19z"/>
-          </g>
-          <!-- Each listing goes into the field, Belong finds the two fit, and they meet: the two halves of one disc. -->
-          <path class="meet-line" d="M262 278 Q 290 232 348 206"/>
-          <circle class="listing-dot a" cx="262" cy="278" r="7"/>
-          <circle class="listing-dot b" cx="348" cy="206" r="7"/>
           <g class="meet">
-            <circle class="meet-ground" cx="305" cy="242" r="31"/>
-            <path class="half-a" d="M305 214a28 28 0 0 0 0 56z"/>
-            <path class="half-b" d="M305 214a28 28 0 0 1 0 56z"/>
+            <circle class="meet-ground" cx="210" cy="285" r="25"/>
+            <path class="half-a" d="M210 263a22 22 0 0 0 0 44z"/>
+            <path class="half-b" d="M210 263a22 22 0 0 1 0 44z"/>
           </g>
         </svg>
-        <p class="bubble a">Anyone near me up for baking bread on Sundays?</p>
-        <p class="bubble b">I bake every weekend and would love some company.</p>
-        <p class="tag-yes a"><span>Yes</span></p>
-        <p class="tag-yes b"><span>Yes</span></p>
-        <p class="met"><span class="badge success">Introduced</span></p>
-        <button type="button" class="btn sm ghost scene-foot" data-play hidden>Pause</button>
+        <p class="ask">A technical co-founder for my health-tech start-up in Berlin, full time.</p>
+        <p class="one near c0" style="left: 52.3%; top: 10.9%">Engineer, Munich</p>
+        <p class="one near c1" style="left: 57.0%; top: 30.4%">Designer, Berlin</p>
+        <p class="one near c2" style="left: 59.0%; top: 50.0%">Engineer, fintech, Berlin</p>
+        <p class="one fits c3" style="left: 57.0%; top: 69.6%">Engineer, health tech, Berlin, full time</p>
+        <p class="one near c4" style="left: 52.3%; top: 89.1%">Engineer, health tech, Berlin, weekends only</p>
       </figure>
     </div>
   </section>
@@ -243,11 +251,11 @@
           <span class="label">Your listing</span>
           <span class="badge olive">Matching</span>
         </div>
-        <div class="row"><p class="field-label">Looking for</p><div class="value">Someone to bake bread with on Sundays</div></div>
-        <div class="row"><p class="field-label">Where</p><div class="value">Lisbon, Portugal, up to 30 km</div></div>
+        <div class="row"><p class="field-label">Looking for</p><div class="value">A technical co-founder for a health-tech company</div></div>
+        <div class="row"><p class="field-label">Where</p><div class="value">Berlin, in person</div></div>
         <div class="hidden-well">
           <div class="top"><p class="field-label">Age</p><span class="badge ai">Hidden</span></div>
-          <div class="value">35 to 39</div>
+          <div class="value">50 to 54</div>
           <span class="hidden-note">Used for matching, never shown</span>
         </div>
         <figcaption><span class="badge ai">Agent draft</span> Your AI wrote this from what you said.</figcaption>
@@ -276,17 +284,5 @@
     <p class="note">Belong is a prototype and its standard is a draft. It runs on synthetic and test profiles only, and nothing here is offered to real people yet.</p>
   </div>
 </footer>
-<script>
-/* The scene plays by itself only without reduced motion, and its button pauses and plays it. */
-(function () {
-  if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
-  var scene = document.querySelector(".scene"), button = scene.querySelector("[data-play]");
-  button.hidden = false;
-  button.addEventListener("click", function () {
-    var paused = scene.classList.toggle("paused");
-    button.textContent = paused ? "Play" : "Pause";
-  });
-})();
-</script>
 </body>
 </html>

@@ -121,15 +121,17 @@ class TheBuiltSite(unittest.TestCase):
                                  (page.name, ref))
 
     def test_motion_can_be_stopped(self):
-        """Anything that moves does so only without reduced motion (so its resting style, the last frame, is what
-        reduced motion shows), and anything that loops has a button to pause it."""
+        """Anything that moves does so only without reduced motion: CSS animation only inside its media query, and a
+        script that plays something checks it first, so reduced motion shows the resting markup, the last frame.
+        (By the owner's choice the landing page's film has no pause button; it plays only while on screen.)"""
         for path in [*SITE.rglob("*.css"), *SITE.rglob("*.html")]:
             text = path.read_text(encoding="utf-8")
             outside = re.sub(r"@media \(prefers-reduced-motion: no-preference\) \{(?:[^{}]|\{(?:[^{}]|\{[^{}]*\})*\})*\}",
                              "", text)
             self.assertFalse(re.search(r"\banimation\s*:", outside), path.name)
-            if re.search(r"\binfinite\b", text):
-                self.assertRegex(text, r"<button\b[^>]*\bdata-play\b", path.name)
+            for script in re.findall(r"<script\b[^>]*>(.*?)</script>", text, flags=re.S):
+                if re.search(r"\bset(?:Timeout|Interval)\b|requestAnimationFrame", script):
+                    self.assertIn('matchMedia("(prefers-reduced-motion: reduce)")', script, path.name)
 
     def test_every_page_is_filled_in(self):
         for page in pages():
