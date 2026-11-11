@@ -1,7 +1,8 @@
-"""The public website (site/, built by tools/build_site.py): its pages, the documentation made from site/docs/*.md
-included, say Belong the way every page does, use the design system's words and tokens only, keep saying what is
-simulated, never reuse the demo's examples, and load nothing from any other host, so visiting it tells no third
-party anything."""
+"""The public website (site/, built by tools/build_site.py): its two pages (the landing page and the Use page, whose
+technical part is made from site/use.md) and the plain text published for AI agents (use.md, llms.txt) say Belong
+the way every page does, use the design system's words, logo and tokens only, keep saying what is simulated, never
+reuse the demo's examples, never link to the internal demo or the source repository, and load nothing from any
+other host, so visiting it tells no third party anything."""
 from __future__ import annotations
 
 import re
@@ -35,8 +36,16 @@ def pages() -> list[Path]:
     return sorted(OUT.rglob("*.html"))
 
 
+def texts() -> list[Path]:
+    """The plain text published for AI agents to read."""
+    return sorted([*OUT.rglob("*.md"), *OUT.rglob("*.txt")])
+
+
 def text_of(page: Path) -> str:
-    """Everything a visitor or a search result reads: shown strings, and the page's description."""
+    """Everything a visitor, an agent or a search result reads: shown strings and the page's description, or a
+    plain text file whole."""
+    if page.suffix in (".md", ".txt"):
+        return page.read_text(encoding="utf-8")
     html = page.read_text(encoding="utf-8")
     extra = re.findall(r"""<meta\s+name="description"\s+content="([^"]*)\"""", html)
     return " ".join(_unescape(s) for s in shown_strings(page) + extra)
@@ -44,21 +53,25 @@ def text_of(page: Path) -> str:
 
 class TheSiteSpeaksLikeBelong(unittest.TestCase):
     def test_the_pages_are_there(self):
-        names = {str(p.relative_to(OUT)) for p in pages()}
-        self.assertLessEqual({"index.html", "docs/index.html", "docs/standard.html", "docs/connecting.html"}, names)
-        self.assertFalse([n for n in names if Path(n).name.startswith("_")], names)  # templates aren't pages
+        """Two pages, by the owner's choice: the landing page and the Use page."""
+        self.assertEqual({str(p.relative_to(OUT)) for p in pages()}, {"index.html", "use.html"})
+        self.assertEqual({str(p.relative_to(OUT)) for p in texts()}, {"use.md", "llms.txt"})
 
-    def test_the_name_has_no_stop_and_the_wordmark_keeps_it(self):
+    def test_the_name_has_no_stop_and_the_logo_is_the_design_systems(self):
+        """In text the name is Belong; the logo is the design system's own file, never typed, linked home."""
         for page in pages():
             self.assertEqual([h for s in shown_strings(page) for h in name_mid_sentence(_unescape(s))], [], page.name)
-            marks = _wordmarks(page.read_text(encoding="utf-8"))
-            self.assertTrue(marks, page.name)
-            self.assertEqual({text for _, text in marks}, {"Belong."}, page.name)
+            html = page.read_text(encoding="utf-8")
+            self.assertEqual(_wordmarks(html), [], page.name)
+            logos = re.findall(r'<a class="logo" href="\./"><img src="ds/logo/belong-wordmark-small-ink\.svg" alt="Belong"', html)
+            self.assertEqual(len(logos), 2, page.name)  # top bar and footer
+        for text in texts():
+            self.assertEqual(name_mid_sentence(text.read_text(encoding="utf-8")), [], text.name)
 
     def test_no_metaphor_no_synonyms_for_shown_and_hidden_no_emoji(self):
         """No room, vault, safe, lock or shield; a detail is "shown" or "hidden", never "secret", "public",
         "private" or "visible" ("tokens are secret", "public infrastructure" and "safe to show" are other things)."""
-        for page in pages():
+        for page in pages() + texts():
             text = text_of(page).lower().replace("roommate", "")
             for pattern in (r"\broom", r"\bvaults?\b", r"\b(?:a|the) safe\b", r"\b(?:un)?lock(?:ed|s)?\b", r"\bpadlock",
                             r"\bshields?\b", r"\bvisible\b",
@@ -70,17 +83,17 @@ class TheSiteSpeaksLikeBelong(unittest.TestCase):
     def test_it_says_what_is_simulated_and_never_overclaims(self):
         """The promise is between people: Belong runs the matcher and can see what it holds (the standard, "What
         Belong can see and keeps")."""
-        for page in pages():
+        for page in pages() + texts():
             text = text_of(page).lower()
-            self.assertIn("prototype", text, page.name)
+            self.assertIn("prototype" if page.suffix != ".md" else "a prototype", text, page.name)
             self.assertIn("synthetic", text, page.name)
             self.assertFalse(re.search(r"not even (we|us|belong)|no one at belong|can't access it|even the people who run",
                                        text), page.name)
 
     def test_no_example_of_the_demo(self):
         """The site's examples are its own, never the synthetic people's stories, hobbies or subjects."""
-        for page in pages():
-            text = re.sub(r"\bhard-cod(?:e|ed|ing)\b", " ", text_of(page))  # a programming term, not a subject
+        for page in pages() + texts():
+            text = text_of(page)
             self.assertEqual([w for w in ACTIVITY_WORDS if said(w, text)], [], page.name)
 
     def test_styled_only_with_tokens(self):
@@ -95,6 +108,11 @@ class TheSiteSpeaksLikeBelong(unittest.TestCase):
 
 
 class TheBuiltSite(unittest.TestCase):
+    def test_no_link_to_the_source_repository(self):
+        """By the owner's choice the site doesn't point at the code: no GitHub link or address anywhere."""
+        for path in pages() + texts():
+            self.assertNotIn("github", path.read_text(encoding="utf-8").lower(), path.name)
+
     def test_no_link_to_the_internal_demo(self):
         """The demo and its pages (/demo, /trust, /connector, /inspector, its host) are internal."""
         for page in pages():
@@ -103,27 +121,26 @@ class TheBuiltSite(unittest.TestCase):
                                  (page.name, ref))
 
     def test_motion_can_be_stopped(self):
-        """Anything that moves by itself waits for reduced motion to be off, and a stage that plays has a button
-        to pause it and shows its last step, everything in place, before (or without) its script."""
+        """Anything that moves does so only without reduced motion (so its resting style, the last frame, is what
+        reduced motion shows), and anything that loops has a button to pause it."""
         for path in [*SITE.rglob("*.css"), *SITE.rglob("*.html")]:
             text = path.read_text(encoding="utf-8")
-            if re.search(r"\banimation\s*:", text):
-                self.assertIn("prefers-reduced-motion", text, path.name)
-            if 'class="card stage"' in text:
-                self.assertIn('data-scene="4"', text, path.name)
+            outside = re.sub(r"@media \(prefers-reduced-motion: no-preference\) \{(?:[^{}]|\{(?:[^{}]|\{[^{}]*\})*\})*\}",
+                             "", text)
+            self.assertFalse(re.search(r"\banimation\s*:", outside), path.name)
+            if re.search(r"\binfinite\b", text):
                 self.assertRegex(text, r"<button\b[^>]*\bdata-play\b", path.name)
-                self.assertIn("prefers-reduced-motion: reduce", text, path.name)
 
     def test_every_page_is_filled_in(self):
         for page in pages():
             self.assertNotIn("{{", page.read_text(encoding="utf-8"), page.name)
 
-    def test_every_doc_becomes_a_page(self):
+    def test_every_markdown_file_becomes_a_page_and_stays_text(self):
         for doc in SITE.rglob("*.md"):
             page = OUT / doc.relative_to(SITE).with_suffix(".html")
-            self.assertTrue(page.exists(), doc.name)
             title = doc.read_text(encoding="utf-8").splitlines()[0].removeprefix("# ")
-            self.assertIn(f"<title>{title}</title>", page.read_text(encoding="utf-8"), doc.name)
+            self.assertIn(f">{title}</h2>", page.read_text(encoding="utf-8"), doc.name)
+            self.assertEqual((OUT / doc.relative_to(SITE)).read_text(encoding="utf-8"), doc.read_text(encoding="utf-8"))
 
     def test_every_local_link_and_file_is_there(self):
         for page in pages():
@@ -161,7 +178,7 @@ class TheMarkdownReader(unittest.TestCase):
         title, body, toc = build_site.markdown(
             "# A title\n\nSome **bold** and `a <tag>` and [a link](https://x.example).\n\n## 1. First part\n\n"
             "- one\n  continued\n- two\n  - nested\n- three\n\n| a | b |\n|---|---|\n| `x` | y |\n\n"
-            "```json\n{\"k\": \"<v>\"}\n```\n\nSee STANDARD.md and TRUST.md, not `STANDARD.md`.\n")
+            "```json\n{\"k\": \"<v>\"}\n```\n")
         self.assertEqual(title, "A title")
         self.assertEqual(toc, [("1-first-part", "1. First part")])
         self.assertIn("<strong>bold</strong> and <code>a &lt;tag&gt;</code>", body)
@@ -169,9 +186,6 @@ class TheMarkdownReader(unittest.TestCase):
         self.assertIn("<ul><li>one continued</li><li>two<ul><li>nested</li></ul></li><li>three</li></ul>", body)
         self.assertIn("<td><code>x</code></td><td>y</td>", body)
         self.assertIn("<pre><code>{&quot;k&quot;: &quot;&lt;v&gt;&quot;}</code></pre>", body)
-        self.assertIn('<a href="standard.html">STANDARD.md</a>', body)
-        self.assertIn('<a href="https://github.com/superfoundry/belong/blob/main/TRUST.md">TRUST.md</a>', body)
-        self.assertIn("<code>STANDARD.md</code>", body)  # never a link inside code
 
 
 if __name__ == "__main__":

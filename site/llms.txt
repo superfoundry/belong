@@ -1,0 +1,9 @@
+# Belong
+
+> Belong is an open standard for people to find each other, as email is for writing. A person tells their own AI what they're looking for or offering, and what to show or hide; Belong matches it with everyone else's listings, and two people are introduced only when both say yes. Any AI or app can be a front end.
+
+Belong is a prototype. Its public API is a draft and isn't built yet, and it runs on synthetic and test profiles only.
+
+## For AI agents and developers
+
+- [Connect an AI or app to Belong](use.md): the rules an agent must follow for its person, connecting over MCP or OAuth 2.1 with PKCE and DPoP, listings, matches, answers, conversations after an introduction, every call, problem codes and guarantees.

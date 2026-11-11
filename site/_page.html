@@ -1,0 +1,173 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Use Belong</title>
+<meta name="description" content="Ways to use Belong: the Belong app, the AI you already use, or something you build. And everything an AI agent or developer needs to connect.">
+<link rel="stylesheet" href="ds/tokens.css">
+<link rel="stylesheet" href="ds/belong.css">
+<link rel="stylesheet" href="site.css">
+<link rel="icon" type="image/svg+xml" href="ds/logo/belong-icon.svg">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<style>
+  /* The Use page: tools/build_site.py fills in {{title}}, {{toc}} and {{body}} from use.md beside this file.
+     The ways in come first, for everyone; the rest is for AI agents and developers. */
+  .ways { padding: var(--space-16) 0 var(--space-20); }
+  .ways h1 { font-size: var(--font-size-display-l); margin: 0 0 var(--space-4); max-width: 16ch; }
+  .ways .intro { font: var(--text-body-l); color: var(--text-secondary); max-width: 46ch; margin: 0 0 var(--space-12); }
+  .way { display: flex; flex-direction: column; gap: var(--space-3); }
+  .way svg { width: 56px; height: 56px; margin-bottom: var(--space-2); }
+  .way .badge { align-self: flex-start; margin-top: auto; }
+  .way h2 { font: var(--text-heading-l); margin: 0; }
+  .way p { font: var(--text-body-m); }
+  .ink { fill: none; stroke: var(--text-primary); stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; }
+  .fill-ai { fill: var(--accent-ai); }
+  .fill-person { fill: var(--accent-default); }
+  .fill-cream { fill: var(--surface-sunken); }
+
+  /* What it's like: a short conversation with an agent, the person's words on the right. */
+  .like { display: grid; grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr); gap: var(--space-16); align-items: center;
+    margin-top: var(--space-20); }
+  @media (max-width: 860px) { .like { grid-template-columns: 1fr; gap: var(--space-8); } }
+  .like h2 { font-size: var(--font-size-display-m); margin: 0 0 var(--space-4); }
+  .like ol { margin: 0; padding-left: 1.2em; color: var(--text-secondary); font: var(--text-body-l); }
+  .like li + li { margin-top: var(--space-2); }
+  .chat { display: flex; flex-direction: column; gap: var(--space-3); padding: var(--space-6); }
+  .chat p { margin: 0; max-width: 85%; padding: var(--space-3) var(--space-4); border-radius: var(--radius-lg); font: var(--text-body-s); }
+  .chat .you { align-self: flex-end; background: var(--surface-raised); color: var(--text-primary); }
+  .chat .agent { align-self: flex-start; background: var(--accent-ai-muted); color: var(--text-primary); }
+  .chat .agent .badge { margin-right: var(--space-2); }
+  .chat .hid { color: var(--text-ai); }
+
+  .build { display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: var(--space-16); align-items: start; }
+  .build-side { position: sticky; top: 96px; max-height: calc(100vh - 120px); overflow-y: auto; padding: var(--space-20) 0; }
+  .build-side .label { margin: 0 0 var(--space-3); color: var(--text-tertiary); }
+  .build-side nav { display: flex; flex-direction: column; }
+  .build-side nav a { font: var(--text-body-s); color: var(--text-secondary); text-decoration: none; padding: 5px 0; }
+  .build-side nav a:hover { color: var(--text-primary); }
+  .build-side .raw { display: block; margin-top: var(--space-6); font: var(--text-caption); color: var(--text-tertiary); }
+  @media (max-width: 960px) { .build { grid-template-columns: 1fr; gap: 0; } .build-side { display: none; } }
+
+  /* The technical part: body copy held to the narrow measure, tables and code allowed to run wider. */
+  .doc { padding: var(--space-20) 0 var(--space-24); min-width: 0; }
+  .doc > .eyebrow { margin: 0 0 var(--space-3); }
+  .doc h2.title { font-size: var(--font-size-display-m); margin: 0 0 var(--space-6); max-width: 22ch; }
+  .doc h2:not(.title) { font: var(--text-display-s); font-size: 1.625rem; margin: var(--space-16) 0 var(--space-4); scroll-margin-top: 96px; }
+  .doc h3 { font: var(--text-heading-l); margin: var(--space-10) 0 var(--space-3); scroll-margin-top: 96px; }
+  .doc p, .doc ul { max-width: var(--content-narrow); color: var(--text-secondary); }
+  .doc p { margin: 0 0 var(--space-4); }
+  .doc ul { margin: 0 0 var(--space-5); padding-left: 1.2em; }
+  .doc li { margin: 0 0 var(--space-2); }
+  .doc strong { color: var(--text-primary); font-weight: 600; }
+  .doc code { font: var(--text-mono-s); font-size: 0.85em; background: var(--surface-raised); padding: 1px 5px; border-radius: var(--radius-sm);
+    color: var(--text-primary); overflow-wrap: anywhere; }
+  .doc pre { font: var(--text-mono-s); background: var(--surface-inverse); color: var(--text-inverse); border-radius: var(--radius-md);
+    padding: var(--space-5) var(--space-6); margin: 0 0 var(--space-6); overflow-x: auto; max-width: 900px; }
+  .doc pre code { background: none; color: inherit; padding: 0; font-size: inherit; overflow-wrap: normal; }
+  .doc .scroll { overflow-x: auto; margin: 0 0 var(--space-6); max-width: 900px; }
+  .doc table { width: 100%; border-collapse: collapse; font: var(--text-body-s); }
+  .doc th, .doc td { text-align: left; vertical-align: top; padding: var(--space-3); }
+  .doc th { font: var(--text-label); color: var(--text-tertiary); }
+  .doc tbody tr:nth-child(odd) td { background: var(--surface-raised); }
+  .doc td { color: var(--text-secondary); }
+  .doc td:first-child code { white-space: nowrap; }
+</style>
+</head>
+<body>
+<header class="site-top">
+  <div class="wrap">
+    <a class="logo" href="./"><img src="ds/logo/belong-wordmark-small-ink.svg" alt="Belong" width="90" height="26"></a>
+    <nav aria-label="Site">
+      <a href="./#how">How it works</a>
+      <a href="use.html" aria-current="page">Use Belong</a>
+    </nav>
+  </div>
+</header>
+
+<main>
+  <section class="ways band" aria-labelledby="ways-title">
+    <div class="wrap">
+      <h1 id="ways-title" class="display-l">Use Belong your way</h1>
+      <p class="intro">Belong is a standard, like email, so you can reach it from more than one place. Pick the one that suits you.</p>
+      <div class="grid three">
+        <div class="card way">
+          <svg viewBox="0 0 56 56" aria-hidden="true">
+            <rect class="ink" x="15" y="4" width="26" height="48" rx="5"/>
+            <rect class="fill-ai" x="20" y="14" width="13" height="7" rx="3"/>
+            <rect class="fill-person" x="23" y="25" width="13" height="7" rx="3"/>
+            <rect class="fill-ai" x="20" y="36" width="9" height="7" rx="3"/>
+          </svg>
+          <h2>The Belong app</h2>
+          <p>Talk to Belong's own agent on your phone. It writes your listing with you, shows your matches and carries your chats.</p>
+          <span class="badge warning">Prototype</span>
+        </div>
+        <div class="card way">
+          <svg viewBox="0 0 56 56" aria-hidden="true">
+            <path class="ink" d="M6 10h30a4 4 0 0 1 4 4v14a4 4 0 0 1-4 4H18l-8 7v-7H6a4 4 0 0 1-4-4V14a4 4 0 0 1 4-4z"/>
+            <path class="fill-ai" d="M24 24h26a4 4 0 0 1 4 4v12a4 4 0 0 1-4 4h-2v6l-7-6H24a4 4 0 0 1-4-4V28a4 4 0 0 1 4-4z"/>
+          </svg>
+          <h2>The AI you already use</h2>
+          <p>Add Belong to an assistant that takes connectors, and ask it to find people for you right there.</p>
+          <span class="badge">Not built yet</span>
+        </div>
+        <div class="card way">
+          <svg viewBox="0 0 56 56" aria-hidden="true">
+            <rect class="fill-cream" x="2" y="8" width="52" height="40" rx="4"/>
+            <path class="ink" d="M18 20l-8 8 8 8M38 20l8 8-8 8M31 17l-6 22"/>
+          </svg>
+          <h2>Something you build</h2>
+          <p>An app, a website or a script of your own, on the open standard below. No approval needed.</p>
+          <span class="badge warning">Draft standard</span>
+        </div>
+      </div>
+      <div class="like">
+        <div>
+          <h2 class="display-m">What it's like</h2>
+          <ol>
+            <li>Tell your AI what you want, in your own words.</li>
+            <li>Check what it will show and what it keeps hidden.</li>
+            <li>When someone fits, say yes or no.</li>
+          </ol>
+        </div>
+        <div class="card chat" role="img" aria-label="An example conversation with an agent">
+          <p class="you">Find me someone to go sea swimming with in Brighton, early mornings.</p>
+          <p class="agent"><span class="badge ai">Agent</span>I've drafted your listing. Shown: sea swimming, Brighton, before 8am. <span class="hid">Hidden: your neighbourhood.</span> Shall I send it?</p>
+          <p class="you">Yes, send it.</p>
+          <p class="agent"><span class="badge ai">Agent</span>Someone fits: Priya, who swims before work in Brighton. You're both in Brighton. Would you like to say yes?</p>
+        </div>
+      </div>
+      <div class="status">
+        <span class="badge warning">Prototype</span>
+        <p><b>Nothing here is open to real people yet.</b> Belong is a prototype that runs on synthetic and test profiles only.</p>
+      </div>
+    </div>
+  </section>
+
+  <div class="wrap build">
+    <aside class="build-side">
+      <p class="label">On this page</p>
+      <nav aria-label="On this page">{{toc}}</nav>
+      <a class="raw" href="use.md">This part as plain text</a>
+    </aside>
+    <article class="doc" aria-labelledby="build">
+      <p class="eyebrow">For AI agents and developers</p>
+      <h2 id="build" class="title">{{title}}</h2>
+      {{body}}
+    </article>
+  </div>
+</main>
+
+<footer class="site-foot">
+  <div class="wrap">
+    <a class="logo" href="./"><img src="ds/logo/belong-wordmark-small-ink.svg" alt="Belong" width="76" height="22"></a>
+    <nav aria-label="Footer">
+      <a href="./#how">How it works</a>
+      <a href="use.html">Use Belong</a>
+      <a href="llms.txt">For AI agents</a>
+    </nav>
+    <p class="note">Belong is a prototype and its standard is a draft. It runs on synthetic and test profiles only, and nothing here is offered to real people yet.</p>
+  </div>
+</footer>
+</body>
+</html>

@@ -3,13 +3,13 @@
     python3 tools/build_site.py                      # into out/site
     python3 tools/build_site.py --out /tmp/site
 
-Copies site/ as it is and adds the Belong design system's files from belong/web/ds (tokens.css, belong.css and
-the fonts, so the site loads nothing from any other host) and the touch icon.
+Copies site/ as it is and adds the Belong design system's files from belong/web/ds (tokens.css, belong.css, the
+fonts and the logo, so the site loads nothing from any other host) and the touch icon.
 
-The documentation is Markdown (site/docs/*.md, copied in as they are written): each becomes a page beside it
-(standard.md -> standard.html) in site/docs/_page.html, read by the small Markdown reader below, which knows
-only what the docs use: headings, paragraphs, lists (one level of nesting), tables, fenced code, `code`,
-**bold** and [links](url). Pure standard library."""
+The technical part of the Use page is Markdown (site/use.md): it becomes use.html in site/_page.html, read by the
+small Markdown reader below, which knows only what it uses: headings, paragraphs, lists (one level of nesting),
+tables, fenced code, `code`, **bold** and [links](url). The Markdown is published beside it as it is, for AI
+agents to read (site/llms.txt points to it). Pure standard library."""
 from __future__ import annotations
 
 import argparse
@@ -23,10 +23,6 @@ SITE = ROOT / "site"
 DS = ROOT / "belong" / "web" / "ds"
 DS_FILES = ("tokens.css", "belong.css")
 ICON = ROOT / "belong" / "web" / "apple-touch-icon.png"
-REPO = "https://github.com/superfoundry/belong/blob/main/"
-# A file the docs name in passing becomes a link: the other docs pages, or the file in the public repository.
-DOC_LINKS = {"STANDARD.md": "standard.html", "CONNECTING.md": "connecting.html",
-             "TRUST.md": REPO + "TRUST.md", "SPEC.md": REPO + "SPEC.md", "README.md": REPO + "README.md"}
 
 
 # -- Markdown ---------------------------------------------------------------------------------------------------
@@ -45,8 +41,6 @@ def inline(text: str) -> str:
         part = html.escape(part, quote=False)
         part = re.sub(r"\*\*(.+?)\*\*", r"<strong>\1</strong>", part)
         part = re.sub(r"\[([^\]]+)\]\(([^)\s]+)\)", lambda m: f'<a href="{html.escape(m.group(2))}">{m.group(1)}</a>', part)
-        part = re.sub(r"(?<![\w/.-])(" + "|".join(map(re.escape, DOC_LINKS)) + r")(?![\w-])",
-                      lambda m: f'<a href="{DOC_LINKS[m.group(1)]}">{m.group(1)}</a>', part)
         out.append(part)
     return "".join(out)
 
@@ -121,10 +115,7 @@ def markdown(text: str) -> tuple[str, str, list[tuple[str, str]]]:
 def doc_page(source: Path, template: str) -> str:
     title, body, toc = markdown(source.read_text(encoding="utf-8"))
     nav = "".join(f'<a href="#{ident}">{html.escape(words)}</a>' for ident, words in toc)
-    here = source.with_suffix(".html").name
-    page = template.replace("{{title}}", html.escape(title)).replace("{{toc}}", nav).replace("{{body}}", body)
-    # The docs menu marks the page it's on.
-    return page.replace(f'href="{here}"', f'href="{here}" aria-current="page"')
+    return template.replace("{{title}}", html.escape(title)).replace("{{toc}}", nav).replace("{{body}}", body)
 
 
 # -- Build ------------------------------------------------------------------------------------------------------
@@ -139,17 +130,20 @@ def build(out: Path) -> list[Path]:
             continue
         dst = out / src.relative_to(SITE)
         dst.parent.mkdir(parents=True, exist_ok=True)
-        if src.suffix == ".md":
-            dst = dst.with_suffix(".html")
-            dst.write_text(doc_page(src, (src.parent / "_page.html").read_text(encoding="utf-8")), encoding="utf-8")
-        else:
-            shutil.copyfile(src, dst)
+        shutil.copyfile(src, dst)
         written.append(dst)
-    (out / "ds" / "fonts").mkdir(parents=True, exist_ok=True)
+        if src.suffix == ".md":
+            page = dst.with_suffix(".html")
+            page.write_text(doc_page(src, (src.parent / "_page.html").read_text(encoding="utf-8")), encoding="utf-8")
+            written.append(page)
+    for sub in ("fonts", "logo"):
+        (out / "ds" / sub).mkdir(parents=True, exist_ok=True)
     for name in DS_FILES:
         written.append(Path(shutil.copyfile(DS / name, out / "ds" / name)))
     for font in sorted((DS / "fonts").glob("*.woff2")):
         written.append(Path(shutil.copyfile(font, out / "ds" / "fonts" / font.name)))
+    for logo in sorted((DS / "logo").glob("*.svg")):
+        written.append(Path(shutil.copyfile(logo, out / "ds" / "logo" / logo.name)))
     written.append(Path(shutil.copyfile(ICON, out / ICON.name)))
     return written
 

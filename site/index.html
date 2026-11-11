@@ -4,148 +4,101 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Belong</title>
-<meta name="description" content="Belong is an open standard for people to find each other, the way email is for writing to each other. Tell your own AI what you're looking for, show what you choose, and meet only when you both say yes.">
+<meta name="description" content="Belong is an open standard for people to find each other. Tell your AI what you're looking for, and meet the people looking for you too, only when you both say yes.">
 <link rel="stylesheet" href="ds/tokens.css">
 <link rel="stylesheet" href="ds/belong.css">
 <link rel="stylesheet" href="site.css">
+<link rel="icon" type="image/svg+xml" href="ds/logo/belong-icon.svg">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <style>
-  /* The landing page's own parts. Everything shared with the documentation pages is in site.css. */
-  .hero { padding: var(--space-20) 0 var(--space-24); }
-  .hero-grid { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); gap: var(--space-16); align-items: center; }
-  @media (max-width: 960px) { .hero-grid { grid-template-columns: 1fr; gap: var(--space-12); } }
-  /* The display tokens' fluid sizes, so the headline fits a phone. */
-  .hero h1 { font-size: var(--font-size-display-xl); margin: var(--space-4) 0 var(--space-6); max-width: 13ch; }
-  .section h2.display-m { font-size: var(--font-size-display-m); }
-  .hero .lead { font: var(--text-body-l); color: var(--text-secondary); margin: 0 0 var(--space-10); max-width: 46ch; }
-  .actions { display: flex; flex-wrap: wrap; gap: var(--space-3); align-items: center; }
-  .actions .small { font: var(--text-caption); color: var(--text-tertiary); flex-basis: 100%; margin: var(--space-2) 0 0; }
+  /* The landing page's own parts. Everything shared with the Use page is in site.css. */
+  .hero { padding: var(--space-16) 0 var(--space-24); }
+  .hero-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr); gap: var(--space-12); align-items: center; }
+  @media (max-width: 960px) { .hero-grid { grid-template-columns: 1fr; gap: var(--space-10); } }
+  .hero h1 { font-size: var(--font-size-display-xl); margin: 0 0 var(--space-6); max-width: 12ch; }
+  .hero .lead { font: var(--text-body-l); color: var(--text-secondary); margin: 0 0 var(--space-8); max-width: 38ch; }
+  .hero .small { flex-basis: 100%; margin: var(--space-2) 0 0; }
+
+  /* The scene: two people, everyone else as a field of dots, Belong bringing the two together. One loop of
+     twelve seconds; every part's resting style is the last frame, so with reduced motion the whole story is
+     there at once. */
+  .scene { position: relative; margin: 0; aspect-ratio: 600 / 480; }
+  .scene svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+  .field circle { fill: var(--text-primary); opacity: 0.16; }
+  .field circle.c { fill: var(--accent-default); opacity: 0.5; }
+  .field circle.p { fill: var(--accent-ai); opacity: 0.5; }
+  .field circle.m { fill: var(--accent-olive); opacity: 0.6; }
+  .person-disc { fill: var(--surface-raised); }
+  .person-shape { fill: var(--text-primary); }
+  .listing-dot { fill: var(--accent-ai); }
+  .meet-line { stroke: var(--accent-ai); stroke-width: 2.5; stroke-linecap: round; stroke-dasharray: 4 7; fill: none; }
+  .meet-ground { fill: var(--surface-card); }
+  .half-a { fill: var(--accent-ai); }
+  .half-b { fill: var(--accent-default); }
+  .bubble { position: absolute; width: 44%; margin: 0; padding: var(--space-3) var(--space-4); background: var(--surface-card);
+    border-radius: var(--radius-lg); box-shadow: var(--shadow-md); font: var(--text-body-m); color: var(--text-primary); }
+  .bubble.a { left: 23%; bottom: 0; }
+  .bubble.b { right: 23%; top: 0; }
+  .tag-yes { position: absolute; margin: 0; }
+  .tag-yes.a { left: 9%; top: 68%; }
+  .tag-yes.b { right: 9%; top: 26%; }
+  .tag-yes span { display: inline-block; padding: 4px 12px; border-radius: var(--radius-pill); background: var(--accent-muted);
+    color: var(--text-accent); font: var(--text-label); font-weight: 600; }
+  .met { position: absolute; margin: 0; left: 50.8%; top: 59%; transform: translateX(-50%); }
+  .scene-foot { position: absolute; right: 0; bottom: -40px; }
+  @media (max-width: 640px) {
+    .bubble { width: 58%; font: var(--text-body-s); padding: var(--space-2) var(--space-3); }
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    .scene .field circle { animation: twinkle var(--p) ease-in-out var(--d) infinite alternate; }
+    @keyframes twinkle { to { opacity: 0.05; } }
+    .scene .bubble.a { animation: bubble-a 12s var(--ease-standard) infinite; }
+    .scene .bubble.b { animation: bubble-b 12s var(--ease-standard) infinite; }
+    .scene .listing-dot.a { animation: fly-a 12s var(--ease-standard) infinite; }
+    .scene .listing-dot.b { animation: fly-b 12s var(--ease-standard) infinite; }
+    .scene .meet-line { animation: draw 12s var(--ease-standard) infinite; }
+    .scene .tag-yes.a { animation: yes-a 12s var(--ease-standard) infinite; }
+    .scene .tag-yes.b { animation: yes-b 12s var(--ease-standard) infinite; }
+    .scene .meet, .scene .met { animation: meet 12s var(--ease-standard) infinite; }
+    .scene.paused * { animation-play-state: paused; }
+    @keyframes bubble-a { 0% { opacity: 0; transform: translateY(8px); } 5%, 88% { opacity: 1; transform: none; } 94%, 100% { opacity: 0; } }
+    @keyframes bubble-b { 0%, 9% { opacity: 0; transform: translateY(8px); } 14%, 88% { opacity: 1; transform: none; } 94%, 100% { opacity: 0; } }
+    @keyframes fly-a { 0%, 20% { opacity: 0; transform: translate(-172px, 132px); } 22% { opacity: 1; transform: translate(-172px, 132px); }
+      34%, 88% { opacity: 1; transform: none; } 94%, 100% { opacity: 0; transform: none; } }
+    @keyframes fly-b { 0%, 24% { opacity: 0; transform: translate(162px, -136px); } 26% { opacity: 1; transform: translate(162px, -136px); }
+      38%, 88% { opacity: 1; transform: none; } 94%, 100% { opacity: 0; transform: none; } }
+    @keyframes draw { 0%, 42% { opacity: 0; stroke-dashoffset: 60; } 46% { opacity: 1; } 52%, 88% { opacity: 1; stroke-dashoffset: 0; } 94%, 100% { opacity: 0; } }
+    @keyframes yes-a { 0%, 54% { opacity: 0; transform: scale(0.9); } 58%, 88% { opacity: 1; transform: none; } 94%, 100% { opacity: 0; } }
+    @keyframes yes-b { 0%, 61% { opacity: 0; transform: scale(0.9); } 65%, 88% { opacity: 1; transform: none; } 94%, 100% { opacity: 0; } }
+    @keyframes meet { 0%, 70% { opacity: 0; } 76%, 88% { opacity: 1; } 94%, 100% { opacity: 0; } }
+  }
+
+  /* How it works: three steps, a number and a sentence each. */
+  .steps { list-style: none; margin: 0; padding: 0; }
+  .steps li { padding: var(--space-6) 0 0; }
+  .steps .num { display: block; font: var(--text-display-m); font-size: var(--font-size-display-m); color: var(--text-primary);
+    margin-bottom: var(--space-4); }
+  .steps h3 { font: var(--text-heading-l); margin: 0 0 var(--space-2); }
+  .steps p { margin: 0; color: var(--text-secondary); max-width: 34ch; }
 
   /* A listing as its owner sees it, in the product's fixed look for shown and hidden details. */
-  .listing { padding: var(--space-6); }
-  .listing-head { display: flex; justify-content: space-between; align-items: center; gap: var(--space-3); margin-bottom: var(--space-5); }
+  .hidden-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: var(--space-16); align-items: center; }
+  @media (max-width: 860px) { .hidden-grid { grid-template-columns: 1fr; gap: var(--space-10); } }
+  .hidden-grid p { color: var(--text-secondary); max-width: 44ch; margin: 0 0 var(--space-4); font: var(--text-body-l); }
+  .listing { padding: var(--space-6); margin: 0; }
+  .listing-head { display: flex; justify-content: space-between; align-items: center; gap: var(--space-3); margin-bottom: var(--space-3); }
   .listing-head .label { color: var(--text-tertiary); }
-  .row { padding: var(--space-3) 0; border-top: 1px solid var(--border-subtle); }
+  .row { padding: var(--space-2) 0; }
   .row .field-label { margin: 0 0 2px; color: var(--text-tertiary); }
   .row .value { font: var(--text-body-m); color: var(--text-primary); }
-  .hidden-well { margin-top: var(--space-4); }
+  .hidden-well { margin-top: var(--space-3); }
   .hidden-well .top { display: flex; justify-content: space-between; align-items: center; gap: var(--space-3); }
   .hidden-well .field-label { margin: 0; color: var(--text-tertiary); }
   .hidden-well .value { font: var(--text-body-m); margin: 2px 0 var(--space-1); }
-  .agent-note { margin: var(--space-5) 0 0; display: flex; gap: var(--space-2); align-items: baseline; font: var(--text-body-s); color: var(--text-secondary); }
-
-  /* How it works: four steps along the chapter rule. */
-  .steps { list-style: none; margin: 0; padding: 0; counter-reset: step; }
-  .steps li { counter-increment: step; position: relative; padding: 0 0 var(--space-10); max-width: var(--content-narrow); }
-  .steps li:last-child { padding-bottom: 0; }
-  .steps li::before { content: counter(step); position: absolute; left: -46px; top: 0; width: 22px; margin-left: 12px;
-    font: var(--text-mono-s); color: var(--text-tertiary); background: var(--surface-app); text-align: center; line-height: 28px; }
-  @media (max-width: 640px) { .steps li::before { left: -24px; margin-left: -4px; } }
-  .steps h3 { margin: 0 0 var(--space-2); }
-  .steps p { margin: 0; color: var(--text-secondary); }
-
-  /* How it works, played out: the steps beside a small stage that shows each one. Two people, Belong between
-     them. Each part of the stage carries the step it appears at (data-in) or the one step it belongs to
-     (data-only); without the script the stage shows the last step, everything in place. */
-  .how-grid { display: grid; grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr); gap: var(--space-12); align-items: start; }
-  @media (max-width: 960px) { .how-grid { grid-template-columns: 1fr; } .how-grid .stage { order: -1; } }
-  .steps h3 button { all: unset; cursor: pointer; border-radius: var(--radius-sm); }
-  .steps h3 button:focus-visible { box-shadow: var(--shadow-focus-ring); }
-  .playing .steps li { transition: opacity var(--duration-base) var(--ease-standard); }
-  .playing .steps li:not(.now) { opacity: 0.5; }
-  .playing .steps li:not(.now):hover { opacity: 0.8; }
-  .playing .steps li.now::before { color: var(--text-primary); box-shadow: inset 0 -2px 0 var(--border-accent); }
-
-  .stage { margin: 0; padding: var(--space-6); position: sticky; top: 96px; }
-  @media (max-width: 960px) { .stage { position: static; } }
-  .stage-grid { display: grid; grid-template-columns: minmax(0, 1fr) 28px 112px 28px minmax(0, 1fr); align-items: start; }
-  .person { display: flex; flex-direction: column; gap: var(--space-3); min-width: 0; }
-  .person .who { margin: 0; color: var(--text-tertiary); }
-  .say { margin: 0; padding: var(--space-2) var(--space-3); background: var(--surface-raised); border-radius: var(--radius-md);
-    font: var(--text-body-s); color: var(--text-primary); }
-  .mini { border: 1px solid var(--border-subtle); border-radius: var(--radius-md); padding: var(--space-2) var(--space-3); background: var(--surface-card); }
-  .mini .by { display: block; margin-bottom: var(--space-1); }
-  .mini p { margin: 0; padding: 4px 0; font: var(--text-caption); color: var(--text-primary); }
-  .mini p span { display: block; color: var(--text-tertiary); }
-  .mini .hidden-well { margin-top: var(--space-1); padding: 6px 8px; }
-  .mini .hidden-well p { padding: 0; display: flex; justify-content: space-between; align-items: center; gap: var(--space-2); }
-  .mini .hidden-well .badge { font-size: 9px; padding: 1px 6px; }
-  .mini .hidden-note { display: block; margin-top: 2px; line-height: 1.35; }
-  .match { border: 1px solid var(--border-strong); border-radius: var(--radius-md); padding: var(--space-2) var(--space-3); background: var(--surface-card);
-    box-shadow: var(--shadow-sm); }
-  .match .field-label { margin: 0 0 2px; color: var(--text-tertiary); }
-  .match p { margin: 0; font: var(--text-caption); color: var(--text-secondary); }
-  .match .them { font: var(--text-body-s); font-weight: 600; color: var(--text-primary); }
-  .match .why { margin-top: var(--space-1); }
-  .match .yes { margin-top: var(--space-2); }
-
-  .belong { display: flex; flex-direction: column; align-items: center; gap: var(--space-3); text-align: center; padding-top: var(--space-8); }
-  .belong .name { font: var(--text-heading-m); color: var(--text-primary); margin: 0; }
-  .chips { display: grid; grid-template-columns: repeat(4, 16px); gap: 6px; }
-  .chip { width: 16px; height: 10px; border-radius: 3px; background: var(--surface-sunken); border: 1px solid var(--border-subtle);
-    transition: background var(--duration-slow) var(--ease-standard), border-color var(--duration-slow) var(--ease-standard); }
-  .says { display: grid; min-height: 64px; }
-  .says p { grid-area: 1 / 1; margin: 0; font: var(--text-caption); color: var(--text-secondary); }
-  .wire { position: relative; height: 2px; margin-top: 128px; background: var(--border-subtle); overflow: hidden; }
-  .wire i { position: absolute; inset: 0; background: var(--border-strong); transform: scaleX(0);
-    transition: transform var(--duration-slow) var(--ease-standard); }
-  .wire.to-a i { transform-origin: right; }
-  .wire.to-b i { transform-origin: left; }
-  .stage figcaption { display: flex; justify-content: space-between; align-items: center; gap: var(--space-3);
-    margin-top: var(--space-5); padding-top: var(--space-4); border-top: 1px solid var(--border-subtle); }
-  .stage figcaption .caption { color: var(--text-tertiary); margin: 0; }
-
-  /* A narrow screen: Belong across the top, the two people side by side under it. */
-  @media (max-width: 640px) {
-    .stage { padding: var(--space-4); }
-    .stage-grid { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: var(--space-5) var(--space-3); }
-    .belong { grid-column: 1 / -1; grid-row: 1; padding-top: 0; }
-    .says { min-height: 0; }
-    .say { font: var(--text-caption); }
-    .wire { display: none; }
-    .chips { grid-template-columns: repeat(12, 14px); }
-    .chip { width: 14px; }
-  }
-
-  /* What each step shows. */
-  .stage [data-in], .stage [data-only] { transition: opacity var(--duration-slow) var(--ease-standard), transform var(--duration-slow) var(--ease-standard); }
-  .stage [data-in] { opacity: 0; transform: translateY(6px); }
-  /* One line of Belong's at a time: the old one goes before the new one comes. */
-  .stage [data-only] { opacity: 0; transition-duration: var(--duration-fast); }
-  .stage[data-scene="1"] [data-in="1"],
-  .stage[data-scene="2"] :is([data-in="1"], [data-in="2"]),
-  .stage[data-scene="3"] :is([data-in="1"], [data-in="2"], [data-in="3"]),
-  .stage[data-scene="4"] [data-in],
-  .stage[data-scene="1"] [data-only="1"], .stage[data-scene="2"] [data-only="2"],
-  .stage[data-scene="3"] [data-only="3"], .stage[data-scene="4"] [data-only="4"] { opacity: 1; transform: none; }
-  .stage[data-scene="1"] [data-only="1"], .stage[data-scene="2"] [data-only="2"],
-  .stage[data-scene="3"] [data-only="3"], .stage[data-scene="4"] [data-only="4"] { transition-duration: var(--duration-slow); transition-delay: var(--duration-fast); }
-  .stage[data-scene="2"] .wire.in i, .stage[data-scene="3"] .wire i, .stage[data-scene="4"] .wire i { transform: none; }
-  .stage:is([data-scene="2"], [data-scene="3"], [data-scene="4"]) .chip.pair { background: var(--text-primary); border-color: var(--text-primary); }
-  /* While Belong compares, a wave runs over every listing. */
-  @media (prefers-reduced-motion: no-preference) {
-    .stage[data-scene="2"] .chip:not(.pair) { animation: compare 1.6s var(--ease-standard) infinite; animation-delay: calc(var(--n) * 90ms); }
-    @keyframes compare { 0%, 100% { background: var(--surface-sunken); } 30% { background: var(--border-strong); } }
-  }
-  @media (prefers-reduced-motion: reduce) {
-    .stage [data-in], .stage [data-only], .wire i, .chip { transition: none; }
-  }
-
-  /* Shown and hidden, side by side. */
-  .side h3 { display: flex; align-items: center; gap: var(--space-3); margin: 0 0 var(--space-4); }
-  .side ul { margin: 0; padding-left: 1.1em; color: var(--text-secondary); }
-  .side li + li { margin-top: var(--space-2); }
-  .side.hidden-side { background: var(--surface-sunken); border: 1px solid var(--border-ai); box-shadow: none; }
-  .side.hidden-side .hidden-note { display: block; margin-top: var(--space-5); }
-
-  .promise { display: grid; gap: var(--space-12); max-width: 960px; }
-  .keeps { margin: 0; padding: 0; list-style: none; }
-  .keeps li { padding: var(--space-3) 0; border-top: 1px solid var(--border-subtle); color: var(--text-secondary); font: var(--text-body-s); }
-  .keeps li b { color: var(--text-primary); font-weight: 600; }
-
+  .listing figcaption { margin: var(--space-5) 0 0; display: flex; gap: var(--space-2); align-items: baseline; font: var(--text-body-s); color: var(--text-secondary); }
 
   .closing { text-align: center; }
-  .closing h2 { margin: 0 auto var(--space-4); }
   .closing .intro { margin: 0 auto var(--space-8); }
   .closing .actions { justify-content: center; }
 </style>
@@ -153,244 +106,161 @@
 <body>
 <header class="site-top">
   <div class="wrap">
-    <a class="wordmark" href="./">Belong.</a>
+    <a class="logo" href="./"><img src="ds/logo/belong-wordmark-small-ink.svg" alt="Belong" width="90" height="26"></a>
     <nav aria-label="Site">
       <a href="#how">How it works</a>
-      <a href="#standard">The standard</a>
-      <a href="#promise">Privacy</a>
+      <a href="use.html">Use Belong</a>
     </nav>
-    <a class="btn sm secondary" href="docs/">Read the docs</a>
   </div>
 </header>
 
 <main>
-  <div class="wrap">
-    <div class="chapter">
-      <section class="hero hero-grid" aria-labelledby="hero-title">
-        <div class="rise">
-          <p class="eyebrow">An open standard for finding each other</p>
-          <h1 id="hero-title" class="display-xl">Meet the people looking for you <span class="drop-coral">too</span></h1>
-          <p class="lead">Tell your own AI what you're looking for or offering, in your own words, and what to show or hide. Belong matches it with everyone else's. If you both say yes, you're introduced. Otherwise nothing happens, and nobody is told anything.</p>
-          <div class="actions">
-            <a class="btn lg" href="docs/standard.html">Read the standard</a>
-            <a class="btn lg secondary" href="#how">How it works</a>
-            <p class="small">Belong is a prototype. It runs on synthetic and test profiles only.</p>
-          </div>
+  <section class="hero" aria-labelledby="hero-title">
+    <div class="wrap hero-grid">
+      <div class="rise">
+        <h1 id="hero-title" class="display-xl">Meet the people looking for you <span class="drop-coral">too</span></h1>
+        <p class="lead">Tell your AI what you're looking for. Belong finds the people looking for you, and you meet only when you both say yes.</p>
+        <div class="actions">
+          <a class="btn lg" href="use.html">Use Belong</a>
+          <a class="btn lg secondary" href="#how">How it works</a>
+          <p class="small">Belong is a prototype. It runs on synthetic and test profiles only.</p>
         </div>
+      </div>
 
-        <figure class="card listing rise later" aria-label="An example listing, as its owner sees it" style="margin: 0;">
-          <div class="listing-head">
-            <span class="label">Your listing</span>
-            <span class="badge olive">Matching</span>
-          </div>
-          <div class="row"><p class="field-label">Looking for</p><div class="value">A sourdough baking partner</div></div>
-          <div class="row"><p class="field-label">You are</p><div class="value">A home baker</div></div>
-          <div class="row"><p class="field-label">Where</p><div class="value">Lisbon, Portugal, up to 30 km, in person</div></div>
-          <div class="hidden-well">
-            <div class="top"><p class="field-label">Age</p><span class="badge ai">Hidden</span></div>
-            <div class="value">35 to 39</div>
-            <span class="hidden-note">Used for matching, never shown</span>
-          </div>
-          <figcaption class="agent-note"><span class="badge ai">Agent draft</span> Your AI wrote this from what you said. You choose what's shown.</figcaption>
-        </figure>
-      </section>
+      <figure class="scene rise later" role="img" aria-label="Two people each tell their AI what they're looking for. Belong finds that they fit, they both say yes, and they're introduced.">
+        <svg viewBox="0 0 600 480" aria-hidden="true">
+          <g class="field">
+            <circle cx="138" cy="242" r="4.0" style="--d: 1.5s; --p: 6.4s"/>
+            <circle cx="264" cy="97" r="2.7" style="--d: 1.4s; --p: 5.7s"/>
+            <circle cx="34" cy="154" r="3.9" style="--d: 5.2s; --p: 6.7s"/>
+            <circle cx="186" cy="44" r="3.7" class="m" style="--d: 3.9s; --p: 4.7s"/>
+            <circle cx="333" cy="365" r="3.2" style="--d: 1.4s; --p: 4.9s"/>
+            <circle cx="277" cy="417" r="3.9" style="--d: 0.9s; --p: 7.2s"/>
+            <circle cx="384" cy="267" r="3.3" style="--d: 1.4s; --p: 6.7s"/>
+            <circle cx="316" cy="333" r="3.8" style="--d: 5.2s; --p: 5.0s"/>
+            <circle cx="100" cy="34" r="4.3" style="--d: 5.7s; --p: 6.1s"/>
+            <circle cx="494" cy="413" r="4.2" style="--d: 2.5s; --p: 6.3s"/>
+            <circle cx="272" cy="41" r="4.2" style="--d: 2.9s; --p: 6.7s"/>
+            <circle cx="31" cy="114" r="2.9" style="--d: 2.1s; --p: 7.9s"/>
+            <circle cx="313" cy="161" r="3.6" class="c" style="--d: 5.4s; --p: 5.9s"/>
+            <circle cx="228" cy="221" r="3.2" class="m" style="--d: 4.6s; --p: 7.9s"/>
+            <circle cx="419" cy="279" r="2.7" style="--d: 1.4s; --p: 7.5s"/>
+            <circle cx="119" cy="72" r="2.3" style="--d: 5.3s; --p: 4.9s"/>
+            <circle cx="399" cy="333" r="3.1" class="c" style="--d: 4.1s; --p: 5.3s"/>
+            <circle cx="377" cy="384" r="3.4" class="c" style="--d: 2.1s; --p: 6.7s"/>
+            <circle cx="39" cy="194" r="4.5" style="--d: 5.3s; --p: 5.4s"/>
+            <circle cx="238" cy="133" r="4.0" style="--d: 0.2s; --p: 5.9s"/>
+            <circle cx="238" cy="38" r="3.8" style="--d: 3.8s; --p: 4.3s"/>
+            <circle cx="551" cy="390" r="2.7" style="--d: 1.9s; --p: 6.6s"/>
+            <circle cx="25" cy="46" r="4.1" style="--d: 1.4s; --p: 6.0s"/>
+            <circle cx="109" cy="194" r="2.2" class="c" style="--d: 2.7s; --p: 4.4s"/>
+            <circle cx="170" cy="121" r="3.5" style="--d: 1.6s; --p: 4.2s"/>
+            <circle cx="505" cy="261" r="4.3" style="--d: 2.9s; --p: 6.4s"/>
+            <circle cx="426" cy="362" r="3.1" style="--d: 3.8s; --p: 7.5s"/>
+            <circle cx="61" cy="79" r="3.5" style="--d: 2.5s; --p: 7.5s"/>
+            <circle cx="455" cy="294" r="2.7" class="p" style="--d: 3.9s; --p: 7.2s"/>
+            <circle cx="167" cy="198" r="3.2" style="--d: 3.8s; --p: 6.7s"/>
+            <circle cx="510" cy="356" r="4.4" class="c" style="--d: 2.0s; --p: 4.1s"/>
+            <circle cx="69" cy="117" r="4.5" class="c" style="--d: 5.3s; --p: 5.6s"/>
+            <circle cx="576" cy="442" r="3.1" class="c" style="--d: 0.3s; --p: 7.3s"/>
+            <circle cx="456" cy="426" r="3.5" style="--d: 2.9s; --p: 5.3s"/>
+            <circle cx="68" cy="246" r="4.5" style="--d: 4.2s; --p: 5.4s"/>
+            <circle cx="554" cy="342" r="4.4" style="--d: 3.3s; --p: 7.1s"/>
+            <circle cx="147" cy="43" r="3.2" style="--d: 5.8s; --p: 4.5s"/>
+            <circle cx="514" cy="444" r="3.5" style="--d: 0.4s; --p: 4.9s"/>
+            <circle cx="415" cy="438" r="2.9" style="--d: 4.0s; --p: 6.6s"/>
+            <circle cx="206" cy="183" r="2.6" style="--d: 3.5s; --p: 4.8s"/>
+            <circle cx="321" cy="82" r="3.3" style="--d: 0.0s; --p: 4.5s"/>
+            <circle cx="264" cy="327" r="3.0" style="--d: 2.6s; --p: 5.6s"/>
+            <circle cx="274" cy="162" r="3.7" style="--d: 2.2s; --p: 6.4s"/>
+            <circle cx="441" cy="326" r="2.6" style="--d: 3.6s; --p: 4.9s"/>
+            <circle cx="471" cy="344" r="3.6" style="--d: 4.5s; --p: 7.9s"/>
+            <circle cx="151" cy="159" r="3.0" style="--d: 4.7s; --p: 6.4s"/>
+          </g>
+          <!-- The two people: a head and shoulders on a cream disc. -->
+          <g transform="translate(90 410)">
+            <circle class="person-disc" r="40"/>
+            <circle class="person-shape" cy="-10" r="11"/>
+            <path class="person-shape" d="M-20 22c0-12 9-19 20-19s20 7 20 19z"/>
+          </g>
+          <g transform="translate(510 70)">
+            <circle class="person-disc" r="40"/>
+            <circle class="person-shape" cy="-10" r="11"/>
+            <path class="person-shape" d="M-20 22c0-12 9-19 20-19s20 7 20 19z"/>
+          </g>
+          <!-- Each listing goes into the field, Belong finds the two fit, and they meet: the two halves of one disc. -->
+          <path class="meet-line" d="M262 278 Q 290 232 348 206"/>
+          <circle class="listing-dot a" cx="262" cy="278" r="7"/>
+          <circle class="listing-dot b" cx="348" cy="206" r="7"/>
+          <g class="meet">
+            <circle class="meet-ground" cx="305" cy="242" r="31"/>
+            <path class="half-a" d="M305 214a28 28 0 0 0 0 56z"/>
+            <path class="half-b" d="M305 214a28 28 0 0 1 0 56z"/>
+          </g>
+        </svg>
+        <p class="bubble a">Anyone near me up for baking bread on Sundays?</p>
+        <p class="bubble b">I bake every weekend and would love some company.</p>
+        <p class="tag-yes a"><span>Yes</span></p>
+        <p class="tag-yes b"><span>Yes</span></p>
+        <p class="met"><span class="badge success">Introduced</span></p>
+        <button type="button" class="btn sm ghost scene-foot" data-play hidden>Pause</button>
+      </figure>
     </div>
-  </div>
+  </section>
 
   <section id="how" class="section" aria-labelledby="how-title">
     <div class="wrap">
-      <div class="chapter">
-        <p class="eyebrow">How it works</p>
-        <h2 id="how-title" class="display-m">Nobody browses anyone</h2>
-        <p class="intro">No profiles to scroll and no one to message cold. You decide what goes on your listing, and you decide yes or no.</p>
-        <div class="how-grid">
-        <ol class="steps">
-          <li data-step="1">
-            <h3 class="heading-l"><button type="button" data-go="1">Tell your own AI</button></h3>
-            <p>Say what you're looking for or offering, the way you'd say it to a friend. Your AI turns it into a listing: what you want, who you are, and the details that matter. You see every detail and choose which are shown and which are hidden.</p>
-          </li>
-          <li data-step="2">
-            <h3 class="heading-l"><button type="button" data-go="2">Belong compares every listing</button></h3>
-            <p>The matcher reads everyone's listings and proposes pairs where each person is what the other asked for, hard limits included. A hidden detail can strengthen a match that already fits. It never makes one on its own.</p>
-          </li>
-          <li data-step="3">
-            <h3 class="heading-l"><button type="button" data-go="3">A match shows only what they chose to show</button></h3>
-            <p>Every match is built by the Warden, which checks it against fixed rules. Its reason uses only details you both show, and nothing tells anyone who said no.</p>
-          </li>
-          <li data-step="4">
-            <h3 class="heading-l"><button type="button" data-go="4">You both say yes</button></h3>
-            <p>You're introduced only when you both say yes. Until then, neither of you has any way to reach the other.</p>
-          </li>
-        </ol>
-
-        <figure class="card stage" data-scene="4" aria-labelledby="stage-says">
-          <div class="stage-grid">
-            <div class="person">
-              <p class="label who">You</p>
-              <p class="say" data-in="1">I'd love someone to bake sourdough with, near Lisbon.</p>
-              <div class="mini" data-in="1">
-                <span class="badge ai by">Agent draft</span>
-                <p><span>Looking for</span>A sourdough baking partner</p>
-                <p><span>Where</span>Lisbon</p>
-                <div class="hidden-well"><p>Age <span class="badge ai">Hidden</span></p><span class="hidden-note">Used for matching, never shown</span></div>
-              </div>
-              <div class="match" data-in="3">
-                <p class="field-label label">A match</p>
-                <p class="them">A sourdough baker, Lisbon</p>
-                <p class="why">You both want to bake sourdough in Lisbon.</p>
-                <span class="badge yes" data-in="4">You said yes</span>
-              </div>
-            </div>
-            <div class="wire to-a in" aria-hidden="true"><i></i></div>
-            <div class="belong">
-              <p class="name">Belong</p>
-              <div class="chips" aria-hidden="true">
-                <span class="chip" style="--n: 0"></span><span class="chip pair" style="--n: 1"></span><span class="chip" style="--n: 2"></span><span class="chip" style="--n: 3"></span>
-                <span class="chip" style="--n: 4"></span><span class="chip" style="--n: 5"></span><span class="chip" style="--n: 6"></span><span class="chip" style="--n: 7"></span>
-                <span class="chip" style="--n: 8"></span><span class="chip" style="--n: 9"></span><span class="chip pair" style="--n: 10"></span><span class="chip" style="--n: 11"></span>
-              </div>
-              <div class="says" id="stage-says">
-                <p data-only="1">Each listing comes in from any AI or app</p>
-                <p data-only="2">The matcher compares every listing</p>
-                <p data-only="3">The Warden checks the match. Hidden details stay out of it.</p>
-                <p data-only="4"><span class="badge success">Introduced</span></p>
-              </div>
-            </div>
-            <div class="wire to-b in" aria-hidden="true"><i></i></div>
-            <div class="person">
-              <p class="label who">Someone else</p>
-              <p class="say" data-in="1">I bake sourdough at home in Lisbon and would like company.</p>
-              <div class="mini" data-in="1">
-                <span class="badge ai by">Agent draft</span>
-                <p><span>Looking for</span>Someone to bake with</p>
-                <p><span>Where</span>Lisbon</p>
-                <div class="hidden-well"><p>Age <span class="badge ai">Hidden</span></p><span class="hidden-note">Used for matching, never shown</span></div>
-              </div>
-              <div class="match" data-in="3">
-                <p class="field-label label">A match</p>
-                <p class="them">A sourdough baking partner, Lisbon</p>
-                <p class="why">You both want to bake sourdough in Lisbon.</p>
-                <span class="badge yes" data-in="4">You said yes</span>
-              </div>
-            </div>
-          </div>
-          <figcaption>
-            <p class="caption">Two people, from start to introduction</p>
-            <button type="button" class="btn sm ghost" data-play hidden>Pause</button>
-          </figcaption>
-        </figure>
-        </div>
-      </div>
+      <h2 id="how-title" class="display-m">How it works</h2>
+      <ol class="steps grid three">
+        <li>
+          <span class="num">1</span>
+          <h3>Say what you're looking for</h3>
+          <p>In your own words, to the AI you already use or in the Belong app. Your AI turns it into a listing.</p>
+        </li>
+        <li>
+          <span class="num">2</span>
+          <h3>Belong finds who's looking for you</h3>
+          <p>It compares your listing with everyone else's. There are no profiles to scroll, and nobody browses anyone.</p>
+        </li>
+        <li>
+          <span class="num">3</span>
+          <h3>Meet when you both say yes</h3>
+          <p>Until you both say yes, nobody can reach you. Nobody is ever told who said no.</p>
+        </li>
+      </ol>
     </div>
   </section>
 
-  <section id="standard" class="section band" aria-labelledby="standard-title">
-    <div class="wrap">
-      <div class="chapter">
-        <p class="eyebrow">The standard</p>
-        <h2 id="standard-title" class="display-m">A standard, like email</h2>
-        <p class="intro">Email lets anyone write to anyone, whatever app they use. Belong does the same for finding each other: public infrastructure, open source and run at cost. The Belong app is one way in, not the product.</p>
-        <div class="grid three">
-          <div class="card md">
-            <h3 class="heading-m">Any AI or app</h3>
-            <p>A front end writes listings with you, shows your matches and carries your conversations: the Belong app, an AI assistant you already use, or a client of your own.</p>
-          </div>
-          <div class="card md">
-            <h3 class="heading-m">Open source</h3>
-            <p>The matcher and the Warden are both <a href="https://github.com/superfoundry/belong">published</a>. The Warden still treats the matcher as hostile, so privacy never depends on it behaving well.</p>
-          </div>
-          <div class="card md">
-            <h3 class="heading-m">Run at cost</h3>
-            <p>Belong exists to make introductions, not to keep your attention. There's nothing to scroll and no feed to keep you on it.</p>
-          </div>
-        </div>
-        <div class="status">
-          <span class="badge warning">Draft</span>
-          <p><b>The standard is a draft.</b> Today the only front end is the Belong app, a prototype. The public API that other AIs and apps will use, and their sign-in, are still being written. <a href="docs/standard.html">Read the draft standard</a> or <a href="docs/connecting.html">how to build a front end</a>.</p>
-        </div>
+  <section class="section band" aria-labelledby="hidden-title">
+    <div class="wrap hidden-grid">
+      <div>
+        <h2 id="hidden-title" class="display-m">Some things are just for <span class="drop-periwinkle">matching</span></h2>
+        <p>Your AI drafts your listing, and you choose what's shown. Hidden details still help find the right people, and are never shown to anyone you match with or to any app.</p>
+        <p>Belong runs the matching, so it can see what it holds. It keeps as little as it can.</p>
       </div>
+      <figure class="card listing" aria-label="An example listing, as its owner sees it">
+        <div class="listing-head">
+          <span class="label">Your listing</span>
+          <span class="badge olive">Matching</span>
+        </div>
+        <div class="row"><p class="field-label">Looking for</p><div class="value">Someone to bake bread with on Sundays</div></div>
+        <div class="row"><p class="field-label">Where</p><div class="value">Lisbon, Portugal, up to 30 km</div></div>
+        <div class="hidden-well">
+          <div class="top"><p class="field-label">Age</p><span class="badge ai">Hidden</span></div>
+          <div class="value">35 to 39</div>
+          <span class="hidden-note">Used for matching, never shown</span>
+        </div>
+        <figcaption><span class="badge ai">Agent draft</span> Your AI wrote this from what you said.</figcaption>
+      </figure>
     </div>
   </section>
 
-  <section id="promise" class="section" aria-labelledby="promise-title">
+  <section class="section closing" aria-labelledby="use-title">
     <div class="wrap">
-      <div class="chapter">
-        <p class="eyebrow">Privacy</p>
-        <h2 id="promise-title" class="display-m">What you hide stays between you and Belong</h2>
-        <p class="intro">No other person and no front end ever learns what you keep hidden. Belong runs the matcher and can see what it holds, so it keeps as little as it can and publishes the code that handles it.</p>
-        <div class="promise">
-          <div class="grid two">
-            <div class="card side">
-              <h3 class="heading-m">Shown <span class="badge">Shown</span></h3>
-              <ul>
-                <li>Seen by the people you match with.</li>
-                <li>The only details a match's reason can use.</li>
-                <li>Checked before your listing goes live: no contact details, nothing that describes one particular person.</li>
-              </ul>
-            </div>
-            <div class="card side hidden-side">
-              <h3 class="heading-m">Hidden <span class="badge ai">Hidden</span></h3>
-              <ul>
-                <li>Never sent to any other person or front end.</li>
-                <li>Never the only reason for a match, and counted only when 20 other people share it.</li>
-                <li>Compared with a match only if you both choose to.</li>
-              </ul>
-              <span class="hidden-note">Used for matching, never shown</span>
-            </div>
-          </div>
-          <div>
-            <h3 class="heading-m" style="margin: 0 0 var(--space-3);">What Belong keeps</h3>
-            <ul class="keeps">
-              <li><b>Your listing,</b> while it's live. Withdraw it and it's never matched again.</li>
-              <li><b>Your yes or no,</b> and never tells anyone who said no.</li>
-              <li><b>A receipt for every check,</b> with no content, in a log that can't be rewritten.</li>
-              <li><b>Never your messages.</b> Display, memory, notifications and chat are up to the front end you choose.</li>
-            </ul>
-          </div>
-        </div>
-        <p class="intro" style="margin-top: var(--space-12); margin-bottom: 0;">Sensitive details, like religion, health, politics and income, start hidden, and showing one takes your own confirmation.</p>
-      </div>
-    </div>
-  </section>
-
-  <section id="check" class="section band" aria-labelledby="check-title">
-    <div class="wrap">
-      <div class="chapter">
-        <p class="eyebrow">Trust and security</p>
-        <h2 id="check-title" class="display-m">Don't trust us. <span class="drop-coral">Check.</span></h2>
-        <p class="intro">Every promise names the code that keeps it and the test that proves it.</p>
-        <div class="grid three">
-          <div class="card md">
-            <h3 class="heading-m">Tested on every change</h3>
-            <p>Every change runs the full test suite and a simulation of 300 people with an independent leak audit. A single leak fails it, and it can't be merged.</p>
-          </div>
-          <div class="card md">
-            <h3 class="heading-m">Attacked on purpose</h3>
-            <p>A built-in probe plays a hostile matcher, one attack at a time, and the tests check that the Warden stops every one.</p>
-          </div>
-          <div class="card md">
-            <h3 class="heading-m">Checks, not judgement</h3>
-            <p>The Warden never decides who matches. It runs fixed rules, with no AI judgement, on everything that goes in and comes out.</p>
-          </div>
-        </div>
-        <div class="status">
-          <span class="badge warning">Prototype</span>
-          <p><b>What's simulated today.</b> The prototype runs on synthetic people, and its ID check is simulated. The matcher's AI is reached over OpenAI's API, so it is used only with synthetic and test profiles, and every security check runs as if it were enclosed.</p>
-        </div>
-        <div class="actions" style="margin-top: var(--space-8);">
-          <a class="btn secondary" href="https://github.com/superfoundry/belong/blob/main/TRUST.md">See every promise and its test</a>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <section class="section closing" aria-labelledby="try-title">
-    <div class="wrap">
-      <h2 id="try-title" class="display-m">Build on Belong</h2>
-      <p class="intro">Any AI or app can be a front end. Read the draft standard and the guide to connecting one, or look through the code.</p>
+      <h2 id="use-title" class="display-m">Use Belong your way</h2>
+      <p class="intro">In the Belong app, with the AI you already use, or in something you build.</p>
       <div class="actions">
-        <a class="btn lg" href="docs/">Read the docs</a>
-        <a class="btn lg secondary" href="https://github.com/superfoundry/belong">Source code</a>
+        <a class="btn lg secondary" href="use.html">Ways to use Belong</a>
       </div>
     </div>
   </section>
@@ -398,51 +268,24 @@
 
 <footer class="site-foot">
   <div class="wrap">
-    <a class="wordmark" href="./">Belong.</a>
+    <a class="logo" href="./"><img src="ds/logo/belong-wordmark-small-ink.svg" alt="Belong" width="76" height="22"></a>
     <nav aria-label="Footer">
       <a href="#how">How it works</a>
-      <a href="#standard">The standard</a>
-      <a href="#promise">Privacy</a>
-      <a href="docs/">Docs</a>
-      <a href="https://github.com/superfoundry/belong">Source code</a>
-      <a href="https://github.com/superfoundry/belong/blob/main/TRUST.md">Trust and security</a>
+      <a href="use.html">Use Belong</a>
     </nav>
     <p class="note">Belong is a prototype and its standard is a draft. It runs on synthetic and test profiles only, and nothing here is offered to real people yet.</p>
   </div>
 </footer>
 <script>
-/* How it works, played out: the stage steps through the four steps while it's on screen, the current step lit
-   beside it. A step's title jumps to it and holds there; the button pauses or plays. With reduced motion it
-   never plays by itself and stays on the last step until a title is chosen. */
+/* The scene plays by itself only without reduced motion, and its button pauses and plays it. */
 (function () {
-  var how = document.getElementById("how"), stage = how.querySelector(".stage"), toggle = stage.querySelector("[data-play]");
-  var steps = how.querySelectorAll(".steps li"), still = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-  var scene = 4, timer = null, paused = still, seen = false;
-  function show(n) {
-    scene = n;
-    stage.setAttribute("data-scene", n);
-    steps.forEach(function (li) { li.classList.toggle("now", li.getAttribute("data-step") == n); });
-  }
-  function stop() { clearTimeout(timer); timer = null; }
-  function run() {
-    stop();
-    if (paused || !seen) return;
-    timer = setTimeout(function () { show(scene % 4 + 1); run(); }, scene === 4 ? 5200 : 3600);
-  }
-  function label() { toggle.textContent = paused ? "Play" : "Pause"; }
-  how.classList.add("playing");
-  toggle.hidden = false;
-  show(still ? 4 : 1);
-  label();
-  how.querySelectorAll("[data-go]").forEach(function (b) {
-    b.addEventListener("click", function () { paused = true; label(); stop(); show(+b.getAttribute("data-go")); });
+  if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+  var scene = document.querySelector(".scene"), button = scene.querySelector("[data-play]");
+  button.hidden = false;
+  button.addEventListener("click", function () {
+    var paused = scene.classList.toggle("paused");
+    button.textContent = paused ? "Play" : "Pause";
   });
-  toggle.addEventListener("click", function () {
-    paused = !paused; label();
-    if (!paused && scene === 4) show(1);
-    run();
-  });
-  new IntersectionObserver(function (entries) { seen = entries[0].isIntersecting; run(); }, { threshold: 0.4 }).observe(stage);
 })();
 </script>
 </body>

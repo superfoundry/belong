@@ -304,22 +304,24 @@ when idle, at the cost of one instance kept warm. To take it down:
 
 ## The website
 
-`site/` is the public website: the landing page, and the documentation in `site/docs/`. The docs are Markdown
-(`standard.md`, the Belong standard; `connecting.md`, how to build a front end), each made into a page beside it
-through `site/docs/_page.html`: to change one, replace its `.md` file. It is plain HTML on the Belong design
-system and runs nothing on the visitor's side. `python3 tools/build_site.py` builds it into `out/site` with the
-design system's files and fonts copied in, so it loads nothing from any other host. It never links to the demo,
-which is internal; "Trust and security" goes to TRUST.md on GitHub. Locally,
-`python3 -m http.server 8100 -d out/site` (or the `site` preview in `.claude/launch.json`).
+`site/` is the public website, two pages by choice: the landing page (`index.html`, short and visual, for anyone)
+and the Use page (`use.html`): the ways to use Belong first, then everything an AI agent or developer needs to
+connect. That technical part is Markdown, `site/use.md`, made into the page through `site/_page.html`; the Markdown
+itself is published beside it, with `site/llms.txt` pointing to it, so agents can read it as plain text. It is plain
+HTML on the Belong design system, with its logo files, and runs nothing on the visitor's side but the hero scene's
+pause button. `python3 tools/build_site.py` builds it into `out/site` with the design system's files, fonts and logo
+copied in, so it loads nothing from any other host. It never links to the demo, which is internal, or to the source
+repository. Locally, `python3 -m http.server 8100 -d out/site` (or the `site` preview in `.claude/launch.json`).
 
 **It deploys itself.** Every merge to `main` that passes the tests is built and published with GitHub Pages
 ([ci.yml](.github/workflows/ci.yml), the `site` job). One-time setup: Settings > Pages > Source: *GitHub
 Actions*.
 
-`tests/test_site.py` holds the built pages to the same rules as the app's pages: the name without its stop, "shown"
-and "hidden" only, colours from the tokens alone, saying what is simulated, none of the demo's examples, every
-local link working, and nothing loaded from elsewhere. A new page goes in `site/` (a `.md` in `site/docs/`
-becomes a docs page by itself; add it to the docs menu in `_page.html` and the cards in `docs/index.html`).
+`tests/test_site.py` holds the built pages and the plain text to the same rules as the app's pages: the name without
+its stop and the design system's logo, "shown" and "hidden" only, colours from the tokens alone, motion only without
+reduced motion and a pause button on anything that loops, saying what is simulated, none of the demo's examples,
+no link to the demo or the repository, every local link working, and nothing loaded from elsewhere. It checks there
+are exactly the two pages.
 
 ## Layout
 
