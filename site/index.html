@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Belong</title>
-<meta name="description" content="Belong is an open standard for people to find each other. Tell your AI what you're looking for, and meet the people looking for you too, only when you both say yes.">
+<meta name="description" content="Belong is an open standard for people to find each other. Tell your AI what you're looking for, and meet the people looking for you, only when you both say yes.">
 <link rel="stylesheet" href="ds/tokens.css">
 <link rel="stylesheet" href="ds/belong.css">
 <link rel="stylesheet" href="site.css">
@@ -19,66 +19,70 @@
   .hero .lead { font: var(--text-body-l); color: var(--text-secondary); margin: 0 0 var(--space-8); max-width: 38ch; }
   .hero .small { flex-basis: 100%; margin: var(--space-2) 0 0; }
 
-  /* The scene: what Belong does, not how. One person asks for something specific; Belong looks past
-     each near miss to the one person who fits all of it, and the two meet: the two halves of one disc. One loop
-     of fourteen seconds, no pause button by the owner's choice; every part's resting style is the last frame, so
-     with reduced motion the whole story is there at once. */
+  /* The scene: what Belong does, not how. Each person is a disc: who they are on the left, who they're looking
+     for on the right. Belong joins two people only where each is who the other is looking for; a fit one way only
+     flickers and fades; one person has two matches; two have none yet. One loop of fourteen seconds, no pause
+     button by the owner's choice; every part's resting style is the last frame, so with reduced motion the whole
+     picture is there at once. */
   .scene { position: relative; margin: 0; aspect-ratio: 600 / 460; }
   .scene svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
   .field circle { fill: var(--text-primary); opacity: 0.14; }
   .field circle.c { fill: var(--accent-default); opacity: 0.45; }
   .field circle.p { fill: var(--accent-ai); opacity: 0.45; }
   .field circle.m { fill: var(--accent-olive); opacity: 0.55; }
-  .person-disc { fill: var(--surface-raised); }
-  .person-shape { fill: var(--text-primary); }
-  .look { stroke: var(--border-strong); stroke-width: 1.5; stroke-dasharray: 3 5; opacity: 0; }
-  .fit { stroke: var(--accent-ai); stroke-width: 2.5; stroke-linecap: round; fill: none; }
-  .who-dot { fill: var(--text-primary); }
-  .half-a { fill: var(--accent-ai); }
-  .half-b { fill: var(--accent-default); }
-  .meet-ground { fill: var(--surface-app); }
-  .ask { position: absolute; left: 0; top: 4%; width: 46%; margin: 0; padding: var(--space-3) var(--space-4);
-    background: var(--surface-card); border-radius: var(--radius-lg); box-shadow: var(--shadow-md);
-    font: var(--text-body-m); color: var(--text-primary); }
-  .one { position: absolute; margin: 0; max-width: 46%; padding: 6px 12px; border-radius: var(--radius-md);
-    background: var(--surface-card); border: 1px solid var(--border-subtle); font: var(--text-body-s); color: var(--text-secondary);
-    transform: translateY(-50%); }
-  .one.near { opacity: 0.4; }
-  .one.fits { color: var(--text-primary); font-weight: 600; border-color: var(--border-strong); box-shadow: var(--shadow-md); }
-  @media (max-width: 640px) {
-    .ask { width: 49%; font: var(--text-body-s); padding: var(--space-2) var(--space-3); }
-    .one { font: var(--text-caption); font-size: 11px; line-height: 1.3; padding: 3px 7px; max-width: 47%; }
-  }
+  .coral { fill: var(--accent-default); }
+  .peri { fill: var(--accent-ai); }
+  .mint { fill: var(--accent-olive); }
+  .ink { fill: var(--text-primary); }
+  .who .ring { fill: none; stroke: var(--text-primary); stroke-width: 2; opacity: 0; }
+  .who.m .ring { opacity: 1; }
+  .who:not(.m) { opacity: 0.45; }
+  .pair { stroke: var(--text-primary); stroke-width: 2.5; stroke-linecap: round; }
+  .oneway { stroke: var(--border-strong); stroke-width: 2; stroke-dasharray: 4 5; opacity: 0; }
+  .key { display: flex; gap: var(--space-3); align-items: flex-start; margin: var(--space-4) 0 0; font: var(--text-body-s); color: var(--text-secondary); }
+  .key svg { flex: none; width: 28px; height: 28px; }
+  .key b { color: var(--text-primary); font-weight: 600; }
   @media (prefers-reduced-motion: no-preference) {
     .scene .field circle { animation: twinkle var(--p) ease-in-out var(--d) infinite alternate; }
     @keyframes twinkle { to { opacity: 0.04; } }
-    .scene .ask { animation: ask 14s var(--ease-standard) infinite; }
-    @keyframes ask { 0% { opacity: 0; transform: translateY(8px); } 5%, 90% { opacity: 1; transform: none; } 96%, 100% { opacity: 0; } }
-    .scene .one, .scene .who-dot { animation: arrive 14s var(--ease-standard) infinite; }
-    @keyframes arrive { 0%, 6% { opacity: 0; } 12%, 90% { opacity: 1; } 96%, 100% { opacity: 0; } }
-    .scene .l0 { animation: look0 14s linear infinite; }
-    @keyframes look0 { 0%, 16% { opacity: 0; } 17%, 22% { opacity: 1; } 23%, 100% { opacity: 0; } }
-    .scene .one.c0 { animation: near0 14s var(--ease-standard) infinite; }
-    @keyframes near0 { 0%, 6% { opacity: 0; } 12%, 22% { opacity: 1; } 24%, 90% { opacity: 0.4; } 96%, 100% { opacity: 0; } }
-    .scene .l1 { animation: look1 14s linear infinite; }
-    @keyframes look1 { 0%, 25% { opacity: 0; } 26%, 31% { opacity: 1; } 32%, 100% { opacity: 0; } }
-    .scene .one.c1 { animation: near1 14s var(--ease-standard) infinite; }
-    @keyframes near1 { 0%, 6% { opacity: 0; } 12%, 31% { opacity: 1; } 33%, 90% { opacity: 0.4; } 96%, 100% { opacity: 0; } }
-    .scene .l2 { animation: look2 14s linear infinite; }
-    @keyframes look2 { 0%, 34% { opacity: 0; } 35%, 40% { opacity: 1; } 41%, 100% { opacity: 0; } }
-    .scene .one.c2 { animation: near2 14s var(--ease-standard) infinite; }
-    @keyframes near2 { 0%, 6% { opacity: 0; } 12%, 40% { opacity: 1; } 42%, 90% { opacity: 0.4; } 96%, 100% { opacity: 0; } }
-    .scene .l4 { animation: look4 14s linear infinite; }
-    @keyframes look4 { 0%, 43% { opacity: 0; } 44%, 49% { opacity: 1; } 50%, 100% { opacity: 0; } }
-    .scene .one.c4 { animation: near4 14s var(--ease-standard) infinite; }
-    @keyframes near4 { 0%, 6% { opacity: 0; } 12%, 49% { opacity: 1; } 51%, 90% { opacity: 0.4; } 96%, 100% { opacity: 0; } }
-    .scene .fit { stroke-dasharray: 400; animation: fit 14s var(--ease-standard) infinite; }
-    @keyframes fit { 0%, 54% { stroke-dashoffset: 400; opacity: 1; } 62%, 90% { stroke-dashoffset: 0; opacity: 1; } 96%, 100% { opacity: 0; stroke-dashoffset: 0; } }
-    .scene .one.fits { animation: fits 14s var(--ease-standard) infinite; }
-    @keyframes fits { 0%, 6% { opacity: 0; } 12%, 58% { opacity: 1; font-weight: 400; color: var(--text-secondary); box-shadow: none; border-color: var(--border-subtle); }
-      62%, 90% { opacity: 1; font-weight: 600; color: var(--text-primary); box-shadow: var(--shadow-md); border-color: var(--border-strong); } 96%, 100% { opacity: 0; } }
-    .scene .meet { animation: meet 14s var(--ease-standard) infinite; transform-origin: 210px 285px; }
-    @keyframes meet { 0%, 64% { opacity: 0; transform: scale(0.6); } 70%, 90% { opacity: 1; transform: none; } 96%, 100% { opacity: 0; } }
+    .scene .who { animation: arrive 14s var(--ease-standard) infinite; }
+    .scene .who:not(.m) { animation-name: arrive-alone; }
+    @keyframes arrive { 0%, 2% { opacity: 0; } 9%, 92% { opacity: 1; } 98%, 100% { opacity: 0; } }
+    @keyframes arrive-alone { 0%, 2% { opacity: 0; } 9%, 74% { opacity: 1; } 80%, 92% { opacity: 0.45; } 98%, 100% { opacity: 0; } }
+    .scene .w0 { animation: w0 14s linear infinite; }
+    @keyframes w0 { 0%, 14% { opacity: 0; } 15%, 19% { opacity: 1; } 21%, 100% { opacity: 0; } }
+    .scene .w1 { animation: w1 14s linear infinite; }
+    @keyframes w1 { 0%, 23% { opacity: 0; } 24%, 28% { opacity: 1; } 30%, 100% { opacity: 0; } }
+    .scene .w2 { animation: w2 14s linear infinite; }
+    @keyframes w2 { 0%, 32% { opacity: 0; } 33%, 37% { opacity: 1; } 39%, 100% { opacity: 0; } }
+    .scene .p0 { stroke-dasharray: 300; animation: p0 14s var(--ease-standard) infinite; }
+    @keyframes p0 { 0%, 44% { stroke-dashoffset: 300; opacity: 1; } 49%, 92% { stroke-dashoffset: 0; opacity: 1; } 98%, 100% { opacity: 0; stroke-dashoffset: 0; } }
+    .scene .p1 { stroke-dasharray: 300; animation: p1 14s var(--ease-standard) infinite; }
+    @keyframes p1 { 0%, 50% { stroke-dashoffset: 300; opacity: 1; } 55%, 92% { stroke-dashoffset: 0; opacity: 1; } 98%, 100% { opacity: 0; stroke-dashoffset: 0; } }
+    .scene .p2 { stroke-dasharray: 300; animation: p2 14s var(--ease-standard) infinite; }
+    @keyframes p2 { 0%, 56% { stroke-dashoffset: 300; opacity: 1; } 61%, 92% { stroke-dashoffset: 0; opacity: 1; } 98%, 100% { opacity: 0; stroke-dashoffset: 0; } }
+    .scene .p3 { stroke-dasharray: 300; animation: p3 14s var(--ease-standard) infinite; }
+    @keyframes p3 { 0%, 62% { stroke-dashoffset: 300; opacity: 1; } 67%, 92% { stroke-dashoffset: 0; opacity: 1; } 98%, 100% { opacity: 0; stroke-dashoffset: 0; } }
+    .scene .p4 { stroke-dasharray: 300; animation: p4 14s var(--ease-standard) infinite; }
+    @keyframes p4 { 0%, 68% { stroke-dashoffset: 300; opacity: 1; } 73%, 92% { stroke-dashoffset: 0; opacity: 1; } 98%, 100% { opacity: 0; stroke-dashoffset: 0; } }
+    .scene .ta .ring { animation: ra 14s var(--ease-standard) infinite; }
+    @keyframes ra { 0%, 48% { opacity: 0; } 51%, 92% { opacity: 1; } 98%, 100% { opacity: 0; } }
+    .scene .tb .ring { animation: rb 14s var(--ease-standard) infinite; }
+    @keyframes rb { 0%, 48% { opacity: 0; } 51%, 92% { opacity: 1; } 98%, 100% { opacity: 0; } }
+    .scene .tc .ring { animation: rc 14s var(--ease-standard) infinite; }
+    @keyframes rc { 0%, 54% { opacity: 0; } 57%, 92% { opacity: 1; } 98%, 100% { opacity: 0; } }
+    .scene .td .ring { animation: rd 14s var(--ease-standard) infinite; }
+    @keyframes rd { 0%, 54% { opacity: 0; } 57%, 92% { opacity: 1; } 98%, 100% { opacity: 0; } }
+    .scene .te .ring { animation: re 14s var(--ease-standard) infinite; }
+    @keyframes re { 0%, 60% { opacity: 0; } 63%, 92% { opacity: 1; } 98%, 100% { opacity: 0; } }
+    .scene .tf .ring { animation: rf 14s var(--ease-standard) infinite; }
+    @keyframes rf { 0%, 60% { opacity: 0; } 63%, 92% { opacity: 1; } 98%, 100% { opacity: 0; } }
+    .scene .tg .ring { animation: rg 14s var(--ease-standard) infinite; }
+    @keyframes rg { 0%, 66% { opacity: 0; } 69%, 92% { opacity: 1; } 98%, 100% { opacity: 0; } }
+    .scene .th .ring { animation: rh 14s var(--ease-standard) infinite; }
+    @keyframes rh { 0%, 66% { opacity: 0; } 69%, 92% { opacity: 1; } 98%, 100% { opacity: 0; } }
+    .scene .tj .ring { animation: rj 14s var(--ease-standard) infinite; }
+    @keyframes rj { 0%, 72% { opacity: 0; } 75%, 92% { opacity: 1; } 98%, 100% { opacity: 0; } }
   }
 
   /* How it works: three steps, a number and a sentence each. */
@@ -125,7 +129,7 @@
   <section class="hero" aria-labelledby="hero-title">
     <div class="wrap hero-grid">
       <div class="rise">
-        <h1 id="hero-title" class="display-xl">Meet the people looking for you <span class="drop-coral">too</span></h1>
+        <h1 id="hero-title" class="display-xl">Meet the people looking for <span class="drop-coral">you</span></h1>
         <p class="lead">Tell your AI what you're looking for, and what to keep hidden. Belong finds the people looking for you, and you meet only when you both say yes.</p>
         <div class="actions">
           <a class="btn lg" href="use.html">Use Belong</a>
@@ -134,7 +138,8 @@
         </div>
       </div>
 
-      <figure class="scene rise later" role="img" aria-label="One person asks for a technical co-founder for a health-tech start-up in Berlin, full time. Among many people, Belong passes over an engineer in Munich, a designer in Berlin, an engineer in fintech and one who can only do weekends, and finds the engineer in health tech in Berlin who can go full time. The two meet.">
+      <div class="rise later">
+      <figure class="scene" role="img" aria-label="A crowd of people, each shown as who they are and who they're looking for. Belong introduces people only where each is who the other is looking for: five pairs, one person with two matches. Where it fits only one way, nobody is introduced, and two people have no match yet.">
         <svg viewBox="0 0 600 460" aria-hidden="true">
           <g class="field">
             <circle cx="138" cy="242" r="4.0" style="--d: 1.5s; --p: 6.4s"/>
@@ -144,20 +149,16 @@
             <circle cx="333" cy="365" r="3.2" style="--d: 1.4s; --p: 4.9s"/>
             <circle cx="277" cy="417" r="3.9" style="--d: 0.9s; --p: 7.2s"/>
             <circle cx="384" cy="267" r="3.3" style="--d: 1.4s; --p: 6.7s"/>
-            <circle cx="316" cy="333" r="3.8" style="--d: 5.2s; --p: 5.0s"/>
             <circle cx="100" cy="34" r="4.3" style="--d: 5.7s; --p: 6.1s"/>
             <circle cx="494" cy="413" r="4.2" style="--d: 2.5s; --p: 6.3s"/>
-            <circle cx="272" cy="41" r="4.2" style="--d: 2.9s; --p: 6.7s"/>
             <circle cx="31" cy="114" r="2.9" style="--d: 2.1s; --p: 7.9s"/>
             <circle cx="313" cy="161" r="3.6" class="c" style="--d: 5.4s; --p: 5.9s"/>
             <circle cx="228" cy="221" r="3.2" class="m" style="--d: 4.6s; --p: 7.9s"/>
             <circle cx="419" cy="279" r="2.7" style="--d: 1.4s; --p: 7.5s"/>
-            <circle cx="119" cy="72" r="2.3" style="--d: 5.3s; --p: 4.9s"/>
             <circle cx="399" cy="333" r="3.1" class="c" style="--d: 4.1s; --p: 5.3s"/>
             <circle cx="377" cy="384" r="3.4" class="c" style="--d: 2.1s; --p: 6.7s"/>
             <circle cx="39" cy="194" r="4.5" style="--d: 5.3s; --p: 5.4s"/>
             <circle cx="238" cy="133" r="4.0" style="--d: 0.2s; --p: 5.9s"/>
-            <circle cx="238" cy="38" r="3.8" style="--d: 3.8s; --p: 4.3s"/>
             <circle cx="551" cy="390" r="2.7" style="--d: 1.9s; --p: 6.6s"/>
             <circle cx="25" cy="46" r="4.1" style="--d: 1.4s; --p: 6.0s"/>
             <circle cx="109" cy="194" r="2.2" class="c" style="--d: 2.7s; --p: 4.4s"/>
@@ -171,7 +172,6 @@
             <circle cx="69" cy="117" r="4.5" class="c" style="--d: 5.3s; --p: 5.6s"/>
             <circle cx="576" cy="442" r="3.1" class="c" style="--d: 0.3s; --p: 7.3s"/>
             <circle cx="456" cy="426" r="3.5" style="--d: 2.9s; --p: 5.3s"/>
-            <circle cx="68" cy="246" r="4.5" style="--d: 4.2s; --p: 5.4s"/>
             <circle cx="554" cy="342" r="4.4" style="--d: 3.3s; --p: 7.1s"/>
             <circle cx="147" cy="43" r="3.2" style="--d: 5.8s; --p: 4.5s"/>
             <circle cx="514" cy="444" r="3.5" style="--d: 0.4s; --p: 4.9s"/>
@@ -184,35 +184,33 @@
             <circle cx="471" cy="344" r="3.6" style="--d: 4.5s; --p: 7.9s"/>
             <circle cx="151" cy="159" r="3.0" style="--d: 4.7s; --p: 6.4s"/>
           </g>
-          <line class="look l0" x1="92" y1="250" x2="300" y2="50"/>
-          <line class="look l1" x1="92" y1="250" x2="328" y2="140"/>
-          <line class="look l2" x1="92" y1="250" x2="340" y2="230"/>
-          <line class="fit" x1="92" y1="250" x2="328" y2="320"/>
-          <line class="look l4" x1="92" y1="250" x2="300" y2="410"/>
-            <circle class="who-dot" cx="300" cy="50" r="6"/>
-            <circle class="who-dot" cx="328" cy="140" r="6"/>
-            <circle class="who-dot" cx="340" cy="230" r="6"/>
-            <circle class="who-dot" cx="328" cy="320" r="6"/>
-            <circle class="who-dot" cx="300" cy="410" r="6"/>
-          <!-- The one who asks: a head and shoulders on a cream disc. -->
-          <g transform="translate(92 250)">
-            <circle class="person-disc" r="40"/>
-            <circle class="person-shape" cy="-10" r="11"/>
-            <path class="person-shape" d="M-20 22c0-12 9-19 20-19s20 7 20 19z"/>
-          </g>
-          <g class="meet">
-            <circle class="meet-ground" cx="210" cy="285" r="25"/>
-            <path class="half-a" d="M210 263a22 22 0 0 0 0 44z"/>
-            <path class="half-b" d="M210 263a22 22 0 0 1 0 44z"/>
-          </g>
+          <line class="oneway w0" x1="359" y1="103" x2="271" y2="69"/>
+          <line class="oneway w1" x1="434" y1="229" x2="518" y2="203"/>
+          <line class="oneway w2" x1="273" y1="200" x2="105" y2="232"/>
+          <line class="pair p0" x1="123" y1="80" x2="227" y2="64"/>
+          <line class="pair p1" x1="481" y1="90" x2="529" y2="176"/>
+          <line class="pair p2" x1="102" y1="248" x2="176" y2="292"/>
+          <line class="pair p3" x1="317" y1="342" x2="215" y2="406"/>
+          <line class="pair p4" x1="357" y1="338" x2="455" y2="376"/>
+          <g class="who m ta"><circle class="ring" cx="100" cy="84" r="21"/><path class="coral" d="M100 68a16 16 0 0 0 0 32z"/><path class="peri" d="M100 68a16 16 0 0 1 0 32z"/></g>
+          <g class="who m tb"><circle class="ring" cx="250" cy="60" r="21"/><path class="peri" d="M250 44a16 16 0 0 0 0 32z"/><path class="coral" d="M250 44a16 16 0 0 1 0 32z"/></g>
+          <g class="who m tc"><circle class="ring" cx="470" cy="70" r="21"/><path class="mint" d="M470 54a16 16 0 0 0 0 32z"/><path class="ink" d="M470 54a16 16 0 0 1 0 32z"/></g>
+          <g class="who m td"><circle class="ring" cx="540" cy="196" r="21"/><path class="ink" d="M540 180a16 16 0 0 0 0 32z"/><path class="mint" d="M540 180a16 16 0 0 1 0 32z"/></g>
+          <g class="who m te"><circle class="ring" cx="82" cy="236" r="21"/><path class="peri" d="M82 220a16 16 0 0 0 0 32z"/><path class="ink" d="M82 220a16 16 0 0 1 0 32z"/></g>
+          <g class="who m tf"><circle class="ring" cx="196" cy="304" r="21"/><path class="ink" d="M196 288a16 16 0 0 0 0 32z"/><path class="peri" d="M196 288a16 16 0 0 1 0 32z"/></g>
+          <g class="who m tg"><circle class="ring" cx="336" cy="330" r="21"/><path class="coral" d="M336 314a16 16 0 0 0 0 32z"/><path class="mint" d="M336 314a16 16 0 0 1 0 32z"/></g>
+          <g class="who m th"><circle class="ring" cx="196" cy="418" r="21"/><path class="mint" d="M196 402a16 16 0 0 0 0 32z"/><path class="coral" d="M196 402a16 16 0 0 1 0 32z"/></g>
+          <g class="who m tj"><circle class="ring" cx="476" cy="384" r="21"/><path class="mint" d="M476 368a16 16 0 0 0 0 32z"/><path class="coral" d="M476 368a16 16 0 0 1 0 32z"/></g>
+          <g class="who tk"><circle class="ring" cx="380" cy="112" r="21"/><path class="mint" d="M380 96a16 16 0 0 0 0 32z"/><path class="peri" d="M380 96a16 16 0 0 1 0 32z"/></g>
+          <g class="who tl"><circle class="ring" cx="412" cy="236" r="21"/><path class="coral" d="M412 220a16 16 0 0 0 0 32z"/><path class="ink" d="M412 220a16 16 0 0 1 0 32z"/></g>
+          <g class="who tn"><circle class="ring" cx="296" cy="196" r="21"/><path class="mint" d="M296 180a16 16 0 0 0 0 32z"/><path class="peri" d="M296 180a16 16 0 0 1 0 32z"/></g>
+          <g class="who to"><circle class="ring" cx="560" cy="300" r="21"/><path class="coral" d="M560 284a16 16 0 0 0 0 32z"/><path class="ink" d="M560 284a16 16 0 0 1 0 32z"/></g>
+          <g class="who tq"><circle class="ring" cx="58" cy="384" r="21"/><path class="coral" d="M58 368a16 16 0 0 0 0 32z"/><path class="ink" d="M58 368a16 16 0 0 1 0 32z"/></g>
         </svg>
-        <p class="ask">A technical co-founder for my health-tech start-up in Berlin, full time.</p>
-        <p class="one near c0" style="left: 52.3%; top: 10.9%">Engineer, Munich</p>
-        <p class="one near c1" style="left: 57.0%; top: 30.4%">Designer, Berlin</p>
-        <p class="one near c2" style="left: 59.0%; top: 50.0%">Engineer, fintech, Berlin</p>
-        <p class="one fits c3" style="left: 57.0%; top: 69.6%">Engineer, health tech, Berlin, full time</p>
-        <p class="one near c4" style="left: 52.3%; top: 89.1%">Engineer, health tech, Berlin, weekends only</p>
       </figure>
+      <p class="key"><svg viewBox="0 0 40 40" aria-hidden="true"><path class="coral" d="M20 4a16 16 0 0 0 0 32z"/><path class="peri" d="M20 4a16 16 0 0 1 0 32z"/></svg>
+        <span><b>Each person:</b> who they are, and who they're looking for. Belong introduces people only where it fits both ways, and anyone can have more than one match.</span></p>
+      </div>
     </div>
   </section>
 
