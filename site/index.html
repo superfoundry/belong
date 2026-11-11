@@ -44,6 +44,93 @@
   .steps h3 { margin: 0 0 var(--space-2); }
   .steps p { margin: 0; color: var(--text-secondary); }
 
+  /* How it works, played out: the steps beside a small stage that shows each one. Two people, Belong between
+     them. Each part of the stage carries the step it appears at (data-in) or the one step it belongs to
+     (data-only); without the script the stage shows the last step, everything in place. */
+  .how-grid { display: grid; grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr); gap: var(--space-12); align-items: start; }
+  @media (max-width: 960px) { .how-grid { grid-template-columns: 1fr; } .how-grid .stage { order: -1; } }
+  .steps h3 button { all: unset; cursor: pointer; border-radius: var(--radius-sm); }
+  .steps h3 button:focus-visible { box-shadow: var(--shadow-focus-ring); }
+  .playing .steps li { transition: opacity var(--duration-base) var(--ease-standard); }
+  .playing .steps li:not(.now) { opacity: 0.5; }
+  .playing .steps li:not(.now):hover { opacity: 0.8; }
+  .playing .steps li.now::before { color: var(--text-primary); box-shadow: inset 0 -2px 0 var(--border-accent); }
+
+  .stage { margin: 0; padding: var(--space-6); position: sticky; top: 96px; }
+  @media (max-width: 960px) { .stage { position: static; } }
+  .stage-grid { display: grid; grid-template-columns: minmax(0, 1fr) 28px 112px 28px minmax(0, 1fr); align-items: start; }
+  .person { display: flex; flex-direction: column; gap: var(--space-3); min-width: 0; }
+  .person .who { margin: 0; color: var(--text-tertiary); }
+  .say { margin: 0; padding: var(--space-2) var(--space-3); background: var(--surface-raised); border-radius: var(--radius-md);
+    font: var(--text-body-s); color: var(--text-primary); }
+  .mini { border: 1px solid var(--border-subtle); border-radius: var(--radius-md); padding: var(--space-2) var(--space-3); background: var(--surface-card); }
+  .mini .by { display: block; margin-bottom: var(--space-1); }
+  .mini p { margin: 0; padding: 4px 0; font: var(--text-caption); color: var(--text-primary); }
+  .mini p span { display: block; color: var(--text-tertiary); }
+  .mini .hidden-well { margin-top: var(--space-1); padding: 6px 8px; }
+  .mini .hidden-well p { padding: 0; display: flex; justify-content: space-between; align-items: center; gap: var(--space-2); }
+  .mini .hidden-well .badge { font-size: 9px; padding: 1px 6px; }
+  .mini .hidden-note { display: block; margin-top: 2px; line-height: 1.35; }
+  .match { border: 1px solid var(--border-strong); border-radius: var(--radius-md); padding: var(--space-2) var(--space-3); background: var(--surface-card);
+    box-shadow: var(--shadow-sm); }
+  .match .field-label { margin: 0 0 2px; color: var(--text-tertiary); }
+  .match p { margin: 0; font: var(--text-caption); color: var(--text-secondary); }
+  .match .them { font: var(--text-body-s); font-weight: 600; color: var(--text-primary); }
+  .match .why { margin-top: var(--space-1); }
+  .match .yes { margin-top: var(--space-2); }
+
+  .belong { display: flex; flex-direction: column; align-items: center; gap: var(--space-3); text-align: center; padding-top: var(--space-8); }
+  .belong .name { font: var(--text-heading-m); color: var(--text-primary); margin: 0; }
+  .chips { display: grid; grid-template-columns: repeat(4, 16px); gap: 6px; }
+  .chip { width: 16px; height: 10px; border-radius: 3px; background: var(--surface-sunken); border: 1px solid var(--border-subtle);
+    transition: background var(--duration-slow) var(--ease-standard), border-color var(--duration-slow) var(--ease-standard); }
+  .says { display: grid; min-height: 64px; }
+  .says p { grid-area: 1 / 1; margin: 0; font: var(--text-caption); color: var(--text-secondary); }
+  .wire { position: relative; height: 2px; margin-top: 128px; background: var(--border-subtle); overflow: hidden; }
+  .wire i { position: absolute; inset: 0; background: var(--border-strong); transform: scaleX(0);
+    transition: transform var(--duration-slow) var(--ease-standard); }
+  .wire.to-a i { transform-origin: right; }
+  .wire.to-b i { transform-origin: left; }
+  .stage figcaption { display: flex; justify-content: space-between; align-items: center; gap: var(--space-3);
+    margin-top: var(--space-5); padding-top: var(--space-4); border-top: 1px solid var(--border-subtle); }
+  .stage figcaption .caption { color: var(--text-tertiary); margin: 0; }
+
+  /* A narrow screen: Belong across the top, the two people side by side under it. */
+  @media (max-width: 640px) {
+    .stage { padding: var(--space-4); }
+    .stage-grid { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: var(--space-5) var(--space-3); }
+    .belong { grid-column: 1 / -1; grid-row: 1; padding-top: 0; }
+    .says { min-height: 0; }
+    .say { font: var(--text-caption); }
+    .wire { display: none; }
+    .chips { grid-template-columns: repeat(12, 14px); }
+    .chip { width: 14px; }
+  }
+
+  /* What each step shows. */
+  .stage [data-in], .stage [data-only] { transition: opacity var(--duration-slow) var(--ease-standard), transform var(--duration-slow) var(--ease-standard); }
+  .stage [data-in] { opacity: 0; transform: translateY(6px); }
+  /* One line of Belong's at a time: the old one goes before the new one comes. */
+  .stage [data-only] { opacity: 0; transition-duration: var(--duration-fast); }
+  .stage[data-scene="1"] [data-in="1"],
+  .stage[data-scene="2"] :is([data-in="1"], [data-in="2"]),
+  .stage[data-scene="3"] :is([data-in="1"], [data-in="2"], [data-in="3"]),
+  .stage[data-scene="4"] [data-in],
+  .stage[data-scene="1"] [data-only="1"], .stage[data-scene="2"] [data-only="2"],
+  .stage[data-scene="3"] [data-only="3"], .stage[data-scene="4"] [data-only="4"] { opacity: 1; transform: none; }
+  .stage[data-scene="1"] [data-only="1"], .stage[data-scene="2"] [data-only="2"],
+  .stage[data-scene="3"] [data-only="3"], .stage[data-scene="4"] [data-only="4"] { transition-duration: var(--duration-slow); transition-delay: var(--duration-fast); }
+  .stage[data-scene="2"] .wire.in i, .stage[data-scene="3"] .wire i, .stage[data-scene="4"] .wire i { transform: none; }
+  .stage:is([data-scene="2"], [data-scene="3"], [data-scene="4"]) .chip.pair { background: var(--text-primary); border-color: var(--text-primary); }
+  /* While Belong compares, a wave runs over every listing. */
+  @media (prefers-reduced-motion: no-preference) {
+    .stage[data-scene="2"] .chip:not(.pair) { animation: compare 1.6s var(--ease-standard) infinite; animation-delay: calc(var(--n) * 90ms); }
+    @keyframes compare { 0%, 100% { background: var(--surface-sunken); } 30% { background: var(--border-strong); } }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .stage [data-in], .stage [data-only], .wire i, .chip { transition: none; }
+  }
+
   /* Shown and hidden, side by side. */
   .side h3 { display: flex; align-items: center; gap: var(--space-3); margin: 0 0 var(--space-4); }
   .side ul { margin: 0; padding-left: 1.1em; color: var(--text-secondary); }
@@ -116,24 +203,83 @@
         <p class="eyebrow">How it works</p>
         <h2 id="how-title" class="display-m">Nobody browses anyone</h2>
         <p class="intro">No profiles to scroll and no one to message cold. You decide what goes on your listing, and you decide yes or no.</p>
+        <div class="how-grid">
         <ol class="steps">
-          <li>
-            <h3 class="heading-l">Tell your own AI</h3>
+          <li data-step="1">
+            <h3 class="heading-l"><button type="button" data-go="1">Tell your own AI</button></h3>
             <p>Say what you're looking for or offering, the way you'd say it to a friend. Your AI turns it into a listing: what you want, who you are, and the details that matter. You see every detail and choose which are shown and which are hidden.</p>
           </li>
-          <li>
-            <h3 class="heading-l">Belong compares every listing</h3>
+          <li data-step="2">
+            <h3 class="heading-l"><button type="button" data-go="2">Belong compares every listing</button></h3>
             <p>The matcher reads everyone's listings and proposes pairs where each person is what the other asked for, hard limits included. A hidden detail can strengthen a match that already fits. It never makes one on its own.</p>
           </li>
-          <li>
-            <h3 class="heading-l">A match shows only what they chose to show</h3>
+          <li data-step="3">
+            <h3 class="heading-l"><button type="button" data-go="3">A match shows only what they chose to show</button></h3>
             <p>Every match is built by the Warden, which checks it against fixed rules. Its reason uses only details you both show, and nothing tells anyone who said no.</p>
           </li>
-          <li>
-            <h3 class="heading-l">You both say yes</h3>
+          <li data-step="4">
+            <h3 class="heading-l"><button type="button" data-go="4">You both say yes</button></h3>
             <p>You're introduced only when you both say yes. Until then, neither of you has any way to reach the other.</p>
           </li>
         </ol>
+
+        <figure class="card stage" data-scene="4" aria-labelledby="stage-says">
+          <div class="stage-grid">
+            <div class="person">
+              <p class="label who">You</p>
+              <p class="say" data-in="1">I'd love someone to bake sourdough with, near Lisbon.</p>
+              <div class="mini" data-in="1">
+                <span class="badge ai by">Agent draft</span>
+                <p><span>Looking for</span>A sourdough baking partner</p>
+                <p><span>Where</span>Lisbon</p>
+                <div class="hidden-well"><p>Age <span class="badge ai">Hidden</span></p><span class="hidden-note">Used for matching, never shown</span></div>
+              </div>
+              <div class="match" data-in="3">
+                <p class="field-label label">A match</p>
+                <p class="them">A sourdough baker, Lisbon</p>
+                <p class="why">You both want to bake sourdough in Lisbon.</p>
+                <span class="badge yes" data-in="4">You said yes</span>
+              </div>
+            </div>
+            <div class="wire to-a in" aria-hidden="true"><i></i></div>
+            <div class="belong">
+              <p class="name">Belong</p>
+              <div class="chips" aria-hidden="true">
+                <span class="chip" style="--n: 0"></span><span class="chip pair" style="--n: 1"></span><span class="chip" style="--n: 2"></span><span class="chip" style="--n: 3"></span>
+                <span class="chip" style="--n: 4"></span><span class="chip" style="--n: 5"></span><span class="chip" style="--n: 6"></span><span class="chip" style="--n: 7"></span>
+                <span class="chip" style="--n: 8"></span><span class="chip" style="--n: 9"></span><span class="chip pair" style="--n: 10"></span><span class="chip" style="--n: 11"></span>
+              </div>
+              <div class="says" id="stage-says">
+                <p data-only="1">Each listing comes in from any AI or app</p>
+                <p data-only="2">The matcher compares every listing</p>
+                <p data-only="3">The Warden checks the match. Hidden details stay out of it.</p>
+                <p data-only="4"><span class="badge success">Introduced</span></p>
+              </div>
+            </div>
+            <div class="wire to-b in" aria-hidden="true"><i></i></div>
+            <div class="person">
+              <p class="label who">Someone else</p>
+              <p class="say" data-in="1">I bake sourdough at home in Lisbon and would like company.</p>
+              <div class="mini" data-in="1">
+                <span class="badge ai by">Agent draft</span>
+                <p><span>Looking for</span>Someone to bake with</p>
+                <p><span>Where</span>Lisbon</p>
+                <div class="hidden-well"><p>Age <span class="badge ai">Hidden</span></p><span class="hidden-note">Used for matching, never shown</span></div>
+              </div>
+              <div class="match" data-in="3">
+                <p class="field-label label">A match</p>
+                <p class="them">A sourdough baking partner, Lisbon</p>
+                <p class="why">You both want to bake sourdough in Lisbon.</p>
+                <span class="badge yes" data-in="4">You said yes</span>
+              </div>
+            </div>
+          </div>
+          <figcaption>
+            <p class="caption">Two people, from start to introduction</p>
+            <button type="button" class="btn sm ghost" data-play hidden>Pause</button>
+          </figcaption>
+        </figure>
+        </div>
       </div>
     </div>
   </section>
@@ -264,5 +410,40 @@
     <p class="note">Belong is a prototype and its standard is a draft. It runs on synthetic and test profiles only, and nothing here is offered to real people yet.</p>
   </div>
 </footer>
+<script>
+/* How it works, played out: the stage steps through the four steps while it's on screen, the current step lit
+   beside it. A step's title jumps to it and holds there; the button pauses or plays. With reduced motion it
+   never plays by itself and stays on the last step until a title is chosen. */
+(function () {
+  var how = document.getElementById("how"), stage = how.querySelector(".stage"), toggle = stage.querySelector("[data-play]");
+  var steps = how.querySelectorAll(".steps li"), still = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  var scene = 4, timer = null, paused = still, seen = false;
+  function show(n) {
+    scene = n;
+    stage.setAttribute("data-scene", n);
+    steps.forEach(function (li) { li.classList.toggle("now", li.getAttribute("data-step") == n); });
+  }
+  function stop() { clearTimeout(timer); timer = null; }
+  function run() {
+    stop();
+    if (paused || !seen) return;
+    timer = setTimeout(function () { show(scene % 4 + 1); run(); }, scene === 4 ? 5200 : 3600);
+  }
+  function label() { toggle.textContent = paused ? "Play" : "Pause"; }
+  how.classList.add("playing");
+  toggle.hidden = false;
+  show(still ? 4 : 1);
+  label();
+  how.querySelectorAll("[data-go]").forEach(function (b) {
+    b.addEventListener("click", function () { paused = true; label(); stop(); show(+b.getAttribute("data-go")); });
+  });
+  toggle.addEventListener("click", function () {
+    paused = !paused; label();
+    if (!paused && scene === 4) show(1);
+    run();
+  });
+  new IntersectionObserver(function (entries) { seen = entries[0].isIntersecting; run(); }, { threshold: 0.4 }).observe(stage);
+})();
+</script>
 </body>
 </html>

@@ -102,6 +102,18 @@ class TheBuiltSite(unittest.TestCase):
                 self.assertFalse(re.search(r"sslip\.io|^/(?:demo|trust|connector|inspector|chat|login)\b", ref),
                                  (page.name, ref))
 
+    def test_motion_can_be_stopped(self):
+        """Anything that moves by itself waits for reduced motion to be off, and a stage that plays has a button
+        to pause it and shows its last step, everything in place, before (or without) its script."""
+        for path in [*SITE.rglob("*.css"), *SITE.rglob("*.html")]:
+            text = path.read_text(encoding="utf-8")
+            if re.search(r"\banimation\s*:", text):
+                self.assertIn("prefers-reduced-motion", text, path.name)
+            if 'class="card stage"' in text:
+                self.assertIn('data-scene="4"', text, path.name)
+                self.assertRegex(text, r"<button\b[^>]*\bdata-play\b", path.name)
+                self.assertIn("prefers-reduced-motion: reduce", text, path.name)
+
     def test_every_page_is_filled_in(self):
         for page in pages():
             self.assertNotIn("{{", page.read_text(encoding="utf-8"), page.name)
