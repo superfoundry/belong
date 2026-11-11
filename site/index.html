@@ -1,0 +1,269 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Belong</title>
+<meta name="description" content="Belong is an open standard for people to find each other, the way email is for writing to each other. Tell your own AI what you're looking for, show what you choose, and meet only when you both say yes.">
+<link rel="stylesheet" href="ds/tokens.css">
+<link rel="stylesheet" href="ds/belong.css">
+<link rel="stylesheet" href="site.css">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<style>
+  /* The landing page's own parts. Everything shared with the documentation pages is in site.css. */
+  .hero { padding: var(--space-20) 0 var(--space-24); }
+  .hero-grid { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); gap: var(--space-16); align-items: center; }
+  @media (max-width: 960px) { .hero-grid { grid-template-columns: 1fr; gap: var(--space-12); } }
+  /* The display tokens' fluid sizes, so the headline fits a phone. */
+  .hero h1 { font-size: var(--font-size-display-xl); margin: var(--space-4) 0 var(--space-6); max-width: 13ch; }
+  .section h2.display-m { font-size: var(--font-size-display-m); }
+  .hero .lead { font: var(--text-body-l); color: var(--text-secondary); margin: 0 0 var(--space-10); max-width: 46ch; }
+  .actions { display: flex; flex-wrap: wrap; gap: var(--space-3); align-items: center; }
+  .actions .small { font: var(--text-caption); color: var(--text-tertiary); flex-basis: 100%; margin: var(--space-2) 0 0; }
+
+  /* A listing as its owner sees it, in the product's fixed look for shown and hidden details. */
+  .listing { padding: var(--space-6); }
+  .listing-head { display: flex; justify-content: space-between; align-items: center; gap: var(--space-3); margin-bottom: var(--space-5); }
+  .listing-head .label { color: var(--text-tertiary); }
+  .row { padding: var(--space-3) 0; border-top: 1px solid var(--border-subtle); }
+  .row .field-label { margin: 0 0 2px; color: var(--text-tertiary); }
+  .row .value { font: var(--text-body-m); color: var(--text-primary); }
+  .hidden-well { margin-top: var(--space-4); }
+  .hidden-well .top { display: flex; justify-content: space-between; align-items: center; gap: var(--space-3); }
+  .hidden-well .field-label { margin: 0; color: var(--text-tertiary); }
+  .hidden-well .value { font: var(--text-body-m); margin: 2px 0 var(--space-1); }
+  .agent-note { margin: var(--space-5) 0 0; display: flex; gap: var(--space-2); align-items: baseline; font: var(--text-body-s); color: var(--text-secondary); }
+
+  /* How it works: four steps along the chapter rule. */
+  .steps { list-style: none; margin: 0; padding: 0; counter-reset: step; }
+  .steps li { counter-increment: step; position: relative; padding: 0 0 var(--space-10); max-width: var(--content-narrow); }
+  .steps li:last-child { padding-bottom: 0; }
+  .steps li::before { content: counter(step); position: absolute; left: -46px; top: 0; width: 22px; margin-left: 12px;
+    font: var(--text-mono-s); color: var(--text-tertiary); background: var(--surface-app); text-align: center; line-height: 28px; }
+  @media (max-width: 640px) { .steps li::before { left: -24px; margin-left: -4px; } }
+  .steps h3 { margin: 0 0 var(--space-2); }
+  .steps p { margin: 0; color: var(--text-secondary); }
+
+  /* Shown and hidden, side by side. */
+  .side h3 { display: flex; align-items: center; gap: var(--space-3); margin: 0 0 var(--space-4); }
+  .side ul { margin: 0; padding-left: 1.1em; color: var(--text-secondary); }
+  .side li + li { margin-top: var(--space-2); }
+  .side.hidden-side { background: var(--surface-sunken); border: 1px solid var(--border-ai); box-shadow: none; }
+  .side.hidden-side .hidden-note { display: block; margin-top: var(--space-5); }
+
+  .promise { display: grid; gap: var(--space-12); max-width: 960px; }
+  .keeps { margin: 0; padding: 0; list-style: none; }
+  .keeps li { padding: var(--space-3) 0; border-top: 1px solid var(--border-subtle); color: var(--text-secondary); font: var(--text-body-s); }
+  .keeps li b { color: var(--text-primary); font-weight: 600; }
+
+
+  .closing { text-align: center; }
+  .closing h2 { margin: 0 auto var(--space-4); }
+  .closing .intro { margin: 0 auto var(--space-8); }
+  .closing .actions { justify-content: center; }
+</style>
+</head>
+<body>
+<header class="site-top">
+  <div class="wrap">
+    <a class="wordmark" href="./">Belong.</a>
+    <nav aria-label="Site">
+      <a href="#how">How it works</a>
+      <a href="#standard">The standard</a>
+      <a href="#promise">Privacy</a>
+      <a href="docs/">Docs</a>
+    </nav>
+    <a class="btn sm secondary" href="{{app}}/demo">Try the demo</a>
+  </div>
+</header>
+
+<main>
+  <div class="wrap">
+    <div class="chapter">
+      <section class="hero hero-grid" aria-labelledby="hero-title">
+        <div class="rise">
+          <p class="eyebrow">An open standard for finding each other</p>
+          <h1 id="hero-title" class="display-xl">Meet the people looking for you <span class="drop-coral">too</span></h1>
+          <p class="lead">Tell your own AI what you're looking for or offering, in your own words, and what to show or hide. Belong matches it with everyone else's. If you both say yes, you're introduced. Otherwise nothing happens, and nobody is told anything.</p>
+          <div class="actions">
+            <a class="btn lg" href="{{app}}/demo">Try the demo</a>
+            <a class="btn lg secondary" href="#how">How it works</a>
+            <p class="small">Belong is a prototype. Everyone you can meet in the demo is synthetic.</p>
+          </div>
+        </div>
+
+        <figure class="card listing rise later" aria-label="An example listing, as its owner sees it" style="margin: 0;">
+          <div class="listing-head">
+            <span class="label">Your listing</span>
+            <span class="badge olive">Matching</span>
+          </div>
+          <div class="row"><p class="field-label">Looking for</p><div class="value">A sourdough baking partner</div></div>
+          <div class="row"><p class="field-label">You are</p><div class="value">A home baker</div></div>
+          <div class="row"><p class="field-label">Where</p><div class="value">Lisbon, Portugal, up to 30 km, in person</div></div>
+          <div class="hidden-well">
+            <div class="top"><p class="field-label">Age</p><span class="badge ai">Hidden</span></div>
+            <div class="value">35 to 39</div>
+            <span class="hidden-note">Used for matching, never shown</span>
+          </div>
+          <figcaption class="agent-note"><span class="badge ai">Agent draft</span> Your AI wrote this from what you said. You choose what's shown.</figcaption>
+        </figure>
+      </section>
+    </div>
+  </div>
+
+  <section id="how" class="section" aria-labelledby="how-title">
+    <div class="wrap">
+      <div class="chapter">
+        <p class="eyebrow">How it works</p>
+        <h2 id="how-title" class="display-m">Nobody browses anyone</h2>
+        <p class="intro">No profiles to scroll and no one to message cold. You decide what goes on your listing, and you decide yes or no.</p>
+        <ol class="steps">
+          <li>
+            <h3 class="heading-l">Tell your own AI</h3>
+            <p>Say what you're looking for or offering, the way you'd say it to a friend. Your AI turns it into a listing: what you want, who you are, and the details that matter. You see every detail and choose which are shown and which are hidden.</p>
+          </li>
+          <li>
+            <h3 class="heading-l">Belong compares every listing</h3>
+            <p>The matcher reads everyone's listings and proposes pairs where each person is what the other asked for, hard limits included. A hidden detail can strengthen a match that already fits. It never makes one on its own.</p>
+          </li>
+          <li>
+            <h3 class="heading-l">A match shows only what they chose to show</h3>
+            <p>Every match is built by the Warden, which checks it against fixed rules. Its reason uses only details you both show, and nothing tells anyone who said no.</p>
+          </li>
+          <li>
+            <h3 class="heading-l">You both say yes</h3>
+            <p>You're introduced only when you both say yes. Until then, neither of you has any way to reach the other.</p>
+          </li>
+        </ol>
+      </div>
+    </div>
+  </section>
+
+  <section id="standard" class="section band" aria-labelledby="standard-title">
+    <div class="wrap">
+      <div class="chapter">
+        <p class="eyebrow">The standard</p>
+        <h2 id="standard-title" class="display-m">A standard, like email</h2>
+        <p class="intro">Email lets anyone write to anyone, whatever app they use. Belong does the same for finding each other: public infrastructure, open source and run at cost. The Belong app is one way in, not the product.</p>
+        <div class="grid three">
+          <div class="card md">
+            <h3 class="heading-m">Any AI or app</h3>
+            <p>A front end writes listings with you, shows your matches and carries your conversations: the Belong app, an AI assistant you already use, or a client of your own.</p>
+          </div>
+          <div class="card md">
+            <h3 class="heading-m">Open source</h3>
+            <p>The matcher and the Warden are both <a href="https://github.com/superfoundry/belong">published</a>. The Warden still treats the matcher as hostile, so privacy never depends on it behaving well.</p>
+          </div>
+          <div class="card md">
+            <h3 class="heading-m">Run at cost</h3>
+            <p>Belong exists to make introductions, not to keep your attention. There's nothing to scroll and no feed to keep you on it.</p>
+          </div>
+        </div>
+        <div class="status">
+          <span class="badge warning">Draft</span>
+          <p><b>The standard is a draft.</b> Today the Belong app is its only front end, in a demo. The public API that other AIs and apps will use, and their sign-in, are still being written. <a href="docs/standard.html">Read the draft standard</a> or <a href="docs/connecting.html">how to build a front end</a>.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="promise" class="section" aria-labelledby="promise-title">
+    <div class="wrap">
+      <div class="chapter">
+        <p class="eyebrow">Privacy</p>
+        <h2 id="promise-title" class="display-m">What you hide stays between you and Belong</h2>
+        <p class="intro">No other person and no front end ever learns what you keep hidden. Belong runs the matcher and can see what it holds, so it keeps as little as it can and publishes the code that handles it.</p>
+        <div class="promise">
+          <div class="grid two">
+            <div class="card side">
+              <h3 class="heading-m">Shown <span class="badge">Shown</span></h3>
+              <ul>
+                <li>Seen by the people you match with.</li>
+                <li>The only details a match's reason can use.</li>
+                <li>Checked before your listing goes live: no contact details, nothing that describes one particular person.</li>
+              </ul>
+            </div>
+            <div class="card side hidden-side">
+              <h3 class="heading-m">Hidden <span class="badge ai">Hidden</span></h3>
+              <ul>
+                <li>Never sent to any other person or front end.</li>
+                <li>Never the only reason for a match, and counted only when 20 other people share it.</li>
+                <li>Compared with a match only if you both choose to.</li>
+              </ul>
+              <span class="hidden-note">Used for matching, never shown</span>
+            </div>
+          </div>
+          <div>
+            <h3 class="heading-m" style="margin: 0 0 var(--space-3);">What Belong keeps</h3>
+            <ul class="keeps">
+              <li><b>Your listing,</b> while it's live. Withdraw it and it's never matched again.</li>
+              <li><b>Your yes or no,</b> and never tells anyone who said no.</li>
+              <li><b>A receipt for every check,</b> with no content, in a log that can't be rewritten.</li>
+              <li><b>Never your messages.</b> Display, memory, notifications and chat are up to the front end you choose.</li>
+            </ul>
+          </div>
+        </div>
+        <p class="intro" style="margin-top: var(--space-12); margin-bottom: 0;">Sensitive details, like religion, health, politics and income, start hidden, and showing one takes your own confirmation.</p>
+      </div>
+    </div>
+  </section>
+
+  <section id="check" class="section band" aria-labelledby="check-title">
+    <div class="wrap">
+      <div class="chapter">
+        <p class="eyebrow">Trust and security</p>
+        <h2 id="check-title" class="display-m">Don't trust us. <span class="drop-coral">Check.</span></h2>
+        <p class="intro">Every promise names the code that keeps it and the test that proves it.</p>
+        <div class="grid three">
+          <div class="card md">
+            <h3 class="heading-m">Tested on every change</h3>
+            <p>Every change runs the full test suite and a simulation of 300 people with an independent leak audit. A single leak fails it, and it can't be merged.</p>
+          </div>
+          <div class="card md">
+            <h3 class="heading-m">Attacked on purpose</h3>
+            <p>A built-in probe plays a hostile matcher, one attack at a time, and the tests check that the Warden stops every one.</p>
+          </div>
+          <div class="card md">
+            <h3 class="heading-m">Checks, not judgement</h3>
+            <p>The Warden never decides who matches. It runs fixed rules, with no AI judgement, on everything that goes in and comes out.</p>
+          </div>
+        </div>
+        <div class="status">
+          <span class="badge warning">Prototype</span>
+          <p><b>What's simulated today.</b> The demo runs on synthetic people, and its ID check is simulated. The matcher's AI is reached over OpenAI's API, so it is used only with synthetic and test profiles, and every security check runs as if it were enclosed.</p>
+        </div>
+        <div class="actions" style="margin-top: var(--space-8);">
+          <a class="btn secondary" href="{{app}}/trust">See every promise and its test</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section closing" aria-labelledby="try-title">
+    <div class="wrap">
+      <h2 id="try-title" class="display-m">See it work</h2>
+      <p class="intro">Make a listing on one phone, then another, and watch them meet. The demo needs a password while Belong is a prototype.</p>
+      <div class="actions">
+        <a class="btn lg" href="{{app}}/demo">Try the demo</a>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer class="site-foot">
+  <div class="wrap">
+    <a class="wordmark" href="./">Belong.</a>
+    <nav aria-label="Footer">
+      <a href="#how">How it works</a>
+      <a href="#standard">The standard</a>
+      <a href="#promise">Privacy</a>
+      <a href="docs/">Docs</a>
+      <a href="https://github.com/superfoundry/belong">Source code</a>
+      <a href="{{app}}/trust">Trust and security</a>
+      <a href="{{app}}/demo">Demo</a>
+    </nav>
+    <p class="note">Belong is a prototype and its standard is a draft. Everyone in the demo is synthetic, and nothing here is offered to real people yet.</p>
+  </div>
+</footer>
+</body>
+</html>

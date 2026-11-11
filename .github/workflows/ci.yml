@@ -1,5 +1,6 @@
 # Every pull request and every push to main: all tests, then the 300-person simulation with its
-# leak audit (exit 1 on any leak). A merge to main then deploys to the VM, only if both pass.
+# leak audit (exit 1 on any leak). A merge to main then deploys the demo to the VM and the website to GitHub
+# Pages, only if both pass.
 name: Tests and deploy
 
 on:
@@ -45,3 +46,31 @@ jobs:
           printf '%s\n' "$SSH_KEY" > ~/.ssh/deploy_key && chmod 600 ~/.ssh/deploy_key
           printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
           git archive --format=tar.gz HEAD | ssh -i ~/.ssh/deploy_key -o BatchMode=yes -o StrictHostKeyChecking=yes "deploy@$VM_HOST"
+
+  # The public website (site/), built by tools/build_site.py and published with GitHub Pages (Settings > Pages >
+  # Source: GitHub Actions). Like the demo, only a main that passed every test goes out. DEMO_URL (a repo variable,
+  # e.g. https://34-66-86-34.sslip.io) is where its "Try the demo" and trust links point; without it, nothing deploys.
+  site:
+    needs: test
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && vars.DEMO_URL != ''
+    runs-on: ubuntu-latest
+    concurrency: pages
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v5
+      - name: Build the site
+        env:
+          DEMO_URL: ${{ vars.DEMO_URL }}
+        run: python3 tools/build_site.py --app "$DEMO_URL" --out _site
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v4
+        with:
+          path: _site
+      - id: deploy
+        uses: actions/deploy-pages@v4

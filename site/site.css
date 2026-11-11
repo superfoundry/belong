@@ -1,0 +1,121 @@
+/* The public website's layout: the landing page now, the documentation pages later. Built on the Belong
+   design system (ds/tokens.css, ds/belong.css, copied in by tools/build_site.py) and styled only with its
+   tokens: white ground, cream bands as accents, coral for the one action, periwinkle for the agents and
+   every hidden detail, mint for live status at most once per page. */
+
+:root { --page-margin: 24px; }
+@media (min-width: 960px) { :root { --page-margin: 40px; } }
+
+.wrap { max-width: var(--content-max); margin: 0 auto; padding: 0 var(--page-margin); }
+.narrow { max-width: var(--content-narrow); }
+
+/* ---------- Top bar: wordmark, a few links, the one primary action ---------- */
+.site-top { position: sticky; top: 0; z-index: 10; background: var(--surface-nav-blur);
+  -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px); border-bottom: 1px solid var(--border-subtle); }
+.site-top .wrap { height: 64px; display: flex; align-items: center; gap: var(--space-6); }
+.site-top .wordmark { font-size: 24px; margin-right: auto; }
+.site-top nav { display: flex; gap: var(--space-6); }
+.site-top nav a { font: var(--text-body-s); font-weight: 500; color: var(--text-secondary); text-decoration: none;
+  padding: 6px 0; border-bottom: 2px solid transparent; transition: color var(--duration-fast) var(--ease-standard); }
+.site-top nav a:hover { color: var(--text-primary); }
+.site-top nav a[aria-current="page"] { color: var(--text-primary); border-bottom-color: var(--border-accent); }
+@media (max-width: 720px) { .site-top nav { display: none; } }
+
+/* ---------- Chapters: the doubled left margin with the 2px structural rule set 22px in ---------- */
+.chapter { position: relative; padding-left: 46px; }
+.chapter::before { content: ""; position: absolute; left: 22px; top: 0; bottom: 0; width: 2px; background: var(--border-default); }
+@media (max-width: 640px) { .chapter { padding-left: 24px; } .chapter::before { left: 6px; } }
+
+/* ---------- Sections ---------- */
+.section { padding: var(--space-24) 0; }
+.section:not(.band) + .section:not(.band) { padding-top: 0; }  /* two white sections share one gap */
+/* Cream is the accent surface: a full-bleed band, never two touching. */
+.band { background: var(--surface-raised); }
+.section .eyebrow { margin-bottom: var(--space-3); }
+.section h2 { max-width: 22ch; margin-bottom: var(--space-4); }
+.section .intro { font: var(--text-body-l); color: var(--text-secondary); max-width: var(--content-narrow); margin: 0 0 var(--space-12); }
+
+.grid { display: grid; gap: var(--space-6); }
+.grid.two { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.grid.three { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.grid.four { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+@media (max-width: 960px) { .grid.four, .grid.three { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 640px) { .grid.two, .grid.three, .grid.four { grid-template-columns: 1fr; } }
+.card h3 { margin: 0 0 var(--space-2); }
+.card p { margin: 0; color: var(--text-secondary); font: var(--text-body-s); }
+
+/* What's simulated or still a draft: a badge and a plain sentence, never hidden in small print. */
+.status { display: flex; gap: var(--space-4); align-items: flex-start; margin-top: var(--space-12); }
+.status p { margin: 0; color: var(--text-secondary); max-width: var(--content-narrow); }
+.status b { color: var(--text-primary); }
+@media (max-width: 640px) { .status { flex-direction: column; gap: var(--space-3); } }
+
+/* ---------- Documentation ---------- */
+.docs-title { margin-bottom: var(--space-4); }
+a.doc-card { display: block; color: inherit; text-decoration: none;
+  transition: box-shadow var(--duration-base) var(--ease-standard), border-color var(--duration-base) var(--ease-standard); }
+a.doc-card:hover { box-shadow: var(--shadow-md); border-color: var(--border-strong); }
+a.doc-card h2 { margin: 0 0 var(--space-2); }
+a.doc-card .doc-card-go { display: inline-block; margin-top: var(--space-5); color: var(--text-accent); font-weight: 600; }
+
+.docs { display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: var(--space-16); align-items: start; }
+.docs-side { position: sticky; top: 88px; max-height: calc(100vh - 112px); overflow-y: auto; padding: var(--space-12) 0; }
+.docs-menu, .docs-toc { display: flex; flex-direction: column; }
+.docs-menu a { font: var(--text-body-s); font-weight: 600; color: var(--text-secondary); text-decoration: none; padding: 6px 0 6px 12px;
+  border-left: 2px solid var(--border-subtle); }
+.docs-menu a:hover { color: var(--text-primary); }
+.docs-menu a[aria-current="page"] { color: var(--text-primary); border-left-color: var(--border-accent); }
+.docs-side-title { margin: var(--space-8) 0 var(--space-2); color: var(--text-tertiary); }
+.docs-toc a { font: var(--text-label); color: var(--text-secondary); text-decoration: none; padding: 5px 0; }
+.docs-toc a:hover { color: var(--text-primary); }
+@media (max-width: 960px) {
+  .docs { grid-template-columns: 1fr; gap: 0; }
+  .docs-side { position: static; max-height: none; padding: var(--space-8) 0 0; }
+  .docs-side-title, .docs-toc { display: none; }
+  .docs-menu { flex-direction: row; flex-wrap: wrap; gap: var(--space-2) var(--space-5); }
+  .docs-menu a { border-left: 0; padding: 4px 0; border-bottom: 2px solid transparent; }
+  .docs-menu a[aria-current="page"] { border-bottom-color: var(--border-accent); }
+}
+
+/* A document: body copy held to the narrow measure, tables and code allowed to run wider. */
+.doc { padding: var(--space-12) 0 var(--space-24); min-width: 0; }
+.doc h1 { font-size: var(--font-size-display-l); margin: 0 0 var(--space-6); max-width: 20ch; }
+.doc .draft { display: flex; gap: var(--space-3); align-items: flex-start; background: var(--surface-raised);
+  border-radius: var(--radius-md); padding: var(--space-4) var(--space-5); margin-bottom: var(--space-10); max-width: var(--content-narrow); }
+.doc .draft p { margin: 0; font: var(--text-body-s); color: var(--text-secondary); }
+.doc h2 { font: var(--text-display-s); font-size: 1.625rem; margin: var(--space-16) 0 var(--space-4); scroll-margin-top: 88px; }
+.doc h3 { font: var(--text-heading-l); margin: var(--space-10) 0 var(--space-3); scroll-margin-top: 88px; }
+.doc h4 { font: var(--text-heading-m); margin: var(--space-8) 0 var(--space-2); }
+.doc p, .doc ul { max-width: var(--content-narrow); color: var(--text-secondary); }
+.doc p { margin: 0 0 var(--space-4); }
+.doc ul { margin: 0 0 var(--space-5); padding-left: 1.2em; }
+.doc li { margin: 0 0 var(--space-2); }
+.doc li ul { margin: var(--space-2) 0 0; }
+.doc strong { color: var(--text-primary); font-weight: 600; }
+.doc code { font: var(--text-mono-s); font-size: 0.85em; background: var(--surface-raised); padding: 1px 5px; border-radius: var(--radius-sm);
+  color: var(--text-primary); overflow-wrap: anywhere; }
+.doc pre { font: var(--text-mono-s); background: var(--surface-raised); border: 1px solid var(--border-subtle); border-radius: var(--radius-md);
+  padding: var(--space-4) var(--space-5); margin: 0 0 var(--space-6); overflow-x: auto; max-width: 900px; }
+.doc pre code { background: none; padding: 0; font-size: inherit; overflow-wrap: normal; }
+.doc .scroll { overflow-x: auto; margin: 0 0 var(--space-6); max-width: 900px; }
+.doc table { width: 100%; border-collapse: collapse; font: var(--text-body-s); }
+.doc th, .doc td { text-align: left; vertical-align: top; padding: var(--space-3); border-bottom: 1px solid var(--border-subtle); }
+.doc th { font: var(--text-label); color: var(--text-tertiary); border-bottom-color: var(--border-default); }
+.doc td { color: var(--text-secondary); }
+.doc td:first-child code { white-space: nowrap; }
+
+/* ---------- Footer ---------- */
+.site-foot { border-top: 1px solid var(--border-subtle); }
+.site-foot .wrap { padding-top: var(--space-12); padding-bottom: var(--space-12); display: flex; flex-wrap: wrap;
+  gap: var(--space-6) var(--space-12); align-items: baseline; justify-content: space-between; }
+.site-foot .wordmark { font-size: 22px; }
+.site-foot nav { display: flex; flex-wrap: wrap; gap: var(--space-6); font: var(--text-body-s); }
+.site-foot nav a { color: var(--text-secondary); text-decoration: none; }
+.site-foot nav a:hover { color: var(--text-primary); }
+.site-foot .note { flex-basis: 100%; margin: 0; font: var(--text-caption); color: var(--text-tertiary); }
+
+@media (prefers-reduced-motion: no-preference) {
+  .rise { animation: rise var(--duration-slow) var(--ease-standard) both; }
+  .rise.later { animation-delay: 120ms; }
+  @keyframes rise { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+}
