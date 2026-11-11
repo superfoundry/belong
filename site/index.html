@@ -19,70 +19,54 @@
   .hero .lead { font: var(--text-body-l); color: var(--text-secondary); margin: 0 0 var(--space-8); max-width: 38ch; }
   .hero .small { flex-basis: 100%; margin: var(--space-2) 0 0; }
 
-  /* The scene: what Belong does, not how. Each person is a disc: who they are on the left, who they're looking
-     for on the right. Belong joins two people only where each is who the other is looking for; a fit one way only
-     flickers and fades; one person has two matches; two have none yet. One loop of fourteen seconds, no pause
-     button by the owner's choice; every part's resting style is the last frame, so with reduced motion the whole
-     picture is there at once. */
-  .scene { position: relative; margin: 0; aspect-ratio: 600 / 460; }
-  .scene svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
-  .field circle { fill: var(--text-primary); opacity: 0.14; }
-  .field circle.c { fill: var(--accent-default); opacity: 0.45; }
-  .field circle.p { fill: var(--accent-ai); opacity: 0.45; }
-  .field circle.m { fill: var(--accent-olive); opacity: 0.55; }
-  .coral { fill: var(--accent-default); }
-  .peri { fill: var(--accent-ai); }
-  .mint { fill: var(--accent-olive); }
-  .ink { fill: var(--text-primary); }
-  .who .ring { fill: none; stroke: var(--text-primary); stroke-width: 2; opacity: 0; }
-  .who.m .ring { opacity: 1; }
-  .who:not(.m) { opacity: 0.45; }
-  .pair { stroke: var(--text-primary); stroke-width: 2.5; stroke-linecap: round; }
-  .oneway { stroke: var(--border-strong); stroke-width: 2; stroke-dasharray: 4 5; opacity: 0; }
-  .key { display: flex; gap: var(--space-3); align-items: flex-start; margin: var(--space-4) 0 0; font: var(--text-body-s); color: var(--text-secondary); }
-  .key svg { flex: none; width: 28px; height: 28px; }
+  /* The scene: a transit map. Each line is a person; where two lines meet at a station, each is who the other is
+     looking for. Close in, a small story: an engineer and a founder meet, a retired teacher meets a parent and a
+     student, an investor's line stops short of the founder (one way only), and someone new in town meets no one yet.
+     Then it pulls back to the whole city, and everyone else's lines and stations appear at once. One loop of
+     eighteen seconds, no pause button by the owner's choice; every part's resting style is the last frame (the whole
+     map), so with reduced motion that is what shows. */
+  .scene { position: relative; margin: 0; aspect-ratio: 3 / 2; overflow: hidden; border-radius: var(--radius-md); background: var(--surface-raised); }
+  .scene svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+  .map { transform-box: view-box; transform-origin: 900px 600px; }
+  .scene path { fill: none; stroke-linecap: round; stroke-linejoin: round; }
+  .near { stroke-width: 7; }
+  .far { stroke-width: 7; opacity: 0.9; }
+  .stn { fill: var(--surface-card); stroke: var(--text-primary); stroke-width: 3; transform-box: fill-box; transform-origin: center; }
+  .end { stroke: var(--text-primary); stroke-width: 3; stroke-linecap: round; }
+  .scene text { font: var(--text-mono-s); font-size: 19px; fill: var(--text-secondary); }
+  .key { margin: var(--space-4) 0 0; font: var(--text-body-s); color: var(--text-secondary); max-width: 52ch; }
   .key b { color: var(--text-primary); font-weight: 600; }
   @media (prefers-reduced-motion: no-preference) {
-    .scene .field circle { animation: twinkle var(--p) ease-in-out var(--d) infinite alternate; }
-    @keyframes twinkle { to { opacity: 0.04; } }
-    .scene .who { animation: arrive 14s var(--ease-standard) infinite; }
-    .scene .who:not(.m) { animation-name: arrive-alone; }
-    @keyframes arrive { 0%, 2% { opacity: 0; } 9%, 92% { opacity: 1; } 98%, 100% { opacity: 0; } }
-    @keyframes arrive-alone { 0%, 2% { opacity: 0; } 9%, 74% { opacity: 1; } 80%, 92% { opacity: 0.45; } 98%, 100% { opacity: 0; } }
-    .scene .w0 { animation: w0 14s linear infinite; }
-    @keyframes w0 { 0%, 14% { opacity: 0; } 15%, 19% { opacity: 1; } 21%, 100% { opacity: 0; } }
-    .scene .w1 { animation: w1 14s linear infinite; }
-    @keyframes w1 { 0%, 23% { opacity: 0; } 24%, 28% { opacity: 1; } 30%, 100% { opacity: 0; } }
-    .scene .w2 { animation: w2 14s linear infinite; }
-    @keyframes w2 { 0%, 32% { opacity: 0; } 33%, 37% { opacity: 1; } 39%, 100% { opacity: 0; } }
-    .scene .p0 { stroke-dasharray: 300; animation: p0 14s var(--ease-standard) infinite; }
-    @keyframes p0 { 0%, 44% { stroke-dashoffset: 300; opacity: 1; } 49%, 92% { stroke-dashoffset: 0; opacity: 1; } 98%, 100% { opacity: 0; stroke-dashoffset: 0; } }
-    .scene .p1 { stroke-dasharray: 300; animation: p1 14s var(--ease-standard) infinite; }
-    @keyframes p1 { 0%, 50% { stroke-dashoffset: 300; opacity: 1; } 55%, 92% { stroke-dashoffset: 0; opacity: 1; } 98%, 100% { opacity: 0; stroke-dashoffset: 0; } }
-    .scene .p2 { stroke-dasharray: 300; animation: p2 14s var(--ease-standard) infinite; }
-    @keyframes p2 { 0%, 56% { stroke-dashoffset: 300; opacity: 1; } 61%, 92% { stroke-dashoffset: 0; opacity: 1; } 98%, 100% { opacity: 0; stroke-dashoffset: 0; } }
-    .scene .p3 { stroke-dasharray: 300; animation: p3 14s var(--ease-standard) infinite; }
-    @keyframes p3 { 0%, 62% { stroke-dashoffset: 300; opacity: 1; } 67%, 92% { stroke-dashoffset: 0; opacity: 1; } 98%, 100% { opacity: 0; stroke-dashoffset: 0; } }
-    .scene .p4 { stroke-dasharray: 300; animation: p4 14s var(--ease-standard) infinite; }
-    @keyframes p4 { 0%, 68% { stroke-dashoffset: 300; opacity: 1; } 73%, 92% { stroke-dashoffset: 0; opacity: 1; } 98%, 100% { opacity: 0; stroke-dashoffset: 0; } }
-    .scene .ta .ring { animation: ra 14s var(--ease-standard) infinite; }
-    @keyframes ra { 0%, 48% { opacity: 0; } 51%, 92% { opacity: 1; } 98%, 100% { opacity: 0; } }
-    .scene .tb .ring { animation: rb 14s var(--ease-standard) infinite; }
-    @keyframes rb { 0%, 48% { opacity: 0; } 51%, 92% { opacity: 1; } 98%, 100% { opacity: 0; } }
-    .scene .tc .ring { animation: rc 14s var(--ease-standard) infinite; }
-    @keyframes rc { 0%, 54% { opacity: 0; } 57%, 92% { opacity: 1; } 98%, 100% { opacity: 0; } }
-    .scene .td .ring { animation: rd 14s var(--ease-standard) infinite; }
-    @keyframes rd { 0%, 54% { opacity: 0; } 57%, 92% { opacity: 1; } 98%, 100% { opacity: 0; } }
-    .scene .te .ring { animation: re 14s var(--ease-standard) infinite; }
-    @keyframes re { 0%, 60% { opacity: 0; } 63%, 92% { opacity: 1; } 98%, 100% { opacity: 0; } }
-    .scene .tf .ring { animation: rf 14s var(--ease-standard) infinite; }
-    @keyframes rf { 0%, 60% { opacity: 0; } 63%, 92% { opacity: 1; } 98%, 100% { opacity: 0; } }
-    .scene .tg .ring { animation: rg 14s var(--ease-standard) infinite; }
-    @keyframes rg { 0%, 66% { opacity: 0; } 69%, 92% { opacity: 1; } 98%, 100% { opacity: 0; } }
-    .scene .th .ring { animation: rh 14s var(--ease-standard) infinite; }
-    @keyframes rh { 0%, 66% { opacity: 0; } 69%, 92% { opacity: 1; } 98%, 100% { opacity: 0; } }
-    .scene .tj .ring { animation: rj 14s var(--ease-standard) infinite; }
-    @keyframes rj { 0%, 72% { opacity: 0; } 75%, 92% { opacity: 1; } 98%, 100% { opacity: 0; } }
+    .scene .map { animation: pull 18s var(--ease-standard) infinite; }
+    @keyframes pull { 0%, 34% { transform: scale(3); } 52%, 100% { transform: none; } }
+    .scene .near, .scene .far { stroke-dasharray: 1; }
+    .scene .stn, .scene .end, .scene .far-end { opacity: 0; }
+    .scene .n0 { animation: n0 18s var(--ease-standard) infinite; }
+    @keyframes n0 { 0%, 4% { stroke-dashoffset: 1; opacity: 1; } 12%, 92% { stroke-dashoffset: 0; opacity: 1; } 97%, 100% { opacity: 0; stroke-dashoffset: 0; } }
+    .scene .n1 { animation: n1 18s var(--ease-standard) infinite; }
+    @keyframes n1 { 0%, 5% { stroke-dashoffset: 1; opacity: 1; } 13%, 92% { stroke-dashoffset: 0; opacity: 1; } 97%, 100% { opacity: 0; stroke-dashoffset: 0; } }
+    .scene .n2 { animation: n2 18s var(--ease-standard) infinite; }
+    @keyframes n2 { 0%, 7% { stroke-dashoffset: 1; opacity: 1; } 15%, 92% { stroke-dashoffset: 0; opacity: 1; } 97%, 100% { opacity: 0; stroke-dashoffset: 0; } }
+    .scene .n3 { animation: n3 18s var(--ease-standard) infinite; }
+    @keyframes n3 { 0%, 10% { stroke-dashoffset: 1; opacity: 1; } 18%, 92% { stroke-dashoffset: 0; opacity: 1; } 97%, 100% { opacity: 0; stroke-dashoffset: 0; } }
+    .scene .n4 { animation: n4 18s var(--ease-standard) infinite; }
+    @keyframes n4 { 0%, 12% { stroke-dashoffset: 1; opacity: 1; } 20%, 92% { stroke-dashoffset: 0; opacity: 1; } 97%, 100% { opacity: 0; stroke-dashoffset: 0; } }
+    .scene .n5 { animation: n5 18s var(--ease-standard) infinite; }
+    @keyframes n5 { 0%, 13% { stroke-dashoffset: 1; opacity: 1; } 21%, 92% { stroke-dashoffset: 0; opacity: 1; } 97%, 100% { opacity: 0; stroke-dashoffset: 0; } }
+    .scene .n6 { animation: n6 18s var(--ease-standard) infinite; }
+    @keyframes n6 { 0%, 14% { stroke-dashoffset: 1; opacity: 1; } 22%, 92% { stroke-dashoffset: 0; opacity: 1; } 97%, 100% { opacity: 0; stroke-dashoffset: 0; } }
+    .scene .q0 { animation: q0 18s var(--ease-standard) infinite; }
+    @keyframes q0 { 0%, 15% { opacity: 0; transform: scale(0.3); } 17%, 92% { opacity: 1; transform: none; } 97%, 100% { opacity: 0; } }
+    .scene .q1 { animation: q1 18s var(--ease-standard) infinite; }
+    @keyframes q1 { 0%, 15% { opacity: 0; transform: scale(0.3); } 17%, 92% { opacity: 1; transform: none; } 97%, 100% { opacity: 0; } }
+    .scene .q2 { animation: q2 18s var(--ease-standard) infinite; }
+    @keyframes q2 { 0%, 22% { opacity: 0; transform: scale(0.3); } 24%, 92% { opacity: 1; transform: none; } 97%, 100% { opacity: 0; } }
+    .scene .q3 { animation: q3 18s var(--ease-standard) infinite; }
+    @keyframes q3 { 0%, 25% { opacity: 0; transform: scale(0.3); } 27%, 92% { opacity: 1; transform: none; } 97%, 100% { opacity: 0; } }
+    .scene .far { animation: far 18s var(--ease-standard) infinite; }
+    @keyframes far { 0%, 46% { stroke-dashoffset: 1; opacity: 0.9; } 58%, 92% { stroke-dashoffset: 0; opacity: 0.9; } 97%, 100% { opacity: 0; stroke-dashoffset: 0; } }
+    .scene .far-stn, .scene .far-end { animation: burst 18s var(--ease-standard) infinite; }
+    @keyframes burst { 0%, 58% { opacity: 0; transform: scale(0.3); } 61%, 92% { opacity: 1; transform: none; } 97%, 100% { opacity: 0; } }
   }
 
   /* How it works: three steps, a number and a sentence each. */
@@ -139,77 +123,135 @@
       </div>
 
       <div class="rise later">
-      <figure class="scene" role="img" aria-label="A crowd of people, each shown as who they are and who they're looking for. Belong introduces people only where each is who the other is looking for: five pairs, one person with two matches. Where it fits only one way, nobody is introduced, and two people have no match yet.">
-        <svg viewBox="0 0 600 460" aria-hidden="true">
-          <g class="field">
-            <circle cx="138" cy="242" r="4.0" style="--d: 1.5s; --p: 6.4s"/>
-            <circle cx="264" cy="97" r="2.7" style="--d: 1.4s; --p: 5.7s"/>
-            <circle cx="34" cy="154" r="3.9" style="--d: 5.2s; --p: 6.7s"/>
-            <circle cx="186" cy="44" r="3.7" class="m" style="--d: 3.9s; --p: 4.7s"/>
-            <circle cx="333" cy="365" r="3.2" style="--d: 1.4s; --p: 4.9s"/>
-            <circle cx="277" cy="417" r="3.9" style="--d: 0.9s; --p: 7.2s"/>
-            <circle cx="384" cy="267" r="3.3" style="--d: 1.4s; --p: 6.7s"/>
-            <circle cx="100" cy="34" r="4.3" style="--d: 5.7s; --p: 6.1s"/>
-            <circle cx="494" cy="413" r="4.2" style="--d: 2.5s; --p: 6.3s"/>
-            <circle cx="31" cy="114" r="2.9" style="--d: 2.1s; --p: 7.9s"/>
-            <circle cx="313" cy="161" r="3.6" class="c" style="--d: 5.4s; --p: 5.9s"/>
-            <circle cx="228" cy="221" r="3.2" class="m" style="--d: 4.6s; --p: 7.9s"/>
-            <circle cx="419" cy="279" r="2.7" style="--d: 1.4s; --p: 7.5s"/>
-            <circle cx="399" cy="333" r="3.1" class="c" style="--d: 4.1s; --p: 5.3s"/>
-            <circle cx="377" cy="384" r="3.4" class="c" style="--d: 2.1s; --p: 6.7s"/>
-            <circle cx="39" cy="194" r="4.5" style="--d: 5.3s; --p: 5.4s"/>
-            <circle cx="238" cy="133" r="4.0" style="--d: 0.2s; --p: 5.9s"/>
-            <circle cx="551" cy="390" r="2.7" style="--d: 1.9s; --p: 6.6s"/>
-            <circle cx="25" cy="46" r="4.1" style="--d: 1.4s; --p: 6.0s"/>
-            <circle cx="109" cy="194" r="2.2" class="c" style="--d: 2.7s; --p: 4.4s"/>
-            <circle cx="170" cy="121" r="3.5" style="--d: 1.6s; --p: 4.2s"/>
-            <circle cx="505" cy="261" r="4.3" style="--d: 2.9s; --p: 6.4s"/>
-            <circle cx="426" cy="362" r="3.1" style="--d: 3.8s; --p: 7.5s"/>
-            <circle cx="61" cy="79" r="3.5" style="--d: 2.5s; --p: 7.5s"/>
-            <circle cx="455" cy="294" r="2.7" class="p" style="--d: 3.9s; --p: 7.2s"/>
-            <circle cx="167" cy="198" r="3.2" style="--d: 3.8s; --p: 6.7s"/>
-            <circle cx="510" cy="356" r="4.4" class="c" style="--d: 2.0s; --p: 4.1s"/>
-            <circle cx="69" cy="117" r="4.5" class="c" style="--d: 5.3s; --p: 5.6s"/>
-            <circle cx="576" cy="442" r="3.1" class="c" style="--d: 0.3s; --p: 7.3s"/>
-            <circle cx="456" cy="426" r="3.5" style="--d: 2.9s; --p: 5.3s"/>
-            <circle cx="554" cy="342" r="4.4" style="--d: 3.3s; --p: 7.1s"/>
-            <circle cx="147" cy="43" r="3.2" style="--d: 5.8s; --p: 4.5s"/>
-            <circle cx="514" cy="444" r="3.5" style="--d: 0.4s; --p: 4.9s"/>
-            <circle cx="415" cy="438" r="2.9" style="--d: 4.0s; --p: 6.6s"/>
-            <circle cx="206" cy="183" r="2.6" style="--d: 3.5s; --p: 4.8s"/>
-            <circle cx="321" cy="82" r="3.3" style="--d: 0.0s; --p: 4.5s"/>
-            <circle cx="264" cy="327" r="3.0" style="--d: 2.6s; --p: 5.6s"/>
-            <circle cx="274" cy="162" r="3.7" style="--d: 2.2s; --p: 6.4s"/>
-            <circle cx="441" cy="326" r="2.6" style="--d: 3.6s; --p: 4.9s"/>
-            <circle cx="471" cy="344" r="3.6" style="--d: 4.5s; --p: 7.9s"/>
-            <circle cx="151" cy="159" r="3.0" style="--d: 4.7s; --p: 6.4s"/>
+      <figure class="scene" role="img" aria-label="A transit map where each line is a person and two lines meet at a station when each is who the other is looking for. Close in: an engineer and a founder in health meet; a retired teacher meets both a parent and a student; an investor's line stops short of the founder, because it fits one way only; someone new in town meets no one yet. Then the map pulls back to a whole city, and many more people meet at once.">
+        <svg viewBox="0 0 1800 1200" aria-hidden="true">
+          <g class="map">
+            <path class="far" pathLength="1" style="stroke: var(--accent-ai)" d="M1320 810 L1350 810 L1590 570"/>
+            <path class="far" pathLength="1" style="stroke: var(--accent-default)" d="M1290 570 L1590 570 L1590 570"/>
+            <path class="far" pathLength="1" style="stroke: var(--accent-olive)" d="M480 780 L480 690 L390 600"/>
+            <path class="far" pathLength="1" style="stroke: var(--text-primary)" d="M210 450 L240 450 L390 600"/>
+            <path class="far" pathLength="1" style="stroke: var(--sf-signal-warning)" d="M390 600 L390 720 L480 810"/>
+            <path class="far" pathLength="1" style="stroke: var(--sf-azure-700)" d="M1260 990 L1200 990 L1110 900"/>
+            <path class="far" pathLength="1" style="stroke: var(--sf-olive-600)" d="M990 1080 L990 1020 L1110 900"/>
+            <path class="far" pathLength="1" style="stroke: var(--sf-ember-600)" d="M300 570 L300 450 L240 390"/>
+            <path class="far" pathLength="1" style="stroke: var(--sf-signal-success)" d="M180 210 L180 330 L240 390"/>
+            <path class="far" pathLength="1" style="stroke: var(--text-tertiary)" d="M210 570 L210 900 L240 930"/>
+            <path class="far" pathLength="1" style="stroke: var(--accent-ai)" d="M270 690 L270 900 L240 930"/>
+            <path class="far" pathLength="1" style="stroke: var(--accent-default)" d="M1350 90 L1230 90 L1200 120"/>
+            <path class="far" pathLength="1" style="stroke: var(--accent-olive)" d="M900 90 L1170 90 L1200 120"/>
+            <path class="far" pathLength="1" style="stroke: var(--text-primary)" d="M1200 120 L1230 120 L1380 270"/>
+            <path class="far" pathLength="1" style="stroke: var(--sf-signal-warning)" d="M1410 1080 L1680 1080 L1680 1080"/>
+            <path class="far" pathLength="1" style="stroke: var(--sf-azure-700)" d="M1590 930 L1590 990 L1680 1080"/>
+            <path class="far" pathLength="1" style="stroke: var(--sf-olive-600)" d="M150 360 L150 330 L360 120"/>
+            <path class="far" pathLength="1" style="stroke: var(--sf-ember-600)" d="M210 180 L300 180 L360 120"/>
+            <path class="far" pathLength="1" style="stroke: var(--sf-signal-success)" d="M660 180 L930 180 L960 150"/>
+            <path class="far" pathLength="1" style="stroke: var(--text-tertiary)" d="M1110 360 L1110 300 L960 150"/>
+            <path class="far" pathLength="1" style="stroke: var(--accent-ai)" d="M180 810 L180 600 L150 570"/>
+            <path class="far" pathLength="1" style="stroke: var(--accent-default)" d="M180 330 L180 540 L150 570"/>
+            <path class="far" pathLength="1" style="stroke: var(--accent-olive)" d="M150 570 L150 480 L240 390"/>
+            <path class="far" pathLength="1" style="stroke: var(--text-primary)" d="M810 1110 L810 960 L810 960"/>
+            <path class="far" pathLength="1" style="stroke: var(--sf-signal-warning)" d="M810 1140 L810 960 L810 960"/>
+            <path class="far" pathLength="1" style="stroke: var(--sf-azure-700)" d="M1740 810 L1440 810 L1440 810"/>
+            <path class="far" pathLength="1" style="stroke: var(--sf-olive-600)" d="M1620 630 L1620 630 L1440 810"/>
+            <path class="far" pathLength="1" style="stroke: var(--sf-ember-600)" d="M390 30 L450 30 L570 150"/>
+            <path class="far" pathLength="1" style="stroke: var(--sf-signal-success)" d="M300 120 L540 120 L570 150"/>
+            <path class="far" pathLength="1" style="stroke: var(--text-tertiary)" d="M1500 420 L1410 420 L1320 510"/>
+            <path class="far" pathLength="1" style="stroke: var(--accent-ai)" d="M1530 270 L1530 300 L1320 510"/>
+            <path class="far" pathLength="1" style="stroke: var(--accent-default)" d="M1320 510 L1320 330 L1380 270"/>
+            <path class="far" pathLength="1" style="stroke: var(--accent-olive)" d="M1440 930 L1590 930 L1650 870"/>
+            <path class="far" pathLength="1" style="stroke: var(--text-primary)" d="M1410 690 L1470 690 L1650 870"/>
+            <path class="far" pathLength="1" style="stroke: var(--sf-signal-warning)" d="M1530 330 L1440 330 L1380 270"/>
+            <path class="far" pathLength="1" style="stroke: var(--sf-azure-700)" d="M1470 150 L1470 180 L1380 270"/>
+            <path class="far" pathLength="1" style="stroke: var(--sf-olive-600)" d="M420 870 L450 870 L570 990"/>
+            <path class="far" pathLength="1" style="stroke: var(--sf-ember-600)" d="M450 960 L540 960 L570 990"/>
+            <path class="far" pathLength="1" style="stroke: var(--sf-signal-success)" d="M600 270 L540 270 L450 360"/>
+            <path class="far" pathLength="1" style="stroke: var(--text-tertiary)" d="M360 510 L360 450 L450 360"/>
+            <path class="far" pathLength="1" style="stroke: var(--accent-ai)" d="M450 360 L270 360 L240 390"/>
+            <path class="far" pathLength="1" style="stroke: var(--accent-default)" d="M1530 1020 L1320 1020 L1290 1050"/>
+            <path class="far" pathLength="1" style="stroke: var(--accent-olive)" d="M1410 960 L1380 960 L1290 1050"/>
+            <path class="far" pathLength="1" style="stroke: var(--text-primary)" d="M270 1050 L270 1020 L480 810"/>
+            <path class="far" pathLength="1" style="stroke: var(--sf-signal-warning)" d="M720 840 L510 840 L480 810"/>
+            <path class="far" pathLength="1" style="stroke: var(--sf-azure-700)" d="M1320 270 L1560 270 L1590 300"/>
+            <path class="far" pathLength="1" style="stroke: var(--sf-olive-600)" d="M1710 180 L1710 180 L1590 300"/>
+            <path class="far" pathLength="1" style="stroke: var(--sf-ember-600)" d="M1650 270 L1650 270 L1500 120"/>
+            <path class="far" pathLength="1" style="stroke: var(--sf-signal-success)" d="M1320 270 L1350 270 L1500 120"/>
+            <path class="far" pathLength="1" style="stroke: var(--text-tertiary)" d="M1500 120 L1500 150 L1380 270"/>
+            <path class="far" pathLength="1" style="stroke: var(--accent-ai)" d="M270 390 L270 390 L120 240"/>
+            <path class="far" pathLength="1" style="stroke: var(--accent-default)" d="M90 540 L90 270 L120 240"/>
+            <path class="far" pathLength="1" style="stroke: var(--accent-olive)" d="M510 240 L780 240 L780 240"/>
+            <path class="far" pathLength="1" style="stroke: var(--text-primary)" d="M450 270 L750 270 L780 240"/>
+            <path class="far" pathLength="1" style="stroke: var(--sf-signal-warning)" d="M1050 870 L1050 1020 L990 1080"/>
+            <path class="far" pathLength="1" style="stroke: var(--sf-azure-700)" d="M1200 870 L1200 870 L990 1080"/>
+            <path class="far" pathLength="1" style="stroke: var(--sf-olive-600)" d="M120 960 L120 1110 L120 1110"/>
+            <path class="far" pathLength="1" style="stroke: var(--sf-ember-600)" d="M210 1020 L210 1020 L120 1110"/>
+            <path class="far" pathLength="1" style="stroke: var(--sf-signal-success)" d="M120 1110 L120 1050 L240 930"/>
+            <path class="far" pathLength="1" style="stroke: var(--text-tertiary)" d="M30 540 L330 540 L362 572"/>
+            <path class="far" pathLength="1" style="stroke: var(--accent-ai)" d="M1110 870 L1110 870 L1262 1022"/>
+            <path class="far" pathLength="1" style="stroke: var(--accent-default)" d="M1050 270 L1050 270 L1172 148"/>
+            <path class="far" pathLength="1" style="stroke: var(--accent-olive)" d="M600 960 L600 930 L508 838"/>
+            <path class="far" pathLength="1" style="stroke: var(--text-primary)" d="M1410 960 L1410 960 L1230 1140"/>
+            <path class="far" pathLength="1" style="stroke: var(--sf-signal-warning)" d="M1410 360 L1410 360 L1290 480"/>
+            <path class="far" pathLength="1" style="stroke: var(--sf-azure-700)" d="M270 480 L270 750 L270 750"/>
+            <path class="far" pathLength="1" style="stroke: var(--sf-olive-600)" d="M330 90 L330 390 L330 390"/>
+            <path class="far" pathLength="1" style="stroke: var(--sf-ember-600)" d="M1440 390 L1380 390 L1290 300"/>
+            <path class="far" pathLength="1" style="stroke: var(--sf-signal-success)" d="M270 180 L480 180 L480 180"/>
+            <path class="far" pathLength="1" style="stroke: var(--text-tertiary)" d="M1680 810 L1470 810 L1470 810"/>
+            <path class="far" pathLength="1" style="stroke: var(--accent-ai)" d="M1440 1050 L1440 1050 L1290 900"/>
+            <path class="far" pathLength="1" style="stroke: var(--accent-default)" d="M1500 1080 L1380 1080 L1350 1050"/>
+            <line class="end far-end" x1="352" y1="582" x2="372" y2="562"/>
+            <line class="end far-end" x1="1252" y1="1032" x2="1272" y2="1012"/>
+            <line class="end far-end" x1="1182" y1="158" x2="1162" y2="138"/>
+            <line class="end far-end" x1="518" y1="828" x2="498" y2="848"/>
+            <circle class="stn far-stn" cx="1590" cy="570" r="11"/>
+            <circle class="stn far-stn" cx="390" cy="600" r="11"/>
+            <circle class="stn far-stn" cx="1110" cy="900" r="11"/>
+            <circle class="stn far-stn" cx="240" cy="390" r="11"/>
+            <circle class="stn far-stn" cx="240" cy="930" r="11"/>
+            <circle class="stn far-stn" cx="1200" cy="120" r="11"/>
+            <circle class="stn far-stn" cx="1680" cy="1080" r="11"/>
+            <circle class="stn far-stn" cx="360" cy="120" r="11"/>
+            <circle class="stn far-stn" cx="960" cy="150" r="11"/>
+            <circle class="stn far-stn" cx="150" cy="570" r="11"/>
+            <circle class="stn far-stn" cx="810" cy="960" r="11"/>
+            <circle class="stn far-stn" cx="1440" cy="810" r="11"/>
+            <circle class="stn far-stn" cx="570" cy="150" r="11"/>
+            <circle class="stn far-stn" cx="1320" cy="510" r="11"/>
+            <circle class="stn far-stn" cx="1650" cy="870" r="11"/>
+            <circle class="stn far-stn" cx="1380" cy="270" r="11"/>
+            <circle class="stn far-stn" cx="570" cy="990" r="11"/>
+            <circle class="stn far-stn" cx="450" cy="360" r="11"/>
+            <circle class="stn far-stn" cx="1290" cy="1050" r="11"/>
+            <circle class="stn far-stn" cx="480" cy="810" r="11"/>
+            <circle class="stn far-stn" cx="1590" cy="300" r="11"/>
+            <circle class="stn far-stn" cx="1500" cy="120" r="11"/>
+            <circle class="stn far-stn" cx="120" cy="240" r="11"/>
+            <circle class="stn far-stn" cx="780" cy="240" r="11"/>
+            <circle class="stn far-stn" cx="990" cy="1080" r="11"/>
+            <circle class="stn far-stn" cx="120" cy="1110" r="11"/>
+            <g transform="translate(600 400)">
+              <path class="near n0" pathLength="1" style="stroke: var(--accent-ai)" d="M30 150 H250"/>
+              <path class="near n1" pathLength="1" style="stroke: var(--accent-default)" d="M250 20 V150"/>
+              <path class="near n2" pathLength="1" style="stroke: var(--text-tertiary)" d="M570 40 H390 L330 100"/>
+              <path class="near n3" pathLength="1" style="stroke: var(--text-primary)" d="M30 290 H560"/>
+              <path class="near n4" pathLength="1" style="stroke: var(--accent-olive)" d="M200 390 L300 290"/>
+              <path class="near n5" pathLength="1" style="stroke: var(--sf-signal-warning)" d="M570 120 H490 L420 190 V290"/>
+              <path class="near n6" pathLength="1" style="stroke: var(--border-strong)" d="M30 345 H120"/>
+              <line class="q0 end" x1="321" y1="91" x2="339" y2="109"/>
+              <circle class="q1 stn" cx="250" cy="150" r="11"/>
+              <circle class="q2 stn" cx="300" cy="290" r="11"/>
+              <circle class="q3 stn" cx="420" cy="290" r="11"/>
+              <text x="30" y="136">engineer</text>
+              <text x="236" y="44" text-anchor="end">founder in health</text>
+              <text x="30" y="276">retired teacher</text>
+              <text x="214" y="394">parent</text>
+              <text x="570" y="106" text-anchor="end">student</text>
+              <text x="570" y="26" text-anchor="end">investor</text>
+              <text x="30" y="331">new in town</text>
+            </g>
           </g>
-          <line class="oneway w0" x1="359" y1="103" x2="271" y2="69"/>
-          <line class="oneway w1" x1="434" y1="229" x2="518" y2="203"/>
-          <line class="oneway w2" x1="273" y1="200" x2="105" y2="232"/>
-          <line class="pair p0" x1="123" y1="80" x2="227" y2="64"/>
-          <line class="pair p1" x1="481" y1="90" x2="529" y2="176"/>
-          <line class="pair p2" x1="102" y1="248" x2="176" y2="292"/>
-          <line class="pair p3" x1="317" y1="342" x2="215" y2="406"/>
-          <line class="pair p4" x1="357" y1="338" x2="455" y2="376"/>
-          <g class="who m ta"><circle class="ring" cx="100" cy="84" r="21"/><path class="coral" d="M100 68a16 16 0 0 0 0 32z"/><path class="peri" d="M100 68a16 16 0 0 1 0 32z"/></g>
-          <g class="who m tb"><circle class="ring" cx="250" cy="60" r="21"/><path class="peri" d="M250 44a16 16 0 0 0 0 32z"/><path class="coral" d="M250 44a16 16 0 0 1 0 32z"/></g>
-          <g class="who m tc"><circle class="ring" cx="470" cy="70" r="21"/><path class="mint" d="M470 54a16 16 0 0 0 0 32z"/><path class="ink" d="M470 54a16 16 0 0 1 0 32z"/></g>
-          <g class="who m td"><circle class="ring" cx="540" cy="196" r="21"/><path class="ink" d="M540 180a16 16 0 0 0 0 32z"/><path class="mint" d="M540 180a16 16 0 0 1 0 32z"/></g>
-          <g class="who m te"><circle class="ring" cx="82" cy="236" r="21"/><path class="peri" d="M82 220a16 16 0 0 0 0 32z"/><path class="ink" d="M82 220a16 16 0 0 1 0 32z"/></g>
-          <g class="who m tf"><circle class="ring" cx="196" cy="304" r="21"/><path class="ink" d="M196 288a16 16 0 0 0 0 32z"/><path class="peri" d="M196 288a16 16 0 0 1 0 32z"/></g>
-          <g class="who m tg"><circle class="ring" cx="336" cy="330" r="21"/><path class="coral" d="M336 314a16 16 0 0 0 0 32z"/><path class="mint" d="M336 314a16 16 0 0 1 0 32z"/></g>
-          <g class="who m th"><circle class="ring" cx="196" cy="418" r="21"/><path class="mint" d="M196 402a16 16 0 0 0 0 32z"/><path class="coral" d="M196 402a16 16 0 0 1 0 32z"/></g>
-          <g class="who m tj"><circle class="ring" cx="476" cy="384" r="21"/><path class="mint" d="M476 368a16 16 0 0 0 0 32z"/><path class="coral" d="M476 368a16 16 0 0 1 0 32z"/></g>
-          <g class="who tk"><circle class="ring" cx="380" cy="112" r="21"/><path class="mint" d="M380 96a16 16 0 0 0 0 32z"/><path class="peri" d="M380 96a16 16 0 0 1 0 32z"/></g>
-          <g class="who tl"><circle class="ring" cx="412" cy="236" r="21"/><path class="coral" d="M412 220a16 16 0 0 0 0 32z"/><path class="ink" d="M412 220a16 16 0 0 1 0 32z"/></g>
-          <g class="who tn"><circle class="ring" cx="296" cy="196" r="21"/><path class="mint" d="M296 180a16 16 0 0 0 0 32z"/><path class="peri" d="M296 180a16 16 0 0 1 0 32z"/></g>
-          <g class="who to"><circle class="ring" cx="560" cy="300" r="21"/><path class="coral" d="M560 284a16 16 0 0 0 0 32z"/><path class="ink" d="M560 284a16 16 0 0 1 0 32z"/></g>
-          <g class="who tq"><circle class="ring" cx="58" cy="384" r="21"/><path class="coral" d="M58 368a16 16 0 0 0 0 32z"/><path class="ink" d="M58 368a16 16 0 0 1 0 32z"/></g>
         </svg>
       </figure>
-      <p class="key"><svg viewBox="0 0 40 40" aria-hidden="true"><path class="coral" d="M20 4a16 16 0 0 0 0 32z"/><path class="peri" d="M20 4a16 16 0 0 1 0 32z"/></svg>
-        <span><b>Each person:</b> who they are, and who they're looking for. Belong introduces people only where it fits both ways, and anyone can have more than one match.</span></p>
+      <p class="key"><b>Each line is a person.</b> Where two lines meet, each is who the other is looking for, and one person can meet several. Belong finds all of them at once.</p>
       </div>
     </div>
   </section>
