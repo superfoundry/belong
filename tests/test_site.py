@@ -18,13 +18,12 @@ SITE = ROOT / "site"
 sys.path.insert(0, str(ROOT / "tools"))
 import build_site  # noqa: E402
 
-APP = "https://app.example.org"
 _TMP = tempfile.TemporaryDirectory()
 OUT = Path(_TMP.name) / "site"
 
 
 def setUpModule():
-    build_site.build(OUT, APP + "/")
+    build_site.build(OUT)
 
 
 def tearDownModule():
@@ -96,11 +95,16 @@ class TheSiteSpeaksLikeBelong(unittest.TestCase):
 
 
 class TheBuiltSite(unittest.TestCase):
-    def test_every_page_is_built_with_the_app_filled_in(self):
+    def test_no_link_to_the_internal_demo(self):
+        """The demo and its pages (/demo, /trust, /connector, /inspector, its host) are internal."""
         for page in pages():
-            html = page.read_text(encoding="utf-8")
-            self.assertNotIn("{{", html, page.name)
-            self.assertIn(f'href="{APP}/demo"', html, page.name)
+            for ref in re.findall(r'href="([^"]+)"', page.read_text(encoding="utf-8")):
+                self.assertFalse(re.search(r"sslip\.io|^/(?:demo|trust|connector|inspector|chat|login)\b", ref),
+                                 (page.name, ref))
+
+    def test_every_page_is_filled_in(self):
+        for page in pages():
+            self.assertNotIn("{{", page.read_text(encoding="utf-8"), page.name)
 
     def test_every_doc_becomes_a_page(self):
         for doc in SITE.rglob("*.md"):
@@ -128,7 +132,7 @@ class TheBuiltSite(unittest.TestCase):
 
     def test_nothing_loads_from_another_host(self):
         """Stylesheets, scripts, fonts, images and icons all come from the site itself: no CDN, font service or
-        analytics ever learns who visited. Only plain links (the demo, the source code) point elsewhere."""
+        analytics ever learns who visited. Only plain links (the source code) point elsewhere."""
         for path in OUT.rglob("*"):
             if path.suffix == ".html":
                 html = path.read_text(encoding="utf-8")

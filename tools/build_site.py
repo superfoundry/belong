@@ -1,11 +1,10 @@
 """Build the public website (site/) into a folder any static host can serve.
 
-    python3 tools/build_site.py                      # into out/site, linking the demo on the same host
-    python3 tools/build_site.py --app https://demo.example.org --out /tmp/site
+    python3 tools/build_site.py                      # into out/site
+    python3 tools/build_site.py --out /tmp/site
 
-Copies site/ as it is, adds the Belong design system's files from belong/web/ds (tokens.css, belong.css and
-the fonts, so the site loads nothing from any other host) and the touch icon, and fills in {{app}}: where the
-demo app is served, without a trailing slash ("" means the same host).
+Copies site/ as it is and adds the Belong design system's files from belong/web/ds (tokens.css, belong.css and
+the fonts, so the site loads nothing from any other host) and the touch icon.
 
 The documentation is Markdown (site/docs/*.md, copied in as they are written): each becomes a page beside it
 (standard.md -> standard.html) in site/docs/_page.html, read by the small Markdown reader below, which knows
@@ -24,7 +23,6 @@ SITE = ROOT / "site"
 DS = ROOT / "belong" / "web" / "ds"
 DS_FILES = ("tokens.css", "belong.css")
 ICON = ROOT / "belong" / "web" / "apple-touch-icon.png"
-FILLED = (".html", ".css")
 REPO = "https://github.com/superfoundry/belong/blob/main/"
 # A file the docs name in passing becomes a link: the other docs pages, or the file in the public repository.
 DOC_LINKS = {"STANDARD.md": "standard.html", "CONNECTING.md": "connecting.html",
@@ -131,9 +129,8 @@ def doc_page(source: Path, template: str) -> str:
 
 # -- Build ------------------------------------------------------------------------------------------------------
 
-def build(out: Path, app: str = "") -> list[Path]:
+def build(out: Path) -> list[Path]:
     """Write the site into `out` (emptied first) and return every file written."""
-    app = app.rstrip("/")
     if out.exists():
         shutil.rmtree(out)
     written = []
@@ -144,10 +141,7 @@ def build(out: Path, app: str = "") -> list[Path]:
         dst.parent.mkdir(parents=True, exist_ok=True)
         if src.suffix == ".md":
             dst = dst.with_suffix(".html")
-            dst.write_text(doc_page(src, (src.parent / "_page.html").read_text(encoding="utf-8")).replace("{{app}}", app),
-                           encoding="utf-8")
-        elif src.suffix in FILLED:
-            dst.write_text(src.read_text(encoding="utf-8").replace("{{app}}", app), encoding="utf-8")
+            dst.write_text(doc_page(src, (src.parent / "_page.html").read_text(encoding="utf-8")), encoding="utf-8")
         else:
             shutil.copyfile(src, dst)
         written.append(dst)
@@ -163,9 +157,8 @@ def build(out: Path, app: str = "") -> list[Path]:
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--out", type=Path, default=ROOT / "out" / "site", help="folder to write (emptied first)")
-    parser.add_argument("--app", default="", help='where the demo app is served, e.g. https://demo.example.org ("" = same host)')
     args = parser.parse_args()
-    files = build(args.out, args.app)
+    files = build(args.out)
     print(f"Built {len(files)} files into {args.out}")
 
 

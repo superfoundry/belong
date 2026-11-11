@@ -163,7 +163,7 @@ python3 -m belong run       # 300-person simulation, then again with agent diale
 python3 -m belong run --matcher hostile   # the same with a stand-in Matchmaker AI that answers as badly as it can (no network)
 python3 tools/compare_judges.py           # rules vs the Matchmaker AI (live, costs money: sends nothing without --yes; never in tests)
 python3 -m belong serve     # demo / (and /demo), connector mockup /connector, landing /welcome, trust /trust, inspector /inspector
-python3 tools/build_site.py # the public website (site/) into out/site; --app URL when the demo is elsewhere
+python3 tools/build_site.py # the public website (site/) into out/site; it never links to the internal demo
 ```
 
 Pure standard library: don't add dependencies without asking. The one exception is the

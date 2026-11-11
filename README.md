@@ -308,14 +308,13 @@ when idle, at the cost of one instance kept warm. To take it down:
 (`standard.md`, the Belong standard; `connecting.md`, how to build a front end), each made into a page beside it
 through `site/docs/_page.html`: to change one, replace its `.md` file. It is plain HTML on the Belong design
 system and runs nothing on the visitor's side. `python3 tools/build_site.py` builds it into `out/site` with the
-design system's files and fonts copied in, so it loads nothing from any other host; `--app https://ADDRESS` points
-its links to the demo ("Try the demo", the trust page) at wherever the demo runs. Locally,
+design system's files and fonts copied in, so it loads nothing from any other host. It never links to the demo,
+which is internal; "Trust and security" goes to TRUST.md on GitHub. Locally,
 `python3 -m http.server 8100 -d out/site` (or the `site` preview in `.claude/launch.json`).
 
 **It deploys itself.** Every merge to `main` that passes the tests is built and published with GitHub Pages
 ([ci.yml](.github/workflows/ci.yml), the `site` job). One-time setup: Settings > Pages > Source: *GitHub
-Actions*, and a repo variable `DEMO_URL` (the demo's address, e.g. `https://34-66-86-34.sslip.io`); without it
-the site isn't deployed.
+Actions*.
 
 `tests/test_site.py` holds the built pages to the same rules as the app's pages: the name without its stop, "shown"
 and "hidden" only, colours from the tokens alone, saying what is simulated, none of the demo's examples, every
