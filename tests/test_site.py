@@ -1,8 +1,8 @@
 """The public website (site/, built by tools/build_site.py): its two pages (the landing page and the Use page, whose
 technical part is made from site/use.md) and the plain text published for AI agents (use.md, llms.txt) say Belong
-the way every page does, use the design system's words, logo and tokens only, keep saying what is simulated, never
-reuse the demo's examples, never link to the internal demo or the source repository, and load nothing from any
-other host, so visiting it tells no third party anything."""
+the way every page does, use the design system's words, logo and tokens only, never reuse the demo's examples,
+never link to the internal demo or the source repository, never overclaim privacy, and load nothing from any other
+host, so visiting it tells no third party anything."""
 from __future__ import annotations
 
 import re
@@ -80,15 +80,12 @@ class TheSiteSpeaksLikeBelong(unittest.TestCase):
                 self.assertFalse(re.search(pattern, text), (page.name, pattern))
             self.assertFalse(re.search("[\U0001F300-\U0001FAFF☀-➿]", text), page.name)
 
-    def test_it_says_what_is_simulated_and_never_overclaims(self):
-        """The promise is between people: Belong runs the matcher and can see what it holds (the standard, "What
-        Belong can see and keeps")."""
+    def test_it_never_overclaims_privacy(self):
+        """The promise is between people: Belong runs the matcher and can see what it holds, so no page ever says "not
+        even we can see it". (By the owner's choice the site reads as the finished product, with no status labels.)"""
         for page in pages() + texts():
-            text = text_of(page).lower()
-            self.assertIn("prototype" if page.suffix != ".md" else "a prototype", text, page.name)
-            self.assertIn("synthetic", text, page.name)
             self.assertFalse(re.search(r"not even (we|us|belong)|no one at belong|can't access it|even the people who run",
-                                       text), page.name)
+                                       text_of(page).lower()), page.name)
 
     def test_no_example_of_the_demo(self):
         """The site's examples are its own, never the synthetic people's stories, hobbies or subjects."""

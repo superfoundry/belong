@@ -319,7 +319,7 @@ Actions*.
 
 `tests/test_site.py` holds the built pages and the plain text to the same rules as the app's pages: the name without
 its stop and the design system's logo, "shown" and "hidden" only, colours from the tokens alone, motion only without
-reduced motion and a pause button on anything that loops, saying what is simulated, none of the demo's examples,
+reduced motion, never overclaiming privacy, none of the demo's examples,
 no link to the demo or the repository, every local link working, and nothing loaded from elsewhere. It checks there
 are exactly the two pages.
 

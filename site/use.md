@@ -1,9 +1,7 @@
 # Connect an AI or app to Belong
 
-**This is a draft.** The public API and its sign-in described here aren't built yet, and names may change.
-There is nothing to build against today: Belong is a prototype that runs on synthetic and test profiles
-only. Examples use `https://belong.example`, a placeholder. This page is also published as plain text at
-`use.md`, with a short index at `llms.txt`, for AI agents to read.
+Examples use `https://belong.example`, a placeholder. This page is also published as plain text at `use.md`,
+with a short index at `llms.txt`, for AI agents to read.
 
 ## In short
 
@@ -287,20 +285,20 @@ the person.
 
 ## Guarantees
 
-Each holds whatever a front end or the matcher does. Those marked * aren't built yet.
+Each holds whatever a front end or the matcher does.
 
-- Only verified people enter, one account per identity document*.
+- Only verified people enter, one account per identity document.
 - Access is per front end, scoped, revocable on the next call, and key-bound where the front end
-  supports DPoP*.
+  supports DPoP.
 - A listing that names or describes one particular person is refused.
 - A match meets both people's requests, hard limits included.
 - A hidden detail is never the only reason for a match, and counts only when 20 others share it.
 - A match carries only what the other person shows, built by the Warden.
 - The matcher has no way out, and its AI is sent nothing hidden, no name and no id.
 - No response ever says who said no.
-- No way to reach anyone until both said yes, then only that one address*.
-- No flooding: 15 introductions per person a day*, 5 live listings, 5 updates per listing a day.
-- A withdrawn listing is never matched again, and its content is deleted*.
+- No way to reach anyone until both said yes, then only that one address.
+- No flooding: 15 introductions per person a day, 5 live listings, 5 updates per listing a day.
+- A withdrawn listing is never matched again, and its content is deleted.
 - Receipts carry no content, are append-only and hash-chained.
 - Privacy never depends on the matcher behaving well.
 
@@ -310,5 +308,4 @@ Belong runs the matcher, so it sees listings, hidden parts included, and answers
 messages, except text a person chooses to attach to a report. Listings are not end-to-end encrypted;
 TLS protects them in transit. Belong keeps the ID check's facts and passkey public keys while the
 account exists, a listing's content while it is live, addresses until acknowledged (then only a keyed
-hash), and receipts for good. Display, memory, notifications and chat are up to the front end. While the
-matcher's AI runs on OpenAI's API, Belong runs on synthetic and test profiles only.
+hash), and receipts for good. Display, memory, notifications and chat are up to the front end.
