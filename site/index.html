@@ -56,21 +56,46 @@
   #diff-title { text-align: center; margin-bottom: var(--space-10); }
   .diff .card { padding: var(--space-8); }
 
-  /* A listing as its owner sees it, in the product's fixed look for shown and hidden details. */
+  /* Hidden details: the words on the left, and the Belong app on a phone on the right. */
   .hidden-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: var(--space-16); align-items: center; }
   @media (max-width: 760px) { .hidden-grid { grid-template-columns: 1fr; gap: var(--space-10); } }
   .hidden-grid p { color: var(--text-secondary); max-width: 44ch; margin: 0 0 var(--space-4); font: var(--text-body-l); }
-  .listing { padding: var(--space-6); margin: 0; }
-  .listing-head { display: flex; justify-content: space-between; align-items: center; gap: var(--space-3); margin-bottom: var(--space-3); }
-  .listing-head .label { color: var(--text-tertiary); }
-  .row { padding: var(--space-2) 0; }
-  .row .field-label { margin: 0 0 2px; color: var(--text-tertiary); }
-  .row .value { font: var(--text-body-m); color: var(--text-primary); }
-  .hidden-well { margin-top: var(--space-3); }
-  .hidden-well .top { display: flex; justify-content: space-between; align-items: center; gap: var(--space-3); }
-  .hidden-well .field-label { margin: 0; color: var(--text-tertiary); }
-  .hidden-well .value { font: var(--text-body-m); margin: 2px 0 var(--space-1); }
-  .listing figcaption { margin: var(--space-5) 0 0; display: flex; gap: var(--space-2); align-items: baseline; font: var(--text-body-s); color: var(--text-secondary); }
+  /* The phone: a listing's profile as its owner sees it in the app, drawn in the app's own look: the hello and the
+     person's own words on white, shown details on the phone's off-white, hidden ones in their red band with the Hidden
+     badge, and the agent's latest message at the bottom. A picture, so it's one image to screen readers. */
+  .phone { justify-self: center; width: 300px; max-width: 100%; margin: 0; border: 9px solid var(--surface-inverse);
+    border-radius: 44px; overflow: hidden; background: var(--sf-paper-100); box-shadow: var(--shadow-lg); }
+  .phone .bar { display: flex; align-items: center; justify-content: space-between; padding: 10px var(--space-5) 0;
+    font: var(--text-caption); font-weight: 600; background: var(--surface-card); }
+  .phone .bar .notch { width: 84px; height: 22px; border-radius: var(--radius-pill); background: var(--surface-inverse); }
+  .phone .top { display: flex; align-items: center; gap: var(--space-2); padding: var(--space-3) var(--space-4);
+    background: var(--surface-card); border-bottom: 1px solid var(--border-subtle); }
+  .phone .top img { height: 17px; width: auto; margin-right: auto; }
+  .phone .top svg { width: 18px; height: 18px; color: var(--text-primary); }
+  .phone .hello { background: var(--surface-card); padding: var(--space-4); }
+  .phone .hello-head { display: flex; align-items: center; gap: var(--space-3); }
+  .phone .mono { width: 40px; height: 40px; border-radius: var(--radius-md); background: var(--sf-char-100); color: var(--text-secondary);
+    display: inline-flex; align-items: center; justify-content: center; font-family: var(--font-display); font-weight: 700; font-size: 18px; }
+  .phone .name { margin: 0; font-family: var(--font-display); font-weight: 600; font-size: 21px; line-height: 1.15; }
+  .phone .words { margin: var(--space-3) 0 0; font-family: var(--font-display); font-weight: 500; font-size: 15px; line-height: 1.7; }
+  .phone .word { background: var(--sf-char-100); border-bottom: 2px solid var(--border-strong); border-radius: var(--radius-sm); padding: 1px 4px;
+    -webkit-box-decoration-break: clone; box-decoration-break: clone; }
+  .phone .facts { padding: var(--space-3) var(--space-4); display: grid; gap: var(--space-2); }
+  .phone .fact { display: grid; grid-template-columns: 76px 1fr; gap: var(--space-2); font: var(--text-body-s); }
+  .phone .fact .label { color: var(--text-tertiary); }
+  .phone .hidden-band { padding: var(--space-3) var(--space-4);
+    background: linear-gradient(var(--accent-error-muted), var(--accent-error-muted)), var(--surface-card); }
+  .phone .hidden-band .head { display: flex; justify-content: space-between; align-items: center; }
+  .phone .hidden-band .body-s { margin-top: var(--space-1); }
+  .phone .hidden-note { display: block; margin-top: var(--space-1); }
+  .phone .live { display: flex; align-items: center; gap: var(--space-2); padding: var(--space-3) var(--space-4); font: var(--text-caption);
+    color: var(--text-secondary); }
+  .phone .peek { margin: var(--space-2) 0 0; background: var(--surface-card); border-top: 1px solid var(--border-default);
+    border-radius: var(--radius-lg) var(--radius-lg) 0 0; padding: var(--space-3) var(--space-4) var(--space-6); }
+  .phone .peek .handle { display: block; width: 32px; height: 4px; margin: 0 auto var(--space-3); border-radius: var(--radius-pill);
+    background: var(--border-strong); }
+  .phone .bubble { margin: 0; padding: var(--space-3) var(--space-4); border-radius: 18px; border-bottom-left-radius: var(--radius-sm);
+    background: var(--accent-ai-muted); color: var(--text-primary); font: var(--text-body-s); }
 
   /* On this page the cream band is frosted, so the web shows through it softly, and it fades in and out over its
      top and bottom padding, so it has no hard edge and its content is never faded. */
@@ -3827,19 +3852,31 @@
         <p>Your AI drafts your listing, and you choose what's shown. Hidden details still help find the right people, and are never shown to anyone you match with or to any app.</p>
         <p>Belong runs the matching, so it can see what it holds. It keeps as little as it can.</p>
       </div>
-      <figure class="card listing" aria-label="An example listing, as its owner sees it">
-        <div class="listing-head">
-          <span class="label">Your listing</span>
-          <span class="badge olive">Matching</span>
+      <figure class="phone" role="img" aria-label="The Belong app on a phone: a listing for a technical co-founder in Berlin, with the person's age hidden, used for matching and never shown, and their AI saying two people match so far.">
+        <div class="bar" aria-hidden="true"><span>9:41</span><span class="notch"></span><span>100%</span></div>
+        <div class="top" aria-hidden="true">
+          <img src="ds/logo/belong-wordmark-small-ink.svg" alt="" width="59" height="17">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></svg>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 7h14M5 12h14M5 17h14"/></svg>
         </div>
-        <div class="row"><p class="field-label">Looking for</p><div class="value">A technical co-founder for a health-tech company</div></div>
-        <div class="row"><p class="field-label">Where</p><div class="value">Berlin, in person</div></div>
-        <div class="hidden-well">
-          <div class="top"><p class="field-label">Age</p><span class="badge ai">Hidden</span></div>
-          <div class="value">50 to 54</div>
-          <span class="hidden-note">Used for matching, never shown</span>
+        <div aria-hidden="true">
+          <div class="hello">
+            <div class="hello-head"><span class="mono">J</span>
+              <p class="name">Hi, I'm <span class="drop-coral">Jo</span>.</p></div>
+            <p class="words">I'm looking for <span class="word">a technical co-founder</span> for <span class="word">a health-tech company</span>, <span class="word">in person</span> in <span class="word">Berlin</span>.</p>
+          </div>
+          <div class="facts">
+            <div class="fact"><span class="label">Looking for</span><span>Co-founder</span></div>
+            <div class="fact"><span class="label">Where</span><span>Berlin, in person</span></div>
+          </div>
+          <div class="hidden-band">
+            <div class="head"><span class="label">Only you can see this</span><span class="badge ai">Hidden</span></div>
+            <div class="body-s">Age: 50 to 54</div>
+            <span class="hidden-note">Used for matching, never shown</span>
+          </div>
+          <div class="live"><span class="badge olive">Matching</span> Live since Monday</div>
+          <div class="peek"><span class="handle"></span><p class="bubble">Two people match so far. Have a look when you're ready.</p></div>
         </div>
-        <figcaption><span class="badge ai">Agent draft</span> Your AI wrote this from what you said.</figcaption>
       </figure>
     </div>
   </section>
