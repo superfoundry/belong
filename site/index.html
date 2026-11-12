@@ -12,127 +12,27 @@
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <style>
   /* The landing page's own parts. Everything shared with the Use page is in site.css. */
-  .hero { padding: var(--space-16) 0 var(--space-24); }
-  .hero-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr); gap: var(--space-12); align-items: center; }
-  @media (max-width: 960px) { .hero-grid { grid-template-columns: 1fr; gap: var(--space-10); } }
+  .hero { min-height: calc(100svh - 72px); display: flex; align-items: center; padding: var(--space-16) 0 var(--space-24); }
+  .hero .wrap { width: 100%; }
   .hero h1 { font-size: var(--font-size-display-xl); margin: 0 0 var(--space-6); max-width: 12ch; }
   .hero .lead { font: var(--text-body-l); color: var(--text-secondary); margin: 0 0 var(--space-8); max-width: 38ch; }
 
-  /* The scene: a web with no beginning or end. People joined by lines; small dots always moving along them,
-     periwinkle one way and coral the other, each already mid-way when the page loads; a few lines held as matches
-     (heavier, with the two-colour disc). No pause button by the owner's choice; with reduced motion it rests as the
-     still web. */
-  .scene { position: relative; margin: 0; aspect-ratio: 600 / 480; }
-  .scene svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
-  .field circle { fill: var(--text-primary); opacity: 0.16; }
-  .field circle.c { fill: var(--accent-default); opacity: 0.5; }
-  .field circle.p { fill: var(--accent-ai); opacity: 0.5; }
-  .field circle.m { fill: var(--accent-olive); opacity: 0.6; }
-  .person-disc { fill: var(--surface-raised); }
-  .person-shape { fill: var(--text-primary); }
-  .link { stroke: var(--text-primary); stroke-width: 1.5; stroke-linecap: round; opacity: 0.18; }
-  .link.held { stroke-width: 3; opacity: 0.85; }
-  .dot { opacity: 0; }
-  .dot.ai { fill: var(--accent-ai); }
-  .dot.co { fill: var(--accent-default); }
-  .meet-ground { fill: var(--surface-card); }
-  .half-a { fill: var(--accent-ai); }
-  .half-b { fill: var(--accent-default); }
+  /* The background: an abstract web of points joined by faint lines, with small dots always travelling along
+     them, periwinkle and coral, both ways, each already on its way when the page loads, so it has no beginning or
+     end. Fixed behind the whole page at half opacity. No pause button by the owner's choice; with reduced motion
+     each dot rests half way along its line. */
+  .web { position: fixed; inset: 0; width: 100%; height: 100%; z-index: -1; opacity: 0.5; pointer-events: none; }
+  .web line { stroke: var(--text-primary); stroke-width: 1; opacity: 0.22; }
+  .web .point { fill: var(--text-primary); opacity: 0.5; }
+  .web .ai { fill: var(--accent-ai); }
+  .web .co { fill: var(--accent-default); }
   @media (prefers-reduced-motion: no-preference) {
-    .scene .field circle { animation: twinkle var(--p) ease-in-out var(--d) infinite alternate; }
-    @keyframes twinkle { to { opacity: 0.05; } }
-    .scene .go0 { animation: go0 9.8s linear -4.2s infinite; }
-    @keyframes go0 { 0% { opacity: 0; transform: none; } 4% { opacity: 1; } 46% { opacity: 1; } 50% { opacity: 0; transform: translate(112px, -21px); } 100% { opacity: 0; transform: translate(112px, -21px); } }
-    .scene .back0 { animation: back0 8.0s linear -5.3s infinite; }
-    @keyframes back0 { 0% { opacity: 0; transform: none; } 4% { opacity: 1; } 46% { opacity: 1; } 50% { opacity: 0; transform: translate(-112px, 21px); } 100% { opacity: 0; transform: translate(-112px, 21px); } }
-    .scene .go1 { animation: go1 9.8s linear -5.3s infinite; }
-    @keyframes go1 { 0% { opacity: 0; transform: none; } 4% { opacity: 1; } 46% { opacity: 1; } 50% { opacity: 0; transform: translate(38px, 108px); } 100% { opacity: 0; transform: translate(38px, 108px); } }
-    .scene .back1 { animation: back1 9.6s linear -5.4s infinite; }
-    @keyframes back1 { 0% { opacity: 0; transform: none; } 4% { opacity: 1; } 46% { opacity: 1; } 50% { opacity: 0; transform: translate(-38px, -108px); } 100% { opacity: 0; transform: translate(-38px, -108px); } }
-    .scene .go2 { animation: go2 12.4s linear -11.0s infinite; }
-    @keyframes go2 { 0% { opacity: 0; transform: none; } 4% { opacity: 1; } 46% { opacity: 1; } 50% { opacity: 0; transform: translate(156px, 128px); } 100% { opacity: 0; transform: translate(156px, 128px); } }
-    .scene .back2 { animation: back2 10.8s linear -5.5s infinite; }
-    @keyframes back2 { 0% { opacity: 0; transform: none; } 4% { opacity: 1; } 46% { opacity: 1; } 50% { opacity: 0; transform: translate(-156px, -128px); } 100% { opacity: 0; transform: translate(-156px, -128px); } }
-    .scene .go3 { animation: go3 5.0s linear -3.0s infinite; }
-    @keyframes go3 { 0% { opacity: 0; transform: none; } 4% { opacity: 1; } 46% { opacity: 1; } 50% { opacity: 0; transform: translate(54px, 7px); } 100% { opacity: 0; transform: translate(54px, 7px); } }
-    .scene .back3 { animation: back3 7.0s linear -3.3s infinite; }
-    @keyframes back3 { 0% { opacity: 0; transform: none; } 4% { opacity: 1; } 46% { opacity: 1; } 50% { opacity: 0; transform: translate(-54px, -7px); } 100% { opacity: 0; transform: translate(-54px, -7px); } }
-    .scene .go4 { animation: go4 9.4s linear -5.1s infinite; }
-    @keyframes go4 { 0% { opacity: 0; transform: none; } 4% { opacity: 1; } 46% { opacity: 1; } 50% { opacity: 0; transform: translate(24px, 140px); } 100% { opacity: 0; transform: translate(24px, 140px); } }
-    .scene .back4 { animation: back4 9.4s linear -0.8s infinite; }
-    @keyframes back4 { 0% { opacity: 0; transform: none; } 4% { opacity: 1; } 46% { opacity: 1; } 50% { opacity: 0; transform: translate(-24px, -140px); } 100% { opacity: 0; transform: translate(-24px, -140px); } }
-    .scene .go5 { animation: go5 7.2s linear -5.7s infinite; }
-    @keyframes go5 { 0% { opacity: 0; transform: none; } 4% { opacity: 1; } 46% { opacity: 1; } 50% { opacity: 0; transform: translate(117px, 19px); } 100% { opacity: 0; transform: translate(117px, 19px); } }
-    .scene .back5 { animation: back5 7.4s linear -7.0s infinite; }
-    @keyframes back5 { 0% { opacity: 0; transform: none; } 4% { opacity: 1; } 46% { opacity: 1; } 50% { opacity: 0; transform: translate(-117px, -19px); } 100% { opacity: 0; transform: translate(-117px, -19px); } }
-    .scene .go6 { animation: go6 9.6s linear -3.7s infinite; }
-    @keyframes go6 { 0% { opacity: 0; transform: none; } 4% { opacity: 1; } 46% { opacity: 1; } 50% { opacity: 0; transform: translate(34px, 114px); } 100% { opacity: 0; transform: translate(34px, 114px); } }
-    .scene .back6 { animation: back6 7.6s linear -1.9s infinite; }
-    @keyframes back6 { 0% { opacity: 0; transform: none; } 4% { opacity: 1; } 46% { opacity: 1; } 50% { opacity: 0; transform: translate(-34px, -114px); } 100% { opacity: 0; transform: translate(-34px, -114px); } }
-    .scene .go7 { animation: go7 8.0s linear -3.0s infinite; }
-    @keyframes go7 { 0% { opacity: 0; transform: none; } 4% { opacity: 1; } 46% { opacity: 1; } 50% { opacity: 0; transform: translate(-85px, 98px); } 100% { opacity: 0; transform: translate(-85px, 98px); } }
-    .scene .back7 { animation: back7 8.8s linear -6.7s infinite; }
-    @keyframes back7 { 0% { opacity: 0; transform: none; } 4% { opacity: 1; } 46% { opacity: 1; } 50% { opacity: 0; transform: translate(85px, -98px); } 100% { opacity: 0; transform: translate(85px, -98px); } }
-    .scene .go8 { animation: go8 7.0s linear -2.7s infinite; }
-    @keyframes go8 { 0% { opacity: 0; transform: none; } 4% { opacity: 1; } 46% { opacity: 1; } 50% { opacity: 0; transform: translate(22px, 114px); } 100% { opacity: 0; transform: translate(22px, 114px); } }
-    .scene .back8 { animation: back8 9.4s linear -0.3s infinite; }
-    @keyframes back8 { 0% { opacity: 0; transform: none; } 4% { opacity: 1; } 46% { opacity: 1; } 50% { opacity: 0; transform: translate(-22px, -114px); } 100% { opacity: 0; transform: translate(-22px, -114px); } }
-    .scene .go9 { animation: go9 5.8s linear -3.9s infinite; }
-    @keyframes go9 { 0% { opacity: 0; transform: none; } 4% { opacity: 1; } 46% { opacity: 1; } 50% { opacity: 0; transform: translate(89px, 3px); } 100% { opacity: 0; transform: translate(89px, 3px); } }
-    .scene .back9 { animation: back9 5.8s linear -1.2s infinite; }
-    @keyframes back9 { 0% { opacity: 0; transform: none; } 4% { opacity: 1; } 46% { opacity: 1; } 50% { opacity: 0; transform: translate(-89px, -3px); } 100% { opacity: 0; transform: translate(-89px, -3px); } }
-    .scene .go10 { animation: go10 9.2s linear -6.9s infinite; }
-    @keyframes go10 { 0% { opacity: 0; transform: none; } 4% { opacity: 1; } 46% { opacity: 1; } 50% { opacity: 0; transform: translate(-61px, 126px); } 100% { opacity: 0; transform: translate(-61px, 126px); } }
-    .scene .back10 { animation: back10 7.8s linear -0.6s infinite; }
-    @keyframes back10 { 0% { opacity: 0; transform: none; } 4% { opacity: 1; } 46% { opacity: 1; } 50% { opacity: 0; transform: translate(61px, -126px); } 100% { opacity: 0; transform: translate(61px, -126px); } }
-    .scene .go11 { animation: go11 7.6s linear -3.3s infinite; }
-    @keyframes go11 { 0% { opacity: 0; transform: none; } 4% { opacity: 1; } 46% { opacity: 1; } 50% { opacity: 0; transform: translate(48px, 117px); } 100% { opacity: 0; transform: translate(48px, 117px); } }
-    .scene .back11 { animation: back11 8.4s linear -5.1s infinite; }
-    @keyframes back11 { 0% { opacity: 0; transform: none; } 4% { opacity: 1; } 46% { opacity: 1; } 50% { opacity: 0; transform: translate(-48px, -117px); } 100% { opacity: 0; transform: translate(-48px, -117px); } }
-    .scene .go12 { animation: go12 7.8s linear -4.0s infinite; }
-    @keyframes go12 { 0% { opacity: 0; transform: none; } 4% { opacity: 1; } 46% { opacity: 1; } 50% { opacity: 0; transform: translate(70px, -8px); } 100% { opacity: 0; transform: translate(70px, -8px); } }
-    .scene .back12 { animation: back12 6.4s linear -2.2s infinite; }
-    @keyframes back12 { 0% { opacity: 0; transform: none; } 4% { opacity: 1; } 46% { opacity: 1; } 50% { opacity: 0; transform: translate(-70px, 8px); } 100% { opacity: 0; transform: translate(-70px, 8px); } }
-    .scene .go13 { animation: go13 11.2s linear -7.8s infinite; }
-    @keyframes go13 { 0% { opacity: 0; transform: none; } 4% { opacity: 1; } 46% { opacity: 1; } 50% { opacity: 0; transform: translate(-182px, 138px); } 100% { opacity: 0; transform: translate(-182px, 138px); } }
-    .scene .back13 { animation: back13 12.6s linear -3.0s infinite; }
-    @keyframes back13 { 0% { opacity: 0; transform: none; } 4% { opacity: 1; } 46% { opacity: 1; } 50% { opacity: 0; transform: translate(182px, -138px); } 100% { opacity: 0; transform: translate(182px, -138px); } }
-    .scene .go14 { animation: go14 10.2s linear -4.7s infinite; }
-    @keyframes go14 { 0% { opacity: 0; transform: none; } 4% { opacity: 1; } 46% { opacity: 1; } 50% { opacity: 0; transform: translate(-52px, 114px); } 100% { opacity: 0; transform: translate(-52px, 114px); } }
-    .scene .back14 { animation: back14 8.6s linear -1.6s infinite; }
-    @keyframes back14 { 0% { opacity: 0; transform: none; } 4% { opacity: 1; } 46% { opacity: 1; } 50% { opacity: 0; transform: translate(52px, -114px); } 100% { opacity: 0; transform: translate(52px, -114px); } }
-    .scene .go15 { animation: go15 9.2s linear -2.0s infinite; }
-    @keyframes go15 { 0% { opacity: 0; transform: none; } 4% { opacity: 1; } 46% { opacity: 1; } 50% { opacity: 0; transform: translate(66px, 101px); } 100% { opacity: 0; transform: translate(66px, 101px); } }
-    .scene .back15 { animation: back15 8.8s linear -8.3s infinite; }
-    @keyframes back15 { 0% { opacity: 0; transform: none; } 4% { opacity: 1; } 46% { opacity: 1; } 50% { opacity: 0; transform: translate(-66px, -101px); } 100% { opacity: 0; transform: translate(-66px, -101px); } }
-    .scene .go16 { animation: go16 9.2s linear -7.4s infinite; }
-    @keyframes go16 { 0% { opacity: 0; transform: none; } 4% { opacity: 1; } 46% { opacity: 1; } 50% { opacity: 0; transform: translate(100px, 19px); } 100% { opacity: 0; transform: translate(100px, 19px); } }
-    .scene .back16 { animation: back16 6.6s linear -5.2s infinite; }
-    @keyframes back16 { 0% { opacity: 0; transform: none; } 4% { opacity: 1; } 46% { opacity: 1; } 50% { opacity: 0; transform: translate(-100px, -19px); } 100% { opacity: 0; transform: translate(-100px, -19px); } }
-    .scene .go17 { animation: go17 8.0s linear -2.0s infinite; }
-    @keyframes go17 { 0% { opacity: 0; transform: none; } 4% { opacity: 1; } 46% { opacity: 1; } 50% { opacity: 0; transform: translate(-18px, 107px); } 100% { opacity: 0; transform: translate(-18px, 107px); } }
-    .scene .back17 { animation: back17 6.6s linear -2.4s infinite; }
-    @keyframes back17 { 0% { opacity: 0; transform: none; } 4% { opacity: 1; } 46% { opacity: 1; } 50% { opacity: 0; transform: translate(18px, -107px); } 100% { opacity: 0; transform: translate(18px, -107px); } }
-    .scene .go18 { animation: go18 9.4s linear -1.5s infinite; }
-    @keyframes go18 { 0% { opacity: 0; transform: none; } 4% { opacity: 1; } 46% { opacity: 1; } 50% { opacity: 0; transform: translate(118px, 101px); } 100% { opacity: 0; transform: translate(118px, 101px); } }
-    .scene .back18 { animation: back18 10.8s linear -9.5s infinite; }
-    @keyframes back18 { 0% { opacity: 0; transform: none; } 4% { opacity: 1; } 46% { opacity: 1; } 50% { opacity: 0; transform: translate(-118px, -101px); } 100% { opacity: 0; transform: translate(-118px, -101px); } }
-    .scene .go19 { animation: go19 7.0s linear -2.0s infinite; }
-    @keyframes go19 { 0% { opacity: 0; transform: none; } 4% { opacity: 1; } 46% { opacity: 1; } 50% { opacity: 0; transform: translate(3px, 55px); } 100% { opacity: 0; transform: translate(3px, 55px); } }
-    .scene .back19 { animation: back19 5.0s linear -3.9s infinite; }
-    @keyframes back19 { 0% { opacity: 0; transform: none; } 4% { opacity: 1; } 46% { opacity: 1; } 50% { opacity: 0; transform: translate(-3px, -55px); } 100% { opacity: 0; transform: translate(-3px, -55px); } }
-    .scene .go20 { animation: go20 7.8s linear -3.8s infinite; }
-    @keyframes go20 { 0% { opacity: 0; transform: none; } 4% { opacity: 1; } 46% { opacity: 1; } 50% { opacity: 0; transform: translate(99px, -5px); } 100% { opacity: 0; transform: translate(99px, -5px); } }
-    .scene .back20 { animation: back20 7.2s linear -4.9s infinite; }
-    @keyframes back20 { 0% { opacity: 0; transform: none; } 4% { opacity: 1; } 46% { opacity: 1; } 50% { opacity: 0; transform: translate(-99px, 5px); } 100% { opacity: 0; transform: translate(-99px, 5px); } }
-    .scene .go21 { animation: go21 8.0s linear -5.9s infinite; }
-    @keyframes go21 { 0% { opacity: 0; transform: none; } 4% { opacity: 1; } 46% { opacity: 1; } 50% { opacity: 0; transform: translate(116px, -12px); } 100% { opacity: 0; transform: translate(116px, -12px); } }
-    .scene .back21 { animation: back21 8.0s linear -4.9s infinite; }
-    @keyframes back21 { 0% { opacity: 0; transform: none; } 4% { opacity: 1; } 46% { opacity: 1; } 50% { opacity: 0; transform: translate(-116px, 12px); } 100% { opacity: 0; transform: translate(-116px, 12px); } }
-    .scene .go22 { animation: go22 7.0s linear -2.3s infinite; }
-    @keyframes go22 { 0% { opacity: 0; transform: none; } 4% { opacity: 1; } 46% { opacity: 1; } 50% { opacity: 0; transform: translate(132px, -17px); } 100% { opacity: 0; transform: translate(132px, -17px); } }
-    .scene .back22 { animation: back22 10.0s linear -6.4s infinite; }
-    @keyframes back22 { 0% { opacity: 0; transform: none; } 4% { opacity: 1; } 46% { opacity: 1; } 50% { opacity: 0; transform: translate(-132px, 17px); } 100% { opacity: 0; transform: translate(-132px, 17px); } }
+    .web .ai, .web .co { animation: travel var(--t) linear var(--d) infinite; }
+    @keyframes travel {
+      from { opacity: 0; transform: translate(calc(var(--x) * -1), calc(var(--y) * -1)); }
+      10%, 90% { opacity: 1; }
+      to { opacity: 0; transform: translate(var(--x), var(--y)); }
+    }
   }
 
   /* How it works: three steps, a number and a sentence each. */
@@ -165,6 +65,537 @@
 </style>
 </head>
 <body>
+<svg class="web" viewBox="0 0 1600 1000" preserveAspectRatio="xMidYMid slice" aria-hidden="true" focusable="false">
+  <line x1="504" y1="123" x2="531" y2="17"/>
+  <line x1="504" y1="123" x2="536" y2="246"/>
+  <line x1="504" y1="123" x2="381" y2="-23"/>
+  <line x1="504" y1="123" x2="637" y2="31"/>
+  <line x1="1054" y1="38" x2="1173" y2="-19"/>
+  <line x1="1054" y1="38" x2="970" y2="-29"/>
+  <line x1="1054" y1="38" x2="955" y2="116"/>
+  <line x1="860" y1="355" x2="934" y2="453"/>
+  <line x1="860" y1="355" x2="950" y2="244"/>
+  <line x1="860" y1="355" x2="845" y2="218"/>
+  <line x1="57" y1="508" x2="-33" y2="412"/>
+  <line x1="57" y1="508" x2="134" y2="645"/>
+  <line x1="57" y1="508" x2="-30" y2="585"/>
+  <line x1="77" y1="58" x2="202" y2="87"/>
+  <line x1="77" y1="58" x2="60" y2="182"/>
+  <line x1="77" y1="58" x2="180" y2="-25"/>
+  <line x1="77" y1="58" x2="-22" y2="11"/>
+  <line x1="673" y1="853" x2="563" y2="915"/>
+  <line x1="673" y1="853" x2="625" y2="1032"/>
+  <line x1="673" y1="853" x2="734" y2="967"/>
+  <line x1="673" y1="853" x2="774" y2="816"/>
+  <line x1="168" y1="201" x2="202" y2="87"/>
+  <line x1="168" y1="201" x2="60" y2="182"/>
+  <line x1="168" y1="201" x2="311" y2="135"/>
+  <line x1="168" y1="201" x2="130" y2="353"/>
+  <line x1="1014" y1="984" x2="847" y2="1017"/>
+  <line x1="1014" y1="984" x2="1057" y2="824"/>
+  <line x1="1014" y1="984" x2="1135" y2="907"/>
+  <line x1="1014" y1="984" x2="1115" y2="1021"/>
+  <line x1="1600" y1="10" x2="1569" y2="123"/>
+  <line x1="1600" y1="10" x2="1426" y2="-16"/>
+  <line x1="1600" y1="10" x2="1457" y2="176"/>
+  <line x1="1402" y1="273" x2="1300" y2="246"/>
+  <line x1="1402" y1="273" x2="1482" y2="373"/>
+  <line x1="1402" y1="273" x2="1457" y2="176"/>
+  <line x1="202" y1="87" x2="311" y2="135"/>
+  <line x1="202" y1="87" x2="180" y2="-25"/>
+  <line x1="478" y1="841" x2="563" y2="915"/>
+  <line x1="478" y1="841" x2="440" y2="970"/>
+  <line x1="478" y1="841" x2="499" y2="728"/>
+  <line x1="478" y1="841" x2="354" y2="815"/>
+  <line x1="264" y1="588" x2="370" y2="580"/>
+  <line x1="264" y1="588" x2="215" y2="488"/>
+  <line x1="264" y1="588" x2="134" y2="645"/>
+  <line x1="1033" y1="362" x2="934" y2="453"/>
+  <line x1="1033" y1="362" x2="1156" y2="385"/>
+  <line x1="1033" y1="362" x2="1085" y2="495"/>
+  <line x1="880" y1="28" x2="782" y2="-36"/>
+  <line x1="880" y1="28" x2="970" y2="-29"/>
+  <line x1="880" y1="28" x2="955" y2="116"/>
+  <line x1="880" y1="28" x2="812" y2="115"/>
+  <line x1="60" y1="182" x2="-40" y2="123"/>
+  <line x1="60" y1="182" x2="-32" y2="245"/>
+  <line x1="60" y1="182" x2="-22" y2="11"/>
+  <line x1="488" y1="592" x2="370" y2="580"/>
+  <line x1="488" y1="592" x2="395" y2="708"/>
+  <line x1="488" y1="592" x2="499" y2="728"/>
+  <line x1="721" y1="284" x2="619" y2="391"/>
+  <line x1="721" y1="284" x2="699" y2="158"/>
+  <line x1="721" y1="284" x2="845" y2="218"/>
+  <line x1="1295" y1="715" x2="1410" y2="712"/>
+  <line x1="1295" y1="715" x2="1192" y2="800"/>
+  <line x1="1295" y1="715" x2="1335" y2="841"/>
+  <line x1="370" y1="580" x2="395" y2="708"/>
+  <line x1="370" y1="580" x2="331" y2="462"/>
+  <line x1="842" y1="905" x2="847" y2="1017"/>
+  <line x1="842" y1="905" x2="893" y2="807"/>
+  <line x1="842" y1="905" x2="734" y2="967"/>
+  <line x1="842" y1="905" x2="774" y2="816"/>
+  <line x1="1185" y1="271" x2="1178" y2="144"/>
+  <line x1="1185" y1="271" x2="1300" y2="246"/>
+  <line x1="1185" y1="271" x2="1267" y2="380"/>
+  <line x1="1185" y1="271" x2="1156" y2="385"/>
+  <line x1="215" y1="488" x2="130" y2="353"/>
+  <line x1="215" y1="488" x2="284" y2="353"/>
+  <line x1="215" y1="488" x2="331" y2="462"/>
+  <line x1="26" y1="682" x2="59" y2="790"/>
+  <line x1="26" y1="682" x2="134" y2="645"/>
+  <line x1="26" y1="682" x2="-30" y2="585"/>
+  <line x1="1244" y1="579" x2="1128" y2="602"/>
+  <line x1="1244" y1="579" x2="1220" y2="476"/>
+  <line x1="1244" y1="579" x2="1375" y2="593"/>
+  <line x1="1128" y1="602" x2="1107" y2="709"/>
+  <line x1="1128" y1="602" x2="1085" y2="495"/>
+  <line x1="934" y1="453" x2="967" y2="554"/>
+  <line x1="934" y1="453" x2="840" y2="530"/>
+  <line x1="1371" y1="980" x2="1534" y2="1027"/>
+  <line x1="1371" y1="980" x2="1277" y2="929"/>
+  <line x1="1371" y1="980" x2="1469" y2="914"/>
+  <line x1="1371" y1="980" x2="1335" y2="841"/>
+  <line x1="756" y1="677" x2="608" y2="682"/>
+  <line x1="756" y1="677" x2="898" y2="638"/>
+  <line x1="756" y1="677" x2="774" y2="816"/>
+  <line x1="756" y1="677" x2="689" y2="593"/>
+  <line x1="608" y1="682" x2="499" y2="728"/>
+  <line x1="608" y1="682" x2="689" y2="593"/>
+  <line x1="59" y1="790" x2="134" y2="645"/>
+  <line x1="59" y1="790" x2="3" y2="904"/>
+  <line x1="59" y1="790" x2="68" y2="1024"/>
+  <line x1="428" y1="409" x2="383" y2="276"/>
+  <line x1="428" y1="409" x2="284" y2="353"/>
+  <line x1="428" y1="409" x2="331" y2="462"/>
+  <line x1="563" y1="915" x2="440" y2="970"/>
+  <line x1="563" y1="915" x2="625" y2="1032"/>
+  <line x1="1569" y1="123" x2="1543" y2="240"/>
+  <line x1="1569" y1="123" x2="1457" y2="176"/>
+  <line x1="950" y1="244" x2="845" y2="218"/>
+  <line x1="950" y1="244" x2="1055" y2="180"/>
+  <line x1="950" y1="244" x2="955" y2="116"/>
+  <line x1="-33" y1="412" x2="-32" y2="245"/>
+  <line x1="-33" y1="412" x2="-30" y2="585"/>
+  <line x1="1561" y1="706" x2="1471" y2="802"/>
+  <line x1="1561" y1="706" x2="1410" y2="712"/>
+  <line x1="1561" y1="706" x2="1623" y2="859"/>
+  <line x1="1561" y1="706" x2="1479" y2="630"/>
+  <line x1="1471" y1="802" x2="1410" y2="712"/>
+  <line x1="1471" y1="802" x2="1623" y2="859"/>
+  <line x1="1471" y1="802" x2="1469" y2="914"/>
+  <line x1="1471" y1="802" x2="1335" y2="841"/>
+  <line x1="619" y1="391" x2="743" y2="483"/>
+  <line x1="619" y1="391" x2="536" y2="246"/>
+  <line x1="619" y1="391" x2="620" y2="507"/>
+  <line x1="311" y1="135" x2="383" y2="276"/>
+  <line x1="311" y1="135" x2="381" y2="-23"/>
+  <line x1="531" y1="17" x2="381" y2="-23"/>
+  <line x1="531" y1="17" x2="637" y2="31"/>
+  <line x1="-40" y1="123" x2="-32" y2="245"/>
+  <line x1="-40" y1="123" x2="-22" y2="11"/>
+  <line x1="130" y1="353" x2="284" y2="353"/>
+  <line x1="3" y1="904" x2="180" y2="943"/>
+  <line x1="3" y1="904" x2="68" y2="1024"/>
+  <line x1="743" y1="483" x2="620" y2="507"/>
+  <line x1="743" y1="483" x2="840" y2="530"/>
+  <line x1="743" y1="483" x2="689" y2="593"/>
+  <line x1="536" y1="246" x2="383" y2="276"/>
+  <line x1="1352" y1="134" x2="1426" y2="-16"/>
+  <line x1="1352" y1="134" x2="1274" y2="45"/>
+  <line x1="1352" y1="134" x2="1300" y2="246"/>
+  <line x1="1352" y1="134" x2="1457" y2="176"/>
+  <line x1="847" y1="1017" x2="734" y2="967"/>
+  <line x1="1410" y1="712" x2="1479" y2="630"/>
+  <line x1="1410" y1="712" x2="1375" y2="593"/>
+  <line x1="241" y1="794" x2="395" y2="708"/>
+  <line x1="241" y1="794" x2="180" y2="943"/>
+  <line x1="241" y1="794" x2="354" y2="815"/>
+  <line x1="395" y1="708" x2="499" y2="728"/>
+  <line x1="395" y1="708" x2="354" y2="815"/>
+  <line x1="1567" y1="443" x2="1594" y2="551"/>
+  <line x1="1567" y1="443" x2="1633" y2="331"/>
+  <line x1="1567" y1="443" x2="1482" y2="373"/>
+  <line x1="1567" y1="443" x2="1473" y2="516"/>
+  <line x1="1534" y1="1027" x2="1623" y2="859"/>
+  <line x1="1534" y1="1027" x2="1469" y2="914"/>
+  <line x1="1372" y1="478" x2="1267" y2="380"/>
+  <line x1="1372" y1="478" x2="1375" y2="593"/>
+  <line x1="1372" y1="478" x2="1473" y2="516"/>
+  <line x1="1057" y1="824" x2="1135" y2="907"/>
+  <line x1="1057" y1="824" x2="1107" y2="709"/>
+  <line x1="1057" y1="824" x2="1192" y2="800"/>
+  <line x1="1220" y1="476" x2="1267" y2="380"/>
+  <line x1="1220" y1="476" x2="1156" y2="385"/>
+  <line x1="1178" y1="144" x2="1173" y2="-19"/>
+  <line x1="1178" y1="144" x2="1274" y2="45"/>
+  <line x1="1178" y1="144" x2="1055" y2="180"/>
+  <line x1="180" y1="-25" x2="381" y2="-23"/>
+  <line x1="383" y1="276" x2="284" y2="353"/>
+  <line x1="180" y1="943" x2="329" y2="989"/>
+  <line x1="180" y1="943" x2="68" y2="1024"/>
+  <line x1="699" y1="158" x2="637" y2="31"/>
+  <line x1="699" y1="158" x2="812" y2="115"/>
+  <line x1="893" y1="807" x2="1002" y2="688"/>
+  <line x1="893" y1="807" x2="774" y2="816"/>
+  <line x1="1135" y1="907" x2="1277" y2="929"/>
+  <line x1="1135" y1="907" x2="1115" y2="1021"/>
+  <line x1="1135" y1="907" x2="1192" y2="800"/>
+  <line x1="1543" y1="240" x2="1633" y2="331"/>
+  <line x1="1543" y1="240" x2="1457" y2="176"/>
+  <line x1="1277" y1="929" x2="1115" y2="1021"/>
+  <line x1="1277" y1="929" x2="1335" y2="841"/>
+  <line x1="329" y1="989" x2="440" y2="970"/>
+  <line x1="329" y1="989" x2="354" y2="815"/>
+  <line x1="1623" y1="859" x2="1469" y2="914"/>
+  <line x1="1173" y1="-19" x2="1274" y2="45"/>
+  <line x1="845" y1="218" x2="812" y2="115"/>
+  <line x1="620" y1="507" x2="689" y2="593"/>
+  <line x1="1594" y1="551" x2="1479" y2="630"/>
+  <line x1="1594" y1="551" x2="1473" y2="516"/>
+  <line x1="1107" y1="709" x2="1002" y2="688"/>
+  <line x1="1107" y1="709" x2="1192" y2="800"/>
+  <line x1="898" y1="638" x2="1002" y2="688"/>
+  <line x1="898" y1="638" x2="967" y2="554"/>
+  <line x1="898" y1="638" x2="840" y2="530"/>
+  <line x1="782" y1="-36" x2="637" y2="31"/>
+  <line x1="782" y1="-36" x2="812" y2="115"/>
+  <line x1="1426" y1="-16" x2="1274" y2="45"/>
+  <line x1="970" y1="-29" x2="955" y2="116"/>
+  <line x1="284" y1="353" x2="331" y2="462"/>
+  <line x1="1002" y1="688" x2="967" y2="554"/>
+  <line x1="625" y1="1032" x2="734" y2="967"/>
+  <line x1="1055" y1="180" x2="955" y2="116"/>
+  <line x1="1479" y1="630" x2="1375" y2="593"/>
+  <line x1="1479" y1="630" x2="1473" y2="516"/>
+  <line x1="967" y1="554" x2="840" y2="530"/>
+  <line x1="967" y1="554" x2="1085" y2="495"/>
+  <line x1="1267" y1="380" x2="1156" y2="385"/>
+  <line x1="1633" y1="331" x2="1482" y2="373"/>
+  <line x1="1156" y1="385" x2="1085" y2="495"/>
+  <line x1="1482" y1="373" x2="1473" y2="516"/>
+  <circle class="co" cx="518" cy="70" r="4" style="--x:-14px;--y:53px;--t:4.3s;--d:-0.3s"/>
+  <circle class="co" cx="520" cy="184" r="4" style="--x:16px;--y:62px;--t:4.8s;--d:-4.0s"/>
+  <circle class="ai" cx="442" cy="50" r="4" style="--x:62px;--y:73px;--t:5.2s;--d:-2.5s"/>
+  <circle class="ai" cx="571" cy="77" r="4" style="--x:-67px;--y:46px;--t:4.6s;--d:-1.1s"/>
+  <circle class="co" cx="1113" cy="10" r="4" style="--x:-60px;--y:29px;--t:4.2s;--d:-4.0s"/>
+  <circle class="co" cx="1012" cy="5" r="4" style="--x:-42px;--y:-33px;--t:3.6s;--d:-1.7s"/>
+  <circle class="ai" cx="1004" cy="77" r="4" style="--x:-50px;--y:39px;--t:4.1s;--d:-0.8s"/>
+  <circle class="co" cx="897" cy="404" r="4" style="--x:37px;--y:49px;--t:3.4s;--d:-1.1s"/>
+  <circle class="ai" cx="905" cy="299" r="4" style="--x:-45px;--y:56px;--t:4.9s;--d:-0.4s"/>
+  <circle class="ai" cx="853" cy="286" r="4" style="--x:8px;--y:69px;--t:3.8s;--d:-1.1s"/>
+  <circle class="ai" cx="12" cy="460" r="4" style="--x:-45px;--y:-48px;--t:3.6s;--d:-0.1s"/>
+  <circle class="co" cx="96" cy="577" r="4" style="--x:-38px;--y:-69px;--t:4.2s;--d:-4.1s"/>
+  <circle class="ai" cx="14" cy="547" r="4" style="--x:44px;--y:-39px;--t:4.0s;--d:-3.2s"/>
+  <circle class="co" cx="140" cy="73" r="4" style="--x:-62px;--y:-15px;--t:4.4s;--d:-2.3s"/>
+  <circle class="co" cx="69" cy="120" r="4" style="--x:9px;--y:-62px;--t:4.9s;--d:-0.6s"/>
+  <circle class="co" cx="129" cy="17" r="4" style="--x:-51px;--y:41px;--t:5.2s;--d:-3.9s"/>
+  <circle class="co" cx="28" cy="35" r="4" style="--x:-50px;--y:-23px;--t:4.3s;--d:-0.8s"/>
+  <circle class="ai" cx="618" cy="884" r="4" style="--x:55px;--y:-31px;--t:3.4s;--d:-2.4s"/>
+  <circle class="co" cx="649" cy="942" r="4" style="--x:-24px;--y:89px;--t:5.0s;--d:-2.8s"/>
+  <circle class="ai" cx="703" cy="910" r="4" style="--x:30px;--y:57px;--t:4.9s;--d:-2.6s"/>
+  <circle class="co" cx="723" cy="835" r="4" style="--x:-50px;--y:18px;--t:4.4s;--d:-2.9s"/>
+  <circle class="co" cx="185" cy="144" r="4" style="--x:-17px;--y:57px;--t:4.1s;--d:-3.8s"/>
+  <circle class="co" cx="114" cy="192" r="4" style="--x:-54px;--y:-9px;--t:4.9s;--d:-4.3s"/>
+  <circle class="ai" cx="239" cy="168" r="4" style="--x:71px;--y:-33px;--t:4.4s;--d:-2.1s"/>
+  <circle class="ai" cx="149" cy="277" r="4" style="--x:19px;--y:-76px;--t:4.8s;--d:-1.4s"/>
+  <circle class="ai" cx="931" cy="1000" r="4" style="--x:-83px;--y:17px;--t:4.8s;--d:-1.1s"/>
+  <circle class="co" cx="1036" cy="904" r="4" style="--x:21px;--y:-80px;--t:5.7s;--d:-1.7s"/>
+  <circle class="co" cx="1074" cy="945" r="4" style="--x:60px;--y:-38px;--t:4.5s;--d:-0.3s"/>
+  <circle class="ai" cx="1065" cy="1002" r="4" style="--x:51px;--y:19px;--t:4.1s;--d:-1.8s"/>
+  <circle class="ai" cx="1585" cy="67" r="4" style="--x:-16px;--y:56px;--t:3.9s;--d:-2.4s"/>
+  <circle class="co" cx="1513" cy="-3" r="4" style="--x:-87px;--y:-13px;--t:5.9s;--d:-0.7s"/>
+  <circle class="co" cx="1529" cy="93" r="4" style="--x:-72px;--y:83px;--t:5.7s;--d:-5.0s"/>
+  <circle class="co" cx="1351" cy="259" r="4" style="--x:51px;--y:13px;--t:2.9s;--d:-2.6s"/>
+  <circle class="ai" cx="1442" cy="323" r="4" style="--x:-40px;--y:-50px;--t:5.3s;--d:-4.7s"/>
+  <circle class="co" cx="1430" cy="225" r="4" style="--x:-27px;--y:48px;--t:4.3s;--d:-2.7s"/>
+  <circle class="ai" cx="257" cy="111" r="4" style="--x:54px;--y:24px;--t:3.9s;--d:-2.6s"/>
+  <circle class="ai" cx="191" cy="31" r="4" style="--x:-11px;--y:-56px;--t:3.3s;--d:-3.1s"/>
+  <circle class="co" cx="520" cy="878" r="4" style="--x:42px;--y:37px;--t:4.3s;--d:-0.2s"/>
+  <circle class="co" cx="459" cy="906" r="4" style="--x:-19px;--y:65px;--t:4.5s;--d:-2.2s"/>
+  <circle class="ai" cx="489" cy="785" r="4" style="--x:-10px;--y:57px;--t:4.4s;--d:-3.3s"/>
+  <circle class="ai" cx="416" cy="828" r="4" style="--x:62px;--y:13px;--t:4.0s;--d:-0.9s"/>
+  <circle class="co" cx="317" cy="584" r="4" style="--x:53px;--y:-4px;--t:3.9s;--d:-1.9s"/>
+  <circle class="ai" cx="239" cy="538" r="4" style="--x:-24px;--y:-50px;--t:3.7s;--d:-1.6s"/>
+  <circle class="ai" cx="199" cy="617" r="4" style="--x:65px;--y:-28px;--t:5.2s;--d:-0.6s"/>
+  <circle class="ai" cx="984" cy="407" r="4" style="--x:-50px;--y:45px;--t:5.3s;--d:-2.0s"/>
+  <circle class="co" cx="1095" cy="374" r="4" style="--x:62px;--y:11px;--t:3.7s;--d:-1.6s"/>
+  <circle class="ai" cx="1059" cy="429" r="4" style="--x:-26px;--y:-67px;--t:3.7s;--d:-2.0s"/>
+  <circle class="co" cx="831" cy="-4" r="4" style="--x:-49px;--y:-32px;--t:3.6s;--d:-0.5s"/>
+  <circle class="ai" cx="925" cy="-0" r="4" style="--x:45px;--y:-28px;--t:4.3s;--d:-1.5s"/>
+  <circle class="ai" cx="917" cy="72" r="4" style="--x:-37px;--y:-44px;--t:3.5s;--d:-0.1s"/>
+  <circle class="ai" cx="846" cy="71" r="4" style="--x:34px;--y:-43px;--t:4.6s;--d:-1.1s"/>
+  <circle class="co" cx="10" cy="153" r="4" style="--x:-50px;--y:-30px;--t:4.7s;--d:-3.3s"/>
+  <circle class="ai" cx="14" cy="214" r="4" style="--x:46px;--y:-31px;--t:4.5s;--d:-3.6s"/>
+  <circle class="ai" cx="19" cy="97" r="4" style="--x:41px;--y:86px;--t:6.0s;--d:-0.9s"/>
+  <circle class="co" cx="429" cy="586" r="4" style="--x:59px;--y:6px;--t:3.4s;--d:-1.9s"/>
+  <circle class="ai" cx="442" cy="650" r="4" style="--x:-46px;--y:58px;--t:5.2s;--d:-0.4s"/>
+  <circle class="co" cx="494" cy="660" r="4" style="--x:-6px;--y:-68px;--t:5.3s;--d:-2.4s"/>
+  <circle class="co" cx="670" cy="337" r="4" style="--x:-51px;--y:54px;--t:5.5s;--d:-5.4s"/>
+  <circle class="co" cx="710" cy="221" r="4" style="--x:11px;--y:63px;--t:4.8s;--d:-3.0s"/>
+  <circle class="co" cx="783" cy="251" r="4" style="--x:62px;--y:-33px;--t:4.2s;--d:-2.8s"/>
+  <circle class="co" cx="1352" cy="713" r="4" style="--x:-58px;--y:2px;--t:3.5s;--d:-2.6s"/>
+  <circle class="ai" cx="1243" cy="757" r="4" style="--x:51px;--y:-42px;--t:5.4s;--d:-5.2s"/>
+  <circle class="ai" cx="1315" cy="778" r="4" style="--x:-20px;--y:-63px;--t:3.8s;--d:-0.1s"/>
+  <circle class="ai" cx="383" cy="644" r="4" style="--x:13px;--y:64px;--t:3.8s;--d:-0.5s"/>
+  <circle class="co" cx="350" cy="521" r="4" style="--x:-20px;--y:-59px;--t:3.7s;--d:-2.5s"/>
+  <circle class="ai" cx="845" cy="961" r="4" style="--x:-2px;--y:-56px;--t:4.6s;--d:-2.6s"/>
+  <circle class="ai" cx="868" cy="856" r="4" style="--x:-25px;--y:49px;--t:4.9s;--d:-0.8s"/>
+  <circle class="co" cx="788" cy="936" r="4" style="--x:54px;--y:-31px;--t:4.3s;--d:-0.7s"/>
+  <circle class="co" cx="808" cy="861" r="4" style="--x:34px;--y:44px;--t:4.9s;--d:-2.5s"/>
+  <circle class="co" cx="1182" cy="207" r="4" style="--x:-4px;--y:-64px;--t:4.0s;--d:-0.3s"/>
+  <circle class="co" cx="1243" cy="258" r="4" style="--x:57px;--y:-13px;--t:5.0s;--d:-4.3s"/>
+  <circle class="co" cx="1226" cy="325" r="4" style="--x:41px;--y:54px;--t:5.0s;--d:-2.1s"/>
+  <circle class="ai" cx="1171" cy="328" r="4" style="--x:15px;--y:-57px;--t:4.7s;--d:-3.4s"/>
+  <circle class="co" cx="173" cy="420" r="4" style="--x:-42px;--y:-68px;--t:5.6s;--d:-2.9s"/>
+  <circle class="co" cx="250" cy="421" r="4" style="--x:-34px;--y:67px;--t:4.1s;--d:-3.7s"/>
+  <circle class="co" cx="273" cy="475" r="4" style="--x:58px;--y:-13px;--t:4.7s;--d:-2.1s"/>
+  <circle class="ai" cx="42" cy="736" r="4" style="--x:17px;--y:54px;--t:4.6s;--d:-4.5s"/>
+  <circle class="co" cx="80" cy="663" r="4" style="--x:-54px;--y:18px;--t:4.6s;--d:-1.0s"/>
+  <circle class="ai" cx="-2" cy="634" r="4" style="--x:-28px;--y:-48px;--t:4.4s;--d:-0.0s"/>
+  <circle class="co" cx="1186" cy="590" r="4" style="--x:58px;--y:-12px;--t:3.6s;--d:-1.7s"/>
+  <circle class="co" cx="1232" cy="528" r="4" style="--x:12px;--y:51px;--t:3.1s;--d:-0.2s"/>
+  <circle class="co" cx="1310" cy="586" r="4" style="--x:65px;--y:7px;--t:5.2s;--d:-2.6s"/>
+  <circle class="co" cx="1118" cy="655" r="4" style="--x:10px;--y:-53px;--t:3.0s;--d:-1.5s"/>
+  <circle class="ai" cx="1107" cy="549" r="4" style="--x:21px;--y:53px;--t:3.9s;--d:-2.6s"/>
+  <circle class="ai" cx="951" cy="503" r="4" style="--x:-16px;--y:-51px;--t:4.8s;--d:-4.5s"/>
+  <circle class="ai" cx="887" cy="491" r="4" style="--x:-47px;--y:38px;--t:3.5s;--d:-1.6s"/>
+  <circle class="co" cx="1453" cy="1004" r="4" style="--x:-82px;--y:-23px;--t:4.6s;--d:-1.6s"/>
+  <circle class="co" cx="1324" cy="955" r="4" style="--x:-47px;--y:-26px;--t:3.5s;--d:-1.9s"/>
+  <circle class="ai" cx="1420" cy="947" r="4" style="--x:-49px;--y:33px;--t:4.1s;--d:-3.3s"/>
+  <circle class="co" cx="1353" cy="911" r="4" style="--x:-18px;--y:-69px;--t:5.0s;--d:-1.0s"/>
+  <circle class="co" cx="682" cy="680" r="4" style="--x:-74px;--y:2px;--t:4.5s;--d:-3.9s"/>
+  <circle class="ai" cx="827" cy="658" r="4" style="--x:-71px;--y:20px;--t:5.4s;--d:-3.6s"/>
+  <circle class="co" cx="765" cy="747" r="4" style="--x:9px;--y:69px;--t:5.5s;--d:-0.8s"/>
+  <circle class="ai" cx="723" cy="635" r="4" style="--x:-34px;--y:-42px;--t:3.8s;--d:-1.5s"/>
+  <circle class="ai" cx="554" cy="705" r="4" style="--x:-54px;--y:23px;--t:5.0s;--d:-3.5s"/>
+  <circle class="co" cx="648" cy="638" r="4" style="--x:40px;--y:-45px;--t:4.9s;--d:-2.1s"/>
+  <circle class="co" cx="96" cy="717" r="4" style="--x:37px;--y:-72px;--t:5.5s;--d:-0.8s"/>
+  <circle class="ai" cx="31" cy="847" r="4" style="--x:28px;--y:-57px;--t:3.6s;--d:-1.5s"/>
+  <circle class="co" cx="64" cy="907" r="4" style="--x:-4px;--y:-117px;--t:5.7s;--d:-0.3s"/>
+  <circle class="ai" cx="405" cy="342" r="4" style="--x:-22px;--y:-66px;--t:4.7s;--d:-2.3s"/>
+  <circle class="co" cx="356" cy="381" r="4" style="--x:-72px;--y:-28px;--t:4.5s;--d:-1.1s"/>
+  <circle class="co" cx="379" cy="435" r="4" style="--x:-48px;--y:27px;--t:4.4s;--d:-3.1s"/>
+  <circle class="co" cx="501" cy="943" r="4" style="--x:61px;--y:-28px;--t:4.5s;--d:-4.5s"/>
+  <circle class="ai" cx="594" cy="973" r="4" style="--x:31px;--y:58px;--t:4.9s;--d:-0.5s"/>
+  <circle class="ai" cx="1556" cy="182" r="4" style="--x:13px;--y:-59px;--t:5.0s;--d:-0.4s"/>
+  <circle class="co" cx="1513" cy="150" r="4" style="--x:56px;--y:-27px;--t:3.9s;--d:-2.7s"/>
+  <circle class="ai" cx="897" cy="231" r="4" style="--x:52px;--y:13px;--t:4.8s;--d:-2.3s"/>
+  <circle class="ai" cx="1002" cy="212" r="4" style="--x:-53px;--y:32px;--t:4.8s;--d:-4.0s"/>
+  <circle class="co" cx="952" cy="180" r="4" style="--x:2px;--y:-64px;--t:4.0s;--d:-1.3s"/>
+  <circle class="ai" cx="-32" cy="329" r="4" style="--x:1px;--y:-84px;--t:5.3s;--d:-5.1s"/>
+  <circle class="ai" cx="-32" cy="499" r="4" style="--x:-2px;--y:-87px;--t:6.1s;--d:-5.0s"/>
+  <circle class="ai" cx="1516" cy="754" r="4" style="--x:-45px;--y:48px;--t:4.2s;--d:-1.8s"/>
+  <circle class="co" cx="1486" cy="709" r="4" style="--x:75px;--y:-3px;--t:4.8s;--d:-2.4s"/>
+  <circle class="ai" cx="1592" cy="782" r="4" style="--x:31px;--y:77px;--t:4.6s;--d:-3.3s"/>
+  <circle class="co" cx="1520" cy="668" r="4" style="--x:-41px;--y:-38px;--t:3.0s;--d:-2.6s"/>
+  <circle class="ai" cx="1441" cy="757" r="4" style="--x:-30px;--y:-45px;--t:4.6s;--d:-4.6s"/>
+  <circle class="ai" cx="1547" cy="831" r="4" style="--x:-76px;--y:-28px;--t:5.0s;--d:-2.3s"/>
+  <circle class="co" cx="1470" cy="858" r="4" style="--x:-1px;--y:56px;--t:4.0s;--d:-2.6s"/>
+  <circle class="co" cx="1403" cy="822" r="4" style="--x:68px;--y:-20px;--t:4.9s;--d:-2.5s"/>
+  <circle class="ai" cx="681" cy="437" r="4" style="--x:-62px;--y:-46px;--t:4.0s;--d:-3.7s"/>
+  <circle class="ai" cx="577" cy="318" r="4" style="--x:42px;--y:72px;--t:4.9s;--d:-4.3s"/>
+  <circle class="ai" cx="620" cy="449" r="4" style="--x:1px;--y:58px;--t:5.0s;--d:-2.6s"/>
+  <circle class="co" cx="347" cy="206" r="4" style="--x:36px;--y:71px;--t:5.9s;--d:-2.6s"/>
+  <circle class="co" cx="346" cy="56" r="4" style="--x:-35px;--y:79px;--t:5.4s;--d:-3.5s"/>
+  <circle class="ai" cx="456" cy="-3" r="4" style="--x:75px;--y:20px;--t:4.1s;--d:-0.8s"/>
+  <circle class="co" cx="584" cy="24" r="4" style="--x:-53px;--y:-7px;--t:4.9s;--d:-4.0s"/>
+  <circle class="ai" cx="-36" cy="184" r="4" style="--x:4px;--y:61px;--t:4.2s;--d:-1.7s"/>
+  <circle class="co" cx="-31" cy="67" r="4" style="--x:9px;--y:-56px;--t:4.2s;--d:-0.2s"/>
+  <circle class="co" cx="207" cy="353" r="4" style="--x:77px;--y:0px;--t:4.7s;--d:-2.7s"/>
+  <circle class="ai" cx="92" cy="924" r="4" style="--x:89px;--y:19px;--t:6.0s;--d:-3.9s"/>
+  <circle class="co" cx="35" cy="964" r="4" style="--x:33px;--y:60px;--t:4.4s;--d:-0.7s"/>
+  <circle class="co" cx="682" cy="495" r="4" style="--x:61px;--y:-12px;--t:4.4s;--d:-3.3s"/>
+  <circle class="co" cx="792" cy="506" r="4" style="--x:-49px;--y:-24px;--t:4.4s;--d:-2.6s"/>
+  <circle class="co" cx="716" cy="538" r="4" style="--x:-27px;--y:55px;--t:3.7s;--d:-3.5s"/>
+  <circle class="co" cx="459" cy="261" r="4" style="--x:-76px;--y:15px;--t:5.6s;--d:-1.4s"/>
+  <circle class="co" cx="1389" cy="59" r="4" style="--x:-37px;--y:75px;--t:6.0s;--d:-2.6s"/>
+  <circle class="ai" cx="1313" cy="90" r="4" style="--x:-39px;--y:-45px;--t:3.2s;--d:-0.2s"/>
+  <circle class="ai" cx="1326" cy="190" r="4" style="--x:26px;--y:-56px;--t:4.5s;--d:-1.6s"/>
+  <circle class="ai" cx="1405" cy="155" r="4" style="--x:-52px;--y:-21px;--t:4.3s;--d:-3.4s"/>
+  <circle class="ai" cx="790" cy="992" r="4" style="--x:-57px;--y:-25px;--t:5.0s;--d:-3.9s"/>
+  <circle class="co" cx="1445" cy="671" r="4" style="--x:34px;--y:-41px;--t:4.5s;--d:-4.5s"/>
+  <circle class="co" cx="1393" cy="652" r="4" style="--x:-18px;--y:-59px;--t:3.9s;--d:-2.2s"/>
+  <circle class="ai" cx="318" cy="751" r="4" style="--x:-77px;--y:43px;--t:6.1s;--d:-4.7s"/>
+  <circle class="co" cx="210" cy="868" r="4" style="--x:30px;--y:-75px;--t:5.6s;--d:-4.0s"/>
+  <circle class="co" cx="297" cy="805" r="4" style="--x:57px;--y:11px;--t:3.4s;--d:-0.1s"/>
+  <circle class="ai" cx="447" cy="718" r="4" style="--x:52px;--y:10px;--t:3.3s;--d:-0.8s"/>
+  <circle class="ai" cx="375" cy="762" r="4" style="--x:21px;--y:-54px;--t:4.4s;--d:-0.2s"/>
+  <circle class="ai" cx="1580" cy="497" r="4" style="--x:14px;--y:54px;--t:4.3s;--d:-3.1s"/>
+  <circle class="ai" cx="1600" cy="387" r="4" style="--x:-33px;--y:56px;--t:4.7s;--d:-2.8s"/>
+  <circle class="ai" cx="1524" cy="408" r="4" style="--x:-43px;--y:-35px;--t:4.3s;--d:-0.1s"/>
+  <circle class="co" cx="1520" cy="480" r="4" style="--x:47px;--y:-37px;--t:3.2s;--d:-0.2s"/>
+  <circle class="ai" cx="1579" cy="943" r="4" style="--x:44px;--y:-84px;--t:5.1s;--d:-0.2s"/>
+  <circle class="ai" cx="1502" cy="971" r="4" style="--x:33px;--y:56px;--t:4.8s;--d:-0.6s"/>
+  <circle class="co" cx="1320" cy="429" r="4" style="--x:52px;--y:49px;--t:5.7s;--d:-5.7s"/>
+  <circle class="ai" cx="1373" cy="535" r="4" style="--x:-1px;--y:-58px;--t:3.1s;--d:-2.4s"/>
+  <circle class="co" cx="1423" cy="497" r="4" style="--x:51px;--y:19px;--t:3.8s;--d:-1.5s"/>
+  <circle class="co" cx="1096" cy="865" r="4" style="--x:39px;--y:42px;--t:3.6s;--d:-3.3s"/>
+  <circle class="co" cx="1082" cy="766" r="4" style="--x:25px;--y:-57px;--t:3.8s;--d:-2.2s"/>
+  <circle class="co" cx="1125" cy="812" r="4" style="--x:-68px;--y:12px;--t:3.9s;--d:-1.8s"/>
+  <circle class="ai" cx="1244" cy="428" r="4" style="--x:-24px;--y:48px;--t:3.2s;--d:-2.2s"/>
+  <circle class="ai" cx="1188" cy="431" r="4" style="--x:32px;--y:46px;--t:3.3s;--d:-3.1s"/>
+  <circle class="co" cx="1175" cy="62" r="4" style="--x:-2px;--y:-81px;--t:5.3s;--d:-0.6s"/>
+  <circle class="ai" cx="1226" cy="94" r="4" style="--x:-48px;--y:49px;--t:5.1s;--d:-1.0s"/>
+  <circle class="co" cx="1116" cy="162" r="4" style="--x:-61px;--y:18px;--t:3.7s;--d:-3.4s"/>
+  <circle class="co" cx="280" cy="-24" r="4" style="--x:-100px;--y:-1px;--t:6.1s;--d:-0.1s"/>
+  <circle class="co" cx="334" cy="315" r="4" style="--x:-49px;--y:38px;--t:4.4s;--d:-4.2s"/>
+  <circle class="ai" cx="255" cy="966" r="4" style="--x:74px;--y:23px;--t:5.7s;--d:-3.3s"/>
+  <circle class="co" cx="124" cy="983" r="4" style="--x:56px;--y:-41px;--t:4.6s;--d:-1.7s"/>
+  <circle class="ai" cx="668" cy="94" r="4" style="--x:-31px;--y:-64px;--t:4.1s;--d:-0.8s"/>
+  <circle class="co" cx="756" cy="136" r="4" style="--x:-56px;--y:22px;--t:4.5s;--d:-0.7s"/>
+  <circle class="co" cx="948" cy="748" r="4" style="--x:54px;--y:-59px;--t:4.7s;--d:-4.5s"/>
+  <circle class="co" cx="833" cy="812" r="4" style="--x:-60px;--y:5px;--t:4.4s;--d:-2.4s"/>
+  <circle class="co" cx="1206" cy="918" r="4" style="--x:71px;--y:11px;--t:4.9s;--d:-3.8s"/>
+  <circle class="ai" cx="1125" cy="964" r="4" style="--x:10px;--y:-57px;--t:4.4s;--d:-1.8s"/>
+  <circle class="ai" cx="1163" cy="853" r="4" style="--x:29px;--y:-53px;--t:3.8s;--d:-2.4s"/>
+  <circle class="co" cx="1588" cy="286" r="4" style="--x:45px;--y:45px;--t:4.3s;--d:-0.3s"/>
+  <circle class="co" cx="1500" cy="208" r="4" style="--x:43px;--y:32px;--t:4.3s;--d:-4.2s"/>
+  <circle class="ai" cx="1196" cy="975" r="4" style="--x:-81px;--y:46px;--t:5.3s;--d:-2.5s"/>
+  <circle class="ai" cx="1306" cy="885" r="4" style="--x:-29px;--y:44px;--t:4.5s;--d:-1.0s"/>
+  <circle class="co" cx="384" cy="980" r="4" style="--x:55px;--y:-9px;--t:3.6s;--d:-3.2s"/>
+  <circle class="co" cx="342" cy="902" r="4" style="--x:13px;--y:-87px;--t:5.4s;--d:-2.6s"/>
+  <circle class="co" cx="1546" cy="887" r="4" style="--x:-77px;--y:28px;--t:4.4s;--d:-1.0s"/>
+  <circle class="co" cx="1224" cy="13" r="4" style="--x:-50px;--y:-32px;--t:4.9s;--d:-2.4s"/>
+  <circle class="co" cx="829" cy="166" r="4" style="--x:16px;--y:51px;--t:4.8s;--d:-1.0s"/>
+  <circle class="co" cx="654" cy="550" r="4" style="--x:-34px;--y:-43px;--t:4.6s;--d:-2.4s"/>
+  <circle class="ai" cx="1537" cy="590" r="4" style="--x:-57px;--y:40px;--t:5.3s;--d:-2.3s"/>
+  <circle class="co" cx="1534" cy="534" r="4" style="--x:-60px;--y:-17px;--t:3.4s;--d:-1.5s"/>
+  <circle class="ai" cx="1055" cy="698" r="4" style="--x:-53px;--y:-10px;--t:3.3s;--d:-3.2s"/>
+  <circle class="ai" cx="1150" cy="754" r="4" style="--x:42px;--y:46px;--t:4.1s;--d:-2.1s"/>
+  <circle class="co" cx="950" cy="663" r="4" style="--x:-52px;--y:-25px;--t:3.4s;--d:-2.7s"/>
+  <circle class="co" cx="933" cy="596" r="4" style="--x:-34px;--y:42px;--t:3.3s;--d:-2.0s"/>
+  <circle class="co" cx="869" cy="584" r="4" style="--x:-29px;--y:-54px;--t:5.2s;--d:-1.0s"/>
+  <circle class="ai" cx="710" cy="-3" r="4" style="--x:-72px;--y:34px;--t:5.3s;--d:-3.2s"/>
+  <circle class="ai" cx="797" cy="39" r="4" style="--x:-15px;--y:-76px;--t:4.4s;--d:-3.0s"/>
+  <circle class="co" cx="1350" cy="14" r="4" style="--x:-76px;--y:31px;--t:6.1s;--d:-1.6s"/>
+  <circle class="ai" cx="962" cy="44" r="4" style="--x:-8px;--y:72px;--t:5.2s;--d:-3.2s"/>
+  <circle class="co" cx="308" cy="408" r="4" style="--x:23px;--y:55px;--t:4.9s;--d:-0.1s"/>
+  <circle class="ai" cx="985" cy="621" r="4" style="--x:17px;--y:67px;--t:4.8s;--d:-2.2s"/>
+  <circle class="co" cx="680" cy="999" r="4" style="--x:54px;--y:-32px;--t:4.7s;--d:-0.9s"/>
+  <circle class="ai" cx="1005" cy="148" r="4" style="--x:50px;--y:32px;--t:4.8s;--d:-2.3s"/>
+  <circle class="ai" cx="1427" cy="612" r="4" style="--x:52px;--y:18px;--t:3.6s;--d:-0.7s"/>
+  <circle class="co" cx="1476" cy="573" r="4" style="--x:3px;--y:57px;--t:3.7s;--d:-2.2s"/>
+  <circle class="ai" cx="904" cy="542" r="4" style="--x:63px;--y:12px;--t:4.2s;--d:-2.3s"/>
+  <circle class="ai" cx="1026" cy="525" r="4" style="--x:-59px;--y:29px;--t:4.7s;--d:-4.6s"/>
+  <circle class="ai" cx="1212" cy="382" r="4" style="--x:-55px;--y:3px;--t:3.3s;--d:-0.3s"/>
+  <circle class="ai" cx="1558" cy="352" r="4" style="--x:76px;--y:-21px;--t:4.1s;--d:-1.2s"/>
+  <circle class="ai" cx="1121" cy="440" r="4" style="--x:-36px;--y:55px;--t:5.1s;--d:-3.1s"/>
+  <circle class="ai" cx="1477" cy="445" r="4" style="--x:4px;--y:-72px;--t:3.8s;--d:-1.2s"/>
+  <circle class="point" cx="504" cy="123" r="5"/>
+  <circle class="point" cx="1054" cy="38" r="3.5"/>
+  <circle class="point" cx="860" cy="355" r="3.5"/>
+  <circle class="point" cx="57" cy="508" r="3.5"/>
+  <circle class="point" cx="77" cy="58" r="5"/>
+  <circle class="point" cx="673" cy="853" r="3.5"/>
+  <circle class="point" cx="168" cy="201" r="3.5"/>
+  <circle class="point" cx="1014" cy="984" r="3.5"/>
+  <circle class="point" cx="1600" cy="10" r="5"/>
+  <circle class="point" cx="1402" cy="273" r="3.5"/>
+  <circle class="point" cx="202" cy="87" r="3.5"/>
+  <circle class="point" cx="478" cy="841" r="3.5"/>
+  <circle class="point" cx="264" cy="588" r="5"/>
+  <circle class="point" cx="1033" cy="362" r="3.5"/>
+  <circle class="point" cx="880" cy="28" r="3.5"/>
+  <circle class="point" cx="60" cy="182" r="3.5"/>
+  <circle class="point" cx="488" cy="592" r="5"/>
+  <circle class="point" cx="721" cy="284" r="3.5"/>
+  <circle class="point" cx="1295" cy="715" r="3.5"/>
+  <circle class="point" cx="370" cy="580" r="3.5"/>
+  <circle class="point" cx="842" cy="905" r="5"/>
+  <circle class="point" cx="1185" cy="271" r="3.5"/>
+  <circle class="point" cx="215" cy="488" r="3.5"/>
+  <circle class="point" cx="26" cy="682" r="3.5"/>
+  <circle class="point" cx="1244" cy="579" r="5"/>
+  <circle class="point" cx="1128" cy="602" r="3.5"/>
+  <circle class="point" cx="934" cy="453" r="3.5"/>
+  <circle class="point" cx="1371" cy="980" r="3.5"/>
+  <circle class="point" cx="756" cy="677" r="5"/>
+  <circle class="point" cx="608" cy="682" r="3.5"/>
+  <circle class="point" cx="59" cy="790" r="3.5"/>
+  <circle class="point" cx="428" cy="409" r="3.5"/>
+  <circle class="point" cx="563" cy="915" r="5"/>
+  <circle class="point" cx="1569" cy="123" r="3.5"/>
+  <circle class="point" cx="950" cy="244" r="3.5"/>
+  <circle class="point" cx="-33" cy="412" r="3.5"/>
+  <circle class="point" cx="1561" cy="706" r="5"/>
+  <circle class="point" cx="1471" cy="802" r="3.5"/>
+  <circle class="point" cx="619" cy="391" r="3.5"/>
+  <circle class="point" cx="134" cy="645" r="3.5"/>
+  <circle class="point" cx="311" cy="135" r="5"/>
+  <circle class="point" cx="531" cy="17" r="3.5"/>
+  <circle class="point" cx="-40" cy="123" r="3.5"/>
+  <circle class="point" cx="130" cy="353" r="3.5"/>
+  <circle class="point" cx="3" cy="904" r="5"/>
+  <circle class="point" cx="743" cy="483" r="3.5"/>
+  <circle class="point" cx="536" cy="246" r="3.5"/>
+  <circle class="point" cx="1352" cy="134" r="3.5"/>
+  <circle class="point" cx="847" cy="1017" r="5"/>
+  <circle class="point" cx="1410" cy="712" r="3.5"/>
+  <circle class="point" cx="241" cy="794" r="3.5"/>
+  <circle class="point" cx="395" cy="708" r="3.5"/>
+  <circle class="point" cx="1567" cy="443" r="5"/>
+  <circle class="point" cx="1534" cy="1027" r="3.5"/>
+  <circle class="point" cx="1372" cy="478" r="3.5"/>
+  <circle class="point" cx="1057" cy="824" r="3.5"/>
+  <circle class="point" cx="1220" cy="476" r="5"/>
+  <circle class="point" cx="1178" cy="144" r="3.5"/>
+  <circle class="point" cx="180" cy="-25" r="3.5"/>
+  <circle class="point" cx="383" cy="276" r="3.5"/>
+  <circle class="point" cx="180" cy="943" r="5"/>
+  <circle class="point" cx="699" cy="158" r="3.5"/>
+  <circle class="point" cx="893" cy="807" r="3.5"/>
+  <circle class="point" cx="1135" cy="907" r="3.5"/>
+  <circle class="point" cx="1543" cy="240" r="5"/>
+  <circle class="point" cx="1277" cy="929" r="3.5"/>
+  <circle class="point" cx="329" cy="989" r="3.5"/>
+  <circle class="point" cx="1623" cy="859" r="3.5"/>
+  <circle class="point" cx="1173" cy="-19" r="5"/>
+  <circle class="point" cx="68" cy="1024" r="3.5"/>
+  <circle class="point" cx="845" cy="218" r="3.5"/>
+  <circle class="point" cx="381" cy="-23" r="3.5"/>
+  <circle class="point" cx="620" cy="507" r="5"/>
+  <circle class="point" cx="1115" cy="1021" r="3.5"/>
+  <circle class="point" cx="1594" cy="551" r="3.5"/>
+  <circle class="point" cx="-32" cy="245" r="3.5"/>
+  <circle class="point" cx="1107" cy="709" r="5"/>
+  <circle class="point" cx="898" cy="638" r="3.5"/>
+  <circle class="point" cx="782" cy="-36" r="3.5"/>
+  <circle class="point" cx="440" cy="970" r="3.5"/>
+  <circle class="point" cx="1426" cy="-16" r="5"/>
+  <circle class="point" cx="970" cy="-29" r="3.5"/>
+  <circle class="point" cx="1469" cy="914" r="3.5"/>
+  <circle class="point" cx="284" cy="353" r="3.5"/>
+  <circle class="point" cx="1274" cy="45" r="5"/>
+  <circle class="point" cx="1002" cy="688" r="3.5"/>
+  <circle class="point" cx="625" cy="1032" r="3.5"/>
+  <circle class="point" cx="1055" cy="180" r="3.5"/>
+  <circle class="point" cx="1479" cy="630" r="5"/>
+  <circle class="point" cx="967" cy="554" r="3.5"/>
+  <circle class="point" cx="1192" cy="800" r="3.5"/>
+  <circle class="point" cx="1300" cy="246" r="3.5"/>
+  <circle class="point" cx="1267" cy="380" r="5"/>
+  <circle class="point" cx="1335" cy="841" r="3.5"/>
+  <circle class="point" cx="734" cy="967" r="3.5"/>
+  <circle class="point" cx="499" cy="728" r="3.5"/>
+  <circle class="point" cx="-22" cy="11" r="5"/>
+  <circle class="point" cx="1633" cy="331" r="3.5"/>
+  <circle class="point" cx="1375" cy="593" r="3.5"/>
+  <circle class="point" cx="774" cy="816" r="3.5"/>
+  <circle class="point" cx="637" cy="31" r="5"/>
+  <circle class="point" cx="-30" cy="585" r="3.5"/>
+  <circle class="point" cx="354" cy="815" r="3.5"/>
+  <circle class="point" cx="1156" cy="385" r="3.5"/>
+  <circle class="point" cx="840" cy="530" r="5"/>
+  <circle class="point" cx="1482" cy="373" r="3.5"/>
+  <circle class="point" cx="955" cy="116" r="3.5"/>
+  <circle class="point" cx="1085" cy="495" r="3.5"/>
+  <circle class="point" cx="812" cy="115" r="5"/>
+  <circle class="point" cx="1457" cy="176" r="3.5"/>
+  <circle class="point" cx="1473" cy="516" r="3.5"/>
+  <circle class="point" cx="331" cy="462" r="3.5"/>
+  <circle class="point" cx="689" cy="593" r="5"/>
+</svg>
 <header class="site-top">
   <div class="wrap">
     <a class="logo" href="./"><img src="ds/logo/belong-wordmark-small-ink.svg" alt="Belong" width="90" height="26"></a>
@@ -177,7 +608,7 @@
 
 <main>
   <section class="hero" aria-labelledby="hero-title">
-    <div class="wrap hero-grid">
+    <div class="wrap">
       <div class="rise">
         <h1 id="hero-title" class="display-xl">Meet the people looking for <span class="drop-coral">you</span></h1>
         <p class="lead">Tell your AI what you're looking for. Belong finds the people looking for you, and you meet only when you both say yes.</p>
@@ -186,129 +617,6 @@
           <a class="btn lg secondary" href="#how">How it works</a>
         </div>
       </div>
-
-      <figure class="scene rise later" role="img" aria-label="A web of people joined by lines, with small dots always moving along them both ways, and a few lines held as matches.">
-        <svg viewBox="0 0 600 480" aria-hidden="true">
-          <g class="field">
-            <circle cx="264" cy="97" r="2.7" style="--d: 1.4s; --p: 5.7s"/>
-            <circle cx="34" cy="154" r="3.9" style="--d: 5.2s; --p: 6.7s"/>
-            <circle cx="186" cy="44" r="3.7" class="m" style="--d: 3.9s; --p: 4.7s"/>
-            <circle cx="333" cy="365" r="3.2" style="--d: 1.4s; --p: 4.9s"/>
-            <circle cx="316" cy="333" r="3.8" style="--d: 5.2s; --p: 5.0s"/>
-            <circle cx="100" cy="34" r="4.3" style="--d: 5.7s; --p: 6.1s"/>
-            <circle cx="272" cy="41" r="4.2" style="--d: 2.9s; --p: 6.7s"/>
-            <circle cx="31" cy="114" r="2.9" style="--d: 2.1s; --p: 7.9s"/>
-            <circle cx="228" cy="221" r="3.2" class="m" style="--d: 4.6s; --p: 7.9s"/>
-            <circle cx="419" cy="279" r="2.7" style="--d: 1.4s; --p: 7.5s"/>
-            <circle cx="399" cy="333" r="3.1" class="c" style="--d: 4.1s; --p: 5.3s"/>
-            <circle cx="39" cy="194" r="4.5" style="--d: 5.3s; --p: 5.4s"/>
-            <circle cx="238" cy="133" r="4.0" style="--d: 0.2s; --p: 5.9s"/>
-            <circle cx="25" cy="46" r="4.1" style="--d: 1.4s; --p: 6.0s"/>
-            <circle cx="109" cy="194" r="2.2" class="c" style="--d: 2.7s; --p: 4.4s"/>
-            <circle cx="170" cy="121" r="3.5" style="--d: 1.6s; --p: 4.2s"/>
-            <circle cx="426" cy="362" r="3.1" style="--d: 3.8s; --p: 7.5s"/>
-            <circle cx="167" cy="198" r="3.2" style="--d: 3.8s; --p: 6.7s"/>
-            <circle cx="510" cy="356" r="4.4" class="c" style="--d: 2.0s; --p: 4.1s"/>
-            <circle cx="576" cy="442" r="3.1" class="c" style="--d: 0.3s; --p: 7.3s"/>
-            <circle cx="456" cy="426" r="3.5" style="--d: 2.9s; --p: 5.3s"/>
-            <circle cx="68" cy="246" r="4.5" style="--d: 4.2s; --p: 5.4s"/>
-            <circle cx="147" cy="43" r="3.2" style="--d: 5.8s; --p: 4.5s"/>
-            <circle cx="415" cy="438" r="2.9" style="--d: 4.0s; --p: 6.6s"/>
-            <circle cx="206" cy="183" r="2.6" style="--d: 3.5s; --p: 4.8s"/>
-            <circle cx="264" cy="327" r="3.0" style="--d: 2.6s; --p: 5.6s"/>
-            <circle cx="274" cy="162" r="3.7" style="--d: 2.2s; --p: 6.4s"/>
-            <circle cx="441" cy="326" r="2.6" style="--d: 3.6s; --p: 4.9s"/>
-            <circle cx="471" cy="344" r="3.6" style="--d: 4.5s; --p: 7.9s"/>
-            <circle cx="151" cy="159" r="3.0" style="--d: 4.7s; --p: 6.4s"/>
-          </g>
-          <line class="link" x1="99" y1="84" x2="210" y2="64"/>
-          <circle class="dot ai go0" cx="99" cy="84" r="4.5"/>
-          <circle class="dot co back0" cx="210" cy="64" r="4.5"/>
-          <line class="link held" x1="82" y1="114" x2="119" y2="221"/>
-          <circle class="dot ai go1" cx="82" cy="114" r="4.5"/>
-          <circle class="dot co back1" cx="119" cy="221" r="4.5"/>
-          <g class="meet"><circle class="meet-ground" cx="100" cy="168" r="11"/><path class="half-a" d="M100 158a9 9 0 0 0 0 18z"/><path class="half-b" d="M100 158a9 9 0 0 1 0 18z"/></g>
-          <line class="link held" x1="93" y1="106" x2="249" y2="233"/>
-          <circle class="dot ai go2" cx="93" cy="106" r="4.5"/>
-          <circle class="dot co back2" cx="249" cy="233" r="4.5"/>
-          <g class="meet"><circle class="meet-ground" cx="171" cy="170" r="11"/><path class="half-a" d="M171 160a9 9 0 0 0 0 18z"/><path class="half-b" d="M171 160a9 9 0 0 1 0 18z"/></g>
-          <line class="link" x1="262" y1="62" x2="316" y2="69"/>
-          <circle class="dot ai go3" cx="262" cy="62" r="4.5"/>
-          <circle class="dot co back3" cx="316" cy="69" r="4.5"/>
-          <line class="link" x1="240" y1="85" x2="265" y2="224"/>
-          <circle class="dot ai go4" cx="240" cy="85" r="4.5"/>
-          <circle class="dot co back4" cx="265" cy="224" r="4.5"/>
-          <line class="link" x1="368" y1="76" x2="484" y2="95"/>
-          <circle class="dot ai go5" cx="368" cy="76" r="4.5"/>
-          <circle class="dot co back5" cx="484" cy="95" r="4.5"/>
-          <line class="link" x1="349" y1="97" x2="384" y2="211"/>
-          <circle class="dot ai go6" cx="349" cy="97" r="4.5"/>
-          <circle class="dot co back6" cx="384" cy="211" r="4.5"/>
-          <line class="link held" x1="493" y1="119" x2="408" y2="216"/>
-          <circle class="dot ai go7" cx="493" cy="119" r="4.5"/>
-          <circle class="dot co back7" cx="408" cy="216" r="4.5"/>
-          <g class="meet"><circle class="meet-ground" cx="450" cy="168" r="11"/><path class="half-a" d="M450 158a9 9 0 0 0 0 18z"/><path class="half-b" d="M450 158a9 9 0 0 1 0 18z"/></g>
-          <line class="link" x1="515" y1="125" x2="537" y2="238"/>
-          <circle class="dot ai go8" cx="515" cy="125" r="4.5"/>
-          <circle class="dot co back8" cx="537" cy="238" r="4.5"/>
-          <line class="link" x1="154" y1="247" x2="243" y2="249"/>
-          <circle class="dot ai go9" cx="154" cy="247" r="4.5"/>
-          <circle class="dot co back9" cx="243" cy="249" r="4.5"/>
-          <line class="link" x1="117" y1="269" x2="56" y2="396"/>
-          <circle class="dot ai go10" cx="117" cy="269" r="4.5"/>
-          <circle class="dot co back10" cx="56" cy="396" r="4.5"/>
-          <line class="link" x1="138" y1="270" x2="186" y2="387"/>
-          <circle class="dot ai go11" cx="138" cy="270" r="4.5"/>
-          <circle class="dot co back11" cx="186" cy="387" r="4.5"/>
-          <line class="link" x1="295" y1="247" x2="365" y2="239"/>
-          <circle class="dot ai go12" cx="295" cy="247" r="4.5"/>
-          <circle class="dot co back12" cx="365" cy="239" r="4.5"/>
-          <line class="link" x1="248" y1="266" x2="66" y2="403"/>
-          <circle class="dot ai go13" cx="248" cy="266" r="4.5"/>
-          <circle class="dot co back13" cx="66" cy="403" r="4.5"/>
-          <line class="link" x1="258" y1="274" x2="207" y2="387"/>
-          <circle class="dot ai go14" cx="258" cy="274" r="4.5"/>
-          <circle class="dot co back14" cx="207" cy="387" r="4.5"/>
-          <line class="link" x1="283" y1="272" x2="350" y2="372"/>
-          <circle class="dot ai go15" cx="283" cy="272" r="4.5"/>
-          <circle class="dot co back15" cx="350" cy="372" r="4.5"/>
-          <line class="link held" x1="417" y1="241" x2="516" y2="259"/>
-          <circle class="dot ai go16" cx="417" cy="241" r="4.5"/>
-          <circle class="dot co back16" cx="516" cy="259" r="4.5"/>
-          <g class="meet"><circle class="meet-ground" cx="466" cy="250" r="11"/><path class="half-a" d="M466 241a9 9 0 0 0 0 18z"/><path class="half-b" d="M466 241a9 9 0 0 1 0 18z"/></g>
-          <line class="link" x1="387" y1="262" x2="368" y2="368"/>
-          <circle class="dot ai go17" cx="387" cy="262" r="4.5"/>
-          <circle class="dot co back17" cx="368" cy="368" r="4.5"/>
-          <line class="link" x1="411" y1="253" x2="528" y2="354"/>
-          <circle class="dot ai go18" cx="411" cy="253" r="4.5"/>
-          <circle class="dot co back18" cx="528" cy="354" r="4.5"/>
-          <line class="link" x1="543" y1="290" x2="547" y2="345"/>
-          <circle class="dot ai go19" cx="543" cy="290" r="4.5"/>
-          <circle class="dot co back19" cx="547" cy="345" r="4.5"/>
-          <line class="link" x1="71" y1="418" x2="170" y2="412"/>
-          <circle class="dot ai go20" cx="71" cy="418" r="4.5"/>
-          <circle class="dot co back20" cx="170" cy="412" r="4.5"/>
-          <line class="link held" x1="222" y1="408" x2="338" y2="397"/>
-          <circle class="dot ai go21" cx="222" cy="408" r="4.5"/>
-          <circle class="dot co back21" cx="338" cy="397" r="4.5"/>
-          <g class="meet"><circle class="meet-ground" cx="280" cy="402" r="11"/><path class="half-a" d="M280 394a9 9 0 0 0 0 18z"/><path class="half-b" d="M280 394a9 9 0 0 1 0 18z"/></g>
-          <line class="link" x1="390" y1="391" x2="522" y2="374"/>
-          <circle class="dot ai go22" cx="390" cy="391" r="4.5"/>
-          <circle class="dot co back22" cx="522" cy="374" r="4.5"/>
-          <g transform="translate(73 89)"><circle class="person-disc" r="22"/><circle class="person-shape" cy="-5" r="6.5"/><path class="person-shape" d="M-11 13c0-7 5-10.5 11-10.5s11 3.5 11 10.5z"/></g>
-          <g transform="translate(236 59)"><circle class="person-disc" r="22"/><circle class="person-shape" cy="-5" r="6.5"/><path class="person-shape" d="M-11 13c0-7 5-10.5 11-10.5s11 3.5 11 10.5z"/></g>
-          <g transform="translate(342 72)"><circle class="person-disc" r="22"/><circle class="person-shape" cy="-5" r="6.5"/><path class="person-shape" d="M-11 13c0-7 5-10.5 11-10.5s11 3.5 11 10.5z"/></g>
-          <g transform="translate(510 99)"><circle class="person-disc" r="22"/><circle class="person-shape" cy="-5" r="6.5"/><path class="person-shape" d="M-11 13c0-7 5-10.5 11-10.5s11 3.5 11 10.5z"/></g>
-          <g transform="translate(128 246)"><circle class="person-disc" r="22"/><circle class="person-shape" cy="-5" r="6.5"/><path class="person-shape" d="M-11 13c0-7 5-10.5 11-10.5s11 3.5 11 10.5z"/></g>
-          <g transform="translate(269 250)"><circle class="person-disc" r="22"/><circle class="person-shape" cy="-5" r="6.5"/><path class="person-shape" d="M-11 13c0-7 5-10.5 11-10.5s11 3.5 11 10.5z"/></g>
-          <g transform="translate(391 236)"><circle class="person-disc" r="22"/><circle class="person-shape" cy="-5" r="6.5"/><path class="person-shape" d="M-11 13c0-7 5-10.5 11-10.5s11 3.5 11 10.5z"/></g>
-          <g transform="translate(542 264)"><circle class="person-disc" r="22"/><circle class="person-shape" cy="-5" r="6.5"/><path class="person-shape" d="M-11 13c0-7 5-10.5 11-10.5s11 3.5 11 10.5z"/></g>
-          <g transform="translate(45 419)"><circle class="person-disc" r="22"/><circle class="person-shape" cy="-5" r="6.5"/><path class="person-shape" d="M-11 13c0-7 5-10.5 11-10.5s11 3.5 11 10.5z"/></g>
-          <g transform="translate(196 411)"><circle class="person-disc" r="22"/><circle class="person-shape" cy="-5" r="6.5"/><path class="person-shape" d="M-11 13c0-7 5-10.5 11-10.5s11 3.5 11 10.5z"/></g>
-          <g transform="translate(364 394)"><circle class="person-disc" r="22"/><circle class="person-shape" cy="-5" r="6.5"/><path class="person-shape" d="M-11 13c0-7 5-10.5 11-10.5s11 3.5 11 10.5z"/></g>
-          <g transform="translate(548 371)"><circle class="person-disc" r="22"/><circle class="person-shape" cy="-5" r="6.5"/><path class="person-shape" d="M-11 13c0-7 5-10.5 11-10.5s11 3.5 11 10.5z"/></g>
-        </svg>
-      </figure>
     </div>
   </section>
 
