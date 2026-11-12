@@ -78,6 +78,9 @@
   .hidden-well .value { font: var(--text-body-m); margin: 2px 0 var(--space-1); }
   .listing figcaption { margin: var(--space-5) 0 0; display: flex; gap: var(--space-2); align-items: baseline; font: var(--text-body-s); color: var(--text-secondary); }
 
+  /* On this page the cream band is frosted, so the web shows through it softly. */
+  .band { background: color-mix(in srgb, var(--surface-raised) 60%, transparent);
+    -webkit-backdrop-filter: blur(3px); backdrop-filter: blur(3px); }
   .closing { text-align: center; padding-bottom: var(--space-12); }
   .closing .intro { margin: 0 auto var(--space-8); }
   .closing .actions { justify-content: center; }
@@ -3849,7 +3852,7 @@
 
   <section class="section closing" aria-labelledby="use-title">
     <div class="wrap">
-      <h2 id="use-title" class="display-m">Use Belong your way</h2>
+      <h2 id="use-title" class="display-m">Belong your way</h2>
       <p class="intro">In the Belong app, with the AI you already use, or in something you build.</p>
       <div class="actions">
         <a class="btn lg secondary" href="use.html">Ways to use Belong</a>
