@@ -60,18 +60,33 @@
   .hidden-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: var(--space-16); align-items: center; }
   @media (max-width: 760px) { .hidden-grid { grid-template-columns: 1fr; gap: var(--space-10); } }
   .hidden-grid p { color: var(--text-secondary); max-width: 44ch; margin: 0 0 var(--space-4); font: var(--text-body-l); }
-  /* The phone: a listing's profile as its owner sees it in the app, drawn in the app's own look: the hello and the
-     person's own words on white, shown details on the phone's off-white, hidden ones in their red band with the Hidden
-     badge, and the agent's latest message at the bottom. A picture, so it's one image to screen readers. */
+  /* The phone: the Belong app as its person sees it, drawn in the app's own look, playing one story on a loop: they
+     tell their AI what they're looking for; their profile appears, the hello and their own words on white, shown
+     details on the phone's off-white, the hidden age in its red band with the Hidden badge; matching starts; a match
+     arrives as a sheet and they both say yes. A picture, so it's one image to screen readers. With reduced motion it
+     rests on the profile with its AI's latest message. */
   .phone { justify-self: center; width: 300px; max-width: 100%; margin: 0; border: 9px solid var(--surface-inverse);
-    border-radius: 44px; overflow: hidden; background: var(--sf-paper-100); box-shadow: var(--shadow-lg); }
+    border-radius: 44px; overflow: hidden; background: var(--surface-card); box-shadow: var(--shadow-lg); }
   .phone .bar { display: flex; align-items: center; justify-content: space-between; padding: 10px var(--space-5) 0;
-    font: var(--text-caption); font-weight: 600; background: var(--surface-card); }
+    font: var(--text-caption); font-weight: 600; }
   .phone .bar .notch { width: 84px; height: 22px; border-radius: var(--radius-pill); background: var(--surface-inverse); }
   .phone .top { display: flex; align-items: center; gap: var(--space-2); padding: var(--space-3) var(--space-4);
-    background: var(--surface-card); border-bottom: 1px solid var(--border-subtle); }
+    border-bottom: 1px solid var(--border-subtle); }
   .phone .top img { height: 17px; width: auto; margin-right: auto; }
   .phone .top svg { width: 18px; height: 18px; color: var(--text-primary); }
+  .phone .screen { position: relative; height: 500px; overflow: hidden; }
+  .phone .chat, .phone .profile, .phone .match { position: absolute; left: 0; right: 0; }
+  .phone .chat { inset: 0; padding: var(--space-4); display: flex; flex-direction: column; gap: var(--space-2); }
+  .phone .chat .eyebrow { margin-bottom: var(--space-2); color: var(--text-tertiary); }
+  .phone .msg { max-width: 85%; margin: 0; padding: var(--space-2) var(--space-3); border-radius: 18px; font: var(--text-body-s); }
+  .phone .msg.me { align-self: flex-end; background: var(--surface-raised); border-bottom-right-radius: var(--radius-sm); }
+  .phone .msg.ai { align-self: flex-start; background: var(--accent-ai-muted); border-bottom-left-radius: var(--radius-sm); }
+  .phone .turn { display: grid; justify-items: start; }
+  .phone .turn > * { grid-area: 1 / 1; align-self: start; }
+  .phone .typing { display: inline-flex; gap: 4px; padding: var(--space-3); }
+  .phone .typing i { width: 6px; height: 6px; border-radius: 50%; background: var(--accent-ai); }
+  .phone .making { align-self: flex-start; font: var(--text-caption); color: var(--text-ai); }
+  .phone .profile { inset: 0; background: var(--sf-paper-100); }
   .phone .hello { background: var(--surface-card); padding: var(--space-4); }
   .phone .hello-head { display: flex; align-items: center; gap: var(--space-3); }
   .phone .mono { width: 40px; height: 40px; border-radius: var(--radius-md); background: var(--sf-char-100); color: var(--text-secondary);
@@ -90,12 +105,52 @@
   .phone .hidden-note { display: block; margin-top: var(--space-1); }
   .phone .live { display: flex; align-items: center; gap: var(--space-2); padding: var(--space-3) var(--space-4); font: var(--text-caption);
     color: var(--text-secondary); }
-  .phone .peek { margin: var(--space-2) 0 0; background: var(--surface-card); border-top: 1px solid var(--border-default);
-    border-radius: var(--radius-lg) var(--radius-lg) 0 0; padding: var(--space-3) var(--space-4) var(--space-6); }
+  .phone .peek { position: absolute; left: 0; right: 0; bottom: 0; background: var(--surface-card); border-top: 1px solid var(--border-default);
+    border-radius: var(--radius-lg) var(--radius-lg) 0 0; padding: var(--space-3) var(--space-4) var(--space-5); }
   .phone .peek .handle { display: block; width: 32px; height: 4px; margin: 0 auto var(--space-3); border-radius: var(--radius-pill);
     background: var(--border-strong); }
-  .phone .bubble { margin: 0; padding: var(--space-3) var(--space-4); border-radius: 18px; border-bottom-left-radius: var(--radius-sm);
-    background: var(--accent-ai-muted); color: var(--text-primary); font: var(--text-body-s); }
+  .phone .peek .slot { display: grid; }
+  .phone .peek .msg { grid-area: 1 / 1; max-width: none; }
+  .phone .match { bottom: 0; background: var(--surface-card); border-radius: var(--radius-lg) var(--radius-lg) 0 0; box-shadow: var(--shadow-lg);
+    padding: var(--space-5) var(--space-4) var(--space-6); }
+  .phone .match .eyebrow { color: var(--text-tertiary); margin-bottom: var(--space-3); }
+  .phone .match .reason { margin: var(--space-3) 0 var(--space-4); font: var(--text-body-s); color: var(--text-secondary); }
+  .phone .match .end { display: grid; min-height: 40px; }
+  .phone .match .end > * { grid-area: 1 / 1; align-self: center; }
+  .phone .match .btns { display: flex; gap: var(--space-2); }
+  .phone .match .btns .btn { flex: 1; justify-content: center; }
+  .phone .match .note { margin: 0; font: var(--text-body-s); }
+  /* At rest (and with reduced motion): the profile, its AI's latest message; the chat behind it, the match away. */
+  .phone .pk1, .phone .match { opacity: 0; }
+  @media (prefers-reduced-motion: no-preference) {
+    @keyframes say1 { 0%, 2% { opacity: 0; transform: translateY(6px); } 4% { opacity: 1; transform: none; } 96% { opacity: 1; transform: none; } 100% { opacity: 0; transform: none; } }
+    .phone .say1 { animation: say1 22s var(--ease-standard) infinite; }
+    @keyframes typing1 { 0%, 8% { opacity: 0; transform: none; } 10% { opacity: 1; transform: none; } 16% { opacity: 1; } 18%, 100% { opacity: 0; } }
+    .phone .typing1 { animation: typing1 22s var(--ease-standard) infinite; }
+    @keyframes ask { 0%, 16% { opacity: 0; transform: translateY(6px); } 18% { opacity: 1; transform: none; } 96% { opacity: 1; transform: none; } 100% { opacity: 0; transform: none; } }
+    .phone .ask { animation: ask 22s var(--ease-standard) infinite; }
+    @keyframes say2 { 0%, 26% { opacity: 0; transform: translateY(6px); } 28% { opacity: 1; transform: none; } 96% { opacity: 1; transform: none; } 100% { opacity: 0; transform: none; } }
+    .phone .say2 { animation: say2 22s var(--ease-standard) infinite; }
+    @keyframes making { 0%, 32% { opacity: 0; transform: none; } 34% { opacity: 1; transform: none; } 42% { opacity: 1; } 44%, 100% { opacity: 0; } }
+    .phone .making { animation: making 22s var(--ease-standard) infinite; }
+    @keyframes pk1 { 0%, 48% { opacity: 0; transform: translateY(6px); } 50% { opacity: 1; transform: none; } 60% { opacity: 1; } 62%, 100% { opacity: 0; } }
+    .phone .pk1 { animation: pk1 22s var(--ease-standard) infinite; }
+    @keyframes pk2 { 0%, 60% { opacity: 0; transform: translateY(6px); } 62% { opacity: 1; transform: none; } 96% { opacity: 1; transform: none; } 100% { opacity: 0; transform: none; } }
+    .phone .pk2 { animation: pk2 22s var(--ease-standard) infinite; }
+    @keyframes yesno { 0%, 72% { opacity: 0; transform: translateY(6px); } 74% { opacity: 1; transform: none; } 80% { opacity: 1; } 82%, 100% { opacity: 0; } }
+    .phone .yesno { animation: yesno 22s var(--ease-standard) infinite; }
+    @keyframes sent { 0%, 80% { opacity: 0; transform: translateY(6px); } 82% { opacity: 1; transform: none; } 87% { opacity: 1; } 89%, 100% { opacity: 0; } }
+    .phone .sent { animation: sent 22s var(--ease-standard) infinite; }
+    @keyframes agreed { 0%, 87% { opacity: 0; transform: translateY(6px); } 89% { opacity: 1; transform: none; } 96% { opacity: 1; transform: none; } 100% { opacity: 0; transform: none; } }
+    .phone .agreed { animation: agreed 22s var(--ease-standard) infinite; }
+    @keyframes profile { 0%, 42% { transform: translateY(100%); opacity: 1; } 47%, 96% { transform: none; opacity: 1; } 100% { transform: none; opacity: 0; } }
+    .phone .profile { animation: profile 22s var(--ease-standard) infinite; }
+    @keyframes match { 0%, 68% { transform: translateY(105%); opacity: 1; } 72%, 96% { transform: none; opacity: 1; } 100% { transform: none; opacity: 0; } }
+    .phone .match { animation: match 22s var(--ease-standard) infinite; }
+    @keyframes blink { 0%, 100% { opacity: .3; } 50% { opacity: 1; } }
+    .phone .typing i { animation: blink 1s ease-in-out infinite; }
+    .phone .typing i:nth-child(2) { animation-delay: .2s; } .phone .typing i:nth-child(3) { animation-delay: .4s; }
+  }
 
   /* On this page the cream band is frosted, so the web shows through it softly, and it fades in and out over its
      top and bottom padding, so it has no hard edge and its content is never faded. */
@@ -3821,7 +3876,7 @@
     </div>
   </section>
 
-  <section id="different" class="section" aria-labelledby="diff-title">
+  <section id="different" class="section band" aria-labelledby="diff-title">
     <div class="wrap">
       <h2 id="diff-title" class="display-m">What makes Belong different</h2>
       <div class="diff grid two">
@@ -3845,37 +3900,59 @@
     </div>
   </section>
 
-  <section class="section band" aria-labelledby="hidden-title">
+  <section class="section" aria-labelledby="hidden-title">
     <div class="wrap hidden-grid">
       <div>
         <h2 id="hidden-title" class="display-m">Some things are just for <span class="drop-periwinkle">matching</span></h2>
         <p>Your AI drafts your listing, and you choose what's shown. Hidden details still help find the right people, and are never shown to anyone you match with or to any app.</p>
         <p>Belong runs the matching, so it can see what it holds. It keeps as little as it can.</p>
       </div>
-      <figure class="phone" role="img" aria-label="The Belong app on a phone: a listing for a technical co-founder in Berlin, with the person's age hidden, used for matching and never shown, and their AI saying two people match so far.">
+      <figure class="phone" role="img" aria-label="The Belong app on a phone, playing on a loop: a person tells their AI they're looking for a technical co-founder for a health-tech company in Berlin and keeps their age for matching only; their profile appears with the age hidden, used for matching and never shown; a match arrives and they both say yes.">
         <div class="bar" aria-hidden="true"><span>9:41</span><span class="notch"></span><span>100%</span></div>
         <div class="top" aria-hidden="true">
           <img src="ds/logo/belong-wordmark-small-ink.svg" alt="" width="59" height="17">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></svg>
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 7h14M5 12h14M5 17h14"/></svg>
         </div>
-        <div aria-hidden="true">
-          <div class="hello">
-            <div class="hello-head"><span class="mono">J</span>
-              <p class="name">Hi, I'm <span class="drop-coral">Jo</span>.</p></div>
-            <p class="words">I'm looking for <span class="word">a technical co-founder</span> for <span class="word">a health-tech company</span>, <span class="word">in person</span> in <span class="word">Berlin</span>.</p>
+        <div class="screen" aria-hidden="true">
+          <div class="chat">
+            <p class="eyebrow">New listing</p>
+            <p class="msg me say1">I'm looking for a technical co-founder for a health-tech company, in person in Berlin.</p>
+            <div class="turn"><p class="msg ai typing typing1"><i></i><i></i><i></i></p>
+              <p class="msg ai ask">Got it. Should your age be shown, or used only for matching?</p></div>
+            <p class="msg me say2">Only for matching.</p>
+            <p class="making">Putting your profile together</p>
           </div>
-          <div class="facts">
-            <div class="fact"><span class="label">Looking for</span><span>Co-founder</span></div>
+          <div class="profile">
+            <div class="hello">
+              <div class="hello-head"><span class="mono">J</span><p class="name">Hi, I'm <span class="drop-coral">Jo</span>.</p></div>
+              <p class="words">I'm looking for <span class="word">a technical co-founder</span> for <span class="word">a health-tech company</span>, <span class="word">in person</span> in <span class="word">Berlin</span>.</p>
+            </div>
+            <div class="facts">
+              <div class="fact"><span class="label">Looking for</span><span>Co-founder</span></div>
+              <div class="fact"><span class="label">Where</span><span>Berlin, in person</span></div>
+            </div>
+            <div class="hidden-band">
+              <div class="head"><span class="label">Only you can see this</span><span class="badge ai">Hidden</span></div>
+              <div class="body-s">Age: 50 to 54</div>
+              <span class="hidden-note">Used for matching, never shown</span>
+            </div>
+            <div class="live"><span class="badge olive">Matching</span> Live now</div>
+            <div class="peek"><span class="handle"></span>
+              <div class="slot"><p class="msg ai pk1">You're live. I'll tell you when someone fits.</p>
+                <p class="msg ai pk2">Two people match so far. Have a look when you're ready.</p></div></div>
+          </div>
+          <div class="match">
+            <p class="eyebrow">New match</p>
+            <div class="fact"><span class="label">Looking for</span><span>A co-founder to start a health app</span></div>
             <div class="fact"><span class="label">Where</span><span>Berlin, in person</span></div>
+            <p class="reason">You both want to start a health-tech company in Berlin.</p>
+            <div class="end">
+              <div class="btns yesno"><span class="btn secondary sm">Not now</span><span class="btn sm">Yes</span></div>
+              <p class="note sent">You said yes. Waiting for them.</p>
+              <p class="note agreed"><span class="badge ai">Introduced</span> You both said yes.</p>
+            </div>
           </div>
-          <div class="hidden-band">
-            <div class="head"><span class="label">Only you can see this</span><span class="badge ai">Hidden</span></div>
-            <div class="body-s">Age: 50 to 54</div>
-            <span class="hidden-note">Used for matching, never shown</span>
-          </div>
-          <div class="live"><span class="badge olive">Matching</span> Live since Monday</div>
-          <div class="peek"><span class="handle"></span><p class="bubble">Two people match so far. Have a look when you're ready.</p></div>
         </div>
       </figure>
     </div>
