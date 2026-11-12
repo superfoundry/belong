@@ -52,17 +52,9 @@
     }
   }
 
-  /* How it works: three steps on cards, side by side from tablet width up. What makes Belong different: four cards,
-     two by two. */
-  #how h2, #diff-title { text-align: center; margin-bottom: var(--space-10); }
+  /* What makes Belong different: four cards, two by two. */
+  #diff-title { text-align: center; margin-bottom: var(--space-10); }
   .diff .card { padding: var(--space-8); }
-  .steps { list-style: none; margin: 0; padding: 0; }
-  @media (min-width: 720px) { .steps.grid.three { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
-  .steps li { padding: var(--space-8); }
-  .steps .num { display: block; font: var(--text-display-m); font-size: var(--font-size-display-m); color: var(--text-primary);
-    margin-bottom: var(--space-4); }
-  .steps h3 { font: var(--text-heading-l); margin: 0 0 var(--space-2); }
-  .steps p { margin: 0; color: var(--text-secondary); max-width: 34ch; }
 
   /* A listing as its owner sees it, in the product's fixed look for shown and hidden details. */
   .hidden-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: var(--space-16); align-items: center; }
@@ -3788,7 +3780,7 @@
   <div class="wrap">
     <a class="logo" href="./"><img src="ds/logo/belong-wordmark-small-ink.svg" alt="Belong" width="90" height="26"></a>
     <nav aria-label="Site">
-      <a href="#how">How it works</a>
+      <a href="#different">What's different</a>
       <a href="use.html">Use Belong</a>
     </nav>
   </div>
@@ -3802,36 +3794,13 @@
         <p class="lead">Tell your AI what you're looking for. Belong finds the people looking for you, and you meet only when you both say yes.</p>
         <div class="actions">
           <a class="btn lg" href="use.html">Use Belong</a>
-          <a class="btn lg secondary" href="#how">How it works</a>
+          <a class="btn lg secondary" href="#different">What's different</a>
         </div>
       </div>
     </div>
   </section>
 
-  <section id="how" class="section" aria-labelledby="how-title">
-    <div class="wrap">
-      <h2 id="how-title" class="display-m">How it works</h2>
-      <ol class="steps grid three">
-        <li class="card">
-          <span class="num">1</span>
-          <h3>Say it to your AI</h3>
-          <p>Tell the AI you already use, or the Belong app, what you're looking for in your own words. There's no profile to fill in.</p>
-        </li>
-        <li class="card">
-          <span class="num">2</span>
-          <h3>Matched both ways</h3>
-          <p>You're only matched with people who are looking for someone like you and who fit what you asked for. Both sides, every time.</p>
-        </li>
-        <li class="card">
-          <span class="num">3</span>
-          <h3>Nothing until you both say yes</h3>
-          <p>Until you both say yes, nobody can reach you. Nobody is ever told who said no.</p>
-        </li>
-      </ol>
-    </div>
-  </section>
-
-  <section class="section" aria-labelledby="diff-title">
+  <section id="different" class="section" aria-labelledby="diff-title">
     <div class="wrap">
       <h2 id="diff-title" class="display-m">What makes Belong different</h2>
       <div class="diff grid two">
@@ -3894,7 +3863,7 @@
   <div class="wrap">
     <a class="logo" href="./"><img src="ds/logo/belong-wordmark-small-ink.svg" alt="Belong" width="76" height="22"></a>
     <nav aria-label="Footer">
-      <a href="#how">How it works</a>
+      <a href="#different">What's different</a>
       <a href="use.html">Use Belong</a>
     </nav>
   </div>
