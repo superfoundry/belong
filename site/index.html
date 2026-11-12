@@ -13,68 +13,65 @@
 <style>
   /* The landing page's own parts. Everything shared with the Use page is in site.css. */
   .hero { padding: var(--space-16) 0 var(--space-24); }
-  .hero-grid { display: grid; grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr); gap: var(--space-12); align-items: center; }
+  .hero-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr); gap: var(--space-12); align-items: center; }
   @media (max-width: 960px) { .hero-grid { grid-template-columns: 1fr; gap: var(--space-10); } }
   .hero h1 { font-size: var(--font-size-display-xl); margin: 0 0 var(--space-6); max-width: 12ch; }
   .hero .lead { font: var(--text-body-l); color: var(--text-secondary); margin: 0 0 var(--space-8); max-width: 38ch; }
   .hero .small { flex-basis: 100%; margin: var(--space-2) 0 0; }
 
-  /* The picture: a transit map. Each line is a person; a station is a match, where each is who the other is looking
-     for; lines that cross without a station fit one way or not at all. It opens close in on four people: Maya meets
-     Tomás and Ana, Ben crosses Maya and Tomás without a station and meets Ana, so Maya and Ana each have two matches.
-     Then it pulls back to the whole city, and everyone else's stations appear at once. The layout is laid by hand
-     (octilinear, rounded bends) so it reads like a real map. One loop of twenty seconds, no pause button by the
-     owner's choice; every part's resting style is the last frame (the whole city), so with reduced motion that is
-     what shows. */
-  .scene { position: relative; margin: 0; aspect-ratio: 3 / 2; overflow: hidden; }
-  .scene svg { position: absolute; inset: 0; width: 100%; height: 100%; }
-  .map { transform-box: view-box; transform-origin: 610px 410px; }
-  .scene .line { fill: none; stroke-width: 10; stroke-linecap: round; stroke-linejoin: round; }
-  .stn { fill: var(--surface-card); stroke: var(--text-primary); stroke-width: 3.5; transform-box: fill-box; transform-origin: center; }
-  .pulse { fill: none; stroke: var(--text-primary); stroke-width: 2; opacity: 0; transform-box: fill-box; transform-origin: center; }
-  .name { opacity: 0; }
-  .name text { font: 600 15px var(--font-body); }
-  .name .on-light { fill: var(--text-on-accent); }
-  .name .on-dark { fill: var(--text-inverse); }
-  .key { margin: var(--space-4) 0 0; font: var(--text-body-s); color: var(--text-secondary); max-width: 54ch; }
-  .key b { color: var(--text-primary); font-weight: 600; }
-  @media (prefers-reduced-motion: no-preference) {
-    .scene .map { animation: pull 20s var(--ease-standard) infinite; }
-    @keyframes pull { 0%, 47% { transform: scale(2.6); } 62%, 100% { transform: none; } }
-    .scene .line { stroke-dasharray: 1; }
-    .scene .far { animation: far 20s var(--ease-standard) infinite; }
-    @keyframes far { 0%, 54% { stroke-dashoffset: 1; opacity: 1; } 63%, 92% { stroke-dashoffset: 0; opacity: 1; } 97%, 100% { stroke-dashoffset: 0; opacity: 0; } }
-    .scene .far-stn { animation: burst 20s var(--ease-standard) infinite; }
-    @keyframes burst { 0%, 63% { opacity: 0; transform: scale(0.3); } 66%, 92% { opacity: 1; transform: none; } 97%, 100% { opacity: 0; } }
-    .scene .n-maya { animation: d-maya 20s var(--ease-standard) infinite; }
-    @keyframes d-maya { 0%, 3% { stroke-dashoffset: 1; opacity: 1; } 10%, 92% { stroke-dashoffset: 0; opacity: 1; } 97%, 100% { stroke-dashoffset: 0; opacity: 0; } }
-    .scene .n-tomas { animation: d-tomas 20s var(--ease-standard) infinite; }
-    @keyframes d-tomas { 0%, 11% { stroke-dashoffset: 1; opacity: 1; } 18%, 92% { stroke-dashoffset: 0; opacity: 1; } 97%, 100% { stroke-dashoffset: 0; opacity: 0; } }
-    .scene .n-ana { animation: d-ana 20s var(--ease-standard) infinite; }
-    @keyframes d-ana { 0%, 31% { stroke-dashoffset: 1; opacity: 1; } 38%, 92% { stroke-dashoffset: 0; opacity: 1; } 97%, 100% { stroke-dashoffset: 0; opacity: 0; } }
-    .scene .n-ben { animation: d-ben 20s var(--ease-standard) infinite; }
-    @keyframes d-ben { 0%, 21% { stroke-dashoffset: 1; opacity: 1; } 28%, 92% { stroke-dashoffset: 0; opacity: 1; } 97%, 100% { stroke-dashoffset: 0; opacity: 0; } }
-    .scene .stn.u0 { animation: s0 20s var(--ease-standard) infinite; }
-    @keyframes s0 { 0%, 19% { opacity: 0; transform: scale(0.3); } 20.5%, 92% { opacity: 1; transform: none; } 97%, 100% { opacity: 0; } }
-    .scene .pulse.u0 { animation: p0 20s var(--ease-out, ease-out) infinite; }
-    @keyframes p0 { 0%, 20% { opacity: 0; transform: scale(1); } 20.5% { opacity: 0.6; } 25%, 100% { opacity: 0; transform: scale(3); } }
-    .scene .stn.u1 { animation: s1 20s var(--ease-standard) infinite; }
-    @keyframes s1 { 0%, 39% { opacity: 0; transform: scale(0.3); } 40.5%, 92% { opacity: 1; transform: none; } 97%, 100% { opacity: 0; } }
-    .scene .pulse.u1 { animation: p1 20s var(--ease-out, ease-out) infinite; }
-    @keyframes p1 { 0%, 40% { opacity: 0; transform: scale(1); } 40.5% { opacity: 0.6; } 45%, 100% { opacity: 0; transform: scale(3); } }
-    .scene .stn.u2 { animation: s2 20s var(--ease-standard) infinite; }
-    @keyframes s2 { 0%, 39% { opacity: 0; transform: scale(0.3); } 40.5%, 92% { opacity: 1; transform: none; } 97%, 100% { opacity: 0; } }
-    .scene .pulse.u2 { animation: p2 20s var(--ease-out, ease-out) infinite; }
-    @keyframes p2 { 0%, 40% { opacity: 0; transform: scale(1); } 40.5% { opacity: 0.6; } 45%, 100% { opacity: 0; transform: scale(3); } }
-    .scene .t-maya { animation: tg-maya 20s var(--ease-standard) infinite; }
-    @keyframes tg-maya { 0%, 5% { opacity: 0; } 7%, 48% { opacity: 1; } 53%, 100% { opacity: 0; } }
-    .scene .t-tomas { animation: tg-tomas 20s var(--ease-standard) infinite; }
-    @keyframes tg-tomas { 0%, 13% { opacity: 0; } 15%, 48% { opacity: 1; } 53%, 100% { opacity: 0; } }
-    .scene .t-ben { animation: tg-ben 20s var(--ease-standard) infinite; }
-    @keyframes tg-ben { 0%, 23% { opacity: 0; } 25%, 48% { opacity: 1; } 53%, 100% { opacity: 0; } }
-    .scene .t-ana { animation: tg-ana 20s var(--ease-standard) infinite; }
-    @keyframes tg-ana { 0%, 33% { opacity: 0; } 35%, 48% { opacity: 1; } 53%, 100% { opacity: 0; } }
+  /* The scene: two people, everyone else as a field of dots, Belong bringing the two together. One loop of
+     twelve seconds, with no pause button by the owner's choice; every part's resting style is the last frame, so
+     with reduced motion the whole story is there at once. */
+  .scene { position: relative; margin: 0; aspect-ratio: 600 / 480; }
+  .scene svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+  .field circle { fill: var(--text-primary); opacity: 0.16; }
+  .field circle.c { fill: var(--accent-default); opacity: 0.5; }
+  .field circle.p { fill: var(--accent-ai); opacity: 0.5; }
+  .field circle.m { fill: var(--accent-olive); opacity: 0.6; }
+  .person-disc { fill: var(--surface-raised); }
+  .person-shape { fill: var(--text-primary); }
+  .listing-dot { fill: var(--accent-ai); }
+  .meet-line { stroke: var(--accent-ai); stroke-width: 2.5; stroke-linecap: round; stroke-dasharray: 4 7; fill: none; }
+  .meet-ground { fill: var(--surface-card); }
+  .half-a { fill: var(--accent-ai); }
+  .half-b { fill: var(--accent-default); }
+  .bubble { position: absolute; width: 44%; margin: 0; padding: var(--space-3) var(--space-4); background: var(--surface-card);
+    border-radius: var(--radius-lg); box-shadow: var(--shadow-md); font: var(--text-body-m); color: var(--text-primary); }
+  .bubble.a { left: 23%; bottom: 0; }
+  .bubble.b { right: 23%; top: 0; }
+  .tag-yes { position: absolute; margin: 0; }
+  .tag-yes.a { left: 9%; top: 68%; }
+  .tag-yes.b { right: 9%; top: 26%; }
+  .tag-yes span { display: inline-block; padding: 4px 12px; border-radius: var(--radius-pill); background: var(--accent-muted);
+    color: var(--text-accent); font: var(--text-label); font-weight: 600; }
+  .met { position: absolute; margin: 0; left: 50.8%; top: 59%; transform: translateX(-50%); }
+  @media (max-width: 640px) {
+    .bubble { width: 58%; font: var(--text-body-s); padding: var(--space-2) var(--space-3); }
   }
+
+  @media (prefers-reduced-motion: no-preference) {
+    .scene .field circle { animation: twinkle var(--p) ease-in-out var(--d) infinite alternate; }
+    @keyframes twinkle { to { opacity: 0.05; } }
+    .scene .bubble.a { animation: bubble-a 12s var(--ease-standard) infinite; }
+    .scene .bubble.b { animation: bubble-b 12s var(--ease-standard) infinite; }
+    .scene .listing-dot.a { animation: fly-a 12s var(--ease-standard) infinite; }
+    .scene .listing-dot.b { animation: fly-b 12s var(--ease-standard) infinite; }
+    .scene .meet-line { animation: draw 12s var(--ease-standard) infinite; }
+    .scene .tag-yes.a { animation: yes-a 12s var(--ease-standard) infinite; }
+    .scene .tag-yes.b { animation: yes-b 12s var(--ease-standard) infinite; }
+    .scene .meet, .scene .met { animation: meet 12s var(--ease-standard) infinite; }
+    @keyframes bubble-a { 0% { opacity: 0; transform: translateY(8px); } 5%, 88% { opacity: 1; transform: none; } 94%, 100% { opacity: 0; } }
+    @keyframes bubble-b { 0%, 9% { opacity: 0; transform: translateY(8px); } 14%, 88% { opacity: 1; transform: none; } 94%, 100% { opacity: 0; } }
+    @keyframes fly-a { 0%, 20% { opacity: 0; transform: translate(-172px, 132px); } 22% { opacity: 1; transform: translate(-172px, 132px); }
+      34%, 88% { opacity: 1; transform: none; } 94%, 100% { opacity: 0; transform: none; } }
+    @keyframes fly-b { 0%, 24% { opacity: 0; transform: translate(162px, -136px); } 26% { opacity: 1; transform: translate(162px, -136px); }
+      38%, 88% { opacity: 1; transform: none; } 94%, 100% { opacity: 0; transform: none; } }
+    @keyframes draw { 0%, 42% { opacity: 0; stroke-dashoffset: 60; } 46% { opacity: 1; } 52%, 88% { opacity: 1; stroke-dashoffset: 0; } 94%, 100% { opacity: 0; } }
+    @keyframes yes-a { 0%, 54% { opacity: 0; transform: scale(0.9); } 58%, 88% { opacity: 1; transform: none; } 94%, 100% { opacity: 0; } }
+    @keyframes yes-b { 0%, 61% { opacity: 0; transform: scale(0.9); } 65%, 88% { opacity: 1; transform: none; } 94%, 100% { opacity: 0; } }
+    @keyframes meet { 0%, 70% { opacity: 0; } 76%, 88% { opacity: 1; } 94%, 100% { opacity: 0; } }
+  }
+
   /* How it works: three steps, a number and a sentence each. */
   .steps { list-style: none; margin: 0; padding: 0; }
   .steps li { padding: var(--space-6) 0 0; }
@@ -120,7 +117,7 @@
     <div class="wrap hero-grid">
       <div class="rise">
         <h1 id="hero-title" class="display-xl">Meet the people looking for <span class="drop-coral">you</span></h1>
-        <p class="lead">Tell your AI what you're looking for, and what to keep hidden. Belong finds the people looking for you, and you meet only when you both say yes.</p>
+        <p class="lead">Tell your AI what you're looking for. Belong finds the people looking for you, and you meet only when you both say yes.</p>
         <div class="actions">
           <a class="btn lg" href="use.html">Use Belong</a>
           <a class="btn lg secondary" href="#how">How it works</a>
@@ -128,60 +125,83 @@
         </div>
       </div>
 
-      <div class="rise later">
-      <figure class="scene" role="img" aria-label="A transit map where each line is a person and a station is a match: each is who the other is looking for. Close in, Maya meets Tomás and Ana; Ben's line crosses Maya's and Tomás's without a station, because it fits only one way, and meets Ana. Then the map pulls back to a whole city, and many more people meet at once.">
-        <svg viewBox="0 0 1200 800" aria-hidden="true">
-          <g class="map">
-            <path class="line far" pathLength="1" style="stroke: var(--sf-signal-success)" d="M100 760 L100 634 Q100 600 124 576 L236 464 Q260 440 260 406 L260 360"/>
-            <path class="line far" pathLength="1" style="stroke: var(--sf-ink-500)" d="M1160 680 L854 680 Q820 680 796 704 L774 726 Q760 740 760 760 L760 780"/>
-            <path class="line far" pathLength="1" style="stroke: var(--sf-ember-300)" d="M640 40 L640 126 Q640 160 674 160 L846 160 Q880 160 914 160 L1160 160"/>
-            <path class="line far" pathLength="1" style="stroke: var(--sf-olive-400)" d="M40 330 L212 330 Q240 330 260 310 L280 290"/>
-            <path class="line far" pathLength="1" style="stroke: var(--sf-azure-400)" d="M1040 40 L1040 760"/>
-            <path class="line far" pathLength="1" style="stroke: var(--sf-char-400)" d="M560 760 L560 714 Q560 680 584 656 L616 624 Q640 600 674 600 L1160 600"/>
-            <path class="line far" pathLength="1" style="stroke: var(--sf-ember-600)" d="M1160 240 L994 240 Q960 240 936 264 L904 296 Q880 320 880 354 L880 760"/>
-            <path class="line far" pathLength="1" style="stroke: var(--sf-azure-700)" d="M40 680 L206 680 Q240 680 264 656 L336 584 Q360 560 360 526 L360 334 Q360 300 336 276 L324 264 Q300 240 300 206 L300 40"/>
-            <path class="line far" pathLength="1" style="stroke: var(--sf-signal-warning)" d="M160 40 L160 526 Q160 560 184 584 L296 696 Q320 720 354 720 L440 720"/>
-            <path class="line far" pathLength="1" style="stroke: var(--sf-olive-600)" d="M40 240 L226 240 Q260 240 284 216 L396 104 Q420 80 454 80 L600 80"/>
-            <path class="line n-maya" pathLength="1" style="stroke: var(--accent-default)" d="M60 520 L156 424 Q180 400 214 400 L966 400 Q1000 400 1024 376 L1120 280"/>
-            <path class="line n-tomas" pathLength="1" style="stroke: var(--accent-ai)" d="M480 40 L480 566 Q480 600 504 624 L576 696 Q600 720 634 720 L840 720"/>
-            <path class="line n-ana" pathLength="1" style="stroke: var(--text-primary)" d="M720 760 L720 234 Q720 200 744 176 L816 104 Q840 80 874 80 L1140 80"/>
-            <path class="line n-ben" pathLength="1" style="stroke: var(--accent-olive)" d="M360 160 L816 616 Q840 640 874 640 L1140 640"/>
-            <circle class="pulse u0" cx="480" cy="400" r="9"/><circle class="stn u0" cx="480" cy="400" r="9"/>
-            <circle class="pulse u1" cx="720" cy="400" r="9"/><circle class="stn u1" cx="720" cy="400" r="9"/>
-            <circle class="stn far-stn" cx="160" cy="420" r="9"/>
-            <circle class="stn far-stn" cx="360" cy="400" r="9"/>
-            <circle class="stn far-stn" cx="260" cy="400" r="9"/>
-            <circle class="stn far-stn" cx="720" cy="720" r="9"/>
-            <circle class="stn far-stn" cx="560" cy="680" r="9"/>
-            <circle class="stn far-stn" cx="780" cy="720" r="9"/>
-            <circle class="pulse u2" cx="720" cy="520" r="9"/><circle class="stn u2" cx="720" cy="520" r="9"/>
-            <circle class="stn far-stn" cx="720" cy="600" r="9"/>
-            <circle class="stn far-stn" cx="1040" cy="80" r="9"/>
-            <circle class="stn far-stn" cx="760" cy="160" r="9"/>
-            <circle class="stn far-stn" cx="880" cy="640" r="9"/>
-            <circle class="stn far-stn" cx="800" cy="600" r="9"/>
-            <circle class="stn far-stn" cx="1040" cy="640" r="9"/>
-            <circle class="stn far-stn" cx="160" cy="240" r="9"/>
-            <circle class="stn far-stn" cx="300" cy="200" r="9"/>
-            <circle class="stn far-stn" cx="260" cy="660" r="9"/>
-            <circle class="stn far-stn" cx="160" cy="330" r="9"/>
-            <circle class="stn far-stn" cx="160" cy="540" r="9"/>
-            <circle class="stn far-stn" cx="100" cy="680" r="9"/>
-            <circle class="stn far-stn" cx="880" cy="600" r="9"/>
-            <circle class="stn far-stn" cx="1040" cy="240" r="9"/>
-            <circle class="stn far-stn" cx="880" cy="680" r="9"/>
-            <circle class="stn far-stn" cx="1040" cy="600" r="9"/>
-            <circle class="stn far-stn" cx="1040" cy="160" r="9"/>
-            <circle class="stn far-stn" cx="1040" cy="680" r="9"/>
-            <g class="name t-maya"><rect x="384.8" y="388" width="54.4" height="24" rx="12" style="fill: var(--accent-default)"/><text x="412" y="405.5" text-anchor="middle" class="on-light">Maya</text></g>
-            <g class="name t-tomas"><rect x="448.0" y="332" width="64.0" height="24" rx="12" style="fill: var(--accent-ai)"/><text x="480" y="349.5" text-anchor="middle" class="on-light">Tomás</text></g>
-            <g class="name t-ben"><rect x="529.6" y="340" width="44.8" height="24" rx="12" style="fill: var(--accent-olive)"/><text x="552" y="357.5" text-anchor="middle" class="on-light">Ben</text></g>
-            <g class="name t-ana"><rect x="697.6" y="304" width="44.8" height="24" rx="12" style="fill: var(--text-primary)"/><text x="720" y="321.5" text-anchor="middle" class="on-dark">Ana</text></g>
+      <figure class="scene rise later" role="img" aria-label="Two people each tell their AI what they're looking for. Belong finds that they fit, they both say yes, and they're introduced.">
+        <svg viewBox="0 0 600 480" aria-hidden="true">
+          <g class="field">
+            <circle cx="138" cy="242" r="4.0" style="--d: 1.5s; --p: 6.4s"/>
+            <circle cx="264" cy="97" r="2.7" style="--d: 1.4s; --p: 5.7s"/>
+            <circle cx="34" cy="154" r="3.9" style="--d: 5.2s; --p: 6.7s"/>
+            <circle cx="186" cy="44" r="3.7" class="m" style="--d: 3.9s; --p: 4.7s"/>
+            <circle cx="333" cy="365" r="3.2" style="--d: 1.4s; --p: 4.9s"/>
+            <circle cx="277" cy="417" r="3.9" style="--d: 0.9s; --p: 7.2s"/>
+            <circle cx="384" cy="267" r="3.3" style="--d: 1.4s; --p: 6.7s"/>
+            <circle cx="316" cy="333" r="3.8" style="--d: 5.2s; --p: 5.0s"/>
+            <circle cx="100" cy="34" r="4.3" style="--d: 5.7s; --p: 6.1s"/>
+            <circle cx="494" cy="413" r="4.2" style="--d: 2.5s; --p: 6.3s"/>
+            <circle cx="272" cy="41" r="4.2" style="--d: 2.9s; --p: 6.7s"/>
+            <circle cx="31" cy="114" r="2.9" style="--d: 2.1s; --p: 7.9s"/>
+            <circle cx="313" cy="161" r="3.6" class="c" style="--d: 5.4s; --p: 5.9s"/>
+            <circle cx="228" cy="221" r="3.2" class="m" style="--d: 4.6s; --p: 7.9s"/>
+            <circle cx="419" cy="279" r="2.7" style="--d: 1.4s; --p: 7.5s"/>
+            <circle cx="119" cy="72" r="2.3" style="--d: 5.3s; --p: 4.9s"/>
+            <circle cx="399" cy="333" r="3.1" class="c" style="--d: 4.1s; --p: 5.3s"/>
+            <circle cx="377" cy="384" r="3.4" class="c" style="--d: 2.1s; --p: 6.7s"/>
+            <circle cx="39" cy="194" r="4.5" style="--d: 5.3s; --p: 5.4s"/>
+            <circle cx="238" cy="133" r="4.0" style="--d: 0.2s; --p: 5.9s"/>
+            <circle cx="238" cy="38" r="3.8" style="--d: 3.8s; --p: 4.3s"/>
+            <circle cx="551" cy="390" r="2.7" style="--d: 1.9s; --p: 6.6s"/>
+            <circle cx="25" cy="46" r="4.1" style="--d: 1.4s; --p: 6.0s"/>
+            <circle cx="109" cy="194" r="2.2" class="c" style="--d: 2.7s; --p: 4.4s"/>
+            <circle cx="170" cy="121" r="3.5" style="--d: 1.6s; --p: 4.2s"/>
+            <circle cx="505" cy="261" r="4.3" style="--d: 2.9s; --p: 6.4s"/>
+            <circle cx="426" cy="362" r="3.1" style="--d: 3.8s; --p: 7.5s"/>
+            <circle cx="61" cy="79" r="3.5" style="--d: 2.5s; --p: 7.5s"/>
+            <circle cx="455" cy="294" r="2.7" class="p" style="--d: 3.9s; --p: 7.2s"/>
+            <circle cx="167" cy="198" r="3.2" style="--d: 3.8s; --p: 6.7s"/>
+            <circle cx="510" cy="356" r="4.4" class="c" style="--d: 2.0s; --p: 4.1s"/>
+            <circle cx="69" cy="117" r="4.5" class="c" style="--d: 5.3s; --p: 5.6s"/>
+            <circle cx="576" cy="442" r="3.1" class="c" style="--d: 0.3s; --p: 7.3s"/>
+            <circle cx="456" cy="426" r="3.5" style="--d: 2.9s; --p: 5.3s"/>
+            <circle cx="68" cy="246" r="4.5" style="--d: 4.2s; --p: 5.4s"/>
+            <circle cx="554" cy="342" r="4.4" style="--d: 3.3s; --p: 7.1s"/>
+            <circle cx="147" cy="43" r="3.2" style="--d: 5.8s; --p: 4.5s"/>
+            <circle cx="514" cy="444" r="3.5" style="--d: 0.4s; --p: 4.9s"/>
+            <circle cx="415" cy="438" r="2.9" style="--d: 4.0s; --p: 6.6s"/>
+            <circle cx="206" cy="183" r="2.6" style="--d: 3.5s; --p: 4.8s"/>
+            <circle cx="321" cy="82" r="3.3" style="--d: 0.0s; --p: 4.5s"/>
+            <circle cx="264" cy="327" r="3.0" style="--d: 2.6s; --p: 5.6s"/>
+            <circle cx="274" cy="162" r="3.7" style="--d: 2.2s; --p: 6.4s"/>
+            <circle cx="441" cy="326" r="2.6" style="--d: 3.6s; --p: 4.9s"/>
+            <circle cx="471" cy="344" r="3.6" style="--d: 4.5s; --p: 7.9s"/>
+            <circle cx="151" cy="159" r="3.0" style="--d: 4.7s; --p: 6.4s"/>
+          </g>
+          <!-- The two people: a head and shoulders on a cream disc. -->
+          <g transform="translate(90 410)">
+            <circle class="person-disc" r="40"/>
+            <circle class="person-shape" cy="-10" r="11"/>
+            <path class="person-shape" d="M-20 22c0-12 9-19 20-19s20 7 20 19z"/>
+          </g>
+          <g transform="translate(510 70)">
+            <circle class="person-disc" r="40"/>
+            <circle class="person-shape" cy="-10" r="11"/>
+            <path class="person-shape" d="M-20 22c0-12 9-19 20-19s20 7 20 19z"/>
+          </g>
+          <!-- Each listing goes into the field, Belong finds the two fit, and they meet: the two halves of one disc. -->
+          <path class="meet-line" d="M262 278 Q 290 232 348 206"/>
+          <circle class="listing-dot a" cx="262" cy="278" r="7"/>
+          <circle class="listing-dot b" cx="348" cy="206" r="7"/>
+          <g class="meet">
+            <circle class="meet-ground" cx="305" cy="242" r="31"/>
+            <path class="half-a" d="M305 214a28 28 0 0 0 0 56z"/>
+            <path class="half-b" d="M305 214a28 28 0 0 1 0 56z"/>
           </g>
         </svg>
+        <p class="bubble a">I need a technical co-founder for a health-tech company in Berlin.</p>
+        <p class="bubble b">I'm an engineer, ready to co-found something in health in Berlin.</p>
+        <p class="tag-yes a"><span>Yes</span></p>
+        <p class="tag-yes b"><span>Yes</span></p>
+        <p class="met"><span class="badge success">Introduced</span></p>
       </figure>
-      <p class="key"><b>Each line is a person, and a station is a match:</b> each is who the other is looking for. Where lines cross without a station, it fits one way or not at all. Belong finds every match at once.</p>
-      </div>
     </div>
   </section>
 
