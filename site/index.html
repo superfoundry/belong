@@ -20,12 +20,13 @@
   /* The background: an abstract web of points, coral, periwinkle and mint, in three layers of depth (far ones
      smaller, fainter and softer, near ones larger), each joined by faint grey lines. Now and then a pulse swells along
      a line in its own grey, thickest in the middle and tapering to nothing, each already under way when the page
-     loads, so it has no beginning or end. Fixed behind the whole page at half opacity, fading out under the top bar.
+     loads, so it has no beginning or end. Fixed behind the whole page at half opacity, showing through the top bar too.
      As the page scrolls the layers turn and tilt together, at their own depths (the script sets --s, 0 to 1).
      No pause button by the owner's choice; with reduced motion it rests as the still web. */
-  .web { position: fixed; inset: 0; z-index: -1; opacity: 0.5; pointer-events: none; overflow: hidden; perspective: 1000px;
-    -webkit-mask-image: linear-gradient(to bottom, transparent 56px, black 260px);
-    mask-image: linear-gradient(to bottom, transparent 56px, black 260px); }
+  /* On this page the top bar lets the web show through it (no fill, no blur) and scrolls away with the hero
+     instead of staying pinned, so no text ever passes under it. */
+  .site-top { position: relative; background: transparent; -webkit-backdrop-filter: none; backdrop-filter: none; }
+  .web { position: fixed; inset: 0; z-index: -1; opacity: 0.5; pointer-events: none; overflow: hidden; perspective: 1000px; }
   .web .layer { position: absolute; inset: -25%; width: 150%; height: 150%; will-change: transform;
     transform: rotateX(calc(var(--s, 0) * 38deg)) rotateZ(calc(var(--s, 0) * 28deg)) translateZ(var(--z)); }
   .web line { stroke: var(--text-primary); stroke-width: 1; opacity: 0.22; }
