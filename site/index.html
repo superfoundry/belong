@@ -22,7 +22,9 @@
   /* The scene: seven people in a field of dots (everyone else). For every possible match a periwinkle dot goes out
      from one person and a coral dot comes back from the other, all within a few seconds of each other; only when both
      arrive does the dashed line hold, with the two-colour disc where they meet. Where nothing comes back the line
-     fades. The founder and the engineer end with three matches each. One loop of 14 seconds, no pause button by
+     fades. The founder and the engineer find three matches each. Then everyone says yes or no: only three matches are
+     yes both ways and become introductions (heavier line, bigger disc); the rest fade, and nobody is told who said
+     no. One loop of 16 seconds, no pause button by
      the owner's choice; every part's resting style is the last frame, so with reduced motion the whole picture is
      there at once. */
   .scene { position: relative; margin: 0; aspect-ratio: 600 / 480; }
@@ -37,6 +39,9 @@
   .go { fill: var(--accent-ai); opacity: 0; }
   .back { fill: var(--accent-default); opacity: 0; }
   .meet { transform-box: fill-box; transform-origin: center; }
+  /* The resting style is the last frame: introductions heavier, declined matches faded, one-way lines gone. */
+  .link.yes { stroke-width: 4; } .link.no { opacity: 0.1; } .link.gone { opacity: 0; }
+  .meet.yes { transform: scale(1.6); } .meet.no { opacity: 0; }
   .meet-ground { fill: var(--surface-card); }
   .half-a { fill: var(--accent-ai); }
   .half-b { fill: var(--accent-default); }
@@ -46,74 +51,74 @@
   @media (prefers-reduced-motion: no-preference) {
     .scene .field circle { animation: twinkle var(--p) ease-in-out var(--d) infinite alternate; }
     @keyframes twinkle { to { opacity: 0.05; } }
-    .scene .g0 { animation: g0 14s linear infinite; }
-    @keyframes g0 { 0%, 9.0% { opacity: 0; transform: none; } 9.5% { opacity: 1; transform: none; } 18.0% { opacity: 1; transform: translate(-133px, -78px); } 19.0%, 100% { opacity: 0; transform: translate(-133px, -78px); } }
-    .scene .b0 { animation: b0 14s linear infinite; }
-    @keyframes b0 { 0%, 18.0% { opacity: 0; transform: none; } 18.5% { opacity: 1; transform: none; } 27.0% { opacity: 1; transform: translate(133px, 78px); } 28.0%, 100% { opacity: 0; transform: translate(133px, 78px); } }
-    .scene .l0 { animation: l0 14s var(--ease-standard) infinite; }
-    @keyframes l0 { 0%, 9.0% { opacity: 0; stroke-dasharray: 3 6; } 10.0%, 27.0% { opacity: 1; stroke-dasharray: 3 6; } 28.0%, 90% { opacity: 1; stroke-dasharray: none; } 96%, 100% { opacity: 0; stroke-dasharray: none; } }
-    .scene .m0 { animation: m0 14s var(--ease-standard) infinite; }
-    @keyframes m0 { 0%, 27.0% { opacity: 0; transform: scale(0.4); } 29.0%, 90% { opacity: 1; transform: none; } 96%, 100% { opacity: 0; } }
-    .scene .g1 { animation: g1 14s linear infinite; }
-    @keyframes g1 { 0%, 11.2% { opacity: 0; transform: none; } 11.7% { opacity: 1; transform: none; } 20.2% { opacity: 1; transform: translate(134px, -82px); } 21.2%, 100% { opacity: 0; transform: translate(134px, -82px); } }
-    .scene .b1 { animation: b1 14s linear infinite; }
-    @keyframes b1 { 0%, 20.2% { opacity: 0; transform: none; } 20.7% { opacity: 1; transform: none; } 29.2% { opacity: 1; transform: translate(-134px, 82px); } 30.2%, 100% { opacity: 0; transform: translate(-134px, 82px); } }
-    .scene .l1 { animation: l1 14s var(--ease-standard) infinite; }
-    @keyframes l1 { 0%, 11.2% { opacity: 0; stroke-dasharray: 3 6; } 12.2%, 29.2% { opacity: 1; stroke-dasharray: 3 6; } 30.2%, 90% { opacity: 1; stroke-dasharray: none; } 96%, 100% { opacity: 0; stroke-dasharray: none; } }
-    .scene .m1 { animation: m1 14s var(--ease-standard) infinite; }
-    @keyframes m1 { 0%, 29.2% { opacity: 0; transform: scale(0.4); } 31.2%, 90% { opacity: 1; transform: none; } 96%, 100% { opacity: 0; } }
-    .scene .g2 { animation: g2 14s linear infinite; }
-    @keyframes g2 { 0%, 13.4% { opacity: 0; transform: none; } 13.9% { opacity: 1; transform: none; } 22.4% { opacity: 1; transform: translate(139px, 61px); } 23.4%, 100% { opacity: 0; transform: translate(139px, 61px); } }
-    .scene .b2 { animation: b2 14s linear infinite; }
-    @keyframes b2 { 0%, 22.4% { opacity: 0; transform: none; } 22.9% { opacity: 1; transform: none; } 31.4% { opacity: 1; transform: translate(-139px, -61px); } 32.4%, 100% { opacity: 0; transform: translate(-139px, -61px); } }
-    .scene .l2 { animation: l2 14s var(--ease-standard) infinite; }
-    @keyframes l2 { 0%, 13.4% { opacity: 0; stroke-dasharray: 3 6; } 14.4%, 31.4% { opacity: 1; stroke-dasharray: 3 6; } 32.4%, 90% { opacity: 1; stroke-dasharray: none; } 96%, 100% { opacity: 0; stroke-dasharray: none; } }
-    .scene .m2 { animation: m2 14s var(--ease-standard) infinite; }
-    @keyframes m2 { 0%, 31.4% { opacity: 0; transform: scale(0.4); } 33.4%, 90% { opacity: 1; transform: none; } 96%, 100% { opacity: 0; } }
-    .scene .g3 { animation: g3 14s linear infinite; }
-    @keyframes g3 { 0%, 15.600000000000001% { opacity: 0; transform: none; } 16.1% { opacity: 1; transform: none; } 24.6% { opacity: 1; transform: translate(318px, -4px); } 25.6%, 100% { opacity: 0; transform: translate(318px, -4px); } }
-    .scene .b3 { animation: b3 14s linear infinite; }
-    @keyframes b3 { 0%, 24.6% { opacity: 0; transform: none; } 25.1% { opacity: 1; transform: none; } 33.6% { opacity: 1; transform: translate(-318px, 4px); } 34.6%, 100% { opacity: 0; transform: translate(-318px, 4px); } }
-    .scene .l3 { animation: l3 14s var(--ease-standard) infinite; }
-    @keyframes l3 { 0%, 15.600000000000001% { opacity: 0; stroke-dasharray: 3 6; } 16.6%, 33.6% { opacity: 1; stroke-dasharray: 3 6; } 34.6%, 90% { opacity: 1; stroke-dasharray: none; } 96%, 100% { opacity: 0; stroke-dasharray: none; } }
-    .scene .m3 { animation: m3 14s var(--ease-standard) infinite; }
-    @keyframes m3 { 0%, 33.6% { opacity: 0; transform: scale(0.4); } 35.6%, 90% { opacity: 1; transform: none; } 96%, 100% { opacity: 0; } }
-    .scene .g4 { animation: g4 14s linear infinite; }
-    @keyframes g4 { 0%, 17.8% { opacity: 0; transform: none; } 18.3% { opacity: 1; transform: none; } 26.8% { opacity: 1; transform: translate(138px, 79px); } 27.8%, 100% { opacity: 0; transform: translate(138px, 79px); } }
-    .scene .b4 { animation: b4 14s linear infinite; }
-    @keyframes b4 { 0%, 26.8% { opacity: 0; transform: none; } 27.3% { opacity: 1; transform: none; } 35.8% { opacity: 1; transform: translate(-138px, -79px); } 36.8%, 100% { opacity: 0; transform: translate(-138px, -79px); } }
-    .scene .l4 { animation: l4 14s var(--ease-standard) infinite; }
-    @keyframes l4 { 0%, 17.8% { opacity: 0; stroke-dasharray: 3 6; } 18.8%, 35.8% { opacity: 1; stroke-dasharray: 3 6; } 36.8%, 90% { opacity: 1; stroke-dasharray: none; } 96%, 100% { opacity: 0; stroke-dasharray: none; } }
-    .scene .m4 { animation: m4 14s var(--ease-standard) infinite; }
-    @keyframes m4 { 0%, 35.8% { opacity: 0; transform: scale(0.4); } 37.8%, 90% { opacity: 1; transform: none; } 96%, 100% { opacity: 0; } }
-    .scene .g5 { animation: g5 14s linear infinite; }
-    @keyframes g5 { 0%, 20.0% { opacity: 0; transform: none; } 20.5% { opacity: 1; transform: none; } 29.0% { opacity: 1; transform: translate(346px, 100px); } 30.0%, 100% { opacity: 0; transform: translate(346px, 100px); } }
-    .scene .b5 { animation: b5 14s linear infinite; }
-    @keyframes b5 { 0%, 29.0% { opacity: 0; transform: none; } 29.5% { opacity: 1; transform: none; } 38.0% { opacity: 1; transform: translate(-346px, -100px); } 39.0%, 100% { opacity: 0; transform: translate(-346px, -100px); } }
-    .scene .l5 { animation: l5 14s var(--ease-standard) infinite; }
-    @keyframes l5 { 0%, 20.0% { opacity: 0; stroke-dasharray: 3 6; } 21.0%, 38.0% { opacity: 1; stroke-dasharray: 3 6; } 39.0%, 90% { opacity: 1; stroke-dasharray: none; } 96%, 100% { opacity: 0; stroke-dasharray: none; } }
-    .scene .m5 { animation: m5 14s var(--ease-standard) infinite; }
-    @keyframes m5 { 0%, 38.0% { opacity: 0; transform: scale(0.4); } 40.0%, 90% { opacity: 1; transform: none; } 96%, 100% { opacity: 0; } }
-    .scene .g6 { animation: g6 14s linear infinite; }
-    @keyframes g6 { 0%, 22.200000000000003% { opacity: 0; transform: none; } 22.700000000000003% { opacity: 1; transform: none; } 31.200000000000003% { opacity: 1; transform: translate(-158px, -268px); } 32.2%, 100% { opacity: 0; transform: translate(-158px, -268px); } }
-    .scene .b6 { animation: b6 14s linear infinite; }
-    @keyframes b6 { 0%, 31.200000000000003% { opacity: 0; transform: none; } 31.700000000000003% { opacity: 1; transform: none; } 40.2% { opacity: 1; transform: translate(158px, 268px); } 41.2%, 100% { opacity: 0; transform: translate(158px, 268px); } }
-    .scene .l6 { animation: l6 14s var(--ease-standard) infinite; }
-    @keyframes l6 { 0%, 22.200000000000003% { opacity: 0; stroke-dasharray: 3 6; } 23.200000000000003%, 40.2% { opacity: 1; stroke-dasharray: 3 6; } 41.2%, 90% { opacity: 1; stroke-dasharray: none; } 96%, 100% { opacity: 0; stroke-dasharray: none; } }
-    .scene .m6 { animation: m6 14s var(--ease-standard) infinite; }
-    @keyframes m6 { 0%, 40.2% { opacity: 0; transform: scale(0.4); } 42.2%, 90% { opacity: 1; transform: none; } 96%, 100% { opacity: 0; } }
-    .scene .g7 { animation: g7 14s linear infinite; }
-    @keyframes g7 { 0%, 24.400000000000002% { opacity: 0; transform: none; } 24.900000000000002% { opacity: 1; transform: none; } 33.400000000000006% { opacity: 1; transform: translate(-7px, -138px); } 34.400000000000006%, 100% { opacity: 0; transform: translate(-7px, -138px); } }
-    .scene .l7 { animation: l7 14s var(--ease-standard) infinite; }
-    @keyframes l7 { 0%, 24.400000000000002% { opacity: 0; } 25.400000000000002%, 37.400000000000006% { opacity: 1; } 42.400000000000006%, 100% { opacity: 0; } }
-    .scene .g8 { animation: g8 14s linear infinite; }
-    @keyframes g8 { 0%, 26.6% { opacity: 0; transform: none; } 27.1% { opacity: 1; transform: none; } 35.6% { opacity: 1; transform: translate(-165px, -169px); } 36.6%, 100% { opacity: 0; transform: translate(-165px, -169px); } }
-    .scene .l8 { animation: l8 14s var(--ease-standard) infinite; }
-    @keyframes l8 { 0%, 26.6% { opacity: 0; } 27.6%, 39.6% { opacity: 1; } 44.6%, 100% { opacity: 0; } }
-    .scene .g9 { animation: g9 14s linear infinite; }
-    @keyframes g9 { 0%, 28.8% { opacity: 0; transform: none; } 29.3% { opacity: 1; transform: none; } 37.8% { opacity: 1; transform: translate(0px, -143px); } 38.8%, 100% { opacity: 0; transform: translate(0px, -143px); } }
-    .scene .l9 { animation: l9 14s var(--ease-standard) infinite; }
-    @keyframes l9 { 0%, 28.8% { opacity: 0; } 29.8%, 41.8% { opacity: 1; } 46.8%, 100% { opacity: 0; } }
+    .scene .g0 { animation: g0 16s linear infinite; }
+    @keyframes g0 { 0%, 8.0% { opacity: 0; transform: none; } 8.5% { opacity: 1; transform: none; } 16.0% { opacity: 1; transform: translate(-133px, -78px); } 17.0%, 100% { opacity: 0; transform: translate(-133px, -78px); } }
+    .scene .b0 { animation: b0 16s linear infinite; }
+    @keyframes b0 { 0%, 16.0% { opacity: 0; transform: none; } 16.5% { opacity: 1; transform: none; } 24.0% { opacity: 1; transform: translate(133px, 78px); } 25.0%, 100% { opacity: 0; transform: translate(133px, 78px); } }
+    .scene .l0 { animation: l0 16s var(--ease-standard) infinite; }
+    @keyframes l0 { 0%, 8.0% { opacity: 0; stroke-dasharray: 3 6; } 9.0%, 24.0% { opacity: 1; stroke-dasharray: 3 6; } 25.0%, 56% { opacity: 1; stroke-dasharray: none; stroke-width: 2px; } 60%, 90% { opacity: 1; stroke-dasharray: none; stroke-width: 4px; } 96%, 100% { opacity: 0; stroke-dasharray: none; } }
+    .scene .m0 { animation: m0 16s var(--ease-standard) infinite; }
+    @keyframes m0 { 0%, 24.0% { opacity: 0; transform: scale(0.4); } 26.0%, 56% { opacity: 1; transform: none; } 60%, 90% { opacity: 1; transform: scale(1.6); } 96%, 100% { opacity: 0; } }
+    .scene .g1 { animation: g1 16s linear infinite; }
+    @keyframes g1 { 0%, 9.9% { opacity: 0; transform: none; } 10.4% { opacity: 1; transform: none; } 17.9% { opacity: 1; transform: translate(134px, -82px); } 18.9%, 100% { opacity: 0; transform: translate(134px, -82px); } }
+    .scene .b1 { animation: b1 16s linear infinite; }
+    @keyframes b1 { 0%, 17.9% { opacity: 0; transform: none; } 18.4% { opacity: 1; transform: none; } 25.9% { opacity: 1; transform: translate(-134px, 82px); } 26.9%, 100% { opacity: 0; transform: translate(-134px, 82px); } }
+    .scene .l1 { animation: l1 16s var(--ease-standard) infinite; }
+    @keyframes l1 { 0%, 9.9% { opacity: 0; stroke-dasharray: 3 6; } 10.9%, 25.9% { opacity: 1; stroke-dasharray: 3 6; } 26.9%, 56% { opacity: 1; stroke-dasharray: none; stroke-width: 2px; } 60%, 90% { opacity: 0.1; stroke-dasharray: none; stroke-width: 2px; } 96%, 100% { opacity: 0; stroke-dasharray: none; } }
+    .scene .m1 { animation: m1 16s var(--ease-standard) infinite; }
+    @keyframes m1 { 0%, 25.9% { opacity: 0; transform: scale(0.4); } 27.9%, 56% { opacity: 1; transform: none; } 60%, 100% { opacity: 0; transform: scale(0.3); } 96%, 100% { opacity: 0; } }
+    .scene .g2 { animation: g2 16s linear infinite; }
+    @keyframes g2 { 0%, 11.8% { opacity: 0; transform: none; } 12.3% { opacity: 1; transform: none; } 19.8% { opacity: 1; transform: translate(139px, 61px); } 20.8%, 100% { opacity: 0; transform: translate(139px, 61px); } }
+    .scene .b2 { animation: b2 16s linear infinite; }
+    @keyframes b2 { 0%, 19.8% { opacity: 0; transform: none; } 20.3% { opacity: 1; transform: none; } 27.8% { opacity: 1; transform: translate(-139px, -61px); } 28.8%, 100% { opacity: 0; transform: translate(-139px, -61px); } }
+    .scene .l2 { animation: l2 16s var(--ease-standard) infinite; }
+    @keyframes l2 { 0%, 11.8% { opacity: 0; stroke-dasharray: 3 6; } 12.8%, 27.8% { opacity: 1; stroke-dasharray: 3 6; } 28.8%, 56% { opacity: 1; stroke-dasharray: none; stroke-width: 2px; } 60%, 90% { opacity: 0.1; stroke-dasharray: none; stroke-width: 2px; } 96%, 100% { opacity: 0; stroke-dasharray: none; } }
+    .scene .m2 { animation: m2 16s var(--ease-standard) infinite; }
+    @keyframes m2 { 0%, 27.8% { opacity: 0; transform: scale(0.4); } 29.8%, 56% { opacity: 1; transform: none; } 60%, 100% { opacity: 0; transform: scale(0.3); } 96%, 100% { opacity: 0; } }
+    .scene .g3 { animation: g3 16s linear infinite; }
+    @keyframes g3 { 0%, 13.7% { opacity: 0; transform: none; } 14.2% { opacity: 1; transform: none; } 21.7% { opacity: 1; transform: translate(318px, -4px); } 22.7%, 100% { opacity: 0; transform: translate(318px, -4px); } }
+    .scene .b3 { animation: b3 16s linear infinite; }
+    @keyframes b3 { 0%, 21.7% { opacity: 0; transform: none; } 22.2% { opacity: 1; transform: none; } 29.7% { opacity: 1; transform: translate(-318px, 4px); } 30.7%, 100% { opacity: 0; transform: translate(-318px, 4px); } }
+    .scene .l3 { animation: l3 16s var(--ease-standard) infinite; }
+    @keyframes l3 { 0%, 13.7% { opacity: 0; stroke-dasharray: 3 6; } 14.7%, 29.7% { opacity: 1; stroke-dasharray: 3 6; } 30.7%, 56% { opacity: 1; stroke-dasharray: none; stroke-width: 2px; } 60%, 90% { opacity: 1; stroke-dasharray: none; stroke-width: 4px; } 96%, 100% { opacity: 0; stroke-dasharray: none; } }
+    .scene .m3 { animation: m3 16s var(--ease-standard) infinite; }
+    @keyframes m3 { 0%, 29.7% { opacity: 0; transform: scale(0.4); } 31.7%, 56% { opacity: 1; transform: none; } 60%, 90% { opacity: 1; transform: scale(1.6); } 96%, 100% { opacity: 0; } }
+    .scene .g4 { animation: g4 16s linear infinite; }
+    @keyframes g4 { 0%, 15.6% { opacity: 0; transform: none; } 16.1% { opacity: 1; transform: none; } 23.6% { opacity: 1; transform: translate(138px, 79px); } 24.6%, 100% { opacity: 0; transform: translate(138px, 79px); } }
+    .scene .b4 { animation: b4 16s linear infinite; }
+    @keyframes b4 { 0%, 23.6% { opacity: 0; transform: none; } 24.1% { opacity: 1; transform: none; } 31.6% { opacity: 1; transform: translate(-138px, -79px); } 32.6%, 100% { opacity: 0; transform: translate(-138px, -79px); } }
+    .scene .l4 { animation: l4 16s var(--ease-standard) infinite; }
+    @keyframes l4 { 0%, 15.6% { opacity: 0; stroke-dasharray: 3 6; } 16.6%, 31.6% { opacity: 1; stroke-dasharray: 3 6; } 32.6%, 56% { opacity: 1; stroke-dasharray: none; stroke-width: 2px; } 60%, 90% { opacity: 0.1; stroke-dasharray: none; stroke-width: 2px; } 96%, 100% { opacity: 0; stroke-dasharray: none; } }
+    .scene .m4 { animation: m4 16s var(--ease-standard) infinite; }
+    @keyframes m4 { 0%, 31.6% { opacity: 0; transform: scale(0.4); } 33.6%, 56% { opacity: 1; transform: none; } 60%, 100% { opacity: 0; transform: scale(0.3); } 96%, 100% { opacity: 0; } }
+    .scene .g5 { animation: g5 16s linear infinite; }
+    @keyframes g5 { 0%, 17.5% { opacity: 0; transform: none; } 18.0% { opacity: 1; transform: none; } 25.5% { opacity: 1; transform: translate(346px, 100px); } 26.5%, 100% { opacity: 0; transform: translate(346px, 100px); } }
+    .scene .b5 { animation: b5 16s linear infinite; }
+    @keyframes b5 { 0%, 25.5% { opacity: 0; transform: none; } 26.0% { opacity: 1; transform: none; } 33.5% { opacity: 1; transform: translate(-346px, -100px); } 34.5%, 100% { opacity: 0; transform: translate(-346px, -100px); } }
+    .scene .l5 { animation: l5 16s var(--ease-standard) infinite; }
+    @keyframes l5 { 0%, 17.5% { opacity: 0; stroke-dasharray: 3 6; } 18.5%, 33.5% { opacity: 1; stroke-dasharray: 3 6; } 34.5%, 56% { opacity: 1; stroke-dasharray: none; stroke-width: 2px; } 60%, 90% { opacity: 1; stroke-dasharray: none; stroke-width: 4px; } 96%, 100% { opacity: 0; stroke-dasharray: none; } }
+    .scene .m5 { animation: m5 16s var(--ease-standard) infinite; }
+    @keyframes m5 { 0%, 33.5% { opacity: 0; transform: scale(0.4); } 35.5%, 56% { opacity: 1; transform: none; } 60%, 90% { opacity: 1; transform: scale(1.6); } 96%, 100% { opacity: 0; } }
+    .scene .g6 { animation: g6 16s linear infinite; }
+    @keyframes g6 { 0%, 19.4% { opacity: 0; transform: none; } 19.9% { opacity: 1; transform: none; } 27.4% { opacity: 1; transform: translate(-158px, -268px); } 28.4%, 100% { opacity: 0; transform: translate(-158px, -268px); } }
+    .scene .b6 { animation: b6 16s linear infinite; }
+    @keyframes b6 { 0%, 27.4% { opacity: 0; transform: none; } 27.9% { opacity: 1; transform: none; } 35.4% { opacity: 1; transform: translate(158px, 268px); } 36.4%, 100% { opacity: 0; transform: translate(158px, 268px); } }
+    .scene .l6 { animation: l6 16s var(--ease-standard) infinite; }
+    @keyframes l6 { 0%, 19.4% { opacity: 0; stroke-dasharray: 3 6; } 20.4%, 35.4% { opacity: 1; stroke-dasharray: 3 6; } 36.4%, 56% { opacity: 1; stroke-dasharray: none; stroke-width: 2px; } 60%, 90% { opacity: 0.1; stroke-dasharray: none; stroke-width: 2px; } 96%, 100% { opacity: 0; stroke-dasharray: none; } }
+    .scene .m6 { animation: m6 16s var(--ease-standard) infinite; }
+    @keyframes m6 { 0%, 35.4% { opacity: 0; transform: scale(0.4); } 37.4%, 56% { opacity: 1; transform: none; } 60%, 100% { opacity: 0; transform: scale(0.3); } 96%, 100% { opacity: 0; } }
+    .scene .g7 { animation: g7 16s linear infinite; }
+    @keyframes g7 { 0%, 21.299999999999997% { opacity: 0; transform: none; } 21.799999999999997% { opacity: 1; transform: none; } 29.299999999999997% { opacity: 1; transform: translate(-7px, -138px); } 30.299999999999997%, 100% { opacity: 0; transform: translate(-7px, -138px); } }
+    .scene .l7 { animation: l7 16s var(--ease-standard) infinite; }
+    @keyframes l7 { 0%, 21.299999999999997% { opacity: 0; } 22.299999999999997%, 33.3% { opacity: 1; } 38.3%, 100% { opacity: 0; } }
+    .scene .g8 { animation: g8 16s linear infinite; }
+    @keyframes g8 { 0%, 23.2% { opacity: 0; transform: none; } 23.7% { opacity: 1; transform: none; } 31.2% { opacity: 1; transform: translate(-165px, -169px); } 32.2%, 100% { opacity: 0; transform: translate(-165px, -169px); } }
+    .scene .l8 { animation: l8 16s var(--ease-standard) infinite; }
+    @keyframes l8 { 0%, 23.2% { opacity: 0; } 24.2%, 35.2% { opacity: 1; } 40.2%, 100% { opacity: 0; } }
+    .scene .g9 { animation: g9 16s linear infinite; }
+    @keyframes g9 { 0%, 25.099999999999998% { opacity: 0; transform: none; } 25.599999999999998% { opacity: 1; transform: none; } 33.099999999999994% { opacity: 1; transform: translate(0px, -143px); } 34.099999999999994%, 100% { opacity: 0; transform: translate(0px, -143px); } }
+    .scene .l9 { animation: l9 16s var(--ease-standard) infinite; }
+    @keyframes l9 { 0%, 25.099999999999998% { opacity: 0; } 26.099999999999998%, 37.099999999999994% { opacity: 1; } 42.099999999999994%, 100% { opacity: 0; } }
   }
 
   /* How it works: three steps, a number and a sentence each. */
@@ -169,7 +174,7 @@
         </div>
       </div>
 
-      <figure class="scene rise later" role="img" aria-label="Seven people: a founder, an engineer, a designer, an investor, a teacher, a student and a parent. Between them, Belong checks each possible match both ways at once: a dot goes out from one person and another comes back from the other, and only when both arrive does the line hold. The founder and the engineer each end up with three matches, the designer, teacher and student with two. Where nothing comes back, as from the investor to the designer, the line fades.">
+      <figure class="scene rise later" role="img" aria-label="Seven people: a founder, an engineer, a designer, an investor, a teacher, a student and a parent. Between them, Belong checks each possible match both ways at once: a dot goes out from one person and another comes back from the other, and only when both arrive does the line hold. The founder and the engineer each find three matches, the designer, teacher and student two. Where nothing comes back, as from the investor to the designer, the line fades. Then each person says yes to some and no to others, and only a yes on both sides becomes an introduction: the founder and the engineer, the engineer and the designer, the teacher and the parent. The rest fade, and nobody is told who said no.">
         <svg viewBox="0 0 600 480" aria-hidden="true">
           <g class="field">
             <circle cx="138" cy="242" r="4.0" style="--d: 1.5s; --p: 6.4s"/>
@@ -210,39 +215,39 @@
             <circle cx="471" cy="344" r="3.6" style="--d: 4.5s; --p: 7.9s"/>
             <circle cx="151" cy="159" r="3.0" style="--d: 4.7s; --p: 6.4s"/>
           </g>
-          <line class="link l0" x1="269" y1="192" x2="136" y2="113"/>
+          <line class="link yes l0" x1="269" y1="192" x2="136" y2="113"/>
           <circle class="go g0" cx="269" cy="192" r="6"/>
           <circle class="back b0" cx="136" cy="113" r="6"/>
-          <g class="meet m0"><circle class="meet-ground" cx="202" cy="152" r="12"/><path class="half-a" d="M202 142a10 10 0 0 0 0 20z"/><path class="half-b" d="M202 142a10 10 0 0 1 0 20z"/></g>
-          <line class="link l1" x1="331" y1="191" x2="464" y2="109"/>
+          <g class="meet yes m0"><circle class="meet-ground" cx="202" cy="152" r="12"/><path class="half-a" d="M202 142a10 10 0 0 0 0 20z"/><path class="half-b" d="M202 142a10 10 0 0 1 0 20z"/></g>
+          <line class="link no l1" x1="331" y1="191" x2="464" y2="109"/>
           <circle class="go g1" cx="331" cy="191" r="6"/>
           <circle class="back b1" cx="464" cy="109" r="6"/>
-          <g class="meet m1"><circle class="meet-ground" cx="398" cy="150" r="12"/><path class="half-a" d="M398 140a10 10 0 0 0 0 20z"/><path class="half-b" d="M398 140a10 10 0 0 1 0 20z"/></g>
-          <line class="link l2" x1="333" y1="224" x2="472" y2="286"/>
+          <g class="meet no m1"><circle class="meet-ground" cx="398" cy="150" r="12"/><path class="half-a" d="M398 140a10 10 0 0 0 0 20z"/><path class="half-b" d="M398 140a10 10 0 0 1 0 20z"/></g>
+          <line class="link no l2" x1="333" y1="224" x2="472" y2="286"/>
           <circle class="go g2" cx="333" cy="224" r="6"/>
           <circle class="back b2" cx="472" cy="286" r="6"/>
-          <g class="meet m2"><circle class="meet-ground" cx="402" cy="255" r="12"/><path class="half-a" d="M402 245a10 10 0 0 0 0 20z"/><path class="half-b" d="M402 245a10 10 0 0 1 0 20z"/></g>
-          <line class="link l3" x1="141" y1="95" x2="459" y2="90"/>
+          <g class="meet no m2"><circle class="meet-ground" cx="402" cy="255" r="12"/><path class="half-a" d="M402 245a10 10 0 0 0 0 20z"/><path class="half-b" d="M402 245a10 10 0 0 1 0 20z"/></g>
+          <line class="link yes l3" x1="141" y1="95" x2="459" y2="90"/>
           <circle class="go g3" cx="141" cy="95" r="6"/>
           <circle class="back b3" cx="459" cy="90" r="6"/>
-          <g class="meet m3"><circle class="meet-ground" cx="300" cy="92" r="12"/><path class="half-a" d="M300 82a10 10 0 0 0 0 20z"/><path class="half-b" d="M300 82a10 10 0 0 1 0 20z"/></g>
-          <line class="link l4" x1="131" y1="328" x2="269" y2="407"/>
+          <g class="meet yes m3"><circle class="meet-ground" cx="300" cy="92" r="12"/><path class="half-a" d="M300 82a10 10 0 0 0 0 20z"/><path class="half-b" d="M300 82a10 10 0 0 1 0 20z"/></g>
+          <line class="link no l4" x1="131" y1="328" x2="269" y2="407"/>
           <circle class="go g4" cx="131" cy="328" r="6"/>
           <circle class="back b4" cx="269" cy="407" r="6"/>
-          <g class="meet m4"><circle class="meet-ground" cx="200" cy="368" r="12"/><path class="half-a" d="M200 358a10 10 0 0 0 0 20z"/><path class="half-b" d="M200 358a10 10 0 0 1 0 20z"/></g>
-          <line class="link l5" x1="135" y1="320" x2="480" y2="420"/>
+          <g class="meet no m4"><circle class="meet-ground" cx="200" cy="368" r="12"/><path class="half-a" d="M200 358a10 10 0 0 0 0 20z"/><path class="half-b" d="M200 358a10 10 0 0 1 0 20z"/></g>
+          <line class="link yes l5" x1="135" y1="320" x2="480" y2="420"/>
           <circle class="go g5" cx="135" cy="320" r="6"/>
           <circle class="back b5" cx="480" cy="420" r="6"/>
-          <g class="meet m5"><circle class="meet-ground" cx="308" cy="370" r="12"/><path class="half-a" d="M308 360a10 10 0 0 0 0 20z"/><path class="half-b" d="M308 360a10 10 0 0 1 0 20z"/></g>
-          <line class="link l6" x1="282" y1="394" x2="123" y2="126"/>
+          <g class="meet yes m5"><circle class="meet-ground" cx="308" cy="370" r="12"/><path class="half-a" d="M308 360a10 10 0 0 0 0 20z"/><path class="half-b" d="M308 360a10 10 0 0 1 0 20z"/></g>
+          <line class="link no l6" x1="282" y1="394" x2="123" y2="126"/>
           <circle class="go g6" cx="282" cy="394" r="6"/>
           <circle class="back b6" cx="123" cy="126" r="6"/>
-          <g class="meet m6"><circle class="meet-ground" cx="202" cy="260" r="12"/><path class="half-a" d="M202 250a10 10 0 0 0 0 20z"/><path class="half-b" d="M202 250a10 10 0 0 1 0 20z"/></g>
-          <line class="link l7" x1="503" y1="264" x2="497" y2="126"/>
+          <g class="meet no m6"><circle class="meet-ground" cx="202" cy="260" r="12"/><path class="half-a" d="M202 250a10 10 0 0 0 0 20z"/><path class="half-b" d="M202 250a10 10 0 0 1 0 20z"/></g>
+          <line class="link gone l7" x1="503" y1="264" x2="497" y2="126"/>
           <circle class="go g7" cx="503" cy="264" r="6"/>
-          <line class="link l8" x1="490" y1="404" x2="325" y2="236"/>
+          <line class="link gone l8" x1="490" y1="404" x2="325" y2="236"/>
           <circle class="go g8" cx="490" cy="404" r="6"/>
-          <line class="link l9" x1="300" y1="389" x2="300" y2="246"/>
+          <line class="link gone l9" x1="300" y1="389" x2="300" y2="246"/>
           <circle class="go g9" cx="300" cy="389" r="6"/>
           <g transform="translate(300 210)"><circle class="person-disc" r="30"/><circle class="person-shape" cy="-7" r="8.5"/><path class="person-shape" d="M-15 17c0-9 7-14 15-14s15 5 15 14z"/></g>
           <g transform="translate(105 95)"><circle class="person-disc" r="30"/><circle class="person-shape" cy="-7" r="8.5"/><path class="person-shape" d="M-15 17c0-9 7-14 15-14s15 5 15 14z"/></g>
