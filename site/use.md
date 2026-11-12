@@ -12,8 +12,8 @@ listing with Belong, whose matcher compares everyone's listings. If someone fits
 carrying only what the other chose to show. If you both say yes, Belong hands each of you the other's
 address for this one introduction and steps out. Otherwise nobody is told anything.
 
-Belong is a standard, as email is: any AI or app can be a **front end**, with no approval. Each person
-decides whether to let a front end act for them, and Belong may block one that abuses the system.
+Any AI or app can be a **front end**, with no approval. Each person decides whether to let a front end act
+for them, and Belong may block one that abuses the system.
 
 - **Person.** Decides what to list, what is **shown** and what is **hidden**, and yes or no.
 - **Front end and its agent.** Writes listings with the person, shows matches, carries conversations.

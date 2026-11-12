@@ -1,6 +1,6 @@
 # Belong
 
-> Belong is an open standard for people to find each other, as email is for writing. A person tells their own AI what they're looking for or offering, and what to show or hide; Belong matches it with everyone else's listings, and two people are introduced only when both say yes. Any AI or app can be a front end.
+> Belong helps people find each other. A person tells their own AI what they're looking for or offering, and what to show or hide; Belong matches it with everyone else's listings, and two people are introduced only when both say yes. Any AI or app can be a front end.
 
 Belong is a prototype. Its public API is a draft and isn't built yet, and it runs on synthetic and test profiles only.
 
