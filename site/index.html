@@ -60,13 +60,16 @@
   .hidden-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: var(--space-16); align-items: center; }
   @media (max-width: 760px) { .hidden-grid { grid-template-columns: 1fr; gap: var(--space-10); } }
   .hidden-grid p { color: var(--text-secondary); max-width: 44ch; margin: 0 0 var(--space-4); font: var(--text-body-l); }
-  /* The phone plays one story twice on a loop. First in the Belong app, drawn in the app's own look: the person tells
-     their AI what they're looking for; their profile appears, the hello and their own words on white, shown details on
-     the phone's off-white, the hidden age in its red band with the Hidden badge; matching starts; a match arrives as a
-     sheet and they both say yes. Then it swipes to an AI chat, any assistant, no one's brand, where the same person
-     does the same through Belong, its replies carrying Belong's cards, and swipes back. A picture, so it's one image
-     to screen readers. With reduced motion it rests on the app's profile with its AI's latest message. */
-  .phone { justify-self: center; width: 300px; max-width: 100%; margin: 0; border: 9px solid var(--surface-inverse);
+  /* The ways to use Belong, one story three times on a loop. First the Belong app on a phone, drawn in the app's own
+     look: the person tells their AI what they're looking for; their profile appears, the hello and their own words on
+     white, shown details on the phone's off-white, the hidden age in its red band with the Hidden badge; matching
+     starts; a match arrives as a sheet and they both say yes. Then it swipes to an AI chat window, any assistant and no
+     one's brand, using Belong through its connector; then to a mail window, using Belong by email; then back to the
+     phone. A picture, so it's one image to screen readers. With reduced motion it rests on the phone's profile. */
+  .ways { position: relative; justify-self: stretch; height: 660px; margin: 0; overflow: hidden; }
+  .ways .slide { position: absolute; inset: 0; display: grid; place-items: center; padding: var(--space-6) var(--space-2); }
+  .ways .s-ai, .ways .s-mail { transform: translateX(115%); }
+  .phone { width: 300px; max-width: 100%; margin: 0; border: 9px solid var(--surface-inverse);
     border-radius: 44px; overflow: hidden; background: var(--surface-card); box-shadow: var(--shadow-lg); }
   .phone .bar { display: flex; align-items: center; justify-content: space-between; padding: 10px var(--space-5) 0;
     font: var(--text-caption); font-weight: 600; }
@@ -75,35 +78,17 @@
     border-bottom: 1px solid var(--border-subtle); }
   .phone .top img { height: 17px; width: auto; margin-right: auto; }
   .phone .top svg { width: 18px; height: 18px; color: var(--text-primary); }
-  .phone .viewport { overflow: hidden; }
-  .phone .track { display: flex; width: 200%; }
-  .phone .pane { width: 50%; flex-shrink: 0; }
   .phone .screen { position: relative; height: 500px; overflow: hidden; }
-  /* The AI chat: a plain assistant's title, the conversation pushed up from the bottom as it grows, a message box. */
-  .phone .ai-top { justify-content: center; font: var(--text-body-s); font-weight: 600; }
-  .phone .ai-top .spark { width: 10px; height: 10px; border-radius: 50%; background: var(--text-primary); }
-  .phone .convo { height: 444px; display: flex; flex-direction: column; justify-content: flex-end; padding: 0 var(--space-4); overflow: hidden; }
-  .phone .grow { display: grid; grid-template-rows: 1fr; }
-  .phone .grow > div { overflow: hidden; min-height: 0; padding-top: var(--space-3); display: flex; flex-direction: column; }
-  .phone .convo .msg.me { background: var(--surface-raised); }
-  .phone .said { margin: 0; font: var(--text-body-s); }
-  .phone .tool { margin-top: var(--space-2); padding: var(--space-3); border: 1px solid var(--border-default); border-radius: var(--radius-md);
-    background: var(--surface-card); display: grid; gap: var(--space-1); }
-  .phone .tool .head { display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-1); }
-  .phone .tool .head img { height: 13px; width: auto; }
-  .phone .tool .fact { grid-template-columns: 68px 1fr; font: var(--text-caption); }
-  .phone .box { margin: var(--space-3) var(--space-4) var(--space-4); padding: var(--space-2) var(--space-4); border: 1px solid var(--border-default);
-    border-radius: var(--radius-pill); font: var(--text-body-s); color: var(--text-tertiary); }
   .phone .chat, .phone .profile, .phone .match { position: absolute; left: 0; right: 0; }
   .phone .chat { inset: 0; padding: var(--space-4); display: flex; flex-direction: column; gap: var(--space-2); }
   .phone .chat .eyebrow { margin-bottom: var(--space-2); color: var(--text-tertiary); }
-  .phone .msg { max-width: 85%; margin: 0; padding: var(--space-2) var(--space-3); border-radius: 18px; font: var(--text-body-s); }
-  .phone .msg.me { align-self: flex-end; background: var(--surface-raised); border-bottom-right-radius: var(--radius-sm); }
-  .phone .msg.ai { align-self: flex-start; background: var(--accent-ai-muted); border-bottom-left-radius: var(--radius-sm); }
+  .ways .msg { max-width: 85%; margin: 0; padding: var(--space-2) var(--space-3); border-radius: 18px; font: var(--text-body-s); }
+  .ways .msg.me { align-self: flex-end; background: var(--surface-raised); border-bottom-right-radius: var(--radius-sm); }
+  .ways .msg.ai { align-self: flex-start; background: var(--accent-ai-muted); border-bottom-left-radius: var(--radius-sm); }
   .phone .turn { display: grid; justify-items: start; }
   .phone .turn > * { grid-area: 1 / 1; align-self: start; }
-  .phone .typing { display: inline-flex; gap: 4px; padding: var(--space-3); }
-  .phone .typing i { width: 6px; height: 6px; border-radius: 50%; background: var(--accent-ai); }
+  .ways .typing { display: inline-flex; gap: 4px; padding: var(--space-3); }
+  .ways .typing i { width: 6px; height: 6px; border-radius: 50%; background: var(--accent-ai); }
   .phone .making { align-self: flex-start; font: var(--text-caption); color: var(--text-ai); }
   .phone .profile { inset: 0; background: var(--sf-paper-100); }
   .phone .hello { background: var(--surface-card); padding: var(--space-4); }
@@ -114,9 +99,9 @@
   .phone .words { margin: var(--space-3) 0 0; font-family: var(--font-display); font-weight: 500; font-size: 15px; line-height: 1.7; }
   .phone .word { background: var(--sf-char-100); border-bottom: 2px solid var(--border-strong); border-radius: var(--radius-sm); padding: 1px 4px;
     -webkit-box-decoration-break: clone; box-decoration-break: clone; }
-  .phone .facts { padding: var(--space-3) var(--space-4); display: grid; gap: var(--space-2); }
-  .phone .fact { display: grid; grid-template-columns: 76px 1fr; gap: var(--space-2); font: var(--text-body-s); }
-  .phone .fact .label { color: var(--text-tertiary); }
+  .ways .facts { padding: var(--space-3) var(--space-4); display: grid; gap: var(--space-2); }
+  .ways .fact { display: grid; grid-template-columns: 76px 1fr; gap: var(--space-2); font: var(--text-body-s); }
+  .ways .fact .label { color: var(--text-tertiary); }
   .phone .hidden-band { padding: var(--space-3) var(--space-4);
     background: linear-gradient(var(--accent-error-muted), var(--accent-error-muted)), var(--surface-card); }
   .phone .hidden-band .head { display: flex; justify-content: space-between; align-items: center; }
@@ -141,50 +126,97 @@
   .phone .match .note { margin: 0; font: var(--text-body-s); }
   /* At rest (and with reduced motion): the profile, its AI's latest message; the chat behind it, the match away. */
   .phone .pk1, .phone .match { opacity: 0; }
+  /* The windows: a desktop app's frame, its title in the middle; the conversation pushed up from the bottom as it grows. */
+  .ways .window { width: 100%; max-width: 440px; height: 500px; display: flex; flex-direction: column; overflow: hidden;
+    background: var(--surface-card); border: 1px solid var(--border-default); border-radius: var(--radius-lg); box-shadow: var(--shadow-lg); }
+  .ways .chrome { position: relative; display: flex; align-items: center; justify-content: center; gap: var(--space-2); padding: var(--space-3);
+    border-bottom: 1px solid var(--border-subtle); font: var(--text-body-s); font-weight: 600; }
+  .ways .chrome .lights { position: absolute; left: var(--space-3); display: flex; gap: 6px; }
+  .ways .chrome .lights i { width: 10px; height: 10px; border-radius: 50%; background: var(--sf-char-100); }
+  .ways .chrome .spark { width: 10px; height: 10px; border-radius: 50%; background: var(--text-primary); }
+  .ways .convo { flex: 1; min-height: 0; display: flex; flex-direction: column; justify-content: flex-end; padding: 0 var(--space-4) var(--space-2); overflow: hidden; }
+  .ways .grow { display: grid; grid-template-rows: 1fr; }
+  .ways .grow > div { overflow: hidden; min-height: 0; padding-top: var(--space-3); display: flex; flex-direction: column; }
+  .ways .said { margin: 0; font: var(--text-body-s); }
+  .ways .uses { align-self: flex-start; display: inline-flex; align-items: center; gap: var(--space-2); padding: 4px var(--space-3);
+    border-radius: var(--radius-pill); background: var(--accent-ai-muted); color: var(--text-ai); font: var(--text-caption); }
+  .ways .uses img { height: 11px; width: auto; }
+  .ways .uses + .said { margin-top: var(--space-2); }
+  .ways .card { margin-top: var(--space-2); padding: var(--space-3); border: 1px solid var(--border-default); border-radius: var(--radius-md);
+    display: grid; gap: var(--space-1); background: var(--surface-card); }
+  .ways .card .head { display: flex; justify-content: space-between; align-items: center; }
+  .ways .card .fact { grid-template-columns: 68px 1fr; font: var(--text-caption); }
+  .ways .box { margin: var(--space-2) var(--space-4) var(--space-4); padding: var(--space-2) var(--space-4); border: 1px solid var(--border-default);
+    border-radius: var(--radius-pill); font: var(--text-body-s); color: var(--text-tertiary); }
+  /* The mail window: each email a card with who it's from, its subject and its text. */
+  .ways .mail .grow > div { padding-top: var(--space-2); }
+  .ways .email { padding: var(--space-3); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); background: var(--surface-card); }
+  .ways .email.mine { background: var(--sf-paper-100); }
+  .ways .email .from { display: flex; justify-content: space-between; font: var(--text-caption); color: var(--text-tertiary); }
+  .ways .email .from b { color: var(--text-primary); font-weight: 600; }
+  .ways .email .subject { margin: 2px 0 0; font: var(--text-body-s); font-weight: 600; }
+  .ways .email .text { margin: 2px 0 0; font: var(--text-caption); color: var(--text-secondary); }
+  .ways .email .card { margin-top: var(--space-2); }
+  /* At rest (and with reduced motion): the phone's profile and its AI's latest message; the rest away. */
+  .ways .pk1, .ways .match { opacity: 0; }
   @media (prefers-reduced-motion: no-preference) {
-    @keyframes say1 { 0%, 1.14% { opacity: 0; transform: translateY(6px); } 2.05% { opacity: 1; transform: none; } 68% { opacity: 1; transform: none; } 70%, 100% { opacity: 0; transform: none; } }
-    .phone .say1 { animation: say1 44s var(--ease-standard) infinite; }
-    @keyframes typing1 { 0%, 4.09% { opacity: 0; transform: none; } 5.0% { opacity: 1; transform: none; } 7.95% { opacity: 1; } 8.86%, 100% { opacity: 0; } }
-    .phone .typing1 { animation: typing1 44s var(--ease-standard) infinite; }
-    @keyframes ask { 0%, 8.18% { opacity: 0; transform: translateY(6px); } 9.09% { opacity: 1; transform: none; } 68% { opacity: 1; transform: none; } 70%, 100% { opacity: 0; transform: none; } }
-    .phone .ask { animation: ask 44s var(--ease-standard) infinite; }
-    @keyframes say2 { 0%, 13.18% { opacity: 0; transform: translateY(6px); } 14.09% { opacity: 1; transform: none; } 68% { opacity: 1; transform: none; } 70%, 100% { opacity: 0; transform: none; } }
-    .phone .say2 { animation: say2 44s var(--ease-standard) infinite; }
-    @keyframes making { 0%, 16.14% { opacity: 0; transform: none; } 17.05% { opacity: 1; transform: none; } 20.91% { opacity: 1; } 21.82%, 100% { opacity: 0; } }
-    .phone .making { animation: making 44s var(--ease-standard) infinite; }
-    @keyframes pk1 { 0%, 24.09% { opacity: 0; transform: translateY(6px); } 25.0% { opacity: 1; transform: none; } 30.0% { opacity: 1; } 30.91%, 100% { opacity: 0; } }
-    .phone .pk1 { animation: pk1 44s var(--ease-standard) infinite; }
-    @keyframes pk2 { 0%, 30.0% { opacity: 0; transform: translateY(6px); } 30.91% { opacity: 1; transform: none; } 68% { opacity: 1; transform: none; } 70%, 100% { opacity: 0; transform: none; } }
-    .phone .pk2 { animation: pk2 44s var(--ease-standard) infinite; }
-    @keyframes yesno { 0%, 36.14% { opacity: 0; transform: translateY(6px); } 37.05% { opacity: 1; transform: none; } 40.0% { opacity: 1; } 40.91%, 100% { opacity: 0; } }
-    .phone .yesno { animation: yesno 44s var(--ease-standard) infinite; }
-    @keyframes sent { 0%, 40.0% { opacity: 0; transform: translateY(6px); } 40.91% { opacity: 1; transform: none; } 43.41% { opacity: 1; } 44.32%, 100% { opacity: 0; } }
-    .phone .sent { animation: sent 44s var(--ease-standard) infinite; }
-    @keyframes agreed { 0%, 43.64% { opacity: 0; transform: translateY(6px); } 44.55% { opacity: 1; transform: none; } 68% { opacity: 1; transform: none; } 70%, 100% { opacity: 0; transform: none; } }
-    .phone .agreed { animation: agreed 44s var(--ease-standard) infinite; }
-    @keyframes c1 { 0% { grid-template-rows: 1fr; opacity: 1; } 3%, 53.41% { grid-template-rows: 0fr; opacity: 0; } 54.55%, 100% { grid-template-rows: 1fr; opacity: 1; } }
-    .phone .c1 { animation: c1 44s var(--ease-standard) infinite; }
-    @keyframes c2 { 0%, 56.82% { grid-template-rows: 0fr; opacity: 0; } 57.95%, 61.36% { grid-template-rows: 1fr; opacity: 1; } 62.5%, 100% { grid-template-rows: 0fr; opacity: 0; } }
-    .phone .c2 { animation: c2 44s var(--ease-standard) infinite; }
-    @keyframes c3 { 0% { grid-template-rows: 1fr; opacity: 1; } 3%, 61.36% { grid-template-rows: 0fr; opacity: 0; } 62.5%, 100% { grid-template-rows: 1fr; opacity: 1; } }
-    .phone .c3 { animation: c3 44s var(--ease-standard) infinite; }
-    @keyframes c4 { 0% { grid-template-rows: 1fr; opacity: 1; } 3%, 71.59% { grid-template-rows: 0fr; opacity: 0; } 72.73%, 100% { grid-template-rows: 1fr; opacity: 1; } }
-    .phone .c4 { animation: c4 44s var(--ease-standard) infinite; }
-    @keyframes c5 { 0% { grid-template-rows: 1fr; opacity: 1; } 3%, 78.41% { grid-template-rows: 0fr; opacity: 0; } 79.55%, 100% { grid-template-rows: 1fr; opacity: 1; } }
-    .phone .c5 { animation: c5 44s var(--ease-standard) infinite; }
-    @keyframes c6 { 0%, 81.14% { grid-template-rows: 0fr; opacity: 0; } 82.27%, 84.55% { grid-template-rows: 1fr; opacity: 1; } 85.68%, 100% { grid-template-rows: 0fr; opacity: 0; } }
-    .phone .c6 { animation: c6 44s var(--ease-standard) infinite; }
-    @keyframes c7 { 0% { grid-template-rows: 1fr; opacity: 1; } 3%, 84.55% { grid-template-rows: 0fr; opacity: 0; } 85.68%, 100% { grid-template-rows: 1fr; opacity: 1; } }
-    .phone .c7 { animation: c7 44s var(--ease-standard) infinite; }
-    @keyframes profile { 0%, 20.91% { transform: translateY(100%); } 23.41%, 68% { transform: none; } 70%, 100% { transform: translateY(100%); } }
-    .phone .profile { animation: profile 44s var(--ease-standard) infinite; }
-    @keyframes match { 0%, 34.09% { transform: translateY(105%); opacity: 1; } 36.14%, 68% { transform: none; opacity: 1; } 70%, 100% { transform: translateY(105%); opacity: 1; } }
-    .phone .match { animation: match 44s var(--ease-standard) infinite; }
-    @keyframes swipe { 0%, 50.0% { transform: none; } 52.27%, 97.73% { transform: translateX(-50%); } 100% { transform: none; } }
-    .phone .track { animation: swipe 44s var(--ease-standard) infinite; }
+    @keyframes s-phone { 0%, 41.51% { transform: none; opacity: 1; } 43.4% { transform: translateX(-115%); opacity: 1; } 43.58% { transform: translateX(-115%); opacity: 0; } 97.92% { transform: translateX(115%); opacity: 0; } 98.11% { transform: translateX(115%); opacity: 1; } 100% { transform: none; opacity: 1; } }
+    .ways .s-phone { animation: s-phone 53s var(--ease-standard) infinite; }
+    @keyframes s-ai { 0%, 41.51% { transform: translateX(115%); } 43.4%, 69.81% { transform: none; } 71.7%, 100% { transform: translateX(-115%); } }
+    .ways .s-ai { animation: s-ai 53s var(--ease-standard) infinite; }
+    @keyframes s-mail { 0%, 69.81% { transform: translateX(115%); } 71.7%, 98.11% { transform: none; } 100.0%, 100% { transform: translateX(-115%); } }
+    .ways .s-mail { animation: s-mail 53s var(--ease-standard) infinite; }
+    @keyframes say1 { 0%, 0.94% { opacity: 0; transform: translateY(6px); } 1.7% { opacity: 1; transform: none; } 54.72% { opacity: 1; transform: none; } 56.6%, 100% { opacity: 0; transform: none; } }
+    .ways .say1 { animation: say1 53s var(--ease-standard) infinite; }
+    @keyframes typing1 { 0%, 3.4% { opacity: 0; transform: none; } 4.15% { opacity: 1; transform: none; } 6.6% { opacity: 1; } 7.36%, 100% { opacity: 0; } }
+    .ways .typing1 { animation: typing1 53s var(--ease-standard) infinite; }
+    @keyframes ask { 0%, 6.79% { opacity: 0; transform: translateY(6px); } 7.55% { opacity: 1; transform: none; } 54.72% { opacity: 1; transform: none; } 56.6%, 100% { opacity: 0; transform: none; } }
+    .ways .ask { animation: ask 53s var(--ease-standard) infinite; }
+    @keyframes say2 { 0%, 10.94% { opacity: 0; transform: translateY(6px); } 11.7% { opacity: 1; transform: none; } 54.72% { opacity: 1; transform: none; } 56.6%, 100% { opacity: 0; transform: none; } }
+    .ways .say2 { animation: say2 53s var(--ease-standard) infinite; }
+    @keyframes making { 0%, 13.4% { opacity: 0; transform: none; } 14.15% { opacity: 1; transform: none; } 17.36% { opacity: 1; } 18.11%, 100% { opacity: 0; } }
+    .ways .making { animation: making 53s var(--ease-standard) infinite; }
+    @keyframes pk1 { 0%, 20.0% { opacity: 0; transform: translateY(6px); } 20.75% { opacity: 1; transform: none; } 24.91% { opacity: 1; } 25.66%, 100% { opacity: 0; } }
+    .ways .pk1 { animation: pk1 53s var(--ease-standard) infinite; }
+    @keyframes pk2 { 0%, 24.91% { opacity: 0; transform: translateY(6px); } 25.66% { opacity: 1; transform: none; } 54.72% { opacity: 1; transform: none; } 56.6%, 100% { opacity: 0; transform: none; } }
+    .ways .pk2 { animation: pk2 53s var(--ease-standard) infinite; }
+    @keyframes yesno { 0%, 30.0% { opacity: 0; transform: translateY(6px); } 30.75% { opacity: 1; transform: none; } 33.21% { opacity: 1; } 33.96%, 100% { opacity: 0; } }
+    .ways .yesno { animation: yesno 53s var(--ease-standard) infinite; }
+    @keyframes sent { 0%, 33.21% { opacity: 0; transform: translateY(6px); } 33.96% { opacity: 1; transform: none; } 36.04% { opacity: 1; } 36.79%, 100% { opacity: 0; } }
+    .ways .sent { animation: sent 53s var(--ease-standard) infinite; }
+    @keyframes agreed { 0%, 36.23% { opacity: 0; transform: translateY(6px); } 36.98% { opacity: 1; transform: none; } 54.72% { opacity: 1; transform: none; } 56.6%, 100% { opacity: 0; transform: none; } }
+    .ways .agreed { animation: agreed 53s var(--ease-standard) infinite; }
+    @keyframes a1 { 0%, 44.34% { grid-template-rows: 0fr; opacity: 0; } 45.28% { grid-template-rows: 1fr; opacity: 1; } 73.58% { grid-template-rows: 1fr; opacity: 1; } 75.47%, 100% { grid-template-rows: 0fr; opacity: 0; } }
+    .ways .a1 { animation: a1 53s var(--ease-standard) infinite; }
+    @keyframes a2 { 0%, 46.6% { grid-template-rows: 0fr; opacity: 0; } 47.55% { grid-template-rows: 1fr; opacity: 1; } 49.81% { grid-template-rows: 1fr; opacity: 1; } 50.75%, 100% { grid-template-rows: 0fr; opacity: 0; } }
+    .ways .a2 { animation: a2 53s var(--ease-standard) infinite; }
+    @keyframes a3 { 0%, 49.25% { grid-template-rows: 0fr; opacity: 0; } 50.19% { grid-template-rows: 1fr; opacity: 1; } 73.58% { grid-template-rows: 1fr; opacity: 1; } 75.47%, 100% { grid-template-rows: 0fr; opacity: 0; } }
+    .ways .a3 { animation: a3 53s var(--ease-standard) infinite; }
+    @keyframes a4 { 0%, 54.72% { grid-template-rows: 0fr; opacity: 0; } 55.66% { grid-template-rows: 1fr; opacity: 1; } 73.58% { grid-template-rows: 1fr; opacity: 1; } 75.47%, 100% { grid-template-rows: 0fr; opacity: 0; } }
+    .ways .a4 { animation: a4 53s var(--ease-standard) infinite; }
+    @keyframes a5 { 0%, 56.79% { grid-template-rows: 0fr; opacity: 0; } 57.74% { grid-template-rows: 1fr; opacity: 1; } 73.58% { grid-template-rows: 1fr; opacity: 1; } 75.47%, 100% { grid-template-rows: 0fr; opacity: 0; } }
+    .ways .a5 { animation: a5 53s var(--ease-standard) infinite; }
+    @keyframes a6 { 0%, 61.32% { grid-template-rows: 0fr; opacity: 0; } 62.26% { grid-template-rows: 1fr; opacity: 1; } 73.58% { grid-template-rows: 1fr; opacity: 1; } 75.47%, 100% { grid-template-rows: 0fr; opacity: 0; } }
+    .ways .a6 { animation: a6 53s var(--ease-standard) infinite; }
+    @keyframes a7 { 0%, 63.58% { grid-template-rows: 0fr; opacity: 0; } 64.53% { grid-template-rows: 1fr; opacity: 1; } 73.58% { grid-template-rows: 1fr; opacity: 1; } 75.47%, 100% { grid-template-rows: 0fr; opacity: 0; } }
+    .ways .a7 { animation: a7 53s var(--ease-standard) infinite; }
+    @keyframes m1 { 0%, 72.64% { grid-template-rows: 0fr; opacity: 0; } 73.58% { grid-template-rows: 1fr; opacity: 1; } 100% { grid-template-rows: 1fr; opacity: 1; } }
+    .ways .m1 { animation: m1 53s var(--ease-standard) infinite; }
+    @keyframes m2 { 0%, 77.36% { grid-template-rows: 0fr; opacity: 0; } 78.3% { grid-template-rows: 1fr; opacity: 1; } 100% { grid-template-rows: 1fr; opacity: 1; } }
+    .ways .m2 { animation: m2 53s var(--ease-standard) infinite; }
+    @keyframes m3 { 0%, 83.02% { grid-template-rows: 0fr; opacity: 0; } 83.96% { grid-template-rows: 1fr; opacity: 1; } 100% { grid-template-rows: 1fr; opacity: 1; } }
+    .ways .m3 { animation: m3 53s var(--ease-standard) infinite; }
+    @keyframes m4 { 0%, 87.74% { grid-template-rows: 0fr; opacity: 0; } 88.68% { grid-template-rows: 1fr; opacity: 1; } 100% { grid-template-rows: 1fr; opacity: 1; } }
+    .ways .m4 { animation: m4 53s var(--ease-standard) infinite; }
+    @keyframes m5 { 0%, 91.51% { grid-template-rows: 0fr; opacity: 0; } 92.45% { grid-template-rows: 1fr; opacity: 1; } 100% { grid-template-rows: 1fr; opacity: 1; } }
+    .ways .m5 { animation: m5 53s var(--ease-standard) infinite; }
+    @keyframes profile { 0%, 17.36% { transform: translateY(100%); } 19.43%, 54.72% { transform: none; } 56.6%, 100% { transform: translateY(100%); } }
+    .ways .profile { animation: profile 53s var(--ease-standard) infinite; }
+    @keyframes match { 0%, 28.3% { transform: translateY(105%); } 30.0%, 54.72% { transform: none; } 56.6%, 100% { transform: translateY(105%); } }
+    .ways .match { animation: match 53s var(--ease-standard) infinite; }
     @keyframes blink { 0%, 100% { opacity: .3; } 50% { opacity: 1; } }
-    .phone .typing i { animation: blink 1s ease-in-out infinite; }
-    .phone .typing i:nth-child(2) { animation-delay: .2s; } .phone .typing i:nth-child(3) { animation-delay: .4s; }
+    .ways .typing i, .ways .busy { animation: blink 1s ease-in-out infinite; }
+    .ways .typing i:nth-child(2) { animation-delay: .2s; } .ways .typing i:nth-child(3) { animation-delay: .4s; }
   }
 
   /* On this page the cream band, a lighter cream at half strength, multiplies over the web, like ink on paper: the
@@ -3944,11 +3976,10 @@
         <p>Your AI drafts your listing, and you choose what's shown. Hidden details still help find the right people, and are never shown to anyone you match with or to any app.</p>
         <p>Belong runs the matching, so it can see what it holds. It keeps as little as it can.</p>
       </div>
-      <figure class="phone" role="img" aria-label="A phone, playing on a loop: in the Belong app, a person tells their AI they're looking for a technical co-founder for a health-tech company in Berlin and keeps their age for matching only; their profile appears with the age hidden, used for matching and never shown; a match arrives and they both say yes. Then the same in an AI chat: they ask their own AI to use Belong, it files the listing with the age hidden, finds two matches, and after a yes on both sides, they're introduced.">
-        <div class="bar" aria-hidden="true"><span>9:41</span><span class="notch"></span><span>100%</span></div>
-        <div class="viewport" aria-hidden="true"><div class="track">
-        <div class="pane">
-        <div class="top">
+      <figure class="ways" role="img" aria-label="Three ways to use Belong, on a loop. In the Belong app on a phone, a person tells their AI they're looking for a technical co-founder for a health-tech company in Berlin and keeps their age for matching only; their profile appears with the age hidden, used for matching and never shown; a match arrives and they both say yes. Then in an AI chat, their AI uses Belong to file the same listing with the age hidden, finds a match and says yes for them. Then by email: they write to Belong, get a reply that the listing is live, a match, reply yes, and are introduced.">
+        <div class="slide s-phone"><div class="phone" aria-hidden="true">
+        <div class="bar"><span>9:41</span><span class="notch"></span><span>100%</span></div>
+                <div class="top">
           <img src="ds/logo/belong-wordmark-small-ink.svg" alt="" width="59" height="17">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></svg>
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 7h14M5 12h14M5 17h14"/></svg>
@@ -3993,25 +4024,38 @@
             </div>
           </div>
         </div>
-        </div>
-        <div class="pane">
-          <div class="top ai-top"><span class="spark"></span> Your AI</div>
+        </div></div>
+        <div class="slide s-ai" aria-hidden="true"><div class="window">
+          <div class="chrome"><span class="lights"><i></i><i></i><i></i></span><span class="spark"></span> Your AI</div>
           <div class="convo">
-            <div class="grow c1"><div><p class="msg me">Can you use Belong to find me a technical co-founder for a health-tech company? In person, in Berlin. Keep my age hidden.</p></div></div>
-            <div class="grow c2"><div><p class="msg ai typing"><i></i><i></i><i></i></p></div></div>
-            <div class="grow c3"><div><p class="said">Done. Here's your listing on Belong:</p>
-              <div class="tool"><div class="head"><img src="ds/logo/belong-wordmark-small-ink.svg" alt="" width="45" height="13"><span class="badge olive">Matching</span></div>
-                <div class="fact"><span class="label">Looking for</span><span>Technical co-founder, health-tech</span></div>
-                <div class="fact"><span class="label">Where</span><span>Berlin, in person</span></div>
-                <div class="fact"><span class="label">Age</span><span><span class="badge ai">Hidden</span></span></div></div></div></div>
-            <div class="grow c4"><div><p class="said">Two people match. One is also starting a health app in Berlin. Want to say yes?</p></div></div>
-            <div class="grow c5"><div><p class="msg me">Yes to that one.</p></div></div>
-            <div class="grow c6"><div><p class="msg ai typing"><i></i><i></i><i></i></p></div></div>
-            <div class="grow c7"><div><div class="tool"><div class="head"><img src="ds/logo/belong-wordmark-small-ink.svg" alt="" width="45" height="13"><span class="badge ai">Introduced</span></div>
-                <span class="said">You both said yes. You can say hello now.</span></div></div></div>
+            <div class="grow a1"><div><p class="msg me">Find me a technical co-founder for a health-tech company, in person in Berlin. Keep my age hidden.</p></div></div>
+            <div class="grow a2"><div><span class="uses busy"><img src="ds/logo/belong-wordmark-small-ink.svg" alt="" width="38" height="11"> Filing your listing</span></div></div>
+            <div class="grow a3"><div><span class="uses"><img src="ds/logo/belong-wordmark-small-ink.svg" alt="" width="38" height="11"> Listing filed</span><p class="said">You're live on Belong. Your age is hidden: it's used for matching and never shown.</p></div></div>
+            <div class="grow a4"><div><p class="msg me">Any matches yet?</p></div></div>
+            <div class="grow a5"><div><span class="uses"><img src="ds/logo/belong-wordmark-small-ink.svg" alt="" width="38" height="11"> Checked your matches</span><p class="said">One so far: also starting a health app, in person in Berlin. Shall I say yes?</p></div></div>
+            <div class="grow a6"><div><p class="msg me">Yes.</p></div></div>
+            <div class="grow a7"><div><span class="uses"><img src="ds/logo/belong-wordmark-small-ink.svg" alt="" width="38" height="11"> Said yes</span><div class="card"><div class="head"><span class="label">Your match</span><span class="badge ai">Introduced</span></div>
+              <span class="said">You both said yes. You can say hello now.</span></div></div></div>
           </div>
-          <div class="box">Message</div>
-        </div>
+          <div class="box">Message your AI</div>
+        </div></div>
+        <div class="slide s-mail" aria-hidden="true"><div class="window mail">
+          <div class="chrome"><span class="lights"><i></i><i></i><i></i></span> Mail</div>
+          <div class="convo">
+            <div class="grow m1"><div><div class="email mine"><div class="from"><span><b>You</b> to belong@belong.example</span><span>9:02</span></div>
+              <p class="subject">Co-founder in Berlin</p><p class="text">I'm looking for a technical co-founder for a health-tech company, in person in Berlin. Keep my age hidden.</p></div></div></div>
+            <div class="grow m2"><div><div class="email"><div class="from"><b>Belong</b><span>9:02</span></div>
+              <p class="subject">Your listing is live</p>
+              <div class="card"><div class="fact"><span class="label">Looking for</span><span>Technical co-founder, health-tech</span></div>
+                <div class="fact"><span class="label">Where</span><span>Berlin, in person</span></div>
+                <div class="fact"><span class="label">Age</span><span><span class="badge ai">Hidden</span></span></div></div></div></div></div>
+            <div class="grow m3"><div><div class="email"><div class="from"><b>Belong</b><span>11:40</span></div>
+              <p class="subject">You have a match</p><p class="text">Also starting a health app, in person in Berlin. Reply yes to say yes.</p></div></div></div>
+            <div class="grow m4"><div><div class="email mine"><div class="from"><span><b>You</b></span><span>11:52</span></div>
+              <p class="subject">Re: You have a match</p><p class="text">Yes</p></div></div></div>
+            <div class="grow m5"><div><div class="email"><div class="from"><b>Belong</b><span>14:15</span></div>
+              <p class="subject">You've been introduced</p><p class="text">You both said yes. Reply to say hello.</p></div></div></div>
+          </div>
         </div></div>
       </figure>
     </div>
