@@ -48,13 +48,14 @@
 .status b { color: var(--text-primary); }
 @media (max-width: 640px) { .status { flex-direction: column; gap: var(--space-3); } }
 
-/* ---------- Footer ---------- */
-.site-foot .wrap { padding-top: var(--space-8); padding-bottom: var(--space-8); display: flex; flex-wrap: wrap;
-  gap: var(--space-6) var(--space-12); align-items: center; justify-content: space-between; }
-.site-foot .logo img { height: 22px; }
-.site-foot nav { display: flex; flex-wrap: wrap; gap: var(--space-6); font: var(--text-body-s); }
-.site-foot nav a { color: var(--text-secondary); text-decoration: none; }
-.site-foot nav a:hover { color: var(--text-primary); }
+/* ---------- Footer: a thin black bar, the cream logo on the left, any links on the right ---------- */
+.site-foot { background: var(--surface-inverse); }
+.site-foot .wrap { padding-top: 6px; padding-bottom: 6px; display: flex; flex-wrap: wrap;
+  gap: var(--space-1) var(--space-8); align-items: center; justify-content: space-between; }
+.site-foot .logo img { height: 14px; }
+.site-foot nav { display: flex; flex-wrap: wrap; gap: var(--space-6); font: var(--text-caption); line-height: 14px; }
+.site-foot nav a { color: var(--text-inverse); opacity: 0.75; text-decoration: none; }
+.site-foot nav a:hover { opacity: 1; }
 .site-foot .note { flex-basis: 100%; margin: 0; font: var(--text-caption); color: var(--text-tertiary); }
 
 @media (prefers-reduced-motion: no-preference) {
