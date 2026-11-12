@@ -258,5 +258,23 @@ class NoInternalMetaphor(unittest.TestCase):
                 self.assertNotRegex(line.lower().replace("roommate", ""), "room", f"{path.name}:{number}")
 
 
+_CANT_SEE = re.compile(
+    r"\bnot even (?:we|us|belong|the people who run)\b"
+    r"|\beven from (?:us|belong)\b"
+    r"|\b(?:hidden|kept) from (?:us|belong)\b"
+    r"|\bnobody at belong\b"
+    r"|\b(?:we|belong|the people who run belong)\s+(?:can't|cannot|can not|couldn't|could not|never|don't|do not|"
+    r"won't|will not|have no way to|are unable to|is unable to)\s+(?:ever\s+)?(?:see|sees|access|accesses|read|reads|"
+    r"look at|looks at|learn|learns)\b")
+
+
+def claims_belong_cant_see(text: str) -> list[str]:
+    """Where a text claims or implies that Belong itself ("we", "us", "the people who run Belong") can't see or
+    access people's data. Belong can (TRUST.md, "What Belong can see"); the promises are about other users."""
+    flat = " ".join(text.replace("’", "'").split()).lower()
+    return [flat[max(0, m.start() - 30):m.end() + 20] for m in _CANT_SEE.finditer(flat)]
+
+
+
 if __name__ == "__main__":
     unittest.main()

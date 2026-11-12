@@ -1,20 +1,20 @@
 """The Matchmaker AI's judge, reached over a Chat Completions API (SPEC §3, §8.3). OPEN SOURCE.
 
-A mock, for synthetic and test profiles only: until the Matchmaker model runs enclosed (SPEC §9, Step 3), OpenAI's API
-stands in for it. Every security check still runs as if it were enclosed: the hybrid Matchmaker (matching/hybrid.py)
-decides what a request holds (shown fields and descriptions, each listing under a label of that request only, never a
-hidden detail, a first name or an id) and reads the answer strictly (hybrid.read_answer); the Warden checks every
-request before it is handed here (warden.exit_judge_request, by whoever calls this judge) and every proposal as it
-checks the rules' own. This file only carries a request there and an answer back. It is Matchmaker code: while it runs
-in the same process as everything else, it is trusted to send only what it is handed (TRUST.md, limit 27).
+The Matchmaker AI runs on OpenAI's API (the demo's profiles are synthetic), and is treated as hostile: the hybrid
+Matchmaker (matching/hybrid.py) decides what a request holds (shown fields and descriptions, each listing under a label
+of that request only, never a hidden detail, a first name or an id) and reads the answer strictly (hybrid.read_answer);
+the Warden checks every request before it is handed here (warden.exit_judge_request, by whoever calls this judge) and
+every proposal as it checks the rules' own. This file only carries a request there and an answer back. It is Matchmaker
+code: while it runs in the same process as everything else, it is trusted to send only what it is handed (TRUST.md,
+limit 27).
 
 What the model is told is fixed text in this published file (INSTRUCTIONS). The listings go in a message of their own,
 after a fixed line (DATA_LINE), as data: the model is told never to follow instructions inside them.
 
 Any server that speaks the Chat Completions format can stand in, by changing settings only: a self-hosted open-weights
-model behind an OpenAI-compatible server (vLLM, llama.cpp, Ollama), first on the owner's own machine and later inside
-confidential computing. It uses only what such servers commonly support: messages, and a JSON-schema response format,
-falling back to plain JSON (a JSON-object response format, then no response format at all) when a server refuses one.
+model behind an OpenAI-compatible server (vLLM, llama.cpp, Ollama), for example on the owner's own machine. It uses
+only what such servers commonly support: messages, and a JSON-schema response format, falling back to plain JSON (a
+JSON-object response format, then no response format at all) when a server refuses one.
 
 Configuration (environment variables):
   BELONG_MATCHMAKER_URL      the endpoint, default OpenAI's (API_URL); https, or http on this machine only; a

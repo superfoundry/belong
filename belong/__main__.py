@@ -15,7 +15,7 @@
                                                   alone, to show what reading values alone would cost on those musts
                                                   (neither with --matcher ai)
                            [--matcher ai] [--ai-pairs 80]   opt-in: the Matchmaker AI judges the fuzzy part of up to
-                                                  that many pairs a round (a mock of the enclosed model: it calls the
+                                                  that many pairs a round (it calls the
                                                   API BELONG_MATCHMAKER_URL names, OpenAI's by default, and costs
                                                   money); without it, the rules alone and no network, as in CI
                            [--matcher hostile]    a stand-in Matchmaker AI that says yes to every pair and answers out
@@ -113,7 +113,7 @@ def _leaks(lr: dict, indent: str = "") -> None:
 def _ai_summary(judge) -> None:
     """What the Matchmaker AI did over both runs: requests, how many failed (their pairs decided by the rules), tokens."""
     u = judge.usage
-    print(f"Matchmaker AI: {judge.describe()} (a mock of the enclosed model; synthetic profiles only)   requests: "
+    print(f"Matchmaker AI: {judge.describe()} (synthetic profiles only)   requests: "
           f"{u['calls']}   answered: {u['answered']}   failed, decided by the rules: {u['failed']}   tokens: "
           f"{u['prompt_tokens']} in, {u['completion_tokens']} out ({u['reasoning_tokens']} reasoning)")
 

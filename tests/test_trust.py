@@ -83,11 +83,12 @@ class OpenSourceBoundary(unittest.TestCase):
         self.assertIsNone(doc["signed_by"])
         self.assertIn("SIMULATED", doc["status"])
 
-    def test_attestation_says_the_matchmaker_ai_is_a_mock(self):
-        """What an agent verifying Belong reads says, as the trust page does, that the Matchmaker AI is a mock for
-        synthetic and test profiles, and what it may be sent."""
+    def test_attestation_says_what_the_matchmaker_ai_runs_on(self):
+        """What an agent verifying Belong reads says, as the trust page does, that the Matchmaker AI runs on OpenAI's
+        API, is treated as hostile, that this demo's profiles are synthetic, and what it may be sent."""
         ai = attest.attestation("abc")["policy"]["matchmaker_ai"]
-        self.assertTrue(ai["status"].startswith("MOCK"))
+        self.assertTrue(ai["status"].startswith("OPENAI"))
+        self.assertIn("treated as hostile", ai["status"])
         self.assertIn("synthetic and test profiles only", ai["status"])
         self.assertIn("hidden text taken out", ai["receives"])
         self.assertIn("A8", ai["receives"])

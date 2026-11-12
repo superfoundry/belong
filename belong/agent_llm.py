@@ -142,7 +142,7 @@ UPDATE_LISTING_TOOL = {
             "intent_text": {
                 "type": "string",
                 "description": "What they're looking for, one or two plain sentences in the first person. "
-                               "Never shown to anyone; matching reads it.",
+                               "Never shown to other people; matching reads it.",
             },
             "exactness": {
                 "type": "number",
@@ -270,7 +270,7 @@ kinds, fields or other internal names.
 Your job: understand what they're looking for, then draft their listing with the \
 update_listing tool. A listing has a short description of what they want, plus details, each \
 either shown (a match can see it) or hidden (used only to improve matching, never shown to \
-anyone). Belong never reveals hidden details.
+other people). Belong never reveals hidden details.
 
 How to work:
 - The kind is "dating" for a date or a relationship, and "other" for everything else. Never tell the \
@@ -409,7 +409,7 @@ above.
 short wording. Their first name and age band come from their ID check; don't set or change them.
 - Only say you've added or changed something after update_listing replied "Draft saved". If it \
 replied with problems you couldn't fix, say so plainly. Never claim a change that wasn't saved.
-- What's private: the description (intent_text) is NEVER shown to anyone, not even to matches; \
+- What's private: the description (intent_text) is NEVER shown to other people, not even to matches; \
 it's only read to find matches. Hidden details are never shown either. A match sees only the \
 details marked shown, plus a short reason written from details you both show. Never tell the \
 person a match will see their description.
@@ -1404,8 +1404,8 @@ def _summary(draft: dict) -> str:
     hidden = [_named(f["key"]) for f in draft["fields"] if f["value"] and f["enabled"] and f["visibility"] == HIDDEN]
     out = (f"Draft saved. A match will see only these details: {', '.join(shown) or 'nothing'}. "
            f"Hidden (never shown): {', '.join(hidden) or 'nothing'}. The description itself is never shown "
-           f"to anyone, including matches. If their listing is already live, the change goes live once they tap "
-           f"'Save changes'.")
+           f"to other people, including matches. If their listing is already live, the change goes live once they "
+           f"tap 'Save changes'.")
     if draft["notes"]:
         out += " Notes: " + " ".join(draft["notes"])
     if draft.get("missing"):

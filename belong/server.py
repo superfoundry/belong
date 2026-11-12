@@ -306,8 +306,8 @@ class _Handler(BaseHTTPRequestHandler):
                 return self._json(404, {"error": "Not one of the published files. See /api/trust/source."})
             return self._send(200, text.encode(), "text/plain; charset=utf-8")
         if what == "matchmaker":
-            # Which Matchmaker runs (the trust page says so): the rules alone, or with the Matchmaker AI, a mock of the
-            # enclosed model. Only which model, never what it was sent or what it answered.
+            # Which Matchmaker runs (the trust page says so): the rules alone, or with the Matchmaker AI (OpenAI's API
+            # or the server set). Only which model, never what it was sent or what it answered.
             with SESSION.lock:
                 state = SESSION.matchmaker_state()
             return self._json(200, {"ai": state["ai"], "model": state.get("model", "") if state["ai"] else ""})

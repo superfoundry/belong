@@ -1,8 +1,11 @@
 # Belong — prototype spec (v0.1)
 
 Belong connects two people (dating or functional needs) through AI agents and a
-**locked room**. The product promise is trust: private details can improve a match
-without ever being revealed.
+**locked room**. The product promise is privacy between users: nobody can see your profile,
+find you or learn anything about you until you're a two-way match, and private details can
+improve a match without ever being shown to another person. Belong itself can access the data
+people give it, to run and improve the service (TRUST.md, "What Belong can see"); that is stated
+plainly, never a selling point. Both agents are open source so anyone can check the promise.
 
 This file is the handoff from the design canvas to the build. Put it in the repo
 root (and/or copy the key rules into `CLAUDE.md`) so every coding session starts
@@ -12,7 +15,7 @@ from the same understanding.
 
 ## 1. Priorities (from Jad, in order)
 
-1. **Perfect privacy**
+1. **Privacy between users** (nobody learns anything about anyone, or finds them, without a two-way match)
 2. **No spam, no fakes**
 3. **Efficiency**
 
@@ -39,7 +42,7 @@ Both people must say yes before they are introduced.
 | KYC provider | Third party | ID documents | `verified: bool`, `age_band` only |
 | Warden agent | Boundary (entry + exit) | Inputs at entry, proposals at exit, the Marketboard (to build the shared list) | Accept/reject; sanitized outputs; the shared list; tamper-proof check receipts (no content) |
 | Matchmaker agent | Inside the room | Everything on the Marketboard | Proposals (internal only); fixed-menu follow-up questions; with the Matchmaker AI, requests to its judge |
-| Matchmaker AI (judge) | Today a mock: OpenAI's API (synthetic and test profiles only); later a model enclosed with the Matchmaker (§9) | Per pair the hard rules allow: both listings' shown details and descriptions, names, ids and hidden texts taken out, under request-local labels | Verdicts to the Matchmaker only (match / close / no each way, a fit, listings that seem to hunt one person), read strictly |
+| Matchmaker AI (judge) | OpenAI's API (the demo's profiles are synthetic), treated as hostile | Per pair the hard rules allow: both listings' shown details and descriptions, names, ids and hidden texts taken out, under request-local labels | Verdicts to the Matchmaker only (match / close / no each way, a fit, listings that seem to hunt one person), read strictly |
 | Marketboard | Inside the room | — | Stores listings; nothing on it acts |
 
 **Separation rule:** the agent that sees everything (Matchmaker) has no path out;
@@ -54,10 +57,9 @@ through the crowd-gated bonus, and the Warden checks it as before. What the judg
 fields (a ShownView) and the description, with every first name, id and hidden text of anyone taken out, never
 a hidden field, under labels of that request; every request goes only once the Warden's check passes it against
 the board as it is then (`warden.exit_judge_request`), and is kept and audited again (`leaks.py`, A8). Its answer is
-read strictly. Until the model runs enclosed (§9), the judge is a mock: OpenAI's API
-(`matchmaker_openai.py`, the Chat Completions format, so a self-hosted OpenAI-compatible server can replace it by
-settings only), for synthetic and test profiles only, and every security check runs as if it were enclosed
-(TRUST.md #39 to #44).
+read strictly. The judge is a model over OpenAI's API (`matchmaker_openai.py`, the Chat Completions format, so a
+self-hosted OpenAI-compatible server can replace it by settings only), treated as hostile (TRUST.md #39 to #44).
+The demo runs it on synthetic and test profiles.
 
 **The person's own changes:** a change the person makes to their listing themselves is theirs. Their
 agent is told what changed, from what to what, and may update only the other parts that still say a
@@ -398,7 +400,7 @@ Exit:
 ## 8. Prototype scope (Step 2)
 
 Goal: prove that free-text intent matching produces good matches, and that nothing
-hidden leaks. No secure hardware yet, but built the way the room will run.
+hidden leaks, built the way the service will run.
 
 1. Generate 300 synthetic people (mix of dating + functional intents, realistic
    hidden fields), written as phrases and open details. A second run gives a quarter of them
@@ -417,9 +419,9 @@ hidden leaks. No secure hardware yet, but built the way the room will run.
 3. Matchmaker (pluggable interface):
    - `OfflineMatcher`: embeddings + rules, no API key.
    - `LLMMatcher` (`matching/hybrid.py`): the hybrid. The rules narrow and decide everything hard;
-     an injected judge decides the fuzzy part (§3). Today the judge is a mock of the enclosed model:
-     OpenAI's API (`matchmaker_openai.py`, synthetic and test profiles only; `BELONG_MATCHMAKER`,
-     `belong run --matcher ai`), with a self-hosted OpenAI-compatible server as the path to the real one.
+     an injected judge decides the fuzzy part (§3). The judge is a model over OpenAI's API
+     (`matchmaker_openai.py`; the demo's profiles are synthetic; `BELONG_MATCHMAKER`,
+     `belong run --matcher ai`), or a self-hosted OpenAI-compatible server by settings only.
      It is also where a model may decline to match a listing it judges is hunting one person (§5): it
      can only drop pairs, never add one, and can't explain itself to the person. Cost: one request per
      focus listing, verdicts kept per pair of listing versions, at most 80 pairs a run (the rest by the
@@ -438,11 +440,11 @@ Build constraints that mirror the room:
 
 ## 9. Later steps
 
-- **Step 3 — Locked room:** move Matchmaker into confidential computing (AWS Nitro
-  Enclaves / Google Confidential Space / Azure confidential VMs; confidential GPUs
-  for a self-hosted model, which replaces the Matchmaker AI's OpenAI mock); add attestation; audit Warden rules.
+- **Step 3 — Verifiable code:** a signed attestation that the running code is the published
+  code, reproducible builds, an outside audit of the Warden's rules.
 - **Step 4 — Trust and safety + app:** KYC integration, approach limits, consent
-  screens, closed pilot.
+  screens, a privacy policy reviewed by a lawyer (what Belong can see, what goes to AI
+  providers), closed pilot.
 
 ## 10. Open questions
 
@@ -451,4 +453,4 @@ Build constraints that mirror the room:
 - Value of *k* for the crowd threshold and the shared list (20 is a placeholder), the list's caps
   and its 7-day wait.
 - Certification process for outside agents.
-- Model choice for the real Matchmaker agent (must run inside the room).
+- Model choice for the Matchmaker AI (OpenAI's API today).

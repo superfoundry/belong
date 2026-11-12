@@ -1295,7 +1295,7 @@ function profileCard(slot, p, l, c, top = "") {
     </div>
     ${something ? `${facts.length ? `<div class="profile-details"><div class="facts">${facts.map(f => `<div class="fact-row"><span class="label tertiary">${esc(f.label)}</span>
           <span><button class="fact${on(f.key)}" data-key="${esc(f.key)}" onclick="openDetail('${slot}',this.dataset.key,event)" aria-label="Change ${esc(f.label.toLowerCase())}: ${esc(f.text)}">${esc(f.text)}</button></span></div>`).join("")}</div></div>` : ""}
-      ${hidden.length ? `<div class="hidden-band"><div class="row"><span class="label grow">Only you can see this</span>${badge("ai", "Hidden")}</div>
+      ${hidden.length ? `<div class="hidden-band"><div class="row"><span class="label grow">Other people never see this</span>${badge("ai", "Hidden")}</div>
           ${hidden.map(f => `<div class="body-s" style="margin-top: var(--space-1)">${esc(f.label)}: <button class="fact${on(f.key)}" data-key="${esc(f.key)}" onclick="openDetail('${slot}',this.dataset.key,event)"
             aria-label="Change ${esc(f.label.toLowerCase())}: ${esc(val(f.value))}">${esc(val(f.value))}</button></div>`).join("")}
           <div class="hidden-note" style="margin-top: var(--space-2)">Used for matching, never shown</div></div>` : ""}
@@ -1322,7 +1322,7 @@ function editorHtml(slot, c) {
   return `<div class="editor">
       <div class="row"><p class="eyebrow grow">What you're looking for</p>${d.by === "claude" ? badge("ai", "Agent draft") : ""}</div>
       <textarea class="textarea" style="margin-top: var(--space-2)" aria-label="What you're looking for" oninput="cur('${slot}').draft.intent_text=this.value">${esc(d.intent_text)}</textarea>
-      <p class="caption text-ai" style="margin: var(--space-2) 0 0">Used for matching, never shown to anyone.</p>
+      <p class="caption text-ai" style="margin: var(--space-2) 0 0">Used for matching, never shown to other people.</p>
       <div class="exactness">Wide net <input type="range" min="0" max="1" step="0.1" value="${d.exactness}" aria-label="How exact" oninput="cur('${slot}').draft.exactness=+this.value"> Exact</div>
       ${normal.length ? `<p class="eyebrow group-title">Your details</p>
       <div class="card md">${normal.map(f => fieldRow(slot, f)).join("")}</div>` : ""}
@@ -2025,7 +2025,7 @@ function renderRoom() {
     <p class="eyebrow">Presenter view</p>
     <h2 class="display-s" style="margin-top: var(--space-2)">Behind the scenes</h2>
     <p class="sub"><b>${esc(r.agent_status)}</b> on each phone. <b>${esc(r.matchmaker_status || "Matchmaker: rules")}</b>. Single-phone views: <a href="/demo?phone=A" target="_blank">A</a>, <a href="/demo?phone=B" target="_blank">B</a>.${taken.length ? ` Synthetic people taken over from the <a href="/inspector">inspector</a>: ${taken.join(", ")}.` : ""}<br>
-      What private matching reads and what Belong sends out. The goal for production is that no one can see this, not even the people who run Belong. It's shown here only because the data is synthetic.</p>
+      What private matching reads and what Belong sends out. Matching internals like these are shown here only because the data is synthetic; no one using Belong would see them.</p>
     <div class="controls">
       <select class="select" id="scenario" aria-label="Scenario" onchange="scenario=this.value; resetLocal(false); render(['A','B'])">${Object.entries(SCENARIOS).map(([k, s]) => `<option value="${k}" ${k === scenario ? "selected" : ""}>${esc(s.label)}</option>`).join("")}</select>
       <button class="btn secondary sm" ${ffBusy ? "disabled" : ""} ${scenario === "blank" ? 'title="Pick a scenario first"' : ""} onclick="fastForward()">${ffBusy ? "Fast-forwarding…" : "Fast-forward both phones"}</button>
