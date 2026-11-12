@@ -61,11 +61,11 @@
   @media (max-width: 760px) { .hidden-grid { grid-template-columns: 1fr; gap: var(--space-10); } }
   .hidden-grid p { color: var(--text-secondary); max-width: 44ch; margin: 0 0 var(--space-4); font: var(--text-body-l); }
   /* The ways to use Belong, one story three times on a loop. First the Belong app on a phone, drawn in the app's own
-     look: the person tells their AI what they're looking for; their profile appears, the hello and their own words on
-     white, shown details on the phone's off-white, the hidden age in its red band with the Hidden badge; matching
-     starts; a match arrives as a sheet and they both say yes. Then it swipes to an AI chat window, any assistant and no
-     one's brand, using Belong through its connector; then to a mail window, using Belong by email; then back to the
-     phone. A picture, so it's one image to screen readers. With reduced motion it rests on the phone's profile. */
+     look: the person tells their AI what they're looking for; their profile appears, the hidden age in its red band
+     with the Hidden badge; matching starts; their matches come in, they pass on one and say yes to another, both say
+     yes, and the chat opens in Found. Then it swipes to an AI chat window, any assistant and no one's brand, using
+     Belong through its connector; then to a mail thread with Belong; then back to the phone. A picture, so it's one
+     image to screen readers. With reduced motion it rests on the phone's profile. */
   .ways { position: relative; justify-self: stretch; height: 660px; margin: 0; overflow: hidden; }
   .ways .slide { position: absolute; inset: 0; display: grid; place-items: center; padding: var(--space-6) var(--space-2); }
   .ways .s-ai, .ways .s-mail { transform: translateX(115%); }
@@ -79,7 +79,7 @@
   .phone .top img { height: 17px; width: auto; margin-right: auto; }
   .phone .top svg { width: 18px; height: 18px; color: var(--text-primary); }
   .phone .screen { position: relative; height: 500px; overflow: hidden; }
-  .phone .chat, .phone .profile, .phone .match { position: absolute; left: 0; right: 0; }
+  .phone .chat, .phone .profile { position: absolute; left: 0; right: 0; }
   .phone .chat { inset: 0; padding: var(--space-4); display: flex; flex-direction: column; gap: var(--space-2); }
   .phone .chat .eyebrow { margin-bottom: var(--space-2); color: var(--text-tertiary); }
   .ways .msg { max-width: 85%; margin: 0; padding: var(--space-2) var(--space-3); border-radius: 18px; font: var(--text-body-s); }
@@ -115,19 +115,38 @@
     background: var(--border-strong); }
   .phone .peek .slot { display: grid; }
   .phone .peek .msg { grid-area: 1 / 1; max-width: none; }
-  .phone .match { bottom: 0; background: var(--surface-card); border-radius: var(--radius-lg) var(--radius-lg) 0 0; box-shadow: var(--shadow-lg);
-    padding: var(--space-5) var(--space-4) var(--space-6); }
-  .phone .match .eyebrow { color: var(--text-tertiary); margin-bottom: var(--space-3); }
-  .phone .match .reason { margin: var(--space-3) 0 var(--space-4); font: var(--text-body-s); color: var(--text-secondary); }
-  .phone .match .end { display: grid; min-height: 40px; }
-  .phone .match .end > * { grid-area: 1 / 1; align-self: center; }
-  .phone .match .btns { display: flex; gap: var(--space-2); }
-  .phone .match .btns .btn { flex: 1; justify-content: center; }
-  .phone .match .note { margin: 0; font: var(--text-body-s); }
-  /* At rest (and with reduced motion): the profile, its AI's latest message; the chat behind it, the match away. */
-  .phone .pk1, .phone .match { opacity: 0; }
+  /* The app's matches and Found: screens that slide in over the profile, each with the phone's tab bar. */
+  .phone .matches, .phone .found { position: absolute; inset: 0; display: flex; flex-direction: column; background: var(--sf-paper-100);
+    transform: translateX(100%); }
+  .phone .list { flex: 1; min-height: 0; overflow: hidden; padding: var(--space-3) var(--space-4); }
+  .phone .list .eyebrow { color: var(--text-tertiary); margin-bottom: var(--space-1); }
+  .ways .grow { display: grid; grid-template-rows: 1fr; }
+  .ways .grow > div { overflow: hidden; min-height: 0; }
+  .phone .mcard { margin-top: var(--space-2); padding: var(--space-3); background: var(--surface-card); border: 1px solid var(--border-default);
+    border-radius: var(--radius-md); display: grid; gap: var(--space-1); }
+  .phone .mcard .fact { grid-template-columns: 70px 1fr; font: var(--text-caption); }
+  .phone .mcard .why { margin: 2px 0 0; font: var(--text-caption); color: var(--text-secondary); }
+  .phone .mcard .end { display: grid; margin-top: var(--space-2); min-height: 30px; }
+  .phone .mcard .end > * { grid-area: 1 / 1; align-self: center; }
+  .phone .mcard .btns { display: flex; gap: var(--space-2); }
+  .phone .mcard .btns .btn { flex: 1; justify-content: center; }
+  .phone .mcard .note { margin: 0; font: var(--text-caption); }
+  .phone .btn { position: relative; }
+  .phone .ring { position: absolute; inset: -3px; border: 2px solid var(--border-accent); border-radius: inherit; opacity: 0; }
+  .phone .tabbar { display: grid; grid-template-columns: 1fr 1fr; border-top: 1px solid var(--border-subtle); background: var(--sf-paper-100); }
+  .phone .tabbar span { padding: var(--space-3) 0 var(--space-4); text-align: center; font-family: var(--font-display); font-weight: 700;
+    font-size: 15px; color: var(--text-tertiary); }
+  .phone .tabbar span + span { border-left: 1px solid var(--border-subtle); }
+  .phone .tabbar .on { color: var(--text-primary); background: linear-gradient(var(--accent-muted), transparent 70%); box-shadow: inset 0 2px var(--border-accent); }
+  .phone .person { display: flex; align-items: center; gap: var(--space-3); padding: var(--space-3) var(--space-4); background: var(--surface-card);
+    border-bottom: 1px solid var(--border-subtle); }
+  .phone .person .who { margin: 0; font: var(--text-body-s); font-weight: 600; }
+  .phone .person .caption { color: var(--text-secondary); }
+  .phone .found .list { display: flex; flex-direction: column; justify-content: flex-end; gap: var(--space-2); }
+  .phone .found .note { align-self: center; font: var(--text-caption); color: var(--text-tertiary); }
+  .ways .msg.them { align-self: flex-start; background: var(--surface-card); border: 1px solid var(--border-subtle); border-bottom-left-radius: var(--radius-sm); }
   /* The windows: a desktop app's frame, its title in the middle; the conversation pushed up from the bottom as it grows. */
-  .ways .window { width: 100%; max-width: 440px; height: 500px; display: flex; flex-direction: column; overflow: hidden;
+  .ways .window { width: 100%; max-width: 440px; height: 520px; display: flex; flex-direction: column; overflow: hidden;
     background: var(--surface-card); border: 1px solid var(--border-default); border-radius: var(--radius-lg); box-shadow: var(--shadow-lg); }
   .ways .chrome { position: relative; display: flex; align-items: center; justify-content: center; gap: var(--space-2); padding: var(--space-3);
     border-bottom: 1px solid var(--border-subtle); font: var(--text-body-s); font-weight: 600; }
@@ -135,8 +154,7 @@
   .ways .chrome .lights i { width: 10px; height: 10px; border-radius: 50%; background: var(--sf-char-100); }
   .ways .chrome .spark { width: 10px; height: 10px; border-radius: 50%; background: var(--text-primary); }
   .ways .convo { flex: 1; min-height: 0; display: flex; flex-direction: column; justify-content: flex-end; padding: 0 var(--space-4) var(--space-2); overflow: hidden; }
-  .ways .grow { display: grid; grid-template-rows: 1fr; }
-  .ways .grow > div { overflow: hidden; min-height: 0; padding-top: var(--space-3); display: flex; flex-direction: column; }
+  .ways .convo .grow > div { padding-top: var(--space-3); display: flex; flex-direction: column; }
   .ways .said { margin: 0; font: var(--text-body-s); }
   .ways .uses { align-self: flex-start; display: inline-flex; align-items: center; gap: var(--space-2); padding: 4px var(--space-3);
     border-radius: var(--radius-pill); background: var(--accent-ai-muted); color: var(--text-ai); font: var(--text-caption); }
@@ -148,72 +166,117 @@
   .ways .card .fact { grid-template-columns: 68px 1fr; font: var(--text-caption); }
   .ways .box { margin: var(--space-2) var(--space-4) var(--space-4); padding: var(--space-2) var(--space-4); border: 1px solid var(--border-default);
     border-radius: var(--radius-pill); font: var(--text-body-s); color: var(--text-tertiary); }
-  /* The mail window: each email a card with who it's from, its subject and its text. */
-  .ways .mail .grow > div { padding-top: var(--space-2); }
-  .ways .email { padding: var(--space-3); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); background: var(--surface-card); }
-  .ways .email.mine { background: var(--sf-paper-100); }
-  .ways .email .from { display: flex; justify-content: space-between; font: var(--text-caption); color: var(--text-tertiary); }
-  .ways .email .from b { color: var(--text-primary); font-weight: 600; }
-  .ways .email .subject { margin: 2px 0 0; font: var(--text-body-s); font-weight: 600; }
-  .ways .email .text { margin: 2px 0 0; font: var(--text-caption); color: var(--text-secondary); }
-  .ways .email .card { margin-top: var(--space-2); }
+  /* The mail window: a toolbar, the thread's subject, then each email in it, the newest open and the older ones folded
+     to one line, as mail apps show a thread; a reply box at the foot. */
+  .ways .tools { display: flex; align-items: center; gap: var(--space-3); padding: var(--space-2) var(--space-4); border-bottom: 1px solid var(--border-subtle); }
+  .ways .tools svg { width: 16px; height: 16px; color: var(--text-tertiary); }
+  .ways .tools .search { flex: 1; padding: 4px var(--space-3); border-radius: var(--radius-pill); background: var(--surface-raised);
+    font: var(--text-caption); color: var(--text-tertiary); }
+  .ways .thread-title { margin: 0; padding: var(--space-3) var(--space-4) 0; font: var(--text-body-m); font-weight: 600; }
+  .ways .thread-title .badge { margin-left: var(--space-2); vertical-align: middle; }
+  .ways .thread { flex: 1; min-height: 0; display: flex; flex-direction: column; justify-content: flex-end; overflow: hidden; padding: 0 var(--space-4); }
+  .ways .em > div { border-top: 1px solid var(--border-subtle); }
+  .ways .em-head { display: grid; grid-template-columns: 28px 1fr auto; gap: 2px var(--space-2); align-items: center; padding: var(--space-2) 0; }
+  .ways .em-head .av { grid-row: span 2; width: 28px; height: 28px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center;
+    font: var(--text-caption); font-weight: 700; background: var(--sf-char-100); color: var(--text-secondary); }
+  .ways .em-head .av.b { background: var(--surface-inverse); }
+  .ways .em-head .av.b img { width: 14px; height: auto; }
+  .ways .em-head .who { font: var(--text-caption); color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .ways .em-head .who b { font-weight: 600; }
+  .ways .em-head .who span { color: var(--text-tertiary); }
+  .ways .em-head .when { font: var(--text-caption); color: var(--text-tertiary); }
+  .ways .em-head .to { grid-column: 2 / 4; font: var(--text-caption); color: var(--text-tertiary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .ways .em-body > div { padding: 0 0 var(--space-3) 36px; font: var(--text-caption); color: var(--text-primary); }
+  .ways .em-body p { margin: 0 0 var(--space-2); font: var(--text-caption); }
+  .ways .em-body .card { margin: 0 0 var(--space-2); }
+  .ways .em-body .sig { color: var(--text-tertiary); margin: 0; }
+  .ways .reply { display: flex; gap: var(--space-2); padding: var(--space-3) var(--space-4) var(--space-4); border-top: 1px solid var(--border-subtle); }
+  .ways .reply span { padding: 4px var(--space-4); border: 1px solid var(--border-default); border-radius: var(--radius-pill); font: var(--text-caption); }
   /* At rest (and with reduced motion): the phone's profile and its AI's latest message; the rest away. */
-  .ways .pk1, .ways .match { opacity: 0; }
+  .ways .pk1 { opacity: 0; }
   @media (prefers-reduced-motion: no-preference) {
-    @keyframes s-phone { 0%, 41.51% { transform: none; opacity: 1; } 43.4% { transform: translateX(-115%); opacity: 1; } 43.58% { transform: translateX(-115%); opacity: 0; } 97.92% { transform: translateX(115%); opacity: 0; } 98.11% { transform: translateX(115%); opacity: 1; } 100% { transform: none; opacity: 1; } }
-    .ways .s-phone { animation: s-phone 53s var(--ease-standard) infinite; }
-    @keyframes s-ai { 0%, 41.51% { transform: translateX(115%); } 43.4%, 69.81% { transform: none; } 71.7%, 100% { transform: translateX(-115%); } }
-    .ways .s-ai { animation: s-ai 53s var(--ease-standard) infinite; }
-    @keyframes s-mail { 0%, 69.81% { transform: translateX(115%); } 71.7%, 98.11% { transform: none; } 100.0%, 100% { transform: translateX(-115%); } }
-    .ways .s-mail { animation: s-mail 53s var(--ease-standard) infinite; }
-    @keyframes say1 { 0%, 0.94% { opacity: 0; transform: translateY(6px); } 1.7% { opacity: 1; transform: none; } 54.72% { opacity: 1; transform: none; } 56.6%, 100% { opacity: 0; transform: none; } }
-    .ways .say1 { animation: say1 53s var(--ease-standard) infinite; }
-    @keyframes typing1 { 0%, 3.4% { opacity: 0; transform: none; } 4.15% { opacity: 1; transform: none; } 6.6% { opacity: 1; } 7.36%, 100% { opacity: 0; } }
-    .ways .typing1 { animation: typing1 53s var(--ease-standard) infinite; }
-    @keyframes ask { 0%, 6.79% { opacity: 0; transform: translateY(6px); } 7.55% { opacity: 1; transform: none; } 54.72% { opacity: 1; transform: none; } 56.6%, 100% { opacity: 0; transform: none; } }
-    .ways .ask { animation: ask 53s var(--ease-standard) infinite; }
-    @keyframes say2 { 0%, 10.94% { opacity: 0; transform: translateY(6px); } 11.7% { opacity: 1; transform: none; } 54.72% { opacity: 1; transform: none; } 56.6%, 100% { opacity: 0; transform: none; } }
-    .ways .say2 { animation: say2 53s var(--ease-standard) infinite; }
-    @keyframes making { 0%, 13.4% { opacity: 0; transform: none; } 14.15% { opacity: 1; transform: none; } 17.36% { opacity: 1; } 18.11%, 100% { opacity: 0; } }
-    .ways .making { animation: making 53s var(--ease-standard) infinite; }
-    @keyframes pk1 { 0%, 20.0% { opacity: 0; transform: translateY(6px); } 20.75% { opacity: 1; transform: none; } 24.91% { opacity: 1; } 25.66%, 100% { opacity: 0; } }
-    .ways .pk1 { animation: pk1 53s var(--ease-standard) infinite; }
-    @keyframes pk2 { 0%, 24.91% { opacity: 0; transform: translateY(6px); } 25.66% { opacity: 1; transform: none; } 54.72% { opacity: 1; transform: none; } 56.6%, 100% { opacity: 0; transform: none; } }
-    .ways .pk2 { animation: pk2 53s var(--ease-standard) infinite; }
-    @keyframes yesno { 0%, 30.0% { opacity: 0; transform: translateY(6px); } 30.75% { opacity: 1; transform: none; } 33.21% { opacity: 1; } 33.96%, 100% { opacity: 0; } }
-    .ways .yesno { animation: yesno 53s var(--ease-standard) infinite; }
-    @keyframes sent { 0%, 33.21% { opacity: 0; transform: translateY(6px); } 33.96% { opacity: 1; transform: none; } 36.04% { opacity: 1; } 36.79%, 100% { opacity: 0; } }
-    .ways .sent { animation: sent 53s var(--ease-standard) infinite; }
-    @keyframes agreed { 0%, 36.23% { opacity: 0; transform: translateY(6px); } 36.98% { opacity: 1; transform: none; } 54.72% { opacity: 1; transform: none; } 56.6%, 100% { opacity: 0; transform: none; } }
-    .ways .agreed { animation: agreed 53s var(--ease-standard) infinite; }
-    @keyframes a1 { 0%, 44.34% { grid-template-rows: 0fr; opacity: 0; } 45.28% { grid-template-rows: 1fr; opacity: 1; } 73.58% { grid-template-rows: 1fr; opacity: 1; } 75.47%, 100% { grid-template-rows: 0fr; opacity: 0; } }
-    .ways .a1 { animation: a1 53s var(--ease-standard) infinite; }
-    @keyframes a2 { 0%, 46.6% { grid-template-rows: 0fr; opacity: 0; } 47.55% { grid-template-rows: 1fr; opacity: 1; } 49.81% { grid-template-rows: 1fr; opacity: 1; } 50.75%, 100% { grid-template-rows: 0fr; opacity: 0; } }
-    .ways .a2 { animation: a2 53s var(--ease-standard) infinite; }
-    @keyframes a3 { 0%, 49.25% { grid-template-rows: 0fr; opacity: 0; } 50.19% { grid-template-rows: 1fr; opacity: 1; } 73.58% { grid-template-rows: 1fr; opacity: 1; } 75.47%, 100% { grid-template-rows: 0fr; opacity: 0; } }
-    .ways .a3 { animation: a3 53s var(--ease-standard) infinite; }
-    @keyframes a4 { 0%, 54.72% { grid-template-rows: 0fr; opacity: 0; } 55.66% { grid-template-rows: 1fr; opacity: 1; } 73.58% { grid-template-rows: 1fr; opacity: 1; } 75.47%, 100% { grid-template-rows: 0fr; opacity: 0; } }
-    .ways .a4 { animation: a4 53s var(--ease-standard) infinite; }
-    @keyframes a5 { 0%, 56.79% { grid-template-rows: 0fr; opacity: 0; } 57.74% { grid-template-rows: 1fr; opacity: 1; } 73.58% { grid-template-rows: 1fr; opacity: 1; } 75.47%, 100% { grid-template-rows: 0fr; opacity: 0; } }
-    .ways .a5 { animation: a5 53s var(--ease-standard) infinite; }
-    @keyframes a6 { 0%, 61.32% { grid-template-rows: 0fr; opacity: 0; } 62.26% { grid-template-rows: 1fr; opacity: 1; } 73.58% { grid-template-rows: 1fr; opacity: 1; } 75.47%, 100% { grid-template-rows: 0fr; opacity: 0; } }
-    .ways .a6 { animation: a6 53s var(--ease-standard) infinite; }
-    @keyframes a7 { 0%, 63.58% { grid-template-rows: 0fr; opacity: 0; } 64.53% { grid-template-rows: 1fr; opacity: 1; } 73.58% { grid-template-rows: 1fr; opacity: 1; } 75.47%, 100% { grid-template-rows: 0fr; opacity: 0; } }
-    .ways .a7 { animation: a7 53s var(--ease-standard) infinite; }
-    @keyframes m1 { 0%, 72.64% { grid-template-rows: 0fr; opacity: 0; } 73.58% { grid-template-rows: 1fr; opacity: 1; } 100% { grid-template-rows: 1fr; opacity: 1; } }
-    .ways .m1 { animation: m1 53s var(--ease-standard) infinite; }
-    @keyframes m2 { 0%, 77.36% { grid-template-rows: 0fr; opacity: 0; } 78.3% { grid-template-rows: 1fr; opacity: 1; } 100% { grid-template-rows: 1fr; opacity: 1; } }
-    .ways .m2 { animation: m2 53s var(--ease-standard) infinite; }
-    @keyframes m3 { 0%, 83.02% { grid-template-rows: 0fr; opacity: 0; } 83.96% { grid-template-rows: 1fr; opacity: 1; } 100% { grid-template-rows: 1fr; opacity: 1; } }
-    .ways .m3 { animation: m3 53s var(--ease-standard) infinite; }
-    @keyframes m4 { 0%, 87.74% { grid-template-rows: 0fr; opacity: 0; } 88.68% { grid-template-rows: 1fr; opacity: 1; } 100% { grid-template-rows: 1fr; opacity: 1; } }
-    .ways .m4 { animation: m4 53s var(--ease-standard) infinite; }
-    @keyframes m5 { 0%, 91.51% { grid-template-rows: 0fr; opacity: 0; } 92.45% { grid-template-rows: 1fr; opacity: 1; } 100% { grid-template-rows: 1fr; opacity: 1; } }
-    .ways .m5 { animation: m5 53s var(--ease-standard) infinite; }
-    @keyframes profile { 0%, 17.36% { transform: translateY(100%); } 19.43%, 54.72% { transform: none; } 56.6%, 100% { transform: translateY(100%); } }
-    .ways .profile { animation: profile 53s var(--ease-standard) infinite; }
-    @keyframes match { 0%, 28.3% { transform: translateY(105%); } 30.0%, 54.72% { transform: none; } 56.6%, 100% { transform: translateY(105%); } }
-    .ways .match { animation: match 53s var(--ease-standard) infinite; }
+    @keyframes s-phone { 0.0% { transform: none; opacity: 1; } 47.46% { transform: none; opacity: 1; } 49.15% { transform: translateX(-115%); opacity: 1; } 49.32% { transform: translateX(-115%); opacity: 0; } 98.14% { transform: translateX(115%); opacity: 0; } 98.31% { transform: translateX(115%); opacity: 1; } 100.0% { transform: none; opacity: 1; } }
+    .ways .s-phone { animation: s-phone 59s var(--ease-standard) infinite; }
+    @keyframes s-ai { 0.0% { transform: translateX(115%); } 47.46% { transform: translateX(115%); } 49.15% { transform: none; } 72.88% { transform: none; } 74.58% { transform: translateX(-115%); } 100.0% { transform: translateX(-115%); } }
+    .ways .s-ai { animation: s-ai 59s var(--ease-standard) infinite; }
+    @keyframes s-mail { 0.0% { transform: translateX(115%); } 72.88% { transform: translateX(115%); } 74.58% { transform: none; } 98.31% { transform: none; } 100.0% { transform: translateX(-115%); } }
+    .ways .s-mail { animation: s-mail 59s var(--ease-standard) infinite; }
+    @keyframes say1 { 0.0% { opacity: 0; transform: translateY(6px); } 0.85% { opacity: 0; transform: translateY(6px); } 1.53% { opacity: 1; transform: none; } 55.93% { opacity: 1; transform: none; } 56.61% { opacity: 0; transform: none; } 100.0% { opacity: 0; transform: none; } }
+    .ways .say1 { animation: say1 59s var(--ease-standard) infinite; }
+    @keyframes typing1 { 0.0% { opacity: 0; transform: translateY(6px); } 3.05% { opacity: 0; transform: translateY(6px); } 3.73% { opacity: 1; transform: none; } 5.93% { opacity: 1; transform: none; } 6.61% { opacity: 0; transform: none; } 100.0% { opacity: 0; transform: none; } }
+    .ways .typing1 { animation: typing1 59s var(--ease-standard) infinite; }
+    @keyframes ask { 0.0% { opacity: 0; transform: translateY(6px); } 6.1% { opacity: 0; transform: translateY(6px); } 6.78% { opacity: 1; transform: none; } 55.93% { opacity: 1; transform: none; } 56.61% { opacity: 0; transform: none; } 100.0% { opacity: 0; transform: none; } }
+    .ways .ask { animation: ask 59s var(--ease-standard) infinite; }
+    @keyframes say2 { 0.0% { opacity: 0; transform: translateY(6px); } 9.83% { opacity: 0; transform: translateY(6px); } 10.51% { opacity: 1; transform: none; } 55.93% { opacity: 1; transform: none; } 56.61% { opacity: 0; transform: none; } 100.0% { opacity: 0; transform: none; } }
+    .ways .say2 { animation: say2 59s var(--ease-standard) infinite; }
+    @keyframes making { 0.0% { opacity: 0; transform: translateY(6px); } 12.03% { opacity: 0; transform: translateY(6px); } 12.71% { opacity: 1; transform: none; } 15.59% { opacity: 1; transform: none; } 16.27% { opacity: 0; transform: none; } 100.0% { opacity: 0; transform: none; } }
+    .ways .making { animation: making 59s var(--ease-standard) infinite; }
+    @keyframes profile { 0.0% { transform: translateY(100%); } 15.93% { transform: translateY(100%); } 17.29% { transform: none; } 55.93% { transform: none; } 56.78% { transform: translateY(100%); } 100.0% { transform: translateY(100%); } }
+    .ways .profile { animation: profile 59s var(--ease-standard) infinite; }
+    @keyframes pk1 { 0.0% { opacity: 0; transform: translateY(6px); } 17.97% { opacity: 0; transform: translateY(6px); } 18.64% { opacity: 1; transform: none; } 22.03% { opacity: 1; transform: none; } 22.71% { opacity: 0; transform: none; } 100.0% { opacity: 0; transform: none; } }
+    .ways .pk1 { animation: pk1 59s var(--ease-standard) infinite; }
+    @keyframes pk2 { 0.0% { opacity: 0; transform: translateY(6px); } 22.03% { opacity: 0; transform: translateY(6px); } 22.71% { opacity: 1; transform: none; } 55.93% { opacity: 1; transform: none; } 56.61% { opacity: 0; transform: none; } 100.0% { opacity: 0; transform: none; } }
+    .ways .pk2 { animation: pk2 59s var(--ease-standard) infinite; }
+    @keyframes matches { 0.0% { transform: translateX(100%); } 24.75% { transform: translateX(100%); } 26.1% { transform: none; } 55.93% { transform: none; } 56.78% { transform: translateX(100%); } 100.0% { transform: translateX(100%); } }
+    .ways .matches { animation: matches 59s var(--ease-standard) infinite; }
+    @keyframes mA { 0.0% { grid-template-rows: 0fr; opacity: 0; } 26.27% { grid-template-rows: 0fr; opacity: 0; } 27.12% { grid-template-rows: 1fr; opacity: 1; } 100.0% { grid-template-rows: 1fr; opacity: 1; } }
+    .ways .mA { animation: mA 59s var(--ease-standard) infinite; }
+    @keyframes mB { 0.0% { grid-template-rows: 0fr; opacity: 0; } 27.63% { grid-template-rows: 0fr; opacity: 0; } 28.47% { grid-template-rows: 1fr; opacity: 1; } 32.71% { grid-template-rows: 1fr; opacity: 1; } 33.56% { grid-template-rows: 0fr; opacity: 0; } 100.0% { grid-template-rows: 0fr; opacity: 0; } }
+    .ways .mB { animation: mB 59s var(--ease-standard) infinite; }
+    @keyframes mC { 0.0% { grid-template-rows: 0fr; opacity: 0; } 28.98% { grid-template-rows: 0fr; opacity: 0; } 29.83% { grid-template-rows: 1fr; opacity: 1; } 100.0% { grid-template-rows: 1fr; opacity: 1; } }
+    .ways .mC { animation: mC 59s var(--ease-standard) infinite; }
+    @keyframes noB { 0.0% { opacity: 0; transform: translateY(6px); } 30.85% { opacity: 0; transform: translateY(6px); } 31.53% { opacity: 1; transform: none; } 32.71% { opacity: 1; transform: none; } 33.39% { opacity: 0; transform: none; } 100.0% { opacity: 0; transform: none; } }
+    .ways .noB { animation: noB 59s var(--ease-standard) infinite; }
+    @keyframes yesA { 0.0% { opacity: 0; transform: translateY(6px); } 33.56% { opacity: 0; transform: translateY(6px); } 34.24% { opacity: 1; transform: none; } 35.42% { opacity: 1; transform: none; } 36.1% { opacity: 0; transform: none; } 100.0% { opacity: 0; transform: none; } }
+    .ways .yesA { animation: yesA 59s var(--ease-standard) infinite; }
+    @keyframes sentA { 0.0% { opacity: 0; transform: translateY(6px); } 35.08% { opacity: 0; transform: translateY(6px); } 35.76% { opacity: 1; transform: none; } 38.31% { opacity: 1; transform: none; } 38.98% { opacity: 0; transform: none; } 100.0% { opacity: 0; transform: none; } }
+    .ways .sentA { animation: sentA 59s var(--ease-standard) infinite; }
+    @keyframes bothA { 0.0% { opacity: 0; transform: translateY(6px); } 38.31% { opacity: 0; transform: translateY(6px); } 38.98% { opacity: 1; transform: none; } 55.93% { opacity: 1; transform: none; } 56.61% { opacity: 0; transform: none; } 100.0% { opacity: 0; transform: none; } }
+    .ways .bothA { animation: bothA 59s var(--ease-standard) infinite; }
+    @keyframes btnsA { 0.0% { opacity: 0; transform: translateY(6px); } 26.44% { opacity: 0; transform: translateY(6px); } 27.12% { opacity: 1; transform: none; } 34.92% { opacity: 1; transform: none; } 35.59% { opacity: 0; transform: none; } 100.0% { opacity: 0; transform: none; } }
+    .ways .btnsA { animation: btnsA 59s var(--ease-standard) infinite; }
+    @keyframes btnsC { 0.0% { opacity: 0; transform: translateY(6px); } 29.15% { opacity: 0; transform: translateY(6px); } 29.83% { opacity: 1; transform: none; } 55.93% { opacity: 1; transform: none; } 56.61% { opacity: 0; transform: none; } 100.0% { opacity: 0; transform: none; } }
+    .ways .btnsC { animation: btnsC 59s var(--ease-standard) infinite; }
+    @keyframes found { 0.0% { transform: translateX(100%); } 40.0% { transform: translateX(100%); } 41.36% { transform: none; } 55.93% { transform: none; } 56.78% { transform: translateX(100%); } 100.0% { transform: translateX(100%); } }
+    .ways .found { animation: found 59s var(--ease-standard) infinite; }
+    @keyframes hello { 0.0% { opacity: 0; transform: translateY(6px); } 42.37% { opacity: 0; transform: translateY(6px); } 43.05% { opacity: 1; transform: none; } 55.93% { opacity: 1; transform: none; } 56.61% { opacity: 0; transform: none; } 100.0% { opacity: 0; transform: none; } }
+    .ways .hello { animation: hello 59s var(--ease-standard) infinite; }
+    @keyframes reply { 0.0% { opacity: 0; transform: translateY(6px); } 44.75% { opacity: 0; transform: translateY(6px); } 45.42% { opacity: 1; transform: none; } 55.93% { opacity: 1; transform: none; } 56.61% { opacity: 0; transform: none; } 100.0% { opacity: 0; transform: none; } }
+    .ways .reply { animation: reply 59s var(--ease-standard) infinite; }
+    @keyframes a1 { 0.0% { grid-template-rows: 0fr; opacity: 0; } 50.0% { grid-template-rows: 0fr; opacity: 0; } 50.85% { grid-template-rows: 1fr; opacity: 1; } 76.27% { grid-template-rows: 1fr; opacity: 1; } 77.12% { grid-template-rows: 0fr; opacity: 0; } 100.0% { grid-template-rows: 0fr; opacity: 0; } }
+    .ways .a1 { animation: a1 59s var(--ease-standard) infinite; }
+    @keyframes a2 { 0.0% { grid-template-rows: 0fr; opacity: 0; } 52.03% { grid-template-rows: 0fr; opacity: 0; } 52.88% { grid-template-rows: 1fr; opacity: 1; } 54.92% { grid-template-rows: 1fr; opacity: 1; } 55.76% { grid-template-rows: 0fr; opacity: 0; } 100.0% { grid-template-rows: 0fr; opacity: 0; } }
+    .ways .a2 { animation: a2 59s var(--ease-standard) infinite; }
+    @keyframes a3 { 0.0% { grid-template-rows: 0fr; opacity: 0; } 54.41% { grid-template-rows: 0fr; opacity: 0; } 55.25% { grid-template-rows: 1fr; opacity: 1; } 76.27% { grid-template-rows: 1fr; opacity: 1; } 77.12% { grid-template-rows: 0fr; opacity: 0; } 100.0% { grid-template-rows: 0fr; opacity: 0; } }
+    .ways .a3 { animation: a3 59s var(--ease-standard) infinite; }
+    @keyframes a4 { 0.0% { grid-template-rows: 0fr; opacity: 0; } 59.15% { grid-template-rows: 0fr; opacity: 0; } 60.0% { grid-template-rows: 1fr; opacity: 1; } 76.27% { grid-template-rows: 1fr; opacity: 1; } 77.12% { grid-template-rows: 0fr; opacity: 0; } 100.0% { grid-template-rows: 0fr; opacity: 0; } }
+    .ways .a4 { animation: a4 59s var(--ease-standard) infinite; }
+    @keyframes a5 { 0.0% { grid-template-rows: 0fr; opacity: 0; } 61.19% { grid-template-rows: 0fr; opacity: 0; } 62.03% { grid-template-rows: 1fr; opacity: 1; } 76.27% { grid-template-rows: 1fr; opacity: 1; } 77.12% { grid-template-rows: 0fr; opacity: 0; } 100.0% { grid-template-rows: 0fr; opacity: 0; } }
+    .ways .a5 { animation: a5 59s var(--ease-standard) infinite; }
+    @keyframes a6 { 0.0% { grid-template-rows: 0fr; opacity: 0; } 65.25% { grid-template-rows: 0fr; opacity: 0; } 66.1% { grid-template-rows: 1fr; opacity: 1; } 76.27% { grid-template-rows: 1fr; opacity: 1; } 77.12% { grid-template-rows: 0fr; opacity: 0; } 100.0% { grid-template-rows: 0fr; opacity: 0; } }
+    .ways .a6 { animation: a6 59s var(--ease-standard) infinite; }
+    @keyframes a7 { 0.0% { grid-template-rows: 0fr; opacity: 0; } 67.29% { grid-template-rows: 0fr; opacity: 0; } 68.14% { grid-template-rows: 1fr; opacity: 1; } 76.27% { grid-template-rows: 1fr; opacity: 1; } 77.12% { grid-template-rows: 0fr; opacity: 0; } 100.0% { grid-template-rows: 0fr; opacity: 0; } }
+    .ways .a7 { animation: a7 59s var(--ease-standard) infinite; }
+    @keyframes e1 { 0.0% { grid-template-rows: 0fr; opacity: 0; } 75.08% { grid-template-rows: 0fr; opacity: 0; } 75.93% { grid-template-rows: 1fr; opacity: 1; } 100.0% { grid-template-rows: 1fr; opacity: 1; } }
+    .ways .e1 { animation: e1 59s var(--ease-standard) infinite; }
+    @keyframes e2 { 0.0% { grid-template-rows: 0fr; opacity: 0; } 78.47% { grid-template-rows: 0fr; opacity: 0; } 79.32% { grid-template-rows: 1fr; opacity: 1; } 100.0% { grid-template-rows: 1fr; opacity: 1; } }
+    .ways .e2 { animation: e2 59s var(--ease-standard) infinite; }
+    @keyframes e3 { 0.0% { grid-template-rows: 0fr; opacity: 0; } 82.88% { grid-template-rows: 0fr; opacity: 0; } 83.73% { grid-template-rows: 1fr; opacity: 1; } 100.0% { grid-template-rows: 1fr; opacity: 1; } }
+    .ways .e3 { animation: e3 59s var(--ease-standard) infinite; }
+    @keyframes e4 { 0.0% { grid-template-rows: 0fr; opacity: 0; } 87.29% { grid-template-rows: 0fr; opacity: 0; } 88.14% { grid-template-rows: 1fr; opacity: 1; } 100.0% { grid-template-rows: 1fr; opacity: 1; } }
+    .ways .e4 { animation: e4 59s var(--ease-standard) infinite; }
+    @keyframes e5 { 0.0% { grid-template-rows: 0fr; opacity: 0; } 91.36% { grid-template-rows: 0fr; opacity: 0; } 92.2% { grid-template-rows: 1fr; opacity: 1; } 100.0% { grid-template-rows: 1fr; opacity: 1; } }
+    .ways .e5 { animation: e5 59s var(--ease-standard) infinite; }
+    @keyframes b1 { 0.0% { grid-template-rows: 0fr; opacity: 0; } 75.08% { grid-template-rows: 0fr; opacity: 0; } 75.93% { grid-template-rows: 1fr; opacity: 1; } 79.32% { grid-template-rows: 1fr; opacity: 1; } 80.17% { grid-template-rows: 0fr; opacity: 0; } 100.0% { grid-template-rows: 0fr; opacity: 0; } }
+    .ways .b1 { animation: b1 59s var(--ease-standard) infinite; }
+    @keyframes b2 { 0.0% { grid-template-rows: 0fr; opacity: 0; } 78.47% { grid-template-rows: 0fr; opacity: 0; } 79.32% { grid-template-rows: 1fr; opacity: 1; } 83.73% { grid-template-rows: 1fr; opacity: 1; } 84.58% { grid-template-rows: 0fr; opacity: 0; } 100.0% { grid-template-rows: 0fr; opacity: 0; } }
+    .ways .b2 { animation: b2 59s var(--ease-standard) infinite; }
+    @keyframes b3 { 0.0% { grid-template-rows: 0fr; opacity: 0; } 82.88% { grid-template-rows: 0fr; opacity: 0; } 83.73% { grid-template-rows: 1fr; opacity: 1; } 88.14% { grid-template-rows: 1fr; opacity: 1; } 88.98% { grid-template-rows: 0fr; opacity: 0; } 100.0% { grid-template-rows: 0fr; opacity: 0; } }
+    .ways .b3 { animation: b3 59s var(--ease-standard) infinite; }
+    @keyframes b4 { 0.0% { grid-template-rows: 0fr; opacity: 0; } 87.29% { grid-template-rows: 0fr; opacity: 0; } 88.14% { grid-template-rows: 1fr; opacity: 1; } 92.2% { grid-template-rows: 1fr; opacity: 1; } 93.05% { grid-template-rows: 0fr; opacity: 0; } 100.0% { grid-template-rows: 0fr; opacity: 0; } }
+    .ways .b4 { animation: b4 59s var(--ease-standard) infinite; }
+    @keyframes b5 { 0.0% { grid-template-rows: 0fr; opacity: 0; } 91.36% { grid-template-rows: 0fr; opacity: 0; } 92.2% { grid-template-rows: 1fr; opacity: 1; } 100.0% { grid-template-rows: 1fr; opacity: 1; } }
+    .ways .b5 { animation: b5 59s var(--ease-standard) infinite; }
     @keyframes blink { 0%, 100% { opacity: .3; } 50% { opacity: 1; } }
     .ways .typing i, .ways .busy { animation: blink 1s ease-in-out infinite; }
     .ways .typing i:nth-child(2) { animation-delay: .2s; } .ways .typing i:nth-child(3) { animation-delay: .4s; }
@@ -3976,10 +4039,10 @@
         <p>Your AI drafts your listing, and you choose what's shown. Hidden details still help find the right people, and are never shown to anyone you match with or to any app.</p>
         <p>Belong runs the matching, so it can see what it holds. It keeps as little as it can.</p>
       </div>
-      <figure class="ways" role="img" aria-label="Three ways to use Belong, on a loop. In the Belong app on a phone, a person tells their AI they're looking for a technical co-founder for a health-tech company in Berlin and keeps their age for matching only; their profile appears with the age hidden, used for matching and never shown; a match arrives and they both say yes. Then in an AI chat, their AI uses Belong to file the same listing with the age hidden, finds a match and says yes for them. Then by email: they write to Belong, get a reply that the listing is live, a match, reply yes, and are introduced.">
-        <div class="slide s-phone"><div class="phone" aria-hidden="true">
+      <figure class="ways" role="img" aria-label="Three ways to use Belong, on a loop. In the Belong app on a phone, a person tells their AI they're looking for a technical co-founder for a health-tech company in Berlin and keeps their age for matching only; their profile appears with the age hidden, used for matching and never shown; three matches come in; they pass on one and say yes to another; once both say yes they're introduced and chat in Found. Then in an AI chat, their AI uses Belong to file the same listing with the age hidden, finds the matches and says yes for them. Then by email: they write to Belong, and Belong replies in the same thread that the listing is live, with a match, and, after their yes, with the introduction.">
+        <div class="slide s-phone" aria-hidden="true"><div class="phone">
         <div class="bar"><span>9:41</span><span class="notch"></span><span>100%</span></div>
-                <div class="top">
+        <div class="top">
           <img src="ds/logo/belong-wordmark-small-ink.svg" alt="" width="59" height="17">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></svg>
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 7h14M5 12h14M5 17h14"/></svg>
@@ -4010,18 +4073,39 @@
             <div class="live"><span class="badge olive">Matching</span> Live now</div>
             <div class="peek"><span class="handle"></span>
               <div class="slot"><p class="msg ai pk1">You're live. I'll tell you when someone fits.</p>
-                <p class="msg ai pk2">Two people match so far. Have a look when you're ready.</p></div></div>
+                <p class="msg ai pk2">Three people match so far. Have a look when you're ready.</p></div></div>
           </div>
-          <div class="match">
-            <p class="eyebrow">New match</p>
-            <div class="fact"><span class="label">Looking for</span><span>A co-founder to start a health app</span></div>
-            <div class="fact"><span class="label">Where</span><span>Berlin, in person</span></div>
-            <p class="reason">You both want to start a health-tech company in Berlin.</p>
-            <div class="end">
-              <div class="btns yesno"><span class="btn secondary sm">Not now</span><span class="btn sm">Yes</span></div>
-              <p class="note sent">You said yes. Waiting for them.</p>
-              <p class="note agreed"><span class="badge ai">Introduced</span> You both said yes.</p>
+          <div class="matches">
+            <div class="list">
+              <p class="eyebrow">Your matches</p>
+              <div class="grow mA"><div><div class="mcard">
+                <div class="fact"><span class="label">Looking for</span><span>A co-founder to start a health app</span></div>
+                <div class="fact"><span class="label">Where</span><span>Berlin, in person</span></div>
+                <p class="why">You both want to start a health-tech company in Berlin.</p>
+                <div class="end"><div class="btns btnsA"><span class="btn secondary sm">Not now</span><span class="btn sm">Yes<i class="ring yesA"></i></span></div>
+                  <p class="note sentA">You said yes. Waiting for them.</p>
+                  <p class="note bothA"><span class="badge ai">Introduced</span> You both said yes.</p></div></div></div></div>
+              <div class="grow mB"><div><div class="mcard">
+                <div class="fact"><span class="label">Looking for</span><span>A designer for a fitness app</span></div>
+                <div class="fact"><span class="label">Where</span><span>Berlin, remote</span></div>
+                <p class="why">You're both building in health, in Berlin.</p>
+                <div class="end"><div class="btns"><span class="btn secondary sm">Not now<i class="ring noB"></i></span><span class="btn sm">Yes</span></div></div></div></div></div>
+              <div class="grow mC"><div><div class="mcard">
+                <div class="fact"><span class="label">Looking for</span><span>A technical partner for a clinic tool</span></div>
+                <div class="fact"><span class="label">Where</span><span>Berlin, in person</span></div>
+                <p class="why">You both want a technical co-founder in Berlin.</p>
+                <div class="end"><div class="btns btnsC"><span class="btn secondary sm">Not now</span><span class="btn sm">Yes</span></div></div></div></div></div>
             </div>
+            <div class="tabbar"><span class="on">Belong.</span><span>Found.</span></div>
+          </div>
+          <div class="found">
+            <div class="person"><span class="mono">S</span><div><p class="who">Sam</p><span class="caption">A co-founder to start a health app</span></div></div>
+            <div class="list">
+              <p class="note">You both said yes</p>
+              <p class="msg me hello">Hi Sam, sounds like we're building the same thing.</p>
+              <p class="msg them reply">It does! Coffee this week?</p>
+            </div>
+            <div class="tabbar"><span>Belong.</span><span class="on">Found.</span></div>
           </div>
         </div>
         </div></div>
@@ -4032,30 +4116,42 @@
             <div class="grow a2"><div><span class="uses busy"><img src="ds/logo/belong-wordmark-small-ink.svg" alt="" width="38" height="11"> Filing your listing</span></div></div>
             <div class="grow a3"><div><span class="uses"><img src="ds/logo/belong-wordmark-small-ink.svg" alt="" width="38" height="11"> Listing filed</span><p class="said">You're live on Belong. Your age is hidden: it's used for matching and never shown.</p></div></div>
             <div class="grow a4"><div><p class="msg me">Any matches yet?</p></div></div>
-            <div class="grow a5"><div><span class="uses"><img src="ds/logo/belong-wordmark-small-ink.svg" alt="" width="38" height="11"> Checked your matches</span><p class="said">One so far: also starting a health app, in person in Berlin. Shall I say yes?</p></div></div>
+            <div class="grow a5"><div><span class="uses"><img src="ds/logo/belong-wordmark-small-ink.svg" alt="" width="38" height="11"> Checked your matches</span><p class="said">Three so far. The closest is also starting a health app, in person in Berlin. Shall I say yes?</p></div></div>
             <div class="grow a6"><div><p class="msg me">Yes.</p></div></div>
             <div class="grow a7"><div><span class="uses"><img src="ds/logo/belong-wordmark-small-ink.svg" alt="" width="38" height="11"> Said yes</span><div class="card"><div class="head"><span class="label">Your match</span><span class="badge ai">Introduced</span></div>
               <span class="said">You both said yes. You can say hello now.</span></div></div></div>
           </div>
           <div class="box">Message your AI</div>
         </div></div>
-        <div class="slide s-mail" aria-hidden="true"><div class="window mail">
+        <div class="slide s-mail" aria-hidden="true"><div class="window">
           <div class="chrome"><span class="lights"><i></i><i></i><i></i></span> Mail</div>
-          <div class="convo">
-            <div class="grow m1"><div><div class="email mine"><div class="from"><span><b>You</b> to belong@belong.example</span><span>9:02</span></div>
-              <p class="subject">Co-founder in Berlin</p><p class="text">I'm looking for a technical co-founder for a health-tech company, in person in Berlin. Keep my age hidden.</p></div></div></div>
-            <div class="grow m2"><div><div class="email"><div class="from"><b>Belong</b><span>9:02</span></div>
-              <p class="subject">Your listing is live</p>
-              <div class="card"><div class="fact"><span class="label">Looking for</span><span>Technical co-founder, health-tech</span></div>
-                <div class="fact"><span class="label">Where</span><span>Berlin, in person</span></div>
-                <div class="fact"><span class="label">Age</span><span><span class="badge ai">Hidden</span></span></div></div></div></div></div>
-            <div class="grow m3"><div><div class="email"><div class="from"><b>Belong</b><span>11:40</span></div>
-              <p class="subject">You have a match</p><p class="text">Also starting a health app, in person in Berlin. Reply yes to say yes.</p></div></div></div>
-            <div class="grow m4"><div><div class="email mine"><div class="from"><span><b>You</b></span><span>11:52</span></div>
-              <p class="subject">Re: You have a match</p><p class="text">Yes</p></div></div></div>
-            <div class="grow m5"><div><div class="email"><div class="from"><b>Belong</b><span>14:15</span></div>
-              <p class="subject">You've been introduced</p><p class="text">You both said yes. Reply to say hello.</p></div></div></div>
+          <div class="tools">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 6l-6 6 6 6"/></svg>
+            <span class="search">Search mail</span>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16v12H4zM4 7l2-3h12l2 3M10 12h4"/></svg>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 7h14M10 7V4h4v3M7 7l1 13h8l1-13"/></svg>
           </div>
+          <p class="thread-title">Co-founder in Berlin</p>
+          <div class="thread">
+            <div class="grow em e1"><div>
+              <div class="em-head"><span class="av">J</span><span class="who"><b>Jo</b> <span>&lt;jo@mail.example&gt;</span></span><span class="when">9:02</span><span class="to">to belong@belong.example</span></div>
+              <div class="grow em-body b1"><div><p>Hi, I'm looking for a technical co-founder for a health-tech company, in person in Berlin. Please keep my age hidden.</p><p class="sig">Jo</p></div></div></div></div>
+            <div class="grow em e2"><div>
+              <div class="em-head"><span class="av b"><img src="ds/logo/belong-icon.svg" alt="" width="14" height="14"></span><span class="who"><b>Belong</b> <span>&lt;belong@belong.example&gt;</span></span><span class="when">9:03</span><span class="to">Re: Co-founder in Berlin · to me</span></div>
+              <div class="grow em-body b2"><div><p>Hi Jo, your listing is live:</p><div class="card"><div class="fact"><span class="label">Looking for</span><span>Technical co-founder, health-tech</span></div>
+                <div class="fact"><span class="label">Where</span><span>Berlin, in person</span></div>
+                <div class="fact"><span class="label">Age</span><span><span class="badge ai">Hidden</span></span></div></div><p class="sig">Belong</p></div></div></div></div>
+            <div class="grow em e3"><div>
+              <div class="em-head"><span class="av b"><img src="ds/logo/belong-icon.svg" alt="" width="14" height="14"></span><span class="who"><b>Belong</b> <span>&lt;belong@belong.example&gt;</span></span><span class="when">11:40</span><span class="to">Re: Co-founder in Berlin · to me</span></div>
+              <div class="grow em-body b3"><div><p>You have a match: also starting a health app, in person in Berlin. You both want to start a health-tech company there.</p><p>Reply yes to say yes. Nobody is told if you don't.</p><p class="sig">Belong</p></div></div></div></div>
+            <div class="grow em e4"><div>
+              <div class="em-head"><span class="av">J</span><span class="who"><b>Jo</b> <span>&lt;jo@mail.example&gt;</span></span><span class="when">11:52</span><span class="to">Re: Co-founder in Berlin · to belong@belong.example</span></div>
+              <div class="grow em-body b4"><div><p>Yes</p><p class="sig">Jo</p></div></div></div></div>
+            <div class="grow em e5"><div>
+              <div class="em-head"><span class="av b"><img src="ds/logo/belong-icon.svg" alt="" width="14" height="14"></span><span class="who"><b>Belong</b> <span>&lt;belong@belong.example&gt;</span></span><span class="when">14:15</span><span class="to">Re: Co-founder in Berlin · to me</span></div>
+              <div class="grow em-body b5"><div><p>You both said yes, so you're introduced. Reply to this email to say hello to Sam.</p><p class="sig">Belong</p></div></div></div></div>
+          </div>
+          <div class="reply"><span>Reply</span><span>Forward</span></div>
         </div></div>
       </figure>
     </div>
