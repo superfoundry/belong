@@ -49,7 +49,7 @@
 @media (max-width: 640px) { .status { flex-direction: column; gap: var(--space-3); } }
 
 /* ---------- Footer ---------- */
-.site-foot .wrap { padding-top: var(--space-16); padding-bottom: var(--space-16); display: flex; flex-wrap: wrap;
+.site-foot .wrap { padding-top: var(--space-8); padding-bottom: var(--space-8); display: flex; flex-wrap: wrap;
   gap: var(--space-6) var(--space-12); align-items: center; justify-content: space-between; }
 .site-foot .logo img { height: 22px; }
 .site-foot nav { display: flex; flex-wrap: wrap; gap: var(--space-6); font: var(--text-body-s); }

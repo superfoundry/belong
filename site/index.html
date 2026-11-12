@@ -12,10 +12,13 @@
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <style>
   /* The landing page's own parts. Everything shared with the Use page is in site.css. */
-  .hero { min-height: calc(100svh - 72px); display: flex; align-items: center; padding: var(--space-16) 0 var(--space-24); }
+  /* The page centres on one column: the hero, the steps and the closing all sit in the middle of the web. */
+  .hero { min-height: calc(100svh - 72px); display: flex; align-items: center; padding: var(--space-12) 0 var(--space-24);
+    text-align: center; }
   .hero .wrap { width: 100%; }
-  .hero h1 { font-size: var(--font-size-display-xl); margin: 0 0 var(--space-6); max-width: 12ch; }
-  .hero .lead { font: var(--text-body-l); color: var(--text-secondary); margin: 0 0 var(--space-8); max-width: 38ch; }
+  .hero h1 { font-size: var(--font-size-display-xl); margin: 0 auto var(--space-6); max-width: 13ch; }
+  .hero .lead { font: var(--text-body-l); color: var(--text-secondary); margin: 0 auto var(--space-8); max-width: 38ch; }
+  .hero .actions { justify-content: center; }
 
   /* The background: an abstract web of points, coral, periwinkle and mint, in three layers of depth (far ones
      smaller, fainter and softer, near ones larger), each joined by faint grey lines. Now and then a pulse swells along
@@ -49,9 +52,11 @@
     }
   }
 
-  /* How it works: three steps, a number and a sentence each. */
+  /* How it works: three steps on cards, side by side from tablet width up. */
+  #how h2 { text-align: center; margin-bottom: var(--space-10); }
   .steps { list-style: none; margin: 0; padding: 0; }
-  .steps li { padding: var(--space-6) 0 0; }
+  @media (min-width: 720px) { .steps.grid.three { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+  .steps li { padding: var(--space-8); }
   .steps .num { display: block; font: var(--text-display-m); font-size: var(--font-size-display-m); color: var(--text-primary);
     margin-bottom: var(--space-4); }
   .steps h3 { font: var(--text-heading-l); margin: 0 0 var(--space-2); }
@@ -59,7 +64,7 @@
 
   /* A listing as its owner sees it, in the product's fixed look for shown and hidden details. */
   .hidden-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: var(--space-16); align-items: center; }
-  @media (max-width: 860px) { .hidden-grid { grid-template-columns: 1fr; gap: var(--space-10); } }
+  @media (max-width: 760px) { .hidden-grid { grid-template-columns: 1fr; gap: var(--space-10); } }
   .hidden-grid p { color: var(--text-secondary); max-width: 44ch; margin: 0 0 var(--space-4); font: var(--text-body-l); }
   .listing { padding: var(--space-6); margin: 0; }
   .listing-head { display: flex; justify-content: space-between; align-items: center; gap: var(--space-3); margin-bottom: var(--space-3); }
@@ -73,7 +78,7 @@
   .hidden-well .value { font: var(--text-body-m); margin: 2px 0 var(--space-1); }
   .listing figcaption { margin: var(--space-5) 0 0; display: flex; gap: var(--space-2); align-items: baseline; font: var(--text-body-s); color: var(--text-secondary); }
 
-  .closing { text-align: center; }
+  .closing { text-align: center; padding-bottom: var(--space-12); }
   .closing .intro { margin: 0 auto var(--space-8); }
   .closing .actions { justify-content: center; }
 </style>
@@ -3799,17 +3804,17 @@
     <div class="wrap">
       <h2 id="how-title" class="display-m">How it works</h2>
       <ol class="steps grid three">
-        <li>
+        <li class="card">
           <span class="num">1</span>
           <h3>Say what you're looking for</h3>
           <p>In your own words, to the AI you already use or in the Belong app. Your AI turns it into a listing.</p>
         </li>
-        <li>
+        <li class="card">
           <span class="num">2</span>
           <h3>Belong finds who's looking for you</h3>
           <p>It compares your listing with everyone else's. There are no profiles to scroll, and nobody browses anyone.</p>
         </li>
-        <li>
+        <li class="card">
           <span class="num">3</span>
           <h3>Meet when you both say yes</h3>
           <p>Until you both say yes, nobody can reach you. Nobody is ever told who said no.</p>
