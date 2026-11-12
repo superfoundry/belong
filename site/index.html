@@ -4,247 +4,531 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Belong</title>
-<meta name="description" content="Belong is an open standard for people to find each other, the way email is for writing to each other. Tell your own AI what you're looking for, show what you choose, and meet only when you both say yes.">
+<meta name="description" content="Belong helps people find each other. Tell your AI what you're looking for, and meet the people looking for you, only when you both say yes.">
 <link rel="stylesheet" href="ds/tokens.css">
 <link rel="stylesheet" href="ds/belong.css">
 <link rel="stylesheet" href="site.css">
+<link rel="icon" type="image/svg+xml" href="ds/logo/belong-icon.svg">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <style>
-  /* The landing page's own parts. Everything shared with the documentation pages is in site.css. */
-  .hero { padding: var(--space-20) 0 var(--space-24); }
-  .hero-grid { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); gap: var(--space-16); align-items: center; }
-  @media (max-width: 960px) { .hero-grid { grid-template-columns: 1fr; gap: var(--space-12); } }
-  /* The display tokens' fluid sizes, so the headline fits a phone. */
-  .hero h1 { font-size: var(--font-size-display-xl); margin: var(--space-4) 0 var(--space-6); max-width: 13ch; }
-  .section h2.display-m { font-size: var(--font-size-display-m); }
-  .hero .lead { font: var(--text-body-l); color: var(--text-secondary); margin: 0 0 var(--space-10); max-width: 46ch; }
-  .actions { display: flex; flex-wrap: wrap; gap: var(--space-3); align-items: center; }
-  .actions .small { font: var(--text-caption); color: var(--text-tertiary); flex-basis: 100%; margin: var(--space-2) 0 0; }
+  /* The landing page's own parts. Everything shared with the Use page is in site.css. */
+  /* The page centres on one column: the hero, the steps and the closing all sit in the middle of the web. */
+  .hero { min-height: calc(100svh - 72px); display: flex; align-items: center; padding: var(--space-12) 0 var(--space-24);
+    text-align: center; }
+  .hero .wrap { width: 100%; }
+  .hero h1 { font-size: var(--font-size-display-xl); margin: 0 auto var(--space-6); max-width: 13ch; }
+  .hero .lead { font: var(--text-body-l); color: var(--text-secondary); margin: 0 auto var(--space-8); max-width: 38ch; }
+  .hero .actions { justify-content: center; }
 
-  /* A listing as its owner sees it, in the product's fixed look for shown and hidden details. */
-  .listing { padding: var(--space-6); }
-  .listing-head { display: flex; justify-content: space-between; align-items: center; gap: var(--space-3); margin-bottom: var(--space-5); }
-  .listing-head .label { color: var(--text-tertiary); }
-  .row { padding: var(--space-3) 0; border-top: 1px solid var(--border-subtle); }
-  .row .field-label { margin: 0 0 2px; color: var(--text-tertiary); }
-  .row .value { font: var(--text-body-m); color: var(--text-primary); }
-  .hidden-well { margin-top: var(--space-4); }
-  .hidden-well .top { display: flex; justify-content: space-between; align-items: center; gap: var(--space-3); }
-  .hidden-well .field-label { margin: 0; color: var(--text-tertiary); }
-  .hidden-well .value { font: var(--text-body-m); margin: 2px 0 var(--space-1); }
-  .agent-note { margin: var(--space-5) 0 0; display: flex; gap: var(--space-2); align-items: baseline; font: var(--text-body-s); color: var(--text-secondary); }
+  /* The background: an abstract web of points, coral, periwinkle and mint, in three layers of depth (far ones
+     smaller, fainter and softer, near ones larger), each joined by faint grey lines. Now and then a pulse swells along
+     a line in its own grey, thickest in the middle and tapering to nothing, each already under way when the page
+     loads, so it has no beginning or end. Fixed behind the whole page at half opacity, showing through the top bar too.
+     As the page scrolls the layers turn and tilt together, at their own depths (the script sets --s, 0 to 1).
+     No pause button by the owner's choice; with reduced motion it rests as the still web. */
+  /* On this page the top bar lets the web show through it (no fill, no blur) and scrolls away with the hero
+     instead of staying pinned, so no text ever passes under it. */
+  .site-top { position: relative; background: transparent; -webkit-backdrop-filter: none; backdrop-filter: none; }
+  .web { position: fixed; inset: 0; z-index: -1; opacity: 0.5; pointer-events: none; overflow: hidden; perspective: 1000px; }
+  .web .layer { position: absolute; inset: -25%; width: 150%; height: 150%; will-change: transform;
+    transform: rotateX(calc(var(--s, 0) * 38deg)) rotateZ(calc(var(--s, 0) * 28deg)) translateZ(var(--z)); }
+  .web line { stroke: var(--text-primary); stroke-width: 1; opacity: 0.22; }
+  .web .pulse { fill: var(--text-primary); opacity: 0.22; }
+  .web .pulse path { opacity: 0; }
+  .web .co { fill: var(--accent-default); }
+  .web .ai { fill: var(--accent-ai); }
+  .web .mi { fill: var(--accent-olive); }
+  .web .far { --z: -420px; opacity: 0.45; filter: blur(1px); }
+  .web .far line { stroke-width: 0.6; }
+  .web .mid { --z: -140px; opacity: 0.75; }
+  .web .near { --z: 0px; }
+  .web .near line { stroke-width: 1.3; }
+  @media (prefers-reduced-motion: no-preference) {
+    .web .pulse path { animation: pulse var(--t) ease-in-out var(--d) infinite; }
+    @keyframes pulse {
+      0% { transform: none; opacity: 0; }
+      8%, 52% { opacity: 1; }
+      60%, 100% { transform: translateX(var(--l)); opacity: 0; }
+    }
+  }
 
-  /* How it works: four steps along the chapter rule. */
-  .steps { list-style: none; margin: 0; padding: 0; counter-reset: step; }
-  .steps li { counter-increment: step; position: relative; padding: 0 0 var(--space-10); max-width: var(--content-narrow); }
-  .steps li:last-child { padding-bottom: 0; }
-  .steps li::before { content: counter(step); position: absolute; left: -46px; top: 0; width: 22px; margin-left: 12px;
-    font: var(--text-mono-s); color: var(--text-tertiary); background: var(--surface-app); text-align: center; line-height: 28px; }
-  @media (max-width: 640px) { .steps li::before { left: -24px; margin-left: -4px; } }
-  .steps h3 { margin: 0 0 var(--space-2); }
-  .steps p { margin: 0; color: var(--text-secondary); }
+  /* What makes Belong different: four cards, two by two. */
+  #diff-title { text-align: center; margin-bottom: var(--space-10); }
+  .diff .card { padding: var(--space-8); }
 
-  /* Shown and hidden, side by side. */
-  .side h3 { display: flex; align-items: center; gap: var(--space-3); margin: 0 0 var(--space-4); }
-  .side ul { margin: 0; padding-left: 1.1em; color: var(--text-secondary); }
-  .side li + li { margin-top: var(--space-2); }
-  .side.hidden-side { background: var(--surface-sunken); border: 1px solid var(--border-ai); box-shadow: none; }
-  .side.hidden-side .hidden-note { display: block; margin-top: var(--space-5); }
+  /* Hidden details: the words on the left, and the Belong app on a phone on the right. */
+  .hidden-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: var(--space-16); align-items: center; }
+  @media (max-width: 760px) { .hidden-grid { grid-template-columns: 1fr; gap: var(--space-10); } }
+  .hidden-grid p { color: var(--text-secondary); max-width: 44ch; margin: 0 0 var(--space-4); font: var(--text-body-l); }
+  /* The ways to use Belong, one story three times on a loop. First the Belong app on a phone, drawn in the app's own
+     look: the person tells their AI what they're looking for; their profile appears, the hidden age in its red band
+     with the Hidden badge; matching starts; their matches come in, they pass on one and say yes to another, and both
+     say yes. Then it swipes to an AI chat window, dark and in the code font, any assistant and no one's brand, using
+     Belong through its connector; then to a mail thread with Belong, light, as a mail app shows it; then back to the
+     phone. A picture, so it's one image to screen readers. With reduced motion it rests on the phone's profile. */
+  .ways { position: relative; justify-self: stretch; height: 660px; margin: 0; overflow: hidden; }
+  .ways .slide { position: absolute; inset: 0; display: grid; place-items: center; padding: var(--space-6) var(--space-2); }
+  .ways .s-ai, .ways .s-mail { transform: translateX(115%); }
+  .phone { width: 300px; max-width: 100%; margin: 0; border: 9px solid var(--surface-inverse);
+    border-radius: 44px; overflow: hidden; background: var(--surface-card); box-shadow: var(--shadow-lg); }
+  .phone .bar { display: flex; align-items: center; justify-content: space-between; padding: 10px var(--space-5) 0;
+    font: var(--text-caption); font-weight: 600; }
+  .phone .bar .notch { width: 84px; height: 22px; border-radius: var(--radius-pill); background: var(--surface-inverse); }
+  .phone .top { display: flex; align-items: center; gap: var(--space-2); padding: var(--space-3) var(--space-4);
+    border-bottom: 1px solid var(--border-subtle); }
+  .phone .top img { height: 17px; width: auto; margin-right: auto; }
+  .phone .top svg { width: 18px; height: 18px; color: var(--text-primary); }
+  .phone .screen { position: relative; height: 500px; overflow: hidden; }
+  .phone .chat, .phone .profile { position: absolute; left: 0; right: 0; }
+  .phone .chat { inset: 0; padding: var(--space-4); display: flex; flex-direction: column; gap: var(--space-2); }
+  .phone .chat .eyebrow { margin-bottom: var(--space-2); color: var(--text-tertiary); }
+  .ways .msg { max-width: 85%; margin: 0; padding: var(--space-2) var(--space-3); border-radius: 18px; font: var(--text-body-s); }
+  .ways .msg.me { align-self: flex-end; background: var(--surface-raised); border-bottom-right-radius: var(--radius-sm); }
+  .ways .msg.ai { align-self: flex-start; background: var(--accent-ai-muted); border-bottom-left-radius: var(--radius-sm); }
+  .phone .turn { display: grid; justify-items: start; }
+  .phone .turn > * { grid-area: 1 / 1; align-self: start; }
+  .ways .typing { display: inline-flex; gap: 4px; padding: var(--space-3); }
+  .ways .typing i { width: 6px; height: 6px; border-radius: 50%; background: var(--accent-ai); }
+  .phone .making { align-self: flex-start; font: var(--text-caption); color: var(--text-ai); }
+  .phone .profile { inset: 0; background: var(--sf-paper-100); }
+  .phone .hello { background: var(--surface-card); padding: var(--space-4); }
+  .phone .hello-head { display: flex; align-items: center; gap: var(--space-3); }
+  .phone .mono { width: 40px; height: 40px; border-radius: var(--radius-md); background: var(--sf-char-100); color: var(--text-secondary);
+    display: inline-flex; align-items: center; justify-content: center; font-family: var(--font-display); font-weight: 700; font-size: 18px; }
+  .phone .name { margin: 0; font-family: var(--font-display); font-weight: 600; font-size: 21px; line-height: 1.15; }
+  .phone .words { margin: var(--space-3) 0 0; font-family: var(--font-display); font-weight: 500; font-size: 15px; line-height: 1.7; }
+  .phone .word { background: var(--sf-char-100); border-bottom: 2px solid var(--border-strong); border-radius: var(--radius-sm); padding: 1px 4px;
+    -webkit-box-decoration-break: clone; box-decoration-break: clone; }
+  .ways .facts { padding: var(--space-3) var(--space-4); display: grid; gap: var(--space-2); }
+  .ways .fact { display: grid; grid-template-columns: 76px 1fr; gap: var(--space-2); font: var(--text-body-s); }
+  .ways .fact .label { color: var(--text-tertiary); }
+  .phone .hidden-band { padding: var(--space-3) var(--space-4);
+    background: linear-gradient(var(--accent-error-muted), var(--accent-error-muted)), var(--surface-card); }
+  .phone .hidden-band .head { display: flex; justify-content: space-between; align-items: center; }
+  .phone .hidden-band .body-s { margin-top: var(--space-1); }
+  .phone .hidden-note { display: block; margin-top: var(--space-1); }
+  .phone .live { display: flex; align-items: center; gap: var(--space-2); padding: var(--space-3) var(--space-4); font: var(--text-caption);
+    color: var(--text-secondary); }
+  .phone .peek { position: absolute; left: 0; right: 0; bottom: 0; background: var(--surface-card); border-top: 1px solid var(--border-default);
+    border-radius: var(--radius-lg) var(--radius-lg) 0 0; padding: var(--space-3) var(--space-4) var(--space-5); }
+  .phone .peek .handle { display: block; width: 32px; height: 4px; margin: 0 auto var(--space-3); border-radius: var(--radius-pill);
+    background: var(--border-strong); }
+  .phone .peek .slot { display: grid; }
+  .phone .peek .msg { grid-area: 1 / 1; max-width: none; }
+  /* The app's matches: a screen that slides in over the profile, with the phone's tab bar. */
+  .phone .matches { position: absolute; inset: 0; display: flex; flex-direction: column; background: var(--sf-paper-100);
+    transform: translateX(100%); }
+  .phone .list { flex: 1; min-height: 0; overflow: hidden; padding: var(--space-3) var(--space-4); }
+  .phone .list .eyebrow { color: var(--text-tertiary); margin-bottom: var(--space-1); }
+  .ways .grow { display: grid; grid-template-rows: 1fr; }
+  .ways .grow > div { overflow: hidden; min-height: 0; }
+  .phone .mcard { margin-top: var(--space-2); padding: var(--space-3); background: var(--surface-card); border: 1px solid var(--border-default);
+    border-radius: var(--radius-md); display: grid; gap: var(--space-1); }
+  .phone .mcard .fact { grid-template-columns: 70px 1fr; font: var(--text-caption); }
+  .phone .mcard .why { margin: 2px 0 0; font: var(--text-caption); color: var(--text-secondary); }
+  .phone .mcard .end { display: grid; margin-top: var(--space-2); min-height: 30px; }
+  .phone .mcard .end > * { grid-area: 1 / 1; align-self: center; }
+  .phone .mcard .btns { display: flex; gap: var(--space-2); }
+  .phone .mcard .btns .btn { flex: 1; justify-content: center; }
+  .phone .mcard .note { margin: 0; font: var(--text-caption); }
+  .phone .btn { position: relative; }
+  .phone .ring { position: absolute; inset: -3px; border: 2px solid var(--border-accent); border-radius: inherit; opacity: 0; }
+  .phone .tabbar { display: grid; grid-template-columns: 1fr 1fr; border-top: 1px solid var(--border-subtle); background: var(--sf-paper-100); }
+  .phone .tabbar span { padding: var(--space-3) 0 var(--space-4); text-align: center; font-family: var(--font-display); font-weight: 700;
+    font-size: 15px; color: var(--text-tertiary); }
+  .phone .tabbar span + span { border-left: 1px solid var(--border-subtle); }
+  .phone .tabbar .on { color: var(--text-primary); background: linear-gradient(var(--accent-muted), transparent 70%); box-shadow: inset 0 2px var(--border-accent); }
+  /* The windows: a desktop app's frame, its title in the middle; the conversation pushed up from the bottom as it grows. */
+  .ways .window { width: 100%; max-width: 440px; height: 520px; display: flex; flex-direction: column; overflow: hidden;
+    background: var(--surface-card); border: 1px solid var(--border-default); border-radius: var(--radius-lg); box-shadow: var(--shadow-lg); }
+  .ways .chrome { position: relative; display: flex; align-items: center; justify-content: center; gap: var(--space-2); padding: var(--space-3);
+    border-bottom: 1px solid var(--border-subtle); font: var(--text-body-s); font-weight: 600; }
+  .ways .chrome .lights { position: absolute; left: var(--space-3); display: flex; gap: 6px; }
+  .ways .chrome .lights i { width: 10px; height: 10px; border-radius: 50%; background: var(--sf-char-100); }
+  .ways .chrome .spark { width: 10px; height: 10px; border-radius: 50%; background: var(--text-primary); }
+  .ways .convo { flex: 1; min-height: 0; display: flex; flex-direction: column; justify-content: flex-end; padding: 0 var(--space-4) var(--space-2); overflow: hidden; }
+  .ways .convo .grow > div { padding-top: var(--space-3); display: flex; flex-direction: column; }
+  .ways .said { margin: 0; font: var(--text-body-s); }
+  .ways .uses { align-self: flex-start; display: inline-flex; align-items: center; gap: var(--space-2); padding: 4px var(--space-3);
+    border-radius: var(--radius-pill); background: var(--accent-ai-muted); color: var(--text-ai); font: var(--text-caption); }
+  .ways .uses img { height: 11px; width: auto; }
+  .ways .uses + .said { margin-top: var(--space-2); }
+  .ways .card { margin-top: var(--space-2); padding: var(--space-3); border: 1px solid var(--border-default); border-radius: var(--radius-md);
+    display: grid; gap: var(--space-1); background: var(--surface-card); }
+  .ways .card .head { display: flex; justify-content: space-between; align-items: center; }
+  .ways .card .fact { grid-template-columns: 68px 1fr; font: var(--text-caption); }
+  /* The AI window: dark, in the code font, so it reads as a different place from the mail. */
+  .ways .dark { background: var(--surface-inverse); color: var(--text-inverse); border-color: var(--surface-inverse); }
+  .ways .dark, .ways .dark .said, .ways .dark .msg, .ways .dark .chrome, .ways .dark .box, .ways .dark .uses, .ways .dark .label { font-family: var(--font-mono); }
+  .ways .dark .chrome { border-bottom-color: color-mix(in srgb, var(--text-inverse) 12%, transparent); }
+  .ways .dark .chrome .lights i { background: color-mix(in srgb, var(--text-inverse) 25%, transparent); }
+  .ways .dark .chrome .spark { background: var(--accent-ai); }
+  .ways .dark .said, .ways .dark .card { color: var(--text-inverse); }
+  .ways .dark .msg.me { background: color-mix(in srgb, var(--text-inverse) 12%, transparent); color: var(--text-inverse); }
+  .ways .dark .uses { background: transparent; border: 1px solid var(--accent-ai); color: var(--accent-ai); }
+  .ways .dark .card { background: color-mix(in srgb, var(--text-inverse) 6%, transparent); border-color: color-mix(in srgb, var(--text-inverse) 18%, transparent); }
+  .ways .dark .label { color: color-mix(in srgb, var(--text-inverse) 65%, transparent); }
+  .ways .dark .box { border-color: color-mix(in srgb, var(--text-inverse) 22%, transparent); color: color-mix(in srgb, var(--text-inverse) 55%, transparent); }
+  .ways .box { margin: var(--space-2) var(--space-4) var(--space-4); padding: var(--space-2) var(--space-4); border: 1px solid var(--border-default);
+    border-radius: var(--radius-pill); font: var(--text-body-s); color: var(--text-tertiary); }
+  /* The mail window: light, in the page's own type, like a mail app: a toolbar, the thread's subject, then each email
+     in it, open, the newest at the foot; a reply box below. */
+  .ways .tools { display: flex; align-items: center; gap: var(--space-3); padding: var(--space-2) var(--space-4); border-bottom: 1px solid var(--border-subtle); }
+  .ways .tools svg { width: 16px; height: 16px; color: var(--text-tertiary); }
+  .ways .tools .search { flex: 1; padding: 4px var(--space-3); border-radius: var(--radius-pill); background: var(--surface-raised);
+    font: var(--text-caption); color: var(--text-tertiary); }
+  .ways .thread-title { margin: 0; padding: var(--space-3) var(--space-4) 0; font: var(--text-body-m); font-weight: 600; }
+  .ways .thread-title .badge { margin-left: var(--space-2); vertical-align: middle; }
+  .ways .thread { flex: 1; min-height: 0; display: flex; flex-direction: column; justify-content: flex-end; overflow: hidden; padding: 0 var(--space-4); }
+  .ways .em > div { border-top: 1px solid var(--border-subtle); }
+  .ways .em-head { display: grid; grid-template-columns: 28px 1fr auto; gap: 2px var(--space-2); align-items: center; padding: var(--space-2) 0; }
+  .ways .em-head .av { grid-row: span 2; width: 28px; height: 28px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center;
+    font: var(--text-caption); font-weight: 700; background: var(--sf-char-100); color: var(--text-secondary); }
+  .ways .em-head .av.b { background: var(--surface-inverse); }
+  .ways .em-head .av.b img { width: 14px; height: auto; }
+  .ways .em-head .who { font: var(--text-caption); color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .ways .em-head .who b { font-weight: 600; }
+  .ways .em-head .who span { color: var(--text-tertiary); }
+  .ways .em-head .when { font: var(--text-caption); color: var(--text-tertiary); }
+  .ways .em-head .to { grid-column: 2 / 4; font: var(--text-caption); color: var(--text-tertiary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .ways .em-body { padding: 0 0 var(--space-3) 36px; font: var(--text-caption); color: var(--text-primary); }
+  .ways .em-body p { margin: 0 0 var(--space-2); font: var(--text-caption); }
+  .ways .em-body .card { margin: 0 0 var(--space-2); }
+  .ways .em-body .sig { color: var(--text-tertiary); margin: 0; }
+  .ways .reply { display: flex; gap: var(--space-2); padding: var(--space-3) var(--space-4) var(--space-4); border-top: 1px solid var(--border-subtle); }
+  .ways .reply span { padding: 4px var(--space-4); border: 1px solid var(--border-default); border-radius: var(--radius-pill); font: var(--text-caption); }
+  /* At rest (and with reduced motion): the phone's profile and its AI's latest message; the rest away. */
+  .ways .pk1 { opacity: 0; }
+  @media (prefers-reduced-motion: no-preference) {
+    @keyframes s-phone { 0.0% { transform: none; opacity: 1; } 44.64% { transform: none; opacity: 1; } 46.43% { transform: translateX(-115%); opacity: 1; } 46.61% { transform: translateX(-115%); opacity: 0; } 98.04% { transform: translateX(115%); opacity: 0; } 98.21% { transform: translateX(115%); opacity: 1; } 100.0% { transform: none; opacity: 1; } }
+    .ways .s-phone { animation: s-phone 56s var(--ease-standard) infinite; }
+    @keyframes s-ai { 0.0% { transform: translateX(115%); } 44.64% { transform: translateX(115%); } 46.43% { transform: none; } 71.43% { transform: none; } 73.21% { transform: translateX(-115%); } 100.0% { transform: translateX(-115%); } }
+    .ways .s-ai { animation: s-ai 56s var(--ease-standard) infinite; }
+    @keyframes s-mail { 0.0% { transform: translateX(115%); } 71.43% { transform: translateX(115%); } 73.21% { transform: none; } 98.21% { transform: none; } 100.0% { transform: translateX(-115%); } }
+    .ways .s-mail { animation: s-mail 56s var(--ease-standard) infinite; }
+    @keyframes say1 { 0.0% { opacity: 0; transform: translateY(6px); } 0.89% { opacity: 0; transform: translateY(6px); } 1.61% { opacity: 1; transform: none; } 58.93% { opacity: 1; transform: none; } 59.64% { opacity: 0; transform: none; } 100.0% { opacity: 0; transform: none; } }
+    .ways .say1 { animation: say1 56s var(--ease-standard) infinite; }
+    @keyframes typing1 { 0.0% { opacity: 0; transform: translateY(6px); } 3.21% { opacity: 0; transform: translateY(6px); } 3.93% { opacity: 1; transform: none; } 6.25% { opacity: 1; transform: none; } 6.96% { opacity: 0; transform: none; } 100.0% { opacity: 0; transform: none; } }
+    .ways .typing1 { animation: typing1 56s var(--ease-standard) infinite; }
+    @keyframes ask { 0.0% { opacity: 0; transform: translateY(6px); } 6.43% { opacity: 0; transform: translateY(6px); } 7.14% { opacity: 1; transform: none; } 58.93% { opacity: 1; transform: none; } 59.64% { opacity: 0; transform: none; } 100.0% { opacity: 0; transform: none; } }
+    .ways .ask { animation: ask 56s var(--ease-standard) infinite; }
+    @keyframes say2 { 0.0% { opacity: 0; transform: translateY(6px); } 10.36% { opacity: 0; transform: translateY(6px); } 11.07% { opacity: 1; transform: none; } 58.93% { opacity: 1; transform: none; } 59.64% { opacity: 0; transform: none; } 100.0% { opacity: 0; transform: none; } }
+    .ways .say2 { animation: say2 56s var(--ease-standard) infinite; }
+    @keyframes making { 0.0% { opacity: 0; transform: translateY(6px); } 12.68% { opacity: 0; transform: translateY(6px); } 13.39% { opacity: 1; transform: none; } 16.43% { opacity: 1; transform: none; } 17.14% { opacity: 0; transform: none; } 100.0% { opacity: 0; transform: none; } }
+    .ways .making { animation: making 56s var(--ease-standard) infinite; }
+    @keyframes profile { 0.0% { transform: translateY(100%); } 16.79% { transform: translateY(100%); } 18.21% { transform: none; } 58.93% { transform: none; } 59.82% { transform: translateY(100%); } 100.0% { transform: translateY(100%); } }
+    .ways .profile { animation: profile 56s var(--ease-standard) infinite; }
+    @keyframes pk1 { 0.0% { opacity: 0; transform: translateY(6px); } 18.93% { opacity: 0; transform: translateY(6px); } 19.64% { opacity: 1; transform: none; } 23.21% { opacity: 1; transform: none; } 23.93% { opacity: 0; transform: none; } 100.0% { opacity: 0; transform: none; } }
+    .ways .pk1 { animation: pk1 56s var(--ease-standard) infinite; }
+    @keyframes pk2 { 0.0% { opacity: 0; transform: translateY(6px); } 23.21% { opacity: 0; transform: translateY(6px); } 23.93% { opacity: 1; transform: none; } 58.93% { opacity: 1; transform: none; } 59.64% { opacity: 0; transform: none; } 100.0% { opacity: 0; transform: none; } }
+    .ways .pk2 { animation: pk2 56s var(--ease-standard) infinite; }
+    @keyframes matches { 0.0% { transform: translateX(100%); } 26.07% { transform: translateX(100%); } 27.5% { transform: none; } 58.93% { transform: none; } 59.82% { transform: translateX(100%); } 100.0% { transform: translateX(100%); } }
+    .ways .matches { animation: matches 56s var(--ease-standard) infinite; }
+    @keyframes mA { 0.0% { grid-template-rows: 0fr; opacity: 0; } 27.68% { grid-template-rows: 0fr; opacity: 0; } 28.57% { grid-template-rows: 1fr; opacity: 1; } 100.0% { grid-template-rows: 1fr; opacity: 1; } }
+    .ways .mA { animation: mA 56s var(--ease-standard) infinite; }
+    @keyframes mB { 0.0% { grid-template-rows: 0fr; opacity: 0; } 29.11% { grid-template-rows: 0fr; opacity: 0; } 30.0% { grid-template-rows: 1fr; opacity: 1; } 34.46% { grid-template-rows: 1fr; opacity: 1; } 35.36% { grid-template-rows: 0fr; opacity: 0; } 100.0% { grid-template-rows: 0fr; opacity: 0; } }
+    .ways .mB { animation: mB 56s var(--ease-standard) infinite; }
+    @keyframes mC { 0.0% { grid-template-rows: 0fr; opacity: 0; } 30.54% { grid-template-rows: 0fr; opacity: 0; } 31.43% { grid-template-rows: 1fr; opacity: 1; } 100.0% { grid-template-rows: 1fr; opacity: 1; } }
+    .ways .mC { animation: mC 56s var(--ease-standard) infinite; }
+    @keyframes noB { 0.0% { opacity: 0; transform: translateY(6px); } 32.5% { opacity: 0; transform: translateY(6px); } 33.21% { opacity: 1; transform: none; } 34.46% { opacity: 1; transform: none; } 35.18% { opacity: 0; transform: none; } 100.0% { opacity: 0; transform: none; } }
+    .ways .noB { animation: noB 56s var(--ease-standard) infinite; }
+    @keyframes yesA { 0.0% { opacity: 0; transform: translateY(6px); } 35.36% { opacity: 0; transform: translateY(6px); } 36.07% { opacity: 1; transform: none; } 37.32% { opacity: 1; transform: none; } 38.04% { opacity: 0; transform: none; } 100.0% { opacity: 0; transform: none; } }
+    .ways .yesA { animation: yesA 56s var(--ease-standard) infinite; }
+    @keyframes sentA { 0.0% { opacity: 0; transform: translateY(6px); } 36.96% { opacity: 0; transform: translateY(6px); } 37.68% { opacity: 1; transform: none; } 40.36% { opacity: 1; transform: none; } 41.07% { opacity: 0; transform: none; } 100.0% { opacity: 0; transform: none; } }
+    .ways .sentA { animation: sentA 56s var(--ease-standard) infinite; }
+    @keyframes bothA { 0.0% { opacity: 0; transform: translateY(6px); } 40.36% { opacity: 0; transform: translateY(6px); } 41.07% { opacity: 1; transform: none; } 58.93% { opacity: 1; transform: none; } 59.64% { opacity: 0; transform: none; } 100.0% { opacity: 0; transform: none; } }
+    .ways .bothA { animation: bothA 56s var(--ease-standard) infinite; }
+    @keyframes btnsA { 0.0% { opacity: 0; transform: translateY(6px); } 27.86% { opacity: 0; transform: translateY(6px); } 28.57% { opacity: 1; transform: none; } 36.79% { opacity: 1; transform: none; } 37.5% { opacity: 0; transform: none; } 100.0% { opacity: 0; transform: none; } }
+    .ways .btnsA { animation: btnsA 56s var(--ease-standard) infinite; }
+    @keyframes btnsC { 0.0% { opacity: 0; transform: translateY(6px); } 30.71% { opacity: 0; transform: translateY(6px); } 31.43% { opacity: 1; transform: none; } 58.93% { opacity: 1; transform: none; } 59.64% { opacity: 0; transform: none; } 100.0% { opacity: 0; transform: none; } }
+    .ways .btnsC { animation: btnsC 56s var(--ease-standard) infinite; }
+    @keyframes a1 { 0.0% { grid-template-rows: 0fr; opacity: 0; } 47.32% { grid-template-rows: 0fr; opacity: 0; } 48.21% { grid-template-rows: 1fr; opacity: 1; } 75.0% { grid-template-rows: 1fr; opacity: 1; } 75.89% { grid-template-rows: 0fr; opacity: 0; } 100.0% { grid-template-rows: 0fr; opacity: 0; } }
+    .ways .a1 { animation: a1 56s var(--ease-standard) infinite; }
+    @keyframes a2 { 0.0% { grid-template-rows: 0fr; opacity: 0; } 49.46% { grid-template-rows: 0fr; opacity: 0; } 50.36% { grid-template-rows: 1fr; opacity: 1; } 52.5% { grid-template-rows: 1fr; opacity: 1; } 53.39% { grid-template-rows: 0fr; opacity: 0; } 100.0% { grid-template-rows: 0fr; opacity: 0; } }
+    .ways .a2 { animation: a2 56s var(--ease-standard) infinite; }
+    @keyframes a3 { 0.0% { grid-template-rows: 0fr; opacity: 0; } 51.96% { grid-template-rows: 0fr; opacity: 0; } 52.86% { grid-template-rows: 1fr; opacity: 1; } 75.0% { grid-template-rows: 1fr; opacity: 1; } 75.89% { grid-template-rows: 0fr; opacity: 0; } 100.0% { grid-template-rows: 0fr; opacity: 0; } }
+    .ways .a3 { animation: a3 56s var(--ease-standard) infinite; }
+    @keyframes a4 { 0.0% { grid-template-rows: 0fr; opacity: 0; } 56.96% { grid-template-rows: 0fr; opacity: 0; } 57.86% { grid-template-rows: 1fr; opacity: 1; } 75.0% { grid-template-rows: 1fr; opacity: 1; } 75.89% { grid-template-rows: 0fr; opacity: 0; } 100.0% { grid-template-rows: 0fr; opacity: 0; } }
+    .ways .a4 { animation: a4 56s var(--ease-standard) infinite; }
+    @keyframes a5 { 0.0% { grid-template-rows: 0fr; opacity: 0; } 59.11% { grid-template-rows: 0fr; opacity: 0; } 60.0% { grid-template-rows: 1fr; opacity: 1; } 75.0% { grid-template-rows: 1fr; opacity: 1; } 75.89% { grid-template-rows: 0fr; opacity: 0; } 100.0% { grid-template-rows: 0fr; opacity: 0; } }
+    .ways .a5 { animation: a5 56s var(--ease-standard) infinite; }
+    @keyframes a6 { 0.0% { grid-template-rows: 0fr; opacity: 0; } 63.39% { grid-template-rows: 0fr; opacity: 0; } 64.29% { grid-template-rows: 1fr; opacity: 1; } 75.0% { grid-template-rows: 1fr; opacity: 1; } 75.89% { grid-template-rows: 0fr; opacity: 0; } 100.0% { grid-template-rows: 0fr; opacity: 0; } }
+    .ways .a6 { animation: a6 56s var(--ease-standard) infinite; }
+    @keyframes a7 { 0.0% { grid-template-rows: 0fr; opacity: 0; } 65.54% { grid-template-rows: 0fr; opacity: 0; } 66.43% { grid-template-rows: 1fr; opacity: 1; } 75.0% { grid-template-rows: 1fr; opacity: 1; } 75.89% { grid-template-rows: 0fr; opacity: 0; } 100.0% { grid-template-rows: 0fr; opacity: 0; } }
+    .ways .a7 { animation: a7 56s var(--ease-standard) infinite; }
+    @keyframes e1 { 0.0% { grid-template-rows: 0fr; opacity: 0; } 73.75% { grid-template-rows: 0fr; opacity: 0; } 74.64% { grid-template-rows: 1fr; opacity: 1; } 100.0% { grid-template-rows: 1fr; opacity: 1; } }
+    .ways .e1 { animation: e1 56s var(--ease-standard) infinite; }
+    @keyframes e2 { 0.0% { grid-template-rows: 0fr; opacity: 0; } 77.32% { grid-template-rows: 0fr; opacity: 0; } 78.21% { grid-template-rows: 1fr; opacity: 1; } 100.0% { grid-template-rows: 1fr; opacity: 1; } }
+    .ways .e2 { animation: e2 56s var(--ease-standard) infinite; }
+    @keyframes e3 { 0.0% { grid-template-rows: 0fr; opacity: 0; } 81.96% { grid-template-rows: 0fr; opacity: 0; } 82.86% { grid-template-rows: 1fr; opacity: 1; } 100.0% { grid-template-rows: 1fr; opacity: 1; } }
+    .ways .e3 { animation: e3 56s var(--ease-standard) infinite; }
+    @keyframes e4 { 0.0% { grid-template-rows: 0fr; opacity: 0; } 86.61% { grid-template-rows: 0fr; opacity: 0; } 87.5% { grid-template-rows: 1fr; opacity: 1; } 100.0% { grid-template-rows: 1fr; opacity: 1; } }
+    .ways .e4 { animation: e4 56s var(--ease-standard) infinite; }
+    @keyframes e5 { 0.0% { grid-template-rows: 0fr; opacity: 0; } 90.89% { grid-template-rows: 0fr; opacity: 0; } 91.79% { grid-template-rows: 1fr; opacity: 1; } 100.0% { grid-template-rows: 1fr; opacity: 1; } }
+    .ways .e5 { animation: e5 56s var(--ease-standard) infinite; }
+    @keyframes blink { 0%, 100% { opacity: .3; } 50% { opacity: 1; } }
+    .ways .typing i, .ways .busy { animation: blink 1s ease-in-out infinite; }
+    .ways .typing i:nth-child(2) { animation-delay: .2s; } .ways .typing i:nth-child(3) { animation-delay: .4s; }
+  }
 
-  .promise { display: grid; gap: var(--space-12); max-width: 960px; }
-  .keeps { margin: 0; padding: 0; list-style: none; }
-  .keeps li { padding: var(--space-3) 0; border-top: 1px solid var(--border-subtle); color: var(--text-secondary); font: var(--text-body-s); }
-  .keeps li b { color: var(--text-primary); font-weight: 600; }
-
-
-  .closing { text-align: center; }
-  .closing h2 { margin: 0 auto var(--space-4); }
+  /* On this page the cream band, a lighter cream at half strength, multiplies over the web, like ink on paper: the
+     web stays fully visible through it, only tinted. The cream sits on a layer of its own behind the band's content, so the cards stay white, and it
+     fades in and out over the band's top and bottom padding, so it has no hard edge. */
+  .band { position: relative; background: none; }
+  .band::before { content: ""; position: absolute; inset: 0; z-index: -1; background: var(--sf-paper-200);
+    mix-blend-mode: multiply; opacity: 0.5;
+    -webkit-mask-image: linear-gradient(transparent, black var(--space-10), black calc(100% - var(--space-10)), transparent);
+    mask-image: linear-gradient(transparent, black var(--space-10), black calc(100% - var(--space-10)), transparent); }
+  .closing { text-align: center; padding-bottom: var(--space-12); }
   .closing .intro { margin: 0 auto var(--space-8); }
   .closing .actions { justify-content: center; }
 </style>
 </head>
 <body>
+<div class="web" aria-hidden="true">
+  <svg class="layer far" viewBox="0 0 2400 1500" preserveAspectRatio="xMidYMid slice"></svg>
+  <svg class="layer mid" viewBox="0 0 2400 1500" preserveAspectRatio="xMidYMid slice"></svg>
+  <svg class="layer near" viewBox="0 0 2400 1500" preserveAspectRatio="xMidYMid slice"></svg>
+</div>
+<script>
+  /* The web is drawn here, in the browser, from a fixed seed, so it's the same on every visit and the page carries a
+     few lines instead of thousands of shapes. Each layer: points spread at least `gap` apart, each joined to its
+     three nearest within reach, coloured coral, periwinkle or mint; the middle and near layers have pulses on some of
+     their lines, the far layer none. */
+  (() => {
+    let seed = 7;
+    const rand = () => {  // mulberry32: small, seeded, the same everywhere
+      seed = (seed + 0x6D2B79F5) | 0;
+      let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+    const between = (a, b) => a + rand() * (b - a);
+    const W = 2400, H = 1500, M = 60, COLOURS = ["co", "ai", "mi"];
+    // name, spacing, point radius, pulse half-width and length, share of lines that pulse, pulse speed
+    const LAYERS = [["far", 62, 2.0, 0, 0, 0, 0], ["mid", 115, 3.5, 2.4, 20, 0.75, 40], ["near", 175, 5.0, 3.4, 28, 0.85, 60]];
+    for (const [name, gap, rad, hw, len, share, speed] of LAYERS) {
+      const pts = [], cell = gap / Math.SQRT2, grid = new Map();
+      const key = (x, y) => Math.floor(x / cell) + "," + Math.floor(y / cell);
+      for (let i = 0; i < 9000; i++) {
+        const x = between(-M, W + M), y = between(-M, H + M);
+        const cx = Math.floor(x / cell), cy = Math.floor(y / cell);
+        let ok = true;
+        for (let dx = -2; dx <= 2 && ok; dx++) for (let dy = -2; dy <= 2 && ok; dy++) {
+          const q = grid.get((cx + dx) + "," + (cy + dy));
+          if (q && Math.hypot(q[0] - x, q[1] - y) <= gap) ok = false;
+        }
+        if (ok) { const p = [x, y]; pts.push(p); grid.set(key(x, y), p); }
+      }
+      const edges = new Set();
+      pts.forEach((a, i) => {
+        pts.map((b, j) => [Math.hypot(a[0] - b[0], a[1] - b[1]), j]).sort((p, q) => p[0] - q[0]).slice(1, 4)
+          .forEach(([d, j]) => { if (d < gap * 2.3) edges.add(Math.min(i, j) + "-" + Math.max(i, j)); });
+      });
+      const out = [], pulses = [], f = n => n.toFixed(0);
+      for (const e of edges) {
+        let [i, j] = e.split("-").map(Number);
+        const [x1, y1] = pts[i], [x2, y2] = pts[j];
+        out.push(`<line x1="${f(x1)}" y1="${f(y1)}" x2="${f(x2)}" y2="${f(y2)}"/>`);
+        if (!share || rand() > share) continue;
+        const [a, b] = rand() < 0.5 ? [pts[j], pts[i]] : [pts[i], pts[j]];
+        const d = Math.hypot(b[0] - a[0], b[1] - a[1]), t = d / speed / 0.6 + between(0.3, 2.5);
+        const ang = Math.atan2(b[1] - a[1], b[0] - a[0]) * 180 / Math.PI;
+        pulses.push(`<g class="pulse" transform="translate(${f(a[0])} ${f(a[1])}) rotate(${f(ang)})"><path d="M-${len} 0Q0-${hw} ${len} 0Q0 ${hw}-${len} 0z" ` +
+          `style="--l:${f(d)}px;--t:${t.toFixed(1)}s;--d:-${between(0, t).toFixed(1)}s"/></g>`);
+      }
+      for (const [x, y] of pts) out.push(`<circle class="${COLOURS[Math.floor(rand() * 3)]}" cx="${f(x)}" cy="${f(y)}" r="${(rad * between(0.8, 1.2)).toFixed(1)}"/>`);
+      document.querySelector(".web ." + name).innerHTML = out.slice(0, edges.size).join("") + pulses.join("") + out.slice(edges.size).join("");
+    }
+  })();
+  /* As the page scrolls, the web turns and tilts as one, its three layers at different depths, so it looks 3D.
+     It follows the scroll with some ease, so it glides to a stop after the page stops. With reduced motion it stays
+     still. */
+  if (!matchMedia("(prefers-reduced-motion: reduce)").matches) {
+    const web = document.querySelector(".web");
+    const target = () => {
+      const room = document.documentElement.scrollHeight - innerHeight;
+      return room > 0 ? scrollY / room : 0;
+    };
+    let now = target(), moving = false;
+    const step = () => {
+      const goal = target();
+      now += (goal - now) * 0.06;
+      if (Math.abs(goal - now) < 0.0005) now = goal;
+      web.style.setProperty("--s", now.toFixed(4));
+      moving = now !== goal;
+      if (moving) requestAnimationFrame(step);
+    };
+    addEventListener("scroll", () => { if (!moving) { moving = true; requestAnimationFrame(step); } }, { passive: true });
+    web.style.setProperty("--s", now.toFixed(4));
+  }
+</script>
 <header class="site-top">
   <div class="wrap">
-    <a class="wordmark" href="./">Belong.</a>
-    <nav aria-label="Site">
-      <a href="#how">How it works</a>
-      <a href="#standard">The standard</a>
-      <a href="#promise">Privacy</a>
-    </nav>
-    <a class="btn sm secondary" href="docs/">Read the docs</a>
+    <a class="logo" href="./"><img src="ds/logo/belong-wordmark-small-ink.svg" alt="Belong" width="90" height="26"></a>
   </div>
 </header>
 
 <main>
-  <div class="wrap">
-    <div class="chapter">
-      <section class="hero hero-grid" aria-labelledby="hero-title">
-        <div class="rise">
-          <p class="eyebrow">An open standard for finding each other</p>
-          <h1 id="hero-title" class="display-xl">Meet the people looking for you <span class="drop-coral">too</span></h1>
-          <p class="lead">Tell your own AI what you're looking for or offering, in your own words, and what to show or hide. Belong matches it with everyone else's. If you both say yes, you're introduced. Otherwise nothing happens, and nobody is told anything.</p>
-          <div class="actions">
-            <a class="btn lg" href="docs/standard.html">Read the standard</a>
-            <a class="btn lg secondary" href="#how">How it works</a>
-            <p class="small">Belong is a prototype. It runs on synthetic and test profiles only.</p>
-          </div>
-        </div>
-
-        <figure class="card listing rise later" aria-label="An example listing, as its owner sees it" style="margin: 0;">
-          <div class="listing-head">
-            <span class="label">Your listing</span>
-            <span class="badge olive">Matching</span>
-          </div>
-          <div class="row"><p class="field-label">Looking for</p><div class="value">A sourdough baking partner</div></div>
-          <div class="row"><p class="field-label">You are</p><div class="value">A home baker</div></div>
-          <div class="row"><p class="field-label">Where</p><div class="value">Lisbon, Portugal, up to 30 km, in person</div></div>
-          <div class="hidden-well">
-            <div class="top"><p class="field-label">Age</p><span class="badge ai">Hidden</span></div>
-            <div class="value">35 to 39</div>
-            <span class="hidden-note">Used for matching, never shown</span>
-          </div>
-          <figcaption class="agent-note"><span class="badge ai">Agent draft</span> Your AI wrote this from what you said. You choose what's shown.</figcaption>
-        </figure>
-      </section>
-    </div>
-  </div>
-
-  <section id="how" class="section" aria-labelledby="how-title">
+  <section class="hero" aria-labelledby="hero-title">
     <div class="wrap">
-      <div class="chapter">
-        <p class="eyebrow">How it works</p>
-        <h2 id="how-title" class="display-m">Nobody browses anyone</h2>
-        <p class="intro">No profiles to scroll and no one to message cold. You decide what goes on your listing, and you decide yes or no.</p>
-        <ol class="steps">
-          <li>
-            <h3 class="heading-l">Tell your own AI</h3>
-            <p>Say what you're looking for or offering, the way you'd say it to a friend. Your AI turns it into a listing: what you want, who you are, and the details that matter. You see every detail and choose which are shown and which are hidden.</p>
-          </li>
-          <li>
-            <h3 class="heading-l">Belong compares every listing</h3>
-            <p>The matcher reads everyone's listings and proposes pairs where each person is what the other asked for, hard limits included. A hidden detail can strengthen a match that already fits. It never makes one on its own.</p>
-          </li>
-          <li>
-            <h3 class="heading-l">A match shows only what they chose to show</h3>
-            <p>Every match is built by the Warden, which checks it against fixed rules. Its reason uses only details you both show, and nothing tells anyone who said no.</p>
-          </li>
-          <li>
-            <h3 class="heading-l">You both say yes</h3>
-            <p>You're introduced only when you both say yes. Until then, neither of you has any way to reach the other.</p>
-          </li>
-        </ol>
-      </div>
-    </div>
-  </section>
-
-  <section id="standard" class="section band" aria-labelledby="standard-title">
-    <div class="wrap">
-      <div class="chapter">
-        <p class="eyebrow">The standard</p>
-        <h2 id="standard-title" class="display-m">A standard, like email</h2>
-        <p class="intro">Email lets anyone write to anyone, whatever app they use. Belong does the same for finding each other: public infrastructure, open source and run at cost. The Belong app is one way in, not the product.</p>
-        <div class="grid three">
-          <div class="card md">
-            <h3 class="heading-m">Any AI or app</h3>
-            <p>A front end writes listings with you, shows your matches and carries your conversations: the Belong app, an AI assistant you already use, or a client of your own.</p>
-          </div>
-          <div class="card md">
-            <h3 class="heading-m">Open source</h3>
-            <p>The matcher and the Warden are both <a href="https://github.com/superfoundry/belong">published</a>. The Warden still treats the matcher as hostile, so privacy never depends on it behaving well.</p>
-          </div>
-          <div class="card md">
-            <h3 class="heading-m">Run at cost</h3>
-            <p>Belong exists to make introductions, not to keep your attention. There's nothing to scroll and no feed to keep you on it.</p>
-          </div>
-        </div>
-        <div class="status">
-          <span class="badge warning">Draft</span>
-          <p><b>The standard is a draft.</b> Today the only front end is the Belong app, a prototype. The public API that other AIs and apps will use, and their sign-in, are still being written. <a href="docs/standard.html">Read the draft standard</a> or <a href="docs/connecting.html">how to build a front end</a>.</p>
+      <div class="rise">
+        <h1 id="hero-title" class="display-xl">Meet the people looking for <span class="drop-coral">you</span></h1>
+        <p class="lead">Tell your AI what you're looking for. Belong finds the people looking for you, and you meet only when you both say yes.</p>
+        <div class="actions">
+          <a class="btn lg" href="use.html">Use Belong</a>
+          <a class="btn lg secondary" href="#different">What's different</a>
         </div>
       </div>
     </div>
   </section>
 
-  <section id="promise" class="section" aria-labelledby="promise-title">
+  <section id="different" class="section band" aria-labelledby="diff-title">
     <div class="wrap">
-      <div class="chapter">
-        <p class="eyebrow">Privacy</p>
-        <h2 id="promise-title" class="display-m">What you hide stays between you and Belong</h2>
-        <p class="intro">No other person and no front end ever learns what you keep hidden. Belong runs the matcher and can see what it holds, so it keeps as little as it can and publishes the code that handles it.</p>
-        <div class="promise">
-          <div class="grid two">
-            <div class="card side">
-              <h3 class="heading-m">Shown <span class="badge">Shown</span></h3>
-              <ul>
-                <li>Seen by the people you match with.</li>
-                <li>The only details a match's reason can use.</li>
-                <li>Checked before your listing goes live: no contact details, nothing that describes one particular person.</li>
-              </ul>
+      <h2 id="diff-title" class="display-m">What makes Belong different</h2>
+      <div class="diff grid two">
+        <div class="card">
+          <h3>Matched both ways</h3>
+          <p>You only meet people who are looking for someone like you, and who are what you're looking for.</p>
+        </div>
+        <div class="card">
+          <h3>Real people, one account each</h3>
+          <p>Everyone passes an ID check before they can list anything, so there are no fake accounts.</p>
+        </div>
+        <div class="card">
+          <h3>No cold messages</h3>
+          <p>Nobody can message you before you both say yes, and nobody is ever told who said no.</p>
+        </div>
+        <div class="card">
+          <h3>Seen only by your matches</h3>
+          <p>There are no profiles to scroll and nobody can look you up. Your listing only reaches the people it fits.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" aria-labelledby="hidden-title">
+    <div class="wrap hidden-grid">
+      <div>
+        <h2 id="hidden-title" class="display-m">Some things are just for <span class="drop-periwinkle">matching</span></h2>
+        <p>Your AI drafts your listing, and you choose what's shown. Hidden details still help find the right people, and are never shown to anyone you match with or to any app.</p>
+        <p>Belong runs the matching, so it can see what it holds. It keeps as little as it can.</p>
+      </div>
+      <figure class="ways" role="img" aria-label="Three ways to use Belong, on a loop. In the Belong app on a phone, a person tells their AI they're looking for a technical co-founder for a health-tech company in Berlin and keeps their age for matching only; their profile appears with the age hidden, used for matching and never shown; three matches come in; they pass on one and say yes to another; once both say yes they're introduced. Then in a chat with their own LLM, it uses Belong to file the same listing with the age hidden, finds the matches and says yes for them. Then by email: they write to Belong, and Belong replies in the same thread that the listing is live, with a match, and, after their yes, with the introduction.">
+        <div class="slide s-phone" aria-hidden="true"><div class="phone">
+        <div class="bar"><span>9:41</span><span class="notch"></span><span>100%</span></div>
+        <div class="top">
+          <img src="ds/logo/belong-wordmark-small-ink.svg" alt="" width="59" height="17">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></svg>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 7h14M5 12h14M5 17h14"/></svg>
+        </div>
+        <div class="screen">
+          <div class="chat">
+            <p class="eyebrow">New listing</p>
+            <p class="msg me say1">I'm looking for a technical co-founder for a health-tech company, in person in Berlin.</p>
+            <div class="turn"><p class="msg ai typing typing1"><i></i><i></i><i></i></p>
+              <p class="msg ai ask">Got it. Should your age be shown, or used only for matching?</p></div>
+            <p class="msg me say2">Only for matching.</p>
+            <p class="making">Putting your profile together</p>
+          </div>
+          <div class="profile">
+            <div class="hello">
+              <div class="hello-head"><span class="mono">J</span><p class="name">Hi, I'm <span class="drop-coral">Jo</span>.</p></div>
+              <p class="words">I'm looking for <span class="word">a technical co-founder</span> for <span class="word">a health-tech company</span>, <span class="word">in person</span> in <span class="word">Berlin</span>.</p>
             </div>
-            <div class="card side hidden-side">
-              <h3 class="heading-m">Hidden <span class="badge ai">Hidden</span></h3>
-              <ul>
-                <li>Never sent to any other person or front end.</li>
-                <li>Never the only reason for a match, and counted only when 20 other people share it.</li>
-                <li>Compared with a match only if you both choose to.</li>
-              </ul>
+            <div class="facts">
+              <div class="fact"><span class="label">Looking for</span><span>Co-founder</span></div>
+              <div class="fact"><span class="label">Where</span><span>Berlin, in person</span></div>
+            </div>
+            <div class="hidden-band">
+              <div class="head"><span class="label">Only you can see this</span><span class="badge ai">Hidden</span></div>
+              <div class="body-s">Age: 50 to 54</div>
               <span class="hidden-note">Used for matching, never shown</span>
             </div>
+            <div class="live"><span class="badge olive">Matching</span> Live now</div>
+            <div class="peek"><span class="handle"></span>
+              <div class="slot"><p class="msg ai pk1">You're live. I'll tell you when someone fits.</p>
+                <p class="msg ai pk2">Three people match so far. Have a look when you're ready.</p></div></div>
           </div>
-          <div>
-            <h3 class="heading-m" style="margin: 0 0 var(--space-3);">What Belong keeps</h3>
-            <ul class="keeps">
-              <li><b>Your listing,</b> while it's live. Withdraw it and it's never matched again.</li>
-              <li><b>Your yes or no,</b> and never tells anyone who said no.</li>
-              <li><b>A receipt for every check,</b> with no content, in a log that can't be rewritten.</li>
-              <li><b>Never your messages.</b> Display, memory, notifications and chat are up to the front end you choose.</li>
-            </ul>
+          <div class="matches">
+            <div class="list">
+              <p class="eyebrow">Your matches</p>
+              <div class="grow mA"><div><div class="mcard">
+                <div class="fact"><span class="label">Looking for</span><span>A co-founder to start a health app</span></div>
+                <div class="fact"><span class="label">Where</span><span>Berlin, in person</span></div>
+                <p class="why">You both want to start a health-tech company in Berlin.</p>
+                <div class="end"><div class="btns btnsA"><span class="btn secondary sm">Not now</span><span class="btn sm">Yes<i class="ring yesA"></i></span></div>
+                  <p class="note sentA">You said yes. Waiting for them.</p>
+                  <p class="note bothA"><span class="badge ai">Introduced</span> You both said yes.</p></div></div></div></div>
+              <div class="grow mB"><div><div class="mcard">
+                <div class="fact"><span class="label">Looking for</span><span>A designer for a fitness app</span></div>
+                <div class="fact"><span class="label">Where</span><span>Berlin, remote</span></div>
+                <p class="why">You're both building in health, in Berlin.</p>
+                <div class="end"><div class="btns"><span class="btn secondary sm">Not now<i class="ring noB"></i></span><span class="btn sm">Yes</span></div></div></div></div></div>
+              <div class="grow mC"><div><div class="mcard">
+                <div class="fact"><span class="label">Looking for</span><span>A technical partner for a clinic tool</span></div>
+                <div class="fact"><span class="label">Where</span><span>Berlin, in person</span></div>
+                <p class="why">You both want a technical co-founder in Berlin.</p>
+                <div class="end"><div class="btns btnsC"><span class="btn secondary sm">Not now</span><span class="btn sm">Yes</span></div></div></div></div></div>
+            </div>
+            <div class="tabbar"><span class="on">Belong.</span><span>Found.</span></div>
           </div>
         </div>
-        <p class="intro" style="margin-top: var(--space-12); margin-bottom: 0;">Sensitive details, like religion, health, politics and income, start hidden, and showing one takes your own confirmation.</p>
-      </div>
+        </div></div>
+        <div class="slide s-ai" aria-hidden="true"><div class="window dark">
+          <div class="chrome"><span class="lights"><i></i><i></i><i></i></span><span class="spark"></span> Your LLM</div>
+          <div class="convo">
+            <div class="grow a1"><div><p class="msg me">Find me a technical co-founder for a health-tech company, in person in Berlin. Keep my age hidden.</p></div></div>
+            <div class="grow a2"><div><span class="uses busy"><img src="ds/logo/belong-wordmark-small-cream.svg" alt="" width="38" height="11"> Filing your listing</span></div></div>
+            <div class="grow a3"><div><span class="uses"><img src="ds/logo/belong-wordmark-small-cream.svg" alt="" width="38" height="11"> Listing filed</span><p class="said">You're live on Belong. Your age is hidden: it's used for matching and never shown.</p></div></div>
+            <div class="grow a4"><div><p class="msg me">Any matches yet?</p></div></div>
+            <div class="grow a5"><div><span class="uses"><img src="ds/logo/belong-wordmark-small-cream.svg" alt="" width="38" height="11"> Checked your matches</span><p class="said">Three so far. The closest is also starting a health app, in person in Berlin. Shall I say yes?</p></div></div>
+            <div class="grow a6"><div><p class="msg me">Yes.</p></div></div>
+            <div class="grow a7"><div><span class="uses"><img src="ds/logo/belong-wordmark-small-cream.svg" alt="" width="38" height="11"> Said yes</span><div class="card"><div class="head"><span class="label">Your match</span><span class="badge ai">Introduced</span></div>
+              <span class="said">You both said yes. You can say hello now.</span></div></div></div>
+          </div>
+          <div class="box">Message your LLM</div>
+        </div></div>
+        <div class="slide s-mail" aria-hidden="true"><div class="window">
+          <div class="chrome"><span class="lights"><i></i><i></i><i></i></span> Mail</div>
+          <div class="tools">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 6l-6 6 6 6"/></svg>
+            <span class="search">Search mail</span>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16v12H4zM4 7l2-3h12l2 3M10 12h4"/></svg>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 7h14M10 7V4h4v3M7 7l1 13h8l1-13"/></svg>
+          </div>
+          <p class="thread-title">Co-founder in Berlin</p>
+          <div class="thread">
+            <div class="grow em e1"><div>
+              <div class="em-head"><span class="av">J</span><span class="who"><b>Jo</b> <span>&lt;jo@mail.example&gt;</span></span><span class="when">9:02</span><span class="to">to belong@belong.example</span></div>
+              <div class="em-body"><p>Hi, I'm looking for a technical co-founder for a health-tech company, in person in Berlin. Please keep my age hidden.</p><p class="sig">Jo</p></div></div></div>
+            <div class="grow em e2"><div>
+              <div class="em-head"><span class="av b"><img src="ds/logo/belong-icon.svg" alt="" width="14" height="14"></span><span class="who"><b>Belong</b> <span>&lt;belong@belong.example&gt;</span></span><span class="when">9:03</span><span class="to">Re: Co-founder in Berlin · to me</span></div>
+              <div class="em-body"><p>Hi Jo, your listing is live:</p><div class="card"><div class="fact"><span class="label">Looking for</span><span>Technical co-founder, health-tech</span></div>
+                <div class="fact"><span class="label">Where</span><span>Berlin, in person</span></div>
+                <div class="fact"><span class="label">Age</span><span><span class="badge ai">Hidden</span></span></div></div><p class="sig">Belong</p></div></div></div>
+            <div class="grow em e3"><div>
+              <div class="em-head"><span class="av b"><img src="ds/logo/belong-icon.svg" alt="" width="14" height="14"></span><span class="who"><b>Belong</b> <span>&lt;belong@belong.example&gt;</span></span><span class="when">11:40</span><span class="to">Re: Co-founder in Berlin · to me</span></div>
+              <div class="em-body"><p>You have a match: also starting a health app, in person in Berlin. You both want to start a health-tech company there.</p><p>Reply yes to say yes. Nobody is told if you don't.</p><p class="sig">Belong</p></div></div></div>
+            <div class="grow em e4"><div>
+              <div class="em-head"><span class="av">J</span><span class="who"><b>Jo</b> <span>&lt;jo@mail.example&gt;</span></span><span class="when">11:52</span><span class="to">Re: Co-founder in Berlin · to belong@belong.example</span></div>
+              <div class="em-body"><p>Yes</p><p class="sig">Jo</p></div></div></div>
+            <div class="grow em e5"><div>
+              <div class="em-head"><span class="av b"><img src="ds/logo/belong-icon.svg" alt="" width="14" height="14"></span><span class="who"><b>Belong</b> <span>&lt;belong@belong.example&gt;</span></span><span class="when">14:15</span><span class="to">Re: Co-founder in Berlin · to me</span></div>
+              <div class="em-body"><p>You both said yes, so you're introduced. Reply to this email to say hello to Sam.</p><p class="sig">Belong</p></div></div></div>
+          </div>
+          <div class="reply"><span>Reply</span><span>Forward</span></div>
+        </div></div>
+      </figure>
     </div>
   </section>
 
-  <section id="check" class="section band" aria-labelledby="check-title">
+  <section class="section closing" aria-labelledby="use-title">
     <div class="wrap">
-      <div class="chapter">
-        <p class="eyebrow">Trust and security</p>
-        <h2 id="check-title" class="display-m">Don't trust us. <span class="drop-coral">Check.</span></h2>
-        <p class="intro">Every promise names the code that keeps it and the test that proves it.</p>
-        <div class="grid three">
-          <div class="card md">
-            <h3 class="heading-m">Tested on every change</h3>
-            <p>Every change runs the full test suite and a simulation of 300 people with an independent leak audit. A single leak fails it, and it can't be merged.</p>
-          </div>
-          <div class="card md">
-            <h3 class="heading-m">Attacked on purpose</h3>
-            <p>A built-in probe plays a hostile matcher, one attack at a time, and the tests check that the Warden stops every one.</p>
-          </div>
-          <div class="card md">
-            <h3 class="heading-m">Checks, not judgement</h3>
-            <p>The Warden never decides who matches. It runs fixed rules, with no AI judgement, on everything that goes in and comes out.</p>
-          </div>
-        </div>
-        <div class="status">
-          <span class="badge warning">Prototype</span>
-          <p><b>What's simulated today.</b> The prototype runs on synthetic people, and its ID check is simulated. The matcher's AI is reached over OpenAI's API, so it is used only with synthetic and test profiles, and every security check runs as if it were enclosed.</p>
-        </div>
-        <div class="actions" style="margin-top: var(--space-8);">
-          <a class="btn secondary" href="https://github.com/superfoundry/belong/blob/main/TRUST.md">See every promise and its test</a>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <section class="section closing" aria-labelledby="try-title">
-    <div class="wrap">
-      <h2 id="try-title" class="display-m">Build on Belong</h2>
-      <p class="intro">Any AI or app can be a front end. Read the draft standard and the guide to connecting one, or look through the code.</p>
+      <h2 id="use-title" class="display-m">Belong your way</h2>
+      <p class="intro">In the Belong app, with the AI you already use, or in something you build.</p>
       <div class="actions">
-        <a class="btn lg" href="docs/">Read the docs</a>
-        <a class="btn lg secondary" href="https://github.com/superfoundry/belong">Source code</a>
+        <a class="btn lg secondary" href="use.html">Ways to use Belong</a>
       </div>
     </div>
   </section>
@@ -252,16 +536,7 @@
 
 <footer class="site-foot">
   <div class="wrap">
-    <a class="wordmark" href="./">Belong.</a>
-    <nav aria-label="Footer">
-      <a href="#how">How it works</a>
-      <a href="#standard">The standard</a>
-      <a href="#promise">Privacy</a>
-      <a href="docs/">Docs</a>
-      <a href="https://github.com/superfoundry/belong">Source code</a>
-      <a href="https://github.com/superfoundry/belong/blob/main/TRUST.md">Trust and security</a>
-    </nav>
-    <p class="note">Belong is a prototype and its standard is a draft. It runs on synthetic and test profiles only, and nothing here is offered to real people yet.</p>
+    <a class="logo" href="./"><img src="ds/logo/belong-wordmark-small-cream.svg" alt="Belong" width="48" height="14"></a>
   </div>
 </footer>
 </body>

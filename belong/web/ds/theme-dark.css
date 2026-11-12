@@ -1,6 +1,6 @@
 /* Belong — OPT-IN dark treatment ("Belong at night").
-   Not part of tokens.json on purpose: the default ground of Belong is cream, as in the
-   SuperFoundry family. Link this file in the rare deliverable that needs dark (decks,
+   Not part of tokens.json on purpose: Belong's default ground is white, with cream as
+   an accent. Link this file in the rare deliverable that needs dark (decks,
    the private-matching explainer panel, video), then scope with data-theme="dark". */
 [data-theme="dark"] {
   --surface-app: #13131c;
