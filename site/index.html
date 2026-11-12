@@ -78,9 +78,12 @@
   .hidden-well .value { font: var(--text-body-m); margin: 2px 0 var(--space-1); }
   .listing figcaption { margin: var(--space-5) 0 0; display: flex; gap: var(--space-2); align-items: baseline; font: var(--text-body-s); color: var(--text-secondary); }
 
-  /* On this page the cream band is frosted, so the web shows through it softly. */
-  .band { background: color-mix(in srgb, var(--surface-raised) 60%, transparent);
-    -webkit-backdrop-filter: blur(3px); backdrop-filter: blur(3px); }
+  /* On this page the cream band is frosted, so the web shows through it softly, and it fades in and out over its
+     top and bottom padding, so it has no hard edge and its content is never faded. */
+  .band { background: color-mix(in srgb, var(--surface-raised) 45%, transparent);
+    -webkit-backdrop-filter: blur(3px); backdrop-filter: blur(3px);
+    -webkit-mask-image: linear-gradient(transparent, black var(--space-24), black calc(100% - var(--space-24)), transparent);
+    mask-image: linear-gradient(transparent, black var(--space-24), black calc(100% - var(--space-24)), transparent); }
   .closing { text-align: center; padding-bottom: var(--space-12); }
   .closing .intro { margin: 0 auto var(--space-8); }
   .closing .actions { justify-content: center; }
