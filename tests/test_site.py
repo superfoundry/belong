@@ -58,12 +58,13 @@ class TheSiteSpeaksLikeBelong(unittest.TestCase):
         self.assertEqual({str(p.relative_to(OUT)) for p in texts()}, {"use.md", "llms.txt"})
 
     def test_the_name_has_no_stop_and_the_logo_is_the_design_systems(self):
-        """In text the name is Belong; the logo is the design system's own file, never typed, linked home."""
+        """In text the name is Belong; the logo is the design system's own file (ink, or cream on the black footer),
+        never typed, linked home."""
         for page in pages():
             self.assertEqual([h for s in shown_strings(page) for h in name_mid_sentence(_unescape(s))], [], page.name)
             html = page.read_text(encoding="utf-8")
             self.assertEqual(_wordmarks(html), [], page.name)
-            logos = re.findall(r'<a class="logo" href="\./"><img src="ds/logo/belong-wordmark-small-ink\.svg" alt="Belong"', html)
+            logos = re.findall(r'<a class="logo" href="\./"><img src="ds/logo/belong-wordmark-small-(?:ink|cream)\.svg" alt="Belong"', html)
             self.assertEqual(len(logos), 2, page.name)  # top bar and footer
         for text in texts():
             self.assertEqual(name_mid_sentence(text.read_text(encoding="utf-8")), [], text.name)
