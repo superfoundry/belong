@@ -152,12 +152,12 @@
     .phone .typing i:nth-child(2) { animation-delay: .2s; } .phone .typing i:nth-child(3) { animation-delay: .4s; }
   }
 
-  /* On this page the cream band multiplies over the web, like ink on paper: the web stays fully visible through it,
-     only tinted. The cream sits on a layer of its own behind the band's content, so the cards stay white, and it
+  /* On this page the cream band, a lighter cream at half strength, multiplies over the web, like ink on paper: the
+     web stays fully visible through it, only tinted. The cream sits on a layer of its own behind the band's content, so the cards stay white, and it
      fades in and out over the band's top and bottom padding, so it has no hard edge. */
   .band { position: relative; background: none; }
-  .band::before { content: ""; position: absolute; inset: 0; z-index: -1; background: var(--surface-raised);
-    mix-blend-mode: multiply;
+  .band::before { content: ""; position: absolute; inset: 0; z-index: -1; background: var(--sf-paper-200);
+    mix-blend-mode: multiply; opacity: 0.5;
     -webkit-mask-image: linear-gradient(transparent, black var(--space-10), black calc(100% - var(--space-10)), transparent);
     mask-image: linear-gradient(transparent, black var(--space-10), black calc(100% - var(--space-10)), transparent); }
   .closing { text-align: center; padding-bottom: var(--space-12); }
