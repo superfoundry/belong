@@ -47,9 +47,9 @@
      phone. A picture, so it's one image to screen readers. With reduced motion it rests on the phone's profile. */
   .ways { position: relative; justify-self: stretch; height: 700px; margin: 0; overflow: hidden; }
   .ways .slide { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center;
-    gap: var(--space-4); padding: var(--space-6) var(--space-2); }
+    gap: 14px; padding: var(--space-6) var(--space-2); }
   /* Each way's name above its picture, swiping with it. */
-  .ways .way { color: var(--text-secondary); }
+  .ways .way { margin: 0; font: var(--text-body-l); line-height: 1; color: var(--text-accent); }  /* the size it had, without the paragraph's margin */
   .ways .s-ai, .ways .s-mail { transform: translateX(115%); }
   /* Each example casts a hard shadow, offset down and right; it fades out as the example swipes away. */
   .ways { --cast: 10px 10px 0 color-mix(in srgb, var(--text-primary) 7%, transparent); --none: 0 0 0 transparent; }
@@ -187,11 +187,11 @@
   .ways .pk1 { opacity: 0; }
   @media (prefers-reduced-motion: no-preference) {
     @keyframes s-phone { 0.0% { transform: none; opacity: 1; } 44.64% { transform: none; opacity: 1; } 46.43% { transform: translateX(-115%); opacity: 1; } 46.61% { transform: translateX(-115%); opacity: 0; } 98.04% { transform: translateX(115%); opacity: 0; } 98.21% { transform: translateX(115%); opacity: 1; } 100.0% { transform: none; opacity: 1; } }
-    .ways .s-phone { animation: s-phone 56s var(--ease-standard) infinite; }
+    .ways .s-phone { animation: s-phone 56s cubic-bezier(0.33, 1, 0.68, 1) infinite; }
     @keyframes s-ai { 0.0% { transform: translateX(115%); } 44.64% { transform: translateX(115%); } 46.43% { transform: none; } 71.43% { transform: none; } 73.21% { transform: translateX(-115%); } 100.0% { transform: translateX(-115%); } }
-    .ways .s-ai { animation: s-ai 56s var(--ease-standard) infinite; }
+    .ways .s-ai { animation: s-ai 56s cubic-bezier(0.33, 1, 0.68, 1) infinite; }
     @keyframes s-mail { 0.0% { transform: translateX(115%); } 71.43% { transform: translateX(115%); } 73.21% { transform: none; } 98.21% { transform: none; } 100.0% { transform: translateX(-115%); } }
-    .ways .s-mail { animation: s-mail 56s var(--ease-standard) infinite; }
+    .ways .s-mail { animation: s-mail 56s cubic-bezier(0.33, 1, 0.68, 1) infinite; }
     @keyframes say1 { 0.0% { opacity: 0; transform: translateY(6px); } 0.89% { opacity: 0; transform: translateY(6px); } 1.61% { opacity: 1; transform: none; } 58.93% { opacity: 1; transform: none; } 59.64% { opacity: 0; transform: none; } 100.0% { opacity: 0; transform: none; } }
     .ways .say1 { animation: say1 56s var(--ease-standard) infinite; }
     @keyframes typing1 { 0.0% { opacity: 0; transform: translateY(6px); } 3.21% { opacity: 0; transform: translateY(6px); } 3.93% { opacity: 1; transform: none; } 6.25% { opacity: 1; transform: none; } 6.96% { opacity: 0; transform: none; } 100.0% { opacity: 0; transform: none; } }
@@ -272,6 +272,19 @@
     -webkit-mask-image: linear-gradient(transparent, black 30px, black calc(100% - var(--space-24)), transparent);
     mask-image: linear-gradient(transparent, black 30px, black calc(100% - var(--space-24)), transparent); }
   .hidden-grid .actions { margin-top: var(--space-6); }
+  /* Arrows under the examples, to step to the one before or after; the loop carries on from there. */
+  .ways-stage { min-width: 0; }
+  .ways-nav { display: flex; justify-content: center; gap: var(--space-2); margin-top: calc(-1 * var(--space-4)); }
+  .ways-step { all: unset; box-sizing: border-box; width: 36px; height: 36px; display: inline-flex; align-items: center; justify-content: center;
+    border-radius: 50%; color: var(--text-tertiary); cursor: pointer; transition: color var(--duration-fast) var(--ease-standard); }
+  .ways-step:hover { color: var(--text-primary); }
+  .ways-step:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+  .ways-step svg { width: 18px; height: 18px; }
+  /* With reduced motion nothing plays: the arrows show each example still, as it ends. */
+  @media (prefers-reduced-motion: reduce) {
+    .ways[data-way="1"] .s-phone, .ways[data-way="2"] .s-phone, .ways[data-way="2"] .s-ai { transform: translateX(-115%); }
+    .ways[data-way="1"] .s-ai, .ways[data-way="2"] .s-mail { transform: none; }
+  }
 </style>
 </head>
 <body>
@@ -435,6 +448,7 @@
         <p>Belong runs the matching, so it can see what it holds. It keeps as little as it can.</p>
         <div class="actions"><a class="btn lg secondary" href="use.html">Ways to Belong</a></div>
       </div>
+      <div class="ways-stage">
       <figure class="ways" role="img" aria-label="Three ways to use Belong, on a loop. Belong App: on a phone, a person tells their AI they're looking for a technical co-founder for a health-tech company in Berlin and keeps their age for matching only; their profile appears with the age hidden, used for matching and never shown; three matches come in; they pass on one and say yes to another; once both say yes they're introduced. Then Belong through LLM: in a chat with their own LLM, it uses Belong to file the same listing with the age hidden, finds the matches and says yes for them. Then Belong through Email: they write to Belong, and Belong replies in the same thread that the listing is live, with a match, and, after their yes, with the introduction.">
         <div class="slide s-phone" aria-hidden="true"><p class="eyebrow way">Belong App</p><div class="phone">
         <div class="bar"><span>9:41</span><span class="notch"></span><span>100%</span></div>
@@ -541,6 +555,11 @@
           <div class="reply"><span>Reply</span><span>Forward</span></div>
         </div></div>
       </figure>
+        <div class="ways-nav">
+          <button type="button" class="ways-step" data-step="-1" aria-label="Previous example"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg></button>
+          <button type="button" class="ways-step" data-step="1" aria-label="Next example"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></button>
+        </div>
+      </div>
     </div>
   </section>
 
@@ -586,6 +605,37 @@
     // A wheel or touch while gliding hands the scroll back to the person.
     for (const type of ["wheel", "touchstart", "keydown"]) addEventListener(type, () => { run++; }, { passive: true });
   }
+</script>
+<script>
+  /* The arrows under the examples. While the loop plays, next moves it to the swipe into the following example; back
+     moves it to the start of the one before and swipes that in from the left, the way it went. Either way the loop
+     carries on from there. With reduced motion they show each example still. */
+  (() => {
+    const ways = document.querySelector(".ways"), T = 56;
+    const SWIPES = [55, 25, 40], STARTS = [0, 26, 41];  // seconds: the swipe into each example, and when it's fully in
+    const still = matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const playing = () => [ways, ...ways.querySelectorAll("*")].flatMap(el => el.getAnimations())
+      .filter(a => a.animationName && a.animationName !== "blink");  // the loop's own, not a swipe made here
+    let shown = 0;
+    document.querySelectorAll(".ways-step").forEach(button => button.addEventListener("click", () => {
+      const step = Number(button.dataset.step);
+      if (still) {
+        shown = (shown + step + 3) % 3;
+        ways.dataset.way = shown;
+        return;
+      }
+      const all = playing();
+      if (!all.length) return;
+      const now = (all[0].currentTime / 1000) % T, at = now < 25 ? 0 : now < 40 ? 1 : now < 55 ? 2 : 0;
+      const next = (at + step + 3) % 3, to = step > 0 ? SWIPES[next] : STARTS[next], base = all[0].currentTime - now * 1000;
+      for (const a of all) a.currentTime = base + to * 1000;
+      if (step < 0) {  // back: the one on screen leaves to the right, the one before comes in from the left
+        const slides = ways.querySelectorAll(".slide"), timing = { duration: 1000, easing: "cubic-bezier(0.33, 1, 0.68, 1)" };
+        slides[at].animate([{ transform: "none" }, { transform: "translateX(115%)" }], timing);
+        slides[next].animate([{ transform: "translateX(-115%)" }, { transform: "none" }], timing);
+      }
+    }));
+  })();
 </script>
 </body>
 </html>
