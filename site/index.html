@@ -548,11 +548,11 @@
   </div>
 </footer>
 <script>
-  /* A link to a section on the same page glides there with an ease in and out, slow
-     to start, quick in the middle, slow to arrive, taking longer the further it goes. The section then takes focus, so
+  /* A link to a section on the same page glides there, off at full speed and slowing
+     as it arrives, taking longer the further it goes. The section then takes focus, so
      the keyboard carries on from there. With reduced motion the browser's own jump is left alone. */
   if (!matchMedia("(prefers-reduced-motion: reduce)").matches) {
-    const ease = t => t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+    const ease = t => 1 - Math.pow(1 - t, 3);
     let run = 0;
     document.addEventListener("click", event => {
       const link = event.target.closest('a[href^="#"], a[href^="./#"]');
