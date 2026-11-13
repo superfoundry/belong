@@ -263,12 +263,12 @@
     .ways .typing i:nth-child(2) { animation-delay: .2s; } .ways .typing i:nth-child(3) { animation-delay: .4s; }
   }
 
-  /* On this page the cream band, a lighter cream at quarter strength, multiplies over the web, like ink on paper: the
+  /* On this page the cream band, a lighter cream at 40% strength, multiplies over the web, like ink on paper: the
      web stays fully visible through it, only tinted. The cream sits on a layer of its own behind the band's content, so the cards stay white, and it
      fades in and out over the band's top and bottom padding, so it has no hard edge. */
   .band { position: relative; background: none; }
   .band::before { content: ""; position: absolute; inset: 0; z-index: -1; background: var(--sf-paper-200);
-    mix-blend-mode: multiply; opacity: 0.25;
+    mix-blend-mode: multiply; opacity: 0.4;
     -webkit-mask-image: linear-gradient(transparent, black 30px, black calc(100% - var(--space-24)), transparent);
     mask-image: linear-gradient(transparent, black 30px, black calc(100% - var(--space-24)), transparent); }
   .hidden-grid .actions { margin-top: var(--space-6); }
