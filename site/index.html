@@ -45,8 +45,11 @@
      say yes. Then it swipes to an AI chat window, dark and in the code font, any assistant and no one's brand, using
      Belong through its connector; then to a mail thread with Belong, light, as a mail app shows it; then back to the
      phone. A picture, so it's one image to screen readers. With reduced motion it rests on the phone's profile. */
-  .ways { position: relative; justify-self: stretch; height: 660px; margin: 0; overflow: hidden; }
-  .ways .slide { position: absolute; inset: 0; display: grid; place-items: center; padding: var(--space-6) var(--space-2); }
+  .ways { position: relative; justify-self: stretch; height: 700px; margin: 0; overflow: hidden; }
+  .ways .slide { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: var(--space-4); padding: var(--space-6) var(--space-2); }
+  /* Each way's name above its picture, swiping with it. */
+  .ways .way { color: var(--text-secondary); }
   .ways .s-ai, .ways .s-mail { transform: translateX(115%); }
   .phone { width: 300px; max-width: 100%; margin: 0; border: 9px solid var(--surface-inverse);
     border-radius: 44px; overflow: hidden; background: var(--surface-card); box-shadow: var(--shadow-lg); }
@@ -258,7 +261,7 @@
     mix-blend-mode: multiply; opacity: 0.5;
     -webkit-mask-image: linear-gradient(transparent, black 30px, black calc(100% - var(--space-24)), transparent);
     mask-image: linear-gradient(transparent, black 30px, black calc(100% - var(--space-24)), transparent); }
-  .closing { text-align: center; padding-bottom: var(--space-12); }
+  .closing { text-align: center; }
   .closing .intro { margin: 0 auto var(--space-8); }
   .closing .actions { justify-content: center; }
 </style>
@@ -415,6 +418,16 @@
     </div>
   </section>
 
+  <section class="section closing" aria-labelledby="use-title">
+    <div class="wrap">
+      <h2 id="use-title" class="display-m">Belong your way</h2>
+      <p class="intro">In the Belong app, with the AI you already use, or in something you build.</p>
+      <div class="actions">
+        <a class="btn lg secondary" href="use.html">Ways to use Belong</a>
+      </div>
+    </div>
+  </section>
+
   <section class="section" aria-labelledby="hidden-title">
     <div class="wrap hidden-grid">
       <div>
@@ -422,8 +435,8 @@
         <p>Your AI drafts your listing, and you choose what's shown. Hidden details still help find the right people, and are never shown to anyone you match with or to any app.</p>
         <p>Belong runs the matching, so it can see what it holds. It keeps as little as it can.</p>
       </div>
-      <figure class="ways" role="img" aria-label="Three ways to use Belong, on a loop. In the Belong app on a phone, a person tells their AI they're looking for a technical co-founder for a health-tech company in Berlin and keeps their age for matching only; their profile appears with the age hidden, used for matching and never shown; three matches come in; they pass on one and say yes to another; once both say yes they're introduced. Then in a chat with their own LLM, it uses Belong to file the same listing with the age hidden, finds the matches and says yes for them. Then by email: they write to Belong, and Belong replies in the same thread that the listing is live, with a match, and, after their yes, with the introduction.">
-        <div class="slide s-phone" aria-hidden="true"><div class="phone">
+      <figure class="ways" role="img" aria-label="Three ways to use Belong, on a loop. Belong App: on a phone, a person tells their AI they're looking for a technical co-founder for a health-tech company in Berlin and keeps their age for matching only; their profile appears with the age hidden, used for matching and never shown; three matches come in; they pass on one and say yes to another; once both say yes they're introduced. Then Belong through LLM: in a chat with their own LLM, it uses Belong to file the same listing with the age hidden, finds the matches and says yes for them. Then Belong through Email: they write to Belong, and Belong replies in the same thread that the listing is live, with a match, and, after their yes, with the introduction.">
+        <div class="slide s-phone" aria-hidden="true"><p class="eyebrow way">Belong App</p><div class="phone">
         <div class="bar"><span>9:41</span><span class="notch"></span><span>100%</span></div>
         <div class="top">
           <img src="ds/logo/belong-wordmark-small-ink.svg" alt="" width="59" height="17">
@@ -483,7 +496,7 @@
           </div>
         </div>
         </div></div>
-        <div class="slide s-ai" aria-hidden="true"><div class="window dark">
+        <div class="slide s-ai" aria-hidden="true"><p class="eyebrow way">Belong through LLM</p><div class="window dark">
           <div class="chrome"><span class="lights"><i></i><i></i><i></i></span><span class="spark"></span> Your LLM</div>
           <div class="convo">
             <div class="grow a1"><div><p class="msg me">Find me a technical co-founder for a health-tech company, in person in Berlin. Keep my age hidden.</p></div></div>
@@ -497,7 +510,7 @@
           </div>
           <div class="box">Message your LLM</div>
         </div></div>
-        <div class="slide s-mail" aria-hidden="true"><div class="window">
+        <div class="slide s-mail" aria-hidden="true"><p class="eyebrow way">Belong through Email</p><div class="window">
           <div class="chrome"><span class="lights"><i></i><i></i><i></i></span> Mail</div>
           <div class="tools">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 6l-6 6 6 6"/></svg>
@@ -531,15 +544,6 @@
     </div>
   </section>
 
-  <section class="section closing" aria-labelledby="use-title">
-    <div class="wrap">
-      <h2 id="use-title" class="display-m">Belong your way</h2>
-      <p class="intro">In the Belong app, with the AI you already use, or in something you build.</p>
-      <div class="actions">
-        <a class="btn lg secondary" href="use.html">Ways to use Belong</a>
-      </div>
-    </div>
-  </section>
 </main>
 
 <footer class="site-foot">
