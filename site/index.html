@@ -316,7 +316,7 @@
       return room > 0 ? scrollY / room : 0;
     };
     const draw = time => {
-      const yaw = 0.5 + scrolled * 0.8 + (still ? 0 : time * 0.00001), pitch = 0.18 + scrolled * 0.15;
+      const yaw = 0.5 + scrolled * 0.4 + (still ? 0 : time * 0.00001), pitch = 0.18 + scrolled * 0.08;
       const cy = Math.cos(yaw), sy = Math.sin(yaw), cp = Math.cos(pitch), sp = Math.sin(pitch);
       const near = F - Z, far = F + Z;
       const at = pts.map(p => {
