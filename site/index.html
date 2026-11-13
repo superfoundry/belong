@@ -20,37 +20,16 @@
   .hero .lead { font: var(--text-body-l); color: var(--text-secondary); margin: 0 auto var(--space-8); max-width: 38ch; }
   .hero .actions { justify-content: center; }
 
-  /* The background: an abstract web of points, coral, periwinkle and mint, in three layers of depth (far ones
-     smaller, fainter and softer, near ones larger), each joined by faint grey lines. Now and then a pulse swells along
-     a line in its own grey, thickest in the middle and tapering to nothing, each already under way when the page
-     loads, so it has no beginning or end. Fixed behind the whole page at half opacity, showing through the top bar too.
-     As the page scrolls the layers turn and tilt together, at their own depths (the script sets --s, 0 to 1).
-     No pause button by the owner's choice; with reduced motion it rests as the still web. */
+  /* The background: a cloud of points in three dimensions, coral, periwinkle and mint, each joined to its nearest by
+     faint grey lines, with pulses swelling along some of them in the lines' own grey, tapering at both ends. Drawn on
+     one canvas by the script below: near points and lines larger and darker, far ones smaller and fainter, so it has
+     volume. It turns slowly around its upright axis and tips a little as the page scrolls, easing to a stop. Fixed
+     behind the whole page at half opacity, showing through the top bar too. No pause button by the owner's choice;
+     with reduced motion it's drawn once, still, with no pulses. */
   /* On this page the top bar lets the web show through it (no fill, no blur) and scrolls away with the hero
      instead of staying pinned, so no text ever passes under it. */
   .site-top { position: relative; background: transparent; -webkit-backdrop-filter: none; backdrop-filter: none; }
-  .web { position: fixed; inset: 0; z-index: -1; opacity: 0.5; pointer-events: none; overflow: hidden; perspective: 1000px; }
-  .web .layer { position: absolute; inset: -25%; width: 150%; height: 150%; will-change: transform;
-    transform: rotateX(calc(var(--s, 0) * 38deg)) rotateZ(calc(var(--s, 0) * 28deg)) translateZ(var(--z)); }
-  .web line { stroke: var(--text-primary); stroke-width: 1; opacity: 0.22; }
-  .web .pulse { fill: var(--text-primary); opacity: 0.22; }
-  .web .pulse path { opacity: 0; }
-  .web .co { fill: var(--accent-default); }
-  .web .ai { fill: var(--accent-ai); }
-  .web .mi { fill: var(--accent-olive); }
-  .web .far { --z: -420px; opacity: 0.45; filter: blur(1px); }
-  .web .far line { stroke-width: 0.6; }
-  .web .mid { --z: -140px; opacity: 0.75; }
-  .web .near { --z: 0px; }
-  .web .near line { stroke-width: 1.3; }
-  @media (prefers-reduced-motion: no-preference) {
-    .web .pulse path { animation: pulse var(--t) ease-in-out var(--d) infinite; }
-    @keyframes pulse {
-      0% { transform: none; opacity: 0; }
-      8%, 52% { opacity: 1; }
-      60%, 100% { transform: translateX(var(--l)); opacity: 0; }
-    }
-  }
+  .web { position: fixed; inset: 0; width: 100%; height: 100%; z-index: -1; opacity: 0.5; pointer-events: none; }
 
   /* What makes Belong different: four cards, two by two. */
   #diff-title { text-align: center; margin-bottom: var(--space-10); }
@@ -285,17 +264,16 @@
 </style>
 </head>
 <body>
-<div class="web" aria-hidden="true">
-  <svg class="layer far" viewBox="0 0 2400 1500" preserveAspectRatio="xMidYMid slice"></svg>
-  <svg class="layer mid" viewBox="0 0 2400 1500" preserveAspectRatio="xMidYMid slice"></svg>
-  <svg class="layer near" viewBox="0 0 2400 1500" preserveAspectRatio="xMidYMid slice"></svg>
-</div>
+<canvas class="web" aria-hidden="true"></canvas>
 <script>
-  /* The web is drawn here, in the browser, from a fixed seed, so it's the same on every visit and the page carries a
-     few lines instead of thousands of shapes. Each layer: points spread at least `gap` apart, each joined to its
-     three nearest within reach, coloured coral, periwinkle or mint; the middle and near layers have pulses on some of
-     their lines, the far layer none. */
+  /* The background web, drawn here from a fixed seed so it's the same on every visit. Points fill a volume, at least
+     GAP apart; each is joined to its three nearest within reach; about half the lines carry a pulse. Every frame the
+     cloud is turned (around its upright axis by the scroll and a slow drift, and tipped a little), then drawn in
+     perspective, nearer things larger and darker. The turning follows the scroll with some ease. With reduced motion
+     it's drawn once, still, and again only if the window changes size. */
   (() => {
+    const canvas = document.querySelector(".web"), ctx = canvas.getContext("2d");
+    const still = matchMedia("(prefers-reduced-motion: reduce)").matches;
     let seed = 7;
     const rand = () => {  // mulberry32: small, seeded, the same everywhere
       seed = (seed + 0x6D2B79F5) | 0;
@@ -304,64 +282,94 @@
       return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
     };
     const between = (a, b) => a + rand() * (b - a);
-    const W = 2400, H = 1500, M = 60, COLOURS = ["co", "ai", "mi"];
-    // name, spacing, point radius, pulse half-width and length, share of lines that pulse, pulse speed
-    const LAYERS = [["far", 62, 2.0, 0, 0, 0, 0], ["mid", 115, 3.5, 2.4, 20, 0.75, 40], ["near", 175, 5.0, 3.4, 28, 0.85, 60]];
-    for (const [name, gap, rad, hw, len, share, speed] of LAYERS) {
-      const pts = [], cell = gap / Math.SQRT2, grid = new Map();
-      const key = (x, y) => Math.floor(x / cell) + "," + Math.floor(y / cell);
-      for (let i = 0; i < 9000; i++) {
-        const x = between(-M, W + M), y = between(-M, H + M);
-        const cx = Math.floor(x / cell), cy = Math.floor(y / cell);
-        let ok = true;
-        for (let dx = -2; dx <= 2 && ok; dx++) for (let dy = -2; dy <= 2 && ok; dy++) {
-          const q = grid.get((cx + dx) + "," + (cy + dy));
-          if (q && Math.hypot(q[0] - x, q[1] - y) <= gap) ok = false;
-        }
-        if (ok) { const p = [x, y]; pts.push(p); grid.set(key(x, y), p); }
-      }
-      const edges = new Set();
-      pts.forEach((a, i) => {
-        pts.map((b, j) => [Math.hypot(a[0] - b[0], a[1] - b[1]), j]).sort((p, q) => p[0] - q[0]).slice(1, 4)
-          .forEach(([d, j]) => { if (d < gap * 2.3) edges.add(Math.min(i, j) + "-" + Math.max(i, j)); });
-      });
-      const out = [], pulses = [], f = n => n.toFixed(0);
-      for (const e of edges) {
-        let [i, j] = e.split("-").map(Number);
-        const [x1, y1] = pts[i], [x2, y2] = pts[j];
-        out.push(`<line x1="${f(x1)}" y1="${f(y1)}" x2="${f(x2)}" y2="${f(y2)}"/>`);
-        if (!share || rand() > share) continue;
-        const [a, b] = rand() < 0.5 ? [pts[j], pts[i]] : [pts[i], pts[j]];
-        const d = Math.hypot(b[0] - a[0], b[1] - a[1]), t = d / speed / 0.6 + between(0.3, 2.5);
-        const ang = Math.atan2(b[1] - a[1], b[0] - a[0]) * 180 / Math.PI;
-        pulses.push(`<g class="pulse" transform="translate(${f(a[0])} ${f(a[1])}) rotate(${f(ang)})"><path d="M-${len} 0Q0-${hw} ${len} 0Q0 ${hw}-${len} 0z" ` +
-          `style="--l:${f(d)}px;--t:${t.toFixed(1)}s;--d:-${between(0, t).toFixed(1)}s"/></g>`);
-      }
-      for (const [x, y] of pts) out.push(`<circle class="${COLOURS[Math.floor(rand() * 3)]}" cx="${f(x)}" cy="${f(y)}" r="${(rad * between(0.8, 1.2)).toFixed(1)}"/>`);
-      document.querySelector(".web ." + name).innerHTML = out.slice(0, edges.size).join("") + pulses.join("") + out.slice(edges.size).join("");
+    const css = getComputedStyle(document.documentElement), token = n => css.getPropertyValue(n).trim();
+    const INK = token("--text-primary"), COLOURS = ["--accent-default", "--accent-ai", "--accent-olive"].map(token);
+
+    // The cloud, in units of half the screen's longer side: a wide, deep box around the middle.
+    const X = 1.7, Y = 1.15, Z = 1.7, GAP = 0.3, pts = [];
+    for (let i = 0; i < 20000 && pts.length < 900; i++) {
+      const p = { x: between(-X, X), y: between(-Y, Y), z: between(-Z, Z), c: COLOURS[Math.floor(rand() * 3)], r: between(0.8, 1.2) };
+      if (pts.every(q => Math.hypot(q.x - p.x, q.y - p.y, q.z - p.z) > GAP)) pts.push(p);
     }
-  })();
-  /* As the page scrolls, the web turns and tilts as one, its three layers at different depths, so it looks 3D.
-     It follows the scroll with some ease, so it glides to a stop after the page stops. With reduced motion it stays
-     still. */
-  if (!matchMedia("(prefers-reduced-motion: reduce)").matches) {
-    const web = document.querySelector(".web");
+    const edges = [], seen = new Set();
+    pts.forEach((a, i) => {
+      pts.map((b, j) => [Math.hypot(a.x - b.x, a.y - b.y, a.z - b.z), j]).sort((p, q) => p[0] - q[0]).slice(1, 4).forEach(([d, j]) => {
+        const k = Math.min(i, j) + "-" + Math.max(i, j);
+        if (d < GAP * 2.2 && !seen.has(k)) {
+          seen.add(k);
+          const flip = rand() < 0.5, period = d * 9 + between(1.5, 4.5);
+          edges.push({ a: flip ? j : i, b: flip ? i : j, pulse: rand() < 0.5, period, phase: between(0, period) });
+        }
+      });
+    });
+
+    const F = 2.9;  // the camera's distance from the middle of the cloud
+    let w, h, unit, dpr, scrolled = 0, goal = 0;
+    const size = () => {
+      dpr = Math.min(devicePixelRatio || 1, 2);
+      w = innerWidth; h = innerHeight; unit = Math.max(w, h) / 2;
+      canvas.width = Math.round(w * dpr); canvas.height = Math.round(h * dpr);
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    };
     const target = () => {
       const room = document.documentElement.scrollHeight - innerHeight;
       return room > 0 ? scrollY / room : 0;
     };
-    let now = target(), moving = false;
-    const step = () => {
-      const goal = target();
-      now += (goal - now) * 0.06;
-      if (Math.abs(goal - now) < 0.0005) now = goal;
-      web.style.setProperty("--s", now.toFixed(4));
-      moving = now !== goal;
-      if (moving) requestAnimationFrame(step);
+    const draw = time => {
+      const yaw = 0.5 + scrolled * 1.6 + (still ? 0 : time * 0.00002), pitch = 0.18 + scrolled * 0.3;
+      const cy = Math.cos(yaw), sy = Math.sin(yaw), cp = Math.cos(pitch), sp = Math.sin(pitch);
+      const near = F - Z, far = F + Z;
+      const at = pts.map(p => {
+        const x = p.x * cy + p.z * sy, z1 = -p.x * sy + p.z * cy;
+        const y = p.y * cp - z1 * sp, z = p.y * sp + z1 * cp;
+        const d = F + z, s = F / Math.max(d, 0.2);
+        return { x: w / 2 + x * s * unit, y: h / 2 + y * s * unit, s, k: Math.min(1, Math.max(0, (far - d) / (far - near))), ok: d > 0.35 };
+      });
+      ctx.clearRect(0, 0, w, h);
+      ctx.strokeStyle = ctx.fillStyle = INK;
+      for (const e of edges) {
+        const a = at[e.a], b = at[e.b];
+        if (!a.ok || !b.ok) continue;
+        const k = (a.k + b.k) / 2;
+        ctx.globalAlpha = 0.05 + 0.3 * k * k;
+        ctx.lineWidth = 0.4 + 1.4 * k;
+        ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
+        if (still || !e.pulse) continue;
+        // A pulse: the line swells, thickest in the middle and tapering to nothing, travels along it, then rests.
+        const u = ((time / 1000 + e.phase) % e.period) / (e.period * 0.6);
+        if (u >= 1) continue;
+        const dx = b.x - a.x, dy = b.y - a.y, len = Math.hypot(dx, dy);
+        if (len < 4) continue;
+        const ux = dx / len, uy = dy / len, mx = a.x + dx * u, my = a.y + dy * u;
+        const half = Math.min(36, Math.max(6, len * 0.12)) * (0.6 + 0.6 * k), wide = (1 + 3 * k) * 2;
+        ctx.globalAlpha = (0.08 + 0.4 * k * k) * Math.sin(Math.PI * u);
+        ctx.beginPath();
+        ctx.moveTo(mx - ux * half, my - uy * half);
+        ctx.quadraticCurveTo(mx - uy * wide, my + ux * wide, mx + ux * half, my + uy * half);
+        ctx.quadraticCurveTo(mx + uy * wide, my - ux * wide, mx - ux * half, my - uy * half);
+        ctx.fill();
+      }
+      pts.forEach((p, i) => {
+        const q = at[i];
+        if (!q.ok) return;
+        ctx.globalAlpha = 0.25 + 0.75 * q.k;
+        ctx.fillStyle = p.c;
+        ctx.beginPath(); ctx.arc(q.x, q.y, Math.min(9, (1 + 2.6 * q.k) * p.r * q.s), 0, 2 * Math.PI); ctx.fill();
+      });
+      ctx.globalAlpha = 1;
     };
-    addEventListener("scroll", () => { if (!moving) { moving = true; requestAnimationFrame(step); } }, { passive: true });
-    web.style.setProperty("--s", now.toFixed(4));
-  }
+    size();
+    addEventListener("resize", () => { size(); if (still) draw(0); });
+    if (still) { draw(0); return; }
+    scrolled = goal = target();
+    addEventListener("scroll", () => { goal = target(); }, { passive: true });
+    const frame = time => {
+      scrolled += (goal - scrolled) * 0.06;
+      draw(time);
+      requestAnimationFrame(frame);
+    };
+    requestAnimationFrame(frame);
+  })();
 </script>
 <header class="site-top">
   <div class="wrap">
