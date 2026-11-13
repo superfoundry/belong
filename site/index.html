@@ -261,8 +261,10 @@
     mix-blend-mode: multiply; opacity: 0.5;
     -webkit-mask-image: linear-gradient(transparent, black 30px, black calc(100% - var(--space-24)), transparent);
     mask-image: linear-gradient(transparent, black 30px, black calc(100% - var(--space-24)), transparent); }
-  .closing { text-align: center; }
-  .closing .intro { margin: 0 auto var(--space-8); }
+  /* Belong your way: the heading over the three ways, close above them; the button to the Use page below. */
+  .ways-section { padding-bottom: var(--space-8); }
+  .ways-title { text-align: center; margin: 0 var(--page-margin) var(--space-2); }
+  .closing { text-align: center; padding-bottom: var(--space-16); }
   .closing .actions { justify-content: center; }
 </style>
 </head>
@@ -418,17 +420,8 @@
     </div>
   </section>
 
-  <section class="section closing" aria-labelledby="use-title">
-    <div class="wrap">
-      <h2 id="use-title" class="display-m">Belong your way</h2>
-      <p class="intro">In the Belong app, with the AI you already use, or in something you build.</p>
-      <div class="actions">
-        <a class="btn lg secondary" href="use.html">Ways to use Belong</a>
-      </div>
-    </div>
-  </section>
-
-  <section class="section" aria-labelledby="hidden-title">
+  <section class="section ways-section" aria-labelledby="use-title">
+    <h2 id="use-title" class="display-m ways-title">Belong your way</h2>
     <div class="wrap hidden-grid">
       <div>
         <h2 id="hidden-title" class="display-m">Some things are just for <span class="drop-periwinkle">matching</span></h2>
@@ -541,6 +534,14 @@
           <div class="reply"><span>Reply</span><span>Forward</span></div>
         </div></div>
       </figure>
+    </div>
+  </section>
+
+  <section class="section closing" aria-label="Ways to use Belong">
+    <div class="wrap">
+      <div class="actions">
+        <a class="btn lg secondary" href="use.html">Ways to use Belong</a>
+      </div>
     </div>
   </section>
 
