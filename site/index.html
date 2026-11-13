@@ -12,7 +12,7 @@
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <style>
   /* The landing page's own parts. Everything shared with the Use page is in site.css. */
-  /* The page centres on one column: the hero, the steps and the closing all sit in the middle of the web. */
+  /* The hero sits in the middle of the web, on one centred column. */
   .hero { min-height: calc(100svh - 72px); display: flex; align-items: center; padding: var(--space-12) 0 var(--space-24);
     text-align: center; }
   .hero .wrap { width: 100%; }
@@ -51,8 +51,12 @@
   /* Each way's name above its picture, swiping with it. */
   .ways .way { color: var(--text-secondary); }
   .ways .s-ai, .ways .s-mail { transform: translateX(115%); }
+  /* Each example casts a hard shadow, offset down and right; it fades out as the example swipes away. */
+  .ways { --cast: 10px 10px 0 color-mix(in srgb, var(--text-primary) 14%, transparent); --none: 0 0 0 transparent; }
+  .ways .phone, .ways .window { box-shadow: var(--cast); }
+  .ways .slide { padding-right: calc(var(--space-2) + 10px); }
   .phone { width: 300px; max-width: 100%; margin: 0; border: 9px solid var(--surface-inverse);
-    border-radius: 44px; overflow: hidden; background: var(--surface-card); box-shadow: var(--shadow-lg); }
+    border-radius: 44px; overflow: hidden; background: var(--surface-card); }
   .phone .bar { display: flex; align-items: center; justify-content: space-between; padding: 10px var(--space-5) 0;
     font: var(--text-caption); font-weight: 600; }
   .phone .bar .notch { width: 84px; height: 22px; border-radius: var(--radius-pill); background: var(--surface-inverse); }
@@ -122,7 +126,7 @@
   .phone .tabbar .on { color: var(--text-primary); background: linear-gradient(var(--accent-muted), transparent 70%); box-shadow: inset 0 2px var(--border-accent); }
   /* The windows: a desktop app's frame, its title in the middle; the conversation pushed up from the bottom as it grows. */
   .ways .window { width: 100%; max-width: 440px; height: 520px; display: flex; flex-direction: column; overflow: hidden;
-    background: var(--surface-card); border: 1px solid var(--border-default); border-radius: var(--radius-lg); box-shadow: var(--shadow-lg); }
+    background: var(--surface-card); border: 1px solid var(--border-default); border-radius: var(--radius-lg); }
   .ways .chrome { position: relative; display: flex; align-items: center; justify-content: center; gap: var(--space-2); padding: var(--space-3);
     border-bottom: 1px solid var(--border-subtle); font: var(--text-body-s); font-weight: 600; }
   .ways .chrome .lights { position: absolute; left: var(--space-3); display: flex; gap: 6px; }
@@ -248,6 +252,12 @@
     .ways .e4 { animation: e4 56s var(--ease-standard) infinite; }
     @keyframes e5 { 0.0% { grid-template-rows: 0fr; opacity: 0; } 90.89% { grid-template-rows: 0fr; opacity: 0; } 91.79% { grid-template-rows: 1fr; opacity: 1; } 100.0% { grid-template-rows: 1fr; opacity: 1; } }
     .ways .e5 { animation: e5 56s var(--ease-standard) infinite; }
+    @keyframes cast-phone { 0.0% { box-shadow: var(--cast); } 44.64% { box-shadow: var(--cast); } 45.71% { box-shadow: var(--none); } 98.93% { box-shadow: var(--none); } 100.0% { box-shadow: var(--cast); } }
+    .ways .s-phone .phone { animation: cast-phone 56s var(--ease-standard) infinite; }
+    @keyframes cast-ai { 0.0% { box-shadow: var(--none); } 45.36% { box-shadow: var(--none); } 46.43% { box-shadow: var(--cast); } 71.43% { box-shadow: var(--cast); } 72.5% { box-shadow: var(--none); } 100.0% { box-shadow: var(--none); } }
+    .ways .s-ai .window { animation: cast-ai 56s var(--ease-standard) infinite; }
+    @keyframes cast-mail { 0.0% { box-shadow: var(--none); } 72.14% { box-shadow: var(--none); } 73.21% { box-shadow: var(--cast); } 98.21% { box-shadow: var(--cast); } 99.29% { box-shadow: var(--none); } 100.0% { box-shadow: var(--none); } }
+    .ways .s-mail .window { animation: cast-mail 56s var(--ease-standard) infinite; }
     @keyframes blink { 0%, 100% { opacity: .3; } 50% { opacity: 1; } }
     .ways .typing i, .ways .busy { animation: blink 1s ease-in-out infinite; }
     .ways .typing i:nth-child(2) { animation-delay: .2s; } .ways .typing i:nth-child(3) { animation-delay: .4s; }
@@ -261,11 +271,7 @@
     mix-blend-mode: multiply; opacity: 0.5;
     -webkit-mask-image: linear-gradient(transparent, black 30px, black calc(100% - var(--space-24)), transparent);
     mask-image: linear-gradient(transparent, black 30px, black calc(100% - var(--space-24)), transparent); }
-  /* Belong your way: the heading over the three ways, close above them; the button to the Use page below. */
-  .ways-section { padding-bottom: var(--space-8); }
-  .ways-title { text-align: center; margin: 0 var(--page-margin) var(--space-2); }
-  .closing { text-align: center; padding-bottom: var(--space-16); }
-  .closing .actions { justify-content: center; }
+  .hidden-grid .actions { margin-top: var(--space-6); }
 </style>
 </head>
 <body>
@@ -421,12 +427,13 @@
   </section>
 
   <section class="section ways-section" aria-labelledby="use-title">
-    <h2 id="use-title" class="display-m ways-title">Belong your way</h2>
     <div class="wrap hidden-grid">
       <div>
-        <h2 id="hidden-title" class="display-m">Some things are just for <span class="drop-periwinkle">matching</span></h2>
+        <h2 id="use-title" class="display-m">Belong your <span class="drop-coral">way</span></h2>
+        <p>Use the Belong app, ask the AI you already use, or send an email. It's the same Belong wherever you are: the same listing, the same matches, the same yes on both sides.</p>
         <p>Your AI drafts your listing, and you choose what's shown. Hidden details still help find the right people, and are never shown to anyone you match with or to any app.</p>
         <p>Belong runs the matching, so it can see what it holds. It keeps as little as it can.</p>
+        <div class="actions"><a class="btn lg secondary" href="use.html">Ways to Belong</a></div>
       </div>
       <figure class="ways" role="img" aria-label="Three ways to use Belong, on a loop. Belong App: on a phone, a person tells their AI they're looking for a technical co-founder for a health-tech company in Berlin and keeps their age for matching only; their profile appears with the age hidden, used for matching and never shown; three matches come in; they pass on one and say yes to another; once both say yes they're introduced. Then Belong through LLM: in a chat with their own LLM, it uses Belong to file the same listing with the age hidden, finds the matches and says yes for them. Then Belong through Email: they write to Belong, and Belong replies in the same thread that the listing is live, with a match, and, after their yes, with the introduction.">
         <div class="slide s-phone" aria-hidden="true"><p class="eyebrow way">Belong App</p><div class="phone">
@@ -537,13 +544,6 @@
     </div>
   </section>
 
-  <section class="section closing" aria-label="Ways to use Belong">
-    <div class="wrap">
-      <div class="actions">
-        <a class="btn lg secondary" href="use.html">Ways to use Belong</a>
-      </div>
-    </div>
-  </section>
 
 </main>
 
