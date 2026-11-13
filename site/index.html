@@ -272,6 +272,20 @@
     -webkit-mask-image: linear-gradient(transparent, black 30px, black calc(100% - var(--space-24)), transparent);
     mask-image: linear-gradient(transparent, black 30px, black calc(100% - var(--space-24)), transparent); }
   .hidden-grid .actions { margin-top: var(--space-6); }
+  /* Arrows under the examples, to step to the one before or after; the loop carries on from there. */
+  .ways-stage { min-width: 0; }
+  .ways-nav { display: flex; justify-content: center; gap: var(--space-3); margin-top: calc(-1 * var(--space-2)); }
+  .ways-step { all: unset; box-sizing: border-box; width: 40px; height: 40px; display: inline-flex; align-items: center; justify-content: center;
+    border: 1px solid var(--border-strong); border-radius: 50%; background: var(--surface-card); color: var(--text-primary); cursor: pointer;
+    transition: background var(--duration-fast) var(--ease-standard); }
+  .ways-step:hover { background: var(--surface-raised); }
+  .ways-step:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+  .ways-step svg { width: 18px; height: 18px; }
+  /* With reduced motion nothing plays: the arrows show each example still, as it ends. */
+  @media (prefers-reduced-motion: reduce) {
+    .ways[data-way="1"] .s-phone, .ways[data-way="2"] .s-phone, .ways[data-way="2"] .s-ai { transform: translateX(-115%); }
+    .ways[data-way="1"] .s-ai, .ways[data-way="2"] .s-mail { transform: none; }
+  }
 </style>
 </head>
 <body>
@@ -435,6 +449,7 @@
         <p>Belong runs the matching, so it can see what it holds. It keeps as little as it can.</p>
         <div class="actions"><a class="btn lg secondary" href="use.html">Ways to Belong</a></div>
       </div>
+      <div class="ways-stage">
       <figure class="ways" role="img" aria-label="Three ways to use Belong, on a loop. Belong App: on a phone, a person tells their AI they're looking for a technical co-founder for a health-tech company in Berlin and keeps their age for matching only; their profile appears with the age hidden, used for matching and never shown; three matches come in; they pass on one and say yes to another; once both say yes they're introduced. Then Belong through LLM: in a chat with their own LLM, it uses Belong to file the same listing with the age hidden, finds the matches and says yes for them. Then Belong through Email: they write to Belong, and Belong replies in the same thread that the listing is live, with a match, and, after their yes, with the introduction.">
         <div class="slide s-phone" aria-hidden="true"><p class="eyebrow way">Belong App</p><div class="phone">
         <div class="bar"><span>9:41</span><span class="notch"></span><span>100%</span></div>
@@ -541,6 +556,11 @@
           <div class="reply"><span>Reply</span><span>Forward</span></div>
         </div></div>
       </figure>
+        <div class="ways-nav">
+          <button type="button" class="ways-step" data-step="-1" aria-label="Previous example"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg></button>
+          <button type="button" class="ways-step" data-step="1" aria-label="Next example"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></button>
+        </div>
+      </div>
     </div>
   </section>
 
@@ -586,6 +606,31 @@
     // A wheel or touch while gliding hands the scroll back to the person.
     for (const type of ["wheel", "touchstart", "keydown"]) addEventListener(type, () => { run++; }, { passive: true });
   }
+</script>
+<script>
+  /* The arrows under the examples. While the loop plays, next moves it to the swipe into the following example and
+     back moves it straight to the start of the one before; the loop carries on from there. With reduced motion they
+     show each example still. */
+  (() => {
+    const ways = document.querySelector(".ways"), T = 56;
+    const SWIPES = [55, 25, 40], STARTS = [0, 26, 41];  // seconds: the swipe into each example, and when it's fully in
+    const still = matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const playing = () => [ways, ...ways.querySelectorAll("*")].flatMap(el => el.getAnimations()).filter(a => a.animationName !== "blink");
+    let shown = 0;
+    document.querySelectorAll(".ways-step").forEach(button => button.addEventListener("click", () => {
+      const step = Number(button.dataset.step);
+      if (still) {
+        shown = (shown + step + 3) % 3;
+        ways.dataset.way = shown;
+        return;
+      }
+      const all = playing();
+      if (!all.length) return;
+      const now = (all[0].currentTime / 1000) % T, at = now < 25 ? 0 : now < 40 ? 1 : now < 55 ? 2 : 0;
+      const next = (at + step + 3) % 3, to = step > 0 ? SWIPES[next] : STARTS[next], base = all[0].currentTime - now * 1000;
+      for (const a of all) a.currentTime = base + to * 1000;
+    }));
+  })();
 </script>
 </body>
 </html>
