@@ -23,7 +23,7 @@
   /* The background: a cloud of points in three dimensions, coral, periwinkle and mint, each joined to its nearest by
      faint grey lines, with pulses swelling along some of them in the lines' own grey, tapering at both ends. Drawn on
      one canvas by the script below: near points and lines larger and darker, far ones smaller and fainter, so it has
-     volume. It turns slowly around its upright axis and tips a little as the page scrolls, easing to a stop. Fixed
+     volume. It turns slowly around its upright axis as the page scrolls, onward whichever way, easing to a stop. Fixed
      behind the whole page at half opacity, showing through the top bar too. No pause button by the owner's choice;
      with reduced motion it's drawn once, still, with no pulses. */
   /* On this page the top bar lets the web show through it (no fill, no blur) and scrolls away with the hero
@@ -292,7 +292,7 @@
 <script>
   /* The background web, drawn here from a fixed seed so it's the same on every visit. Points fill a volume, at least
      GAP apart; each is joined to its three nearest within reach; about half the lines carry a pulse. Every frame the
-     cloud is turned (around its upright axis by the scroll and a slow drift, and tipped a little), then drawn in
+     cloud is turned (around its upright axis by how far the page has scrolled, either way, and a slow drift), then drawn in
      perspective, nearer things larger and darker. The turning follows the scroll with some ease. With reduced motion
      it's drawn once, still, and again only if the window changes size. */
   (() => {
@@ -335,12 +335,8 @@
       canvas.width = Math.round(w * dpr); canvas.height = Math.round(h * dpr);
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     };
-    const target = () => {
-      const room = document.documentElement.scrollHeight - innerHeight;
-      return room > 0 ? scrollY / room : 0;
-    };
     const draw = time => {
-      const yaw = 0.5 + scrolled * 0.4 + (still ? 0 : time * 0.00001), pitch = 0.18 + scrolled * 0.08;
+      const yaw = 0.5 + scrolled * 0.4 + (still ? 0 : time * 0.00001), pitch = 0.22;
       const cy = Math.cos(yaw), sy = Math.sin(yaw), cp = Math.cos(pitch), sp = Math.sin(pitch);
       const near = F - Z, far = F + Z;
       const at = pts.map(p => {
@@ -385,8 +381,13 @@
     size();
     addEventListener("resize", () => { size(); if (still) draw(0); });
     if (still) { draw(0); return; }
-    scrolled = goal = target();
-    addEventListener("scroll", () => { goal = target(); }, { passive: true });
+    // The cloud turns by how far the page has scrolled, either way, so scrolling back up keeps it turning onward.
+    let last = scrollY;
+    addEventListener("scroll", () => {
+      const room = document.documentElement.scrollHeight - innerHeight;
+      if (room > 0) goal += Math.abs(scrollY - last) / room;
+      last = scrollY;
+    }, { passive: true });
     const frame = time => {
       scrolled += (goal - scrolled) * 0.06;
       draw(time);
