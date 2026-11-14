@@ -85,7 +85,7 @@
   /* Base layer: the profile, full screen. Its bottom padding follows the sheet's height (set after each
      draw), so the whole profile scrolls clear of the chat. */
   .profile-pane { position: absolute; inset: 0; overflow-y: auto; padding: var(--space-4) var(--space-4) var(--space-16); }
-  /* Top layer: the agent chat as a sheet. Drag its top edge to any height; minimised, it keeps the agent's
+  /* Top layer: the agent chat as a sheet. Drag its top edge to any height; minimized, it keeps the agent's
      last message so the profile has the screen. */
   .chat-sheet { position: absolute; left: 0; right: 0; bottom: 0; height: 62%; max-height: calc(100% - var(--space-12));
                 display: flex; flex-direction: column;
@@ -94,14 +94,14 @@
                 transition: height var(--duration-slow) var(--ease-standard); }
   .chat-sheet.min { height: auto; }
   /* By the user's choice, a new listing starts as the agent's chat, the whole screen: no profile behind it yet and
-     nothing to minimise to. Its header says when the profile appears. */
+     nothing to minimize to. Its header says when the profile appears. */
   .chat-sheet.full { height: 100%; max-height: none; border-top: 0; border-radius: 0; box-shadow: none; }
   .chat-sheet.dragging { transition: none; user-select: none; }
   .sheet-head { all: unset; box-sizing: border-box; display: flex; align-items: center; gap: var(--space-2); width: 100%;
                 padding: var(--space-4) var(--space-4) var(--space-3); cursor: grab; flex-shrink: 0; touch-action: none;
                 border-bottom: 1px solid var(--border-subtle); }
   .chat-sheet.dragging .sheet-head { cursor: grabbing; }
-  /* Minimised: the agent's latest message, up to three lines; tapping it opens the chat. */
+  /* Minimized: the agent's latest message, up to three lines; tapping it opens the chat. */
   .peek { all: unset; box-sizing: border-box; display: block; width: 100%; padding: 0 var(--space-4) var(--space-3); cursor: pointer; }
   .peek .bubble { margin: 0; }
   .peek .clamp { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
@@ -169,7 +169,7 @@
   @keyframes fade-in { from { opacity: 0; } }
   @keyframes rise { from { transform: translateY(100%); } }
   /* While a new profile is put together (once, before it's first shown): the phone's own status line in the agent's
-     colour, with three lines, a profile taking shape, pulsing on the system's motion tokens. */
+     color, with three lines, a profile taking shape, pulsing on the system's motion tokens. */
   .assembling { display: flex; align-items: center; gap: var(--space-3); max-width: 86%; margin: var(--space-2) 0;
                 padding: var(--space-3) var(--space-4); border-radius: var(--radius-lg); border-bottom-left-radius: var(--radius-sm);
                 background: var(--accent-ai-muted); color: var(--text-ai); font: var(--text-body-s); }
@@ -179,7 +179,7 @@
   .assembling .lines span:nth-child(2) { width: 15px; animation-delay: var(--duration-base); }
   .assembling .lines span:nth-child(3) { width: 19px; animation-delay: calc(2 * var(--duration-base)); }
   @keyframes assemble { 0%, 100% { opacity: .35; transform: scaleX(.55); } 50% { opacity: 1; transform: scaleX(1); } }
-  /* A change the person made on their profile, as their agent was told it: a short line in the agent's colour. */
+  /* A change the person made on their profile, as their agent was told it: a short line in the agent's color. */
   .change-line { margin: var(--space-2) 0; text-align: center; font: var(--text-caption); color: var(--text-ai); }
   /* Without a model agent: the other parts that still say what the person changed, each offered with one tap, in a
      cream highlight panel under the hello, on its white. */
@@ -236,7 +236,7 @@
   .card.pop-rows { padding: var(--space-1); }
   .settings-foot { margin: var(--space-2) var(--space-4) 0; }
   .toggle-row.disabled { opacity: .5; cursor: default; }
-  /* A paused listing is greyed out; its settings stay usable. */
+  /* A paused listing is grayed out; its settings stay usable. */
   .listing-card.paused > :not(.gear):not(.gear-pop) { opacity: .45; filter: grayscale(1); }
   .gear:focus-visible { outline: 2px solid var(--focus-ring); }
   .listing-open { all: unset; box-sizing: border-box; display: block; width: 100%; cursor: pointer; }
@@ -867,7 +867,7 @@ const SCREENS = {
 
   profile(slot, p, L) {
     // Base layer: the open listing's profile, a work in progress, as a match will see it.
-    // Top layer: your agent's chat for this listing, which minimises when you tap its header.
+    // Top layer: your agent's chat for this listing, which minimizes when you tap its header.
     // Until the profile is first shown (profileShown), the chat is the whole screen, with nothing behind it.
     const l = curListing(slot), c = cur(slot);
     if (!l) return "";
@@ -1156,10 +1156,10 @@ function checklist(c, l) {
 
 // The profile in the person's own words: a few short sentences in the first person ("I'd prefer to meet
 // online"), led by their headline when it's shown, each detail a part they can tap to change, and the details that
-// don't read as a sentence as labelled facts. Only shown details (hidden ones keep their own well), and for dating,
+// don't read as a sentence as labeled facts. Only shown details (hidden ones keep their own well), and for dating,
 // who they'd like to meet as matching reads it (lookingFor). A detail that's needed and missing is a blank to fill
 // in with the agent. Wording that depends on a side (rate or budget) is used only when the shown details say which
-// side they're on; otherwise the detail is a labelled fact. An open detail is a sentence of its own, from its name
+// side they're on; otherwise the detail is a labeled fact. An open detail is a sentence of its own, from its name
 // and whose it is (detailSentence), so any name its agent chose reads the same way.
 // Each entry: the field, the words before it (null: no sentence, a fact) and after it, and lowercase for a
 // choice word (In person, Online) inside a sentence. Every value makes a plain sentence, as a person says it.
@@ -1346,7 +1346,7 @@ function chatHtml(slot, l, c) {
   const liveAt = l.chat.map(m => !!m.live).lastIndexOf(true);
   const lastUpdate = l.chat.map(m => !!m.draft_updated).lastIndexOf(true);
   const lastAgent = [...l.chat].reverse().find(m => m.from === "agent");
-  // Before the profile is first shown (profileShown), the chat is the whole screen and can't be minimised: its
+  // Before the profile is first shown (profileShown), the chat is the whole screen and can't be minimized: its
   // header says when the profile appears, and while it's put together the phone says so in its own words.
   const full = !c.revealed, holding = full && !!c.revealAt;
   const head = full ? `<div class="sheet-head static"><span class="eyebrow">Your agent</span>
@@ -1355,7 +1355,7 @@ function chatHtml(slot, l, c) {
       onpointerdown="sheetDown(event,'${slot}')" onkeydown="sheetKey(event,'${slot}')"><span class="handle" aria-hidden="true"></span>
       <span class="eyebrow">Your agent</span><span class="chevron" aria-hidden="true"></span></button>`;
   if (!full && c.chatMin) {
-    // Minimised: just the agent's latest message, or that it's working on the profile, so the profile has the screen.
+    // Minimized: just the agent's latest message, or that it's working on the profile, so the profile has the screen.
     const peek = busy ? `<div class="bubble agent working" role="status"><span class="typing" aria-hidden="true"><span></span><span></span><span></span></span>Updating your profile</div>`
       : lastAgent ? `<div class="bubble agent"><span class="clamp">${esc(lastAgent.text)}</span></div>` : "";
     return `<div class="chat-sheet min">${head}${peek ? `<button class="peek" onclick="toggleChat('${slot}')" aria-label="Open the chat with your agent">${peek}</button>` : ""}</div>`;
@@ -1382,7 +1382,7 @@ function chatHtml(slot, l, c) {
 // least, and until this phone's saves have finished), then, if it's still ready, the chat slides down to its header
 // and the profile is there. From then on the listing has a profile for good (the server's has_profile, so a reload or
 // another device shows it too, even once its draft stops being ready): opened, a listing that is live, has had a
-// profile, or is ready shows it straight away, with the chat minimised. A reply that changed nothing (a question
+// profile, or is ready shows it straight away, with the chat minimized. A reply that changed nothing (a question
 // first) leaves the chat as it is, there to be answered.
 const REVEAL_HOLD = 1500;  // ms
 const draftReady = (c, l) => canSave(c, { ...l, listed: false });
@@ -1415,14 +1415,14 @@ function revealWhenSaved(slot, id) {
 
 function toggleChat(slot) {
   const c = cur(slot);
-  if (!c.revealed) return;  // no profile on screen yet: nothing to minimise to
+  if (!c.revealed) return;  // no profile on screen yet: nothing to minimize to
   c.chatMin = !c.chatMin;
   if (!c.chatMin) c.seenChat = curListing(slot).chat.length;
   renderPhone(slot);
 }
 // The sheet's height: dragged by its top edge (touch or mouse), nudged with the arrow keys, remembered per
-// listing. A tap (no real movement) opens or minimises it. Dragged low enough, it minimises.
-const SHEET_MIN_OPEN = 180;  // px: dragged below this, the chat minimises to its last message
+// listing. A tap (no real movement) opens or minimizes it. Dragged low enough, it minimizes.
+const SHEET_MIN_OPEN = 180;  // px: dragged below this, the chat minimizes to its last message
 function sheetBounds(slot) {
   const screen = document.querySelector(`#phone-${slot} .screen.split`);
   return { max: screen ? screen.clientHeight - 48 : 600 };
@@ -1468,12 +1468,12 @@ function sheetKey(e, slot) {
   renderPhone(slot);
   document.querySelector(`#phone-${slot} .sheet-head`)?.focus();
 }
-// The chat slides to its new height (opening, minimising, settling after a drag) instead of jumping. The phone
+// The chat slides to its new height (opening, minimizing, settling after a drag) instead of jumping. The phone
 // redraws its whole screen, so the move is played from the height it had before to the one it has now.
 function slideSheet(slot, sheet, from) {
   const to = sheet.offsetHeight;
   if (Math.abs(to - from) < 2 || matchMedia("(prefers-reduced-motion: reduce)").matches) return;
-  const settle = sheet.style.height;  // where it rests: its own height (minimised, the default) or one it was dragged to
+  const settle = sheet.style.height;  // where it rests: its own height (minimized, the default) or one it was dragged to
   sheet.style.transition = "none";
   // It starts where it was, even from taller than the sheet may rest (the whole screen, before the profile is shown):
   // its max-height comes back once it's there.
@@ -1610,7 +1610,7 @@ function fieldRow(slot, f) {
   const open = detailParts(f.key);
   if (f.locked) control = `<span class="body-s">${esc(f.value)}</span> <span class="caption tertiary">from your ID check</span>`;
   // An open detail's steps are its agent's scale, picked by position (never by their words, which can have an
-  // apostrophe): one step about you or what you both share, neighbouring steps for what you'd like in them.
+  // apostrophe): one step about you or what you both share, neighboring steps for what you'd like in them.
   else if (open && f.compare === "steps") control = `<div class="segmented steps" role="group" aria-label="${label}">${(f.steps || []).map((o, n) => {
     const on = [].concat(f.value || []).includes(o);
     return `<button class="${on ? "on" : ""}" aria-pressed="${on}" onclick="${open.about === "them" ? "toggleStep" : "pickStep"}(${at},${n})">${esc(o)}</button>`;
@@ -1673,7 +1673,7 @@ function toggleChip(slot, i, n) {
 function pickStep(slot, i, n) {
   const f = cur(slot).draft.fields[i]; f.value = [f.steps[n]]; renderPhone(slot);
 }
-// What you'd like in them is a run of neighbouring steps: a step next to the run adds to it, one at its end
+// What you'd like in them is a run of neighboring steps: a step next to the run adds to it, one at its end
 // comes off, and any other starts a new run.
 function toggleStep(slot, i, n) {
   const f = cur(slot).draft.fields[i];

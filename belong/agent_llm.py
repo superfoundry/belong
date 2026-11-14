@@ -9,8 +9,8 @@ tool call is checked here before it touches the draft:
     Warden's own fixed rules (warden.listing_person_problems, read with the same listing fields the Warden
     reads: description_save_problems; and detail_person_findings, checked by detail_save_problems, the one
     pre-save check of open details), both run by the phone's Save draft too; and, before them, the model's
-    own judgement from words and context (singles_out in the tool), which can only refuse a save, never let
-    through what a fixed rule refuses. When the full-name rule's floor refuses two capitalised words that
+    own judgment from words and context (singles_out in the tool), which can only refuse a save, never let
+    through what a fixed rule refuses. When the full-name rule's floor refuses two capitalized words that
     are really a place, a title or a thing, the model is told which two and rewords them; the rules check the
     reworded text again. A problem of the identifiers rule (clues that together narrow to one person,
     warden.identifier_problems) comes with how to fix it (IDENTIFIERS_HELP),
@@ -107,7 +107,7 @@ DETAIL_SCHEMA = {
         "values": {"type": "array", "items": {"type": "string"},
                    "description": "Short values in their plainest common form. 'any' alone only about them, for open "
                                   "to any; about me or both, the value that applies. For steps, each is one of the "
-                                  "steps: the one that applies about me or both, every neighbouring step they'd "
+                                  "steps: the one that applies about me or both, every neighboring step they'd "
                                   "accept about them."},
         "visibility": {"type": "string", "enum": [SHOWN, HIDDEN],
                        "description": "Always shown about them or both. About me, hidden only if they ask."},
@@ -205,7 +205,7 @@ UPDATE_LISTING_TOOL = {
             },
             "singles_out": {
                 "type": "boolean",
-                "description": "Your judgement, from their words and the context: true when what they ask for "
+                "description": "Your judgment, from their words and the context: true when what they ask for "
                                "names or points at one particular person (a name in any form or case, a first "
                                "name or nickname alone, a username, an ex, or clues that together fit only one "
                                "person). Then nothing is saved, and you tell them kindly why. false when they're "
@@ -228,10 +228,10 @@ class AgentUnavailable(Exception):
 STRICT_KEYS = {"gender", "format", "travel", "kind", "wants_gender"}
 # Fixed-choice fields matching reads in its own words: other wordings ("online only", "up to 30km")
 # are put into the fixed wording before they're checked.
-_NORMALISE = {"format": meeting_format, "travel": travel_choice}
+_NORMALIZE = {"format": meeting_format, "travel": travel_choice}
 
 
-def _options_catalogue() -> str:
+def _options_catalog() -> str:
     lines = []
     options = field_options()
 
@@ -398,11 +398,11 @@ described with where it is or what it shows. One or two common details of looks 
 and looks never count; what they say about themselves (what they offer, details about them) is read as theirs, but \
 a clue about someone else written there counts too. Write only what matters for finding people like that, not one \
 person.
-- Belong also refuses two capitalised words in a row in the middle of a sentence, because they look like a \
+- Belong also refuses two capitalized words in a row in the middle of a sentence, because they look like a \
 person's full name (lower-case words such as "de" or "van" between them, or an initial's full stop, still count), \
 unless one of them is part of the city or country the person shows or of a place on the shared list written out \
 whole, a word written all in capitals, a month or a weekday. When such a pair is really a place, a title or a thing, \
-not a person, write it so that no two capitalised words stand together (e.g. "the lake at Geneva" rather than \
+not a person, write it so that no two capitalized words stand together (e.g. "the lake at Geneva" rather than \
 "Lake Geneva"), and tell the person what you changed. If it could be a person's name, don't reword it: refuse as \
 above.
 - Where a field lists allowed values below, use one of them; fields marked "free text" take any \
@@ -439,7 +439,7 @@ only when they said it matters; "both" for something about the request itself th
 (the night a quiz team plays). A detail about the person alone requires nothing of anyone.
 - compare: "same" when two values agree by sharing one (several values are fine), or "steps" for an ordered \
 scale: write the whole scale, lowest first, two to seven short steps ("quiet", "moderate", "lively"). About \
-the person or both, give the one step that applies; about them, every neighbouring step they'd accept.
+the person or both, give the one step that applies; about them, every neighboring step they'd accept.
 - values: each in its plainest common form, lower case unless it's a name, a word or two. "any" on its own \
 only in a wish (about them), when they're open to anything; about the person or the request, give the value \
 that applies.
@@ -455,14 +455,14 @@ be hidden, if they ask.
 - Each save replaces the details: include every detail to keep, exactly as on the profile, unless they \
 change it. Never write a detail they didn't say.
 - Never put anything sensitive in a detail you write: it goes only in its hidden built-in detail (above). \
-Something that could identify them (their workplace, their neighbourhood) goes in the hidden employer or \
+Something that could identify them (their workplace, their neighborhood) goes in the hidden employer or \
 neighborhood detail.
 For example, a quiz team captain who needs someone strong on science, for a team that plays on Thursdays: \
 about me "quiz strength" = history, about them "quiz strength" = science, about both "quiz night" = Thursday. \
 Someone who needs a quiet person: about them "noise tolerance", steps quiet, moderate, lively, values quiet.
 
 Allowed values:
-{_options_catalogue()}
+{_options_catalog()}
 """
 
 
@@ -482,8 +482,8 @@ def _clean_value(key: str, values: list) -> tuple:
                           f"their age band")
         return fixed[0], None
     if key in STRICT_KEYS:
-        if key in _NORMALISE:
-            values = [_NORMALISE[key](v) or v for v in values]
+        if key in _NORMALIZE:
+            values = [_NORMALIZE[key](v) or v for v in values]
         options = field_options().get(key) or []
         lookup = {o.lower(): o for o in options}
         bad = [v for v in values if v.lower() not in lookup]
@@ -603,17 +603,17 @@ def description_save_problems(intent_text: str, own_words=(), place_fields=(), p
                 pair = full_name_pairs(text, exempt)[0]
                 lines = _on_two_lines(pair, raw.get(key, text))
                 problems.append(
-                    f"{label} has two capitalised words in a row (“{pair}”), which looks like someone's full "
+                    f"{label} has two capitalized words in a row (“{pair}”), which looks like someone's full "
                     f"name, and Belong never helps find one particular person. "
                     + ("They're on two lines: if it's a list, end the first line with a comma or a full stop."
                        if lines else "If it's a place or a title, write it another way, for example with a "
                                      "lower-case word between them.") if for_person else
                     f"Belong can't search for a specific person; '{text}' contains {FULL_NAME} ('{pair}'): two "
-                    f"capitalised words in a row in the middle of a sentence. Words of the city and country the "
+                    f"capitalized words in a row in the middle of a sentence. Words of the city and country the "
                     f"person shows, and of places on the shared list, are never read as a name where the whole place "
                     f"is written out. If it names or points "
                     f"at a person, don't save it: set singles_out and tell the person why. If it's really a place, a "
-                    f"title or a thing, write it so that no two capitalised words stand together (a lower-case word "
+                    f"title or a thing, write it so that no two capitalized words stand together (a lower-case word "
                     f"between them, or other words), save again, and tell the person what you changed."
                     + (" They stand on two lines: a line break doesn't end a sentence, so end the first line with a "
                        "comma or a full stop." if lines else ""))
@@ -866,7 +866,7 @@ def build_draft(args: dict, first_name: str, age_band: str, current=None, in_use
     current: the profile this save replaces (None for a new listing), with "choices": the person's own
     choices of shown or hidden for this listing. What the call leaves out of the built-in fields is kept from
     it with the shown or hidden it had, and every detail the call gives no value and visibility of its own
-    keeps the person's choice (agent.carry_over), BEFORE anything below is checked or summarised: what's
+    keeps the person's choice (agent.carry_over), BEFORE anything below is checked or summarized: what's
     missing, whether a hidden kind still reads as dating, and what the agent is told a match will see are all
     about the draft the person will actually see. Open details are stated in full by every call (never filled
     in from before); one the person chose shown or hidden that the call leaves out is pointed out to the agent.
@@ -1030,7 +1030,7 @@ def build_draft(args: dict, first_name: str, age_band: str, current=None, in_use
         if "topics" in by and isinstance(by["topics"]["value"], list):
             by["topics"]["value"] = by["topics"]["value"][:5]
     city = by["city"]["value"] if "city" in by and isinstance(by["city"]["value"], str) else None
-    country = city_country(city, in_use) if city else None  # a known centre, or a listed place
+    country = city_country(city, in_use) if city else None  # a known center, or a listed place
     if country and by.get("country", {}).get("value") in (None, "", []):
         # A city we know: fill in its country, shown unless the person chose to hide it.
         fill_gaps(draft, {"country": country},
@@ -1227,7 +1227,7 @@ UNSAVED_NOTE = ("(I wasn't able to save that change to your listing. Could you s
                 "is on your screen, you can also change it there yourself.)")
 
 
-# The model's own judgement that a request singles out one particular person (update_listing's singles_out): it can
+# The model's own judgment that a request singles out one particular person (update_listing's singles_out): it can
 # only refuse. build_draft saves nothing and tells the model this; the person is told by SINGLED_OUT_NOTE.
 SINGLED_OUT = ("Nothing was saved: you judged that this request names or points at one particular person "
                "(singles_out). Belong never helps find one particular person. Tell the person kindly why, and that "
@@ -1282,7 +1282,7 @@ def refused_reply(draft) -> str:
 
 def singles_out(args) -> bool:
     """Whether the model judged that this save would single out one particular person (update_listing's singles_out
-    set to true). Only true refuses; anything else (false, missing, another type) is no judgement, so the save goes on
+    set to true). Only true refuses; anything else (false, missing, another type) is no judgment, so the save goes on
     to the fixed rules, which still check everything."""
     return isinstance(args, dict) and args.get("singles_out") is True
 

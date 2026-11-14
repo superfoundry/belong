@@ -3,7 +3,7 @@
 Same job, same instructions and the same draft checks as the Claude agent
 (agent_llm.py; SPEC §3, §4): the model talks with the person and fills in the listing through
 the `update_listing` tool, and every tool call goes through `build_draft` before it touches
-the draft. The model's own judgement that a request singles out one particular person (the tool's
+the draft. The model's own judgment that a request singles out one particular person (the tool's
 singles_out) refuses a save the same way, and the person is told in the same fixed words
 (agent_llm.honest). The shared list of details in use reaches it the same way too, as data in a message
 of its own (agent_llm.with_list), never in its instructions. Only the API plumbing differs.

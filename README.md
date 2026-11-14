@@ -81,7 +81,7 @@ one short question before saving, and "both" makes two listings, each with its o
 or OpenAI agent is told to ask, and to reuse the names and scales on the shared list when it means
 the same thing (instructions, not something the code can check; a name on the list can't be reused
 with another meaning). The rule-based agent asks when its own readers see two readings, and never
-records a kind or an age range it only guessed. It also writes only words it recognises into
+records a kind or an age range it only guessed. It also writes only words it recognizes into
 anything shown (words on the shared list, a known place, a fixed choice), and a value about you only
 when you say it about yourself ("I'm an intermediate player", "I like hiking", "my level is…"),
 never from a wish, a description of someone else (including a value of someone's: "a seasoned crew's
@@ -89,7 +89,7 @@ coach"), a value after a comma that starts another clause ("I'm a thrower, a gla
 only "thrower"), the object of something you do ("I'm leading a weekend group") or a denial ("not", "hardly",
 "far from", "neither … nor", "doubt", also over a clause that depends on it: "I don't think I'm…"):
 the rest of what you type stays in
-your description, and it asks when it doesn't recognise what you want ("What would you like a
+your description, and it asks when it doesn't recognize what you want ("What would you like a
 partner for?"). The Warden lets what the agent understood in only as fixed choices (no listing can
 ask for anyone under 18), and the details it names on the spot only in a fixed form: short plain
 words, no contact details, no claim to be "verified", nothing that singles out one person, and
@@ -97,13 +97,13 @@ nothing sensitive (religion, health, politics, income and intimacy go only in th
 categories). What you'd like in the other person, and what you both need to share, is always shown.
 Nobody can use it to find one particular person, in three layers where the AI only ever adds a refusal.
 The Warden's fixed floor refuses handles, contact details, an ex, clues that together narrow to one
-person, and two capitalised words in a row in the middle of a sentence, which look like a full name (also with
+person, and two capitalized words in a row in the middle of a sentence, which look like a full name (also with
 "van", "de la" or another lower-case name particle between them, or after an initial), unless one of them
 is part of the city or country your listing shows or of a place on the shared list, written out whole, the
 pronoun I, a word in capitals, a month or a weekday (no list of places, languages or titles). A live listing
 keeps the listed places it was accepted with, so a later list never refuses its next update. The Claude or OpenAI agent
 also judges from your words and the context (a first name alone, a nickname, a name in lower case): it
-saves nothing it judges singles someone out and tells you why, and when the floor refuses two capitalised
+saves nothing it judges singles someone out and tells you why, and when the floor refuses two capitalized
 words that are really a place or a title, it rewords them and says so. The rule-based agent has no model
 and relies on the floor; so does Save draft on the phone, which runs the same rules. The Matchmaker AI
 (below) may also decline to match a listing it judges is hunting one person, which can only leave pairs
@@ -115,7 +115,7 @@ saw or met, "the" and a clock time) together with how they look, three or more d
 scar, birthmark, tattoo or piercing described with where it is or what it shows. A character that shows
 nothing never hides any of these rules. A looks word counts only where it describes a person, never a thing. The rule reads
 English sentences with a few words for looks, marks, workplaces, homes, meeting someone and people;
-anything else is left to the model agent's judgement (its instructions, untested against a live model),
+anything else is left to the model agent's judgment (its instructions, untested against a live model),
 and the rule-based agent has only the rule (TRUST.md limit 26).
 Matching uses these details first. Your description is never shown to anyone and is never part of a
 reason, but matching does read it: to tell dating from the rest, for who and what ages a dating
@@ -136,7 +136,7 @@ above):
    cities can meet only if the distance between them is within what *both* said they'd travel:
    Osaka and Kobe (about 28 km) need "up to 30 km" from both; Osaka and Kyoto (about 43 km) need
    "up to 100 km". Someone who doesn't say stays in their own city. Distances come from a short
-   list of approximate city centres, each known only in its own country, and are used only when
+   list of approximate city centers, each known only in its own country, and are used only when
    both people show the same country: a Cambridge in the United States is never near London. Any
    other city, or a city shown without a country, only matches a city of the same name. Someone
    who gives a country but no city is open to anywhere in it.
@@ -318,7 +318,7 @@ repository. Locally, `python3 -m http.server 8100 -d out/site` (or the `site` pr
 Actions*.
 
 `tests/test_site.py` holds the built pages and the plain text to the same rules as the app's pages: the name without
-its stop and the design system's logo, "shown" and "hidden" only, colours from the tokens alone, motion only without
+its stop and the design system's logo, "shown" and "hidden" only, colors from the tokens alone, motion only without
 reduced motion, never overclaiming privacy, none of the demo's examples,
 no link to the demo or the repository, every local link working, and nothing loaded from elsewhere. It checks there
 are exactly the two pages.
@@ -328,7 +328,7 @@ are exactly the two pages.
 ```text
 belong/                                    [open] = published as open source
   schema.py        [open] data model: built-in fields, open-detail     SPEC §4
-                          rules, the one normaliser, comparisons,
+                          rules, the one normalizer, comparisons,
                           sensitive words, follow-up menu
   warden.py        [open] entry + exit checks, sealed outputs, the     §7
                           shared list, hash-chained receipts

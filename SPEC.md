@@ -166,7 +166,7 @@ off a detail it kept from before that the check refuses under the new descriptio
 model agent's save and the phone's Save draft also run the description's own rules, the full-name floor
 included, with the same fields the Warden reads (`agent_llm.description_save_problems`, §5).
 
-**One normaliser** (`schema.canonical`): every comparison, count, crowd, reveal and the shared list
+**One normalizer** (`schema.canonical`): every comparison, count, crowd, reveal and the shared list
 compare text ignoring case, width, accents on Latin letters, spacing and "-", "_" or "/" between
 words. Phrase matching and text ranking read words the same way, in any script (`text.letter_words`),
 and places also drop every accent (`schema.plain_place`). Values are stored as written.
@@ -297,7 +297,7 @@ and places also drop every accent (`schema.plain_place`). Values are stored as w
   rule-based agent's save runs it over open details read with the description (`detail_save_problems`),
   and the description it writes is checked at entry (and by Save draft, when the person saves). Names are
   kept out in three layers, the AI only ever stricter:
-  1. The Warden's fixed floor (`warden.full_name_pairs`): two capitalised words in a row in the
+  1. The Warden's fixed floor (`warden.full_name_pairs`): two capitalized words in a row in the
      middle of a sentence look like a full name, in the description and the shown free text, also
      with lower-case name particles between them ("van", "dos", "de la") or after an initial's full
      stop ("K. Mensah"). No typed list of places, languages or titles: a word is never part of a name
@@ -315,7 +315,7 @@ and places also drop every accent (`schema.plain_place`). Values are stored as w
      nothing and the person is told why (in fixed words, even if it saves something else or its provider
      refuses to go on), and the same request sent again in that turn is refused too. It can only refuse,
      never let through what the floor refuses;
-     when the floor refuses two capitalised words that are really a place, a title or a thing, it is
+     when the floor refuses two capitalized words that are really a place, a title or a thing, it is
      told which two, rewords them and tells the person, and the rules check the new text. The
      rule-based agent has no model: it relies on the floor.
   3. The Matchmaker AI (§3, §8.3) says per listing whether it seems to hunt one particular person, asked

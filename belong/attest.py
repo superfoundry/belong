@@ -43,7 +43,7 @@ MATCHMAKER_FILES = [
     "matching/narrow.py",
     "matching/text.py",
 ]
-# Everything published for anyone to read and scrutinise.
+# Everything published for anyone to read and scrutinize.
 OPEN_SOURCE = WARDEN_FILES + MATCHMAKER_FILES
 
 POLICY = {

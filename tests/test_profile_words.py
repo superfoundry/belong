@@ -1,5 +1,5 @@
 """The phone's profile in the person's own words (demo.html; SPEC §4 shown and hidden fields, open details, §6): every
-shown detail reads once, as a sentence or a labelled fact, and a hidden value never changes it (dating's who and ages
+shown detail reads once, as a sentence or a labeled fact, and a hidden value never changes it (dating's who and ages
 follow what matching reads, lookingFor). Wording that depends on a side is used only when shown details say the side.
 An open detail reads as a sentence from its name and whose it is, whatever name its agent chose. Run with node."""
 from __future__ import annotations

@@ -254,7 +254,7 @@ class OpenAIJudge:
         elif fmt == "json_object":
             body["response_format"] = {"type": "json_object"}
         if re.match(r"(gpt-5|o\d)", self.model):
-            body["reasoning_effort"] = "low"  # a judgement per pair, not an essay
+            body["reasoning_effort"] = "low"  # a judgment per pair, not an essay
         return body
 
     def _headers(self) -> dict:

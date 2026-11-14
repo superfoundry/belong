@@ -206,7 +206,7 @@ def _parse(ts: str) -> datetime:
 # Specific-person check (SPEC §5: never a specific person). Plain pattern rules.
 # --------------------------------------------------------------------------------------
 
-# The full-name rule (full_name_pairs) is a fixed floor, the same for every listing: two capitalised words in a row in
+# The full-name rule (full_name_pairs) is a fixed floor, the same for every listing: two capitalized words in a row in
 # the middle of a sentence look like a person's full name, unless either is a word that is never part of a name
 # (_never_a_name). No typed list of places, languages or titles: the words it lets through come from fixed forms (the
 # pronoun I, a word in capitals, a month or a weekday from the standard library) and from the listing's own shown
@@ -245,7 +245,7 @@ POSTER_WORDS = ("offering",)
 
 
 # --------------------------------------------------------------------------------------
-# The identifiers rule (SPEC §5): clues that together narrow to one person. Fixed rules, no judgement.
+# The identifiers rule (SPEC §5): clues that together narrow to one person. Fixed rules, no judgment.
 # --------------------------------------------------------------------------------------
 # One or two common details of how someone looks describe a large share of people and identify nobody; clues narrow
 # to one person when there are too many of them, or one is very unusual. So the rule counts only clues about the
@@ -357,7 +357,7 @@ def _identifiers(found) -> list[str]:
 def wish_clues(f: Field) -> Clues:
     """A shown wish's clues: its written forms (_written) read like any text, and in a wish about the other person
     ("them"), what describes the person sought by what such a wish is: a looks noun or mark in its name ("hair
-    colour"), or else each value read on its own, so a describing word that is all a value says ("tall"), or starts
+    color"), or else each value read on its own, so a describing word that is all a value says ("tall"), or starts
     it ("short, with ..."), describes them, and a mark in it is theirs ("a tattoo of ...")."""
     found = [clues(t) for t in _written(f)]
     if f.about == "them":
@@ -435,7 +435,7 @@ def _skip(toks: list, j: int, words, n: int) -> int:
 
 def _anchors(toks: list, starts: list, names=frozenset()) -> list:
     """Where the person sought can be found: where they work or live, at a place ("at" / "on" + an article, a
-    possessive, a number or a capitalised word, the positions in `names`: never "at weekends" or "at night"), and not
+    possessive, a number or a capitalized word, the positions in `names`: never "at weekends" or "at night"), and not
     the poster's own ("I work at"); someone the poster saw or met ("who I saw", "the man I met", "I saw you"); "the" +
     a clock time ("the 7:40"); and "the" (or "that", "this") + a word for one person + "at" / "on" / "from" /
     "behind" / "outside" / "near" / "by". As (position, words)."""
@@ -568,9 +568,9 @@ def _traits(toks: list, starts: list, anchored=frozenset(), featured: bool = Fal
 
 def _a_feature(toks: list, k: int) -> bool:
     """A looks noun or mark (at position k) said as someone's feature, so the word after it says what it is like
-    ("hair colour ...", "a tattoo sleeve of ...") rather than making it a thing ("hair salon"): a word of having or a
+    ("hair color ...", "a tattoo sleeve of ...") rather than making it a thing ("hair salon"): a word of having or a
     possessive (_FEATURE: "with", "has", "his"...) up to three words before it in the same phrase, or it opens a phrase
-    after a comma, semicolon, colon, dash or bracket ("...; hair colour bright pink")."""
+    after a comma, semicolon, colon, dash or bracket ("...; hair color bright pink")."""
     return any(toks[j] in _FEATURE for j in _back(toks, k, 3)) or (k >= 1 and toks[k - 1] in _OPENS)
 
 
@@ -712,7 +712,7 @@ def specific_person_problems(intent: str, fields=(), places=(), identifiers: boo
 
 
 def full_name_pairs(text: str, exempt=frozenset()) -> list[str]:
-    """Each pair of words in the text that looks like a person's full name ("Mika Sato"): two capitalised words in a
+    """Each pair of words in the text that looks like a person's full name ("Mika Sato"): two capitalized words in a
     row, neither at the start of a sentence, and neither a word that is never part of a name (_never_a_name: the
     pronoun I and its contractions, a word written all in capitals, a month or a weekday) or a word of a place named
     whole in the text (exempt: the places of never_names, each as its words in order; _in_places). Between the two
@@ -887,7 +887,7 @@ def _in_details(names: tuple, read_with: str) -> str:
 
 
 def _is_proper_noun(text: str, tok: re.Match, exempt=frozenset()) -> bool:
-    """A capitalised word that could be part of a name: not at the start of a sentence, and not one that never is
+    """A capitalized word that could be part of a name: not at the start of a sentence, and not one that never is
     (_never_a_name)."""
     word = tok.group()
     if not word[0].isupper() or _never_a_name(word, exempt):
@@ -1017,7 +1017,7 @@ def _where_text(key: str, mine, theirs, countries=None) -> str:
 
     For a country: "both in" only for the same one. For two cities, `countries` is (my country,
     their country), both *shown*, or None unless both people show one: "both in" and "near one
-    another" need the same shown country, then the same city, or two city centres (each read in
+    another" need the same shown country, then the same city, or two city centers (each read in
     that country) within the longest travel distance anyone can choose. Otherwise, just where each
     of them is: two cities called Cambridge in different countries are not "both in Cambridge".
 

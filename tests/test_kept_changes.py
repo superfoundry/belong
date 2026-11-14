@@ -967,7 +967,7 @@ class WithoutAModelAgent(_Session, unittest.TestCase):
 
     def test_an_offer_is_checked_as_save_draft_checks_it(self):
         """An offer that would put words the Warden's rules refuse into a part isn't made (a tap never fails on its
-        own): here two capitalised words in a row in the description, which read as a person's full name."""
+        own): here two capitalized words in a row in the description, which read as a person's full name."""
         s, mine = self.session(SOFA)
         s.keep_change("A", kept(mine.draft, {"me:colour": ["Ocean Mist"]}))
         self.assertEqual(values(mine.draft)["me:colour"], ["Ocean Mist"])  # their own change is theirs
@@ -1123,7 +1123,7 @@ const open = phone("A");
         self.assertIn("Updating your profile", out["after"])
         self.assertIn('class="profile-pane', out["after"])
 
-    def test_the_change_line_is_in_the_agents_colour(self):
+    def test_the_change_line_is_in_the_agents_color(self):
         out = self.phone(self.done, then='cur("A").chatMin = false; renderPhone("A");')
         self.assertIn('<p class="change-line">You changed your colour on your profile.</p>', out["after"])
         from tests.test_dating import PAGE

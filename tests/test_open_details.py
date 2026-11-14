@@ -1,4 +1,4 @@
-"""Open details (SPEC §4, §5): the one normaliser, the entry rules every detail passes, the comparisons
+"""Open details (SPEC §4, §5): the one normalizer, the entry rules every detail passes, the comparisons
 matching and the Warden share, and the fixed sensitive words, which must still catch every word they
 caught before details were opened up."""
 from __future__ import annotations
@@ -8,7 +8,7 @@ import unittest.mock
 from dataclasses import replace
 
 from belong import schema
-from belong.schema import (HIDDEN, MAX_DETAILS, SHOWN, Field, agrees, canonical, city_centre, comparable, detail_key,
+from belong.schema import (HIDDEN, MAX_DETAILS, SHOWN, Field, agrees, canonical, city_center, comparable, detail_key,
                            detail_problems, detail_reasons, display_form, is_detail_key, km_between, meets,
                            mentions_sensitive, name_problems, own, plain_place, satisfies, says_nothing,
                            sensitive_categories, shown_claim_problems, split_key, vouching_problems)
@@ -21,7 +21,7 @@ def problems(*details, kind="other"):
     return detail_problems(details, kind)
 
 
-class OneNormaliser(unittest.TestCase):
+class OneNormalizer(unittest.TestCase):
     def test_case_width_accents_and_separators_are_one_value(self):
         for a, b in (("Same-Day", "same day"), ("ｓａｍｅ　ｄａｙ", "same day"), ("Café", "cafe"), ("MÜNCHEN", "munchen"),
                      ("night_owl", "night owl"), ("either/or", "either or"), ("  two   spaces ", "two spaces"),
@@ -48,15 +48,15 @@ class OneNormaliser(unittest.TestCase):
             self.assertLessEqual(len(schema._CANONICAL), 3)
 
     def test_places_are_compared_the_same_way_with_every_accent_off(self):
-        """One normaliser: a place written with hyphens, spaces, another width or a sharp s is one place, in
+        """One normalizer: a place written with hyphens, spaces, another width or a sharp s is one place, in
         matching as on the shared list."""
         for a, b in (("Saint-Étienne", "saint etienne"), ("Hann. Münden", "hann. munden"), ("Groß-Gerau", "gross gerau"),
                      ("Ｌｉｍｅｒｉｃｋ", "limerick"), ("Bad_Ischl", "Bad Ischl"), ("Ólafsvík", "olafsvik")):
             self.assertEqual(plain_place(a), plain_place(b), (a, b))
         self.assertEqual(km_between("Saint-Étienne", "France", "saint etienne", "france"), 0.0)
-        # Known city centres are found however their names are written.
-        self.assertEqual(city_centre("KÖLN", "Germany"), city_centre("koln", "germany"))
-        self.assertIsNotNone(city_centre("Lisboa", "PORTUGAL"))
+        # Known city centers are found however their names are written.
+        self.assertEqual(city_center("KÖLN", "Germany"), city_center("koln", "germany"))
+        self.assertIsNotNone(city_center("Lisboa", "PORTUGAL"))
 
     def test_values_are_stored_as_written_with_single_spaces(self):
         self.assertEqual(display_form("  Cello   Suite "), "Cello Suite")

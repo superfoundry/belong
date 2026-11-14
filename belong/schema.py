@@ -9,7 +9,7 @@ import this one. It defines:
     (me), what they'd like the other person's own value to be (them) or the request itself (both), how
     two values compare ("same" or an ordered scale of "steps"), and the entry rules every detail must
     pass (detail_problems);
-  - one normaliser (canonical) behind every comparison, count and crowd, and the comparisons themselves
+  - one normalizer (canonical) behind every comparison, count and crowd, and the comparisons themselves
     (own, says_nothing, comparable, satisfies, agrees, meets, detail_reasons), so matching and the Warden
     can't disagree;
   - the fixed sensitive-word check (SENSITIVE_WORDS), the contact rules (CONTACT_RULES), and the rule
@@ -18,7 +18,7 @@ import this one. It defines:
 
 Some read helpers read a value the same way everywhere it matters: a place name, how someone will meet
 (in person or online), how far they'll travel, the ages a dating listing asks for, and the distance
-between two cities (approximate city centres; SPEC §5 matching rules).
+between two cities (approximate city centers; SPEC §5 matching rules).
 """
 from __future__ import annotations
 
@@ -119,7 +119,7 @@ FIELD_REGISTRY: dict[str, FieldSpec] = {
     # cardboard boxes". The phrases above are for matching; this is what titles and questions say.
     "headline": FieldSpec(False, SHOWN),
     # A few broader areas the listing is about, written by the person's agent, so related
-    # requests can be recognised without a built-in list of activities.
+    # requests can be recognized without a built-in list of activities.
     "topics": FieldSpec(False, SHOWN, multi=True),
     # What the person's agent understood they want, recorded on the listing so matching uses it
     # instead of guessing from the description: the kind of match (one of MATCH_KINDS) and, for
@@ -199,9 +199,9 @@ TRAVEL = {"Same city": 0, "Up to 30 km": 30, "Up to 100 km": 100}
 TRAVEL_DEFAULT = "Same city"
 MAX_TRAVEL_KM = max(TRAVEL.values())
 
-# Approximate city centres (latitude, longitude), by plain city name and plain country (see plain_place; the
-# keys are put through it at import, below canonical): a city's centre is known only in its own country, so a
-# "Cambridge" shown with another country, or with none, has no known centre and is only ever "the same city"
+# Approximate city centers (latitude, longitude), by plain city name and plain country (see plain_place; the
+# keys are put through it at import, below canonical): a city's center is known only in its own country, so a
+# "Cambridge" shown with another country, or with none, has no known center and is only ever "the same city"
 # as itself. Data only: nothing here is about a person.
 CITY_COORDS = {
     **{(city, "japan"): at for city, at in {
@@ -235,15 +235,15 @@ def plain_place(value) -> Optional[str]:
     return " ".join(unicodedata.normalize("NFC", bare).split()) or None
 
 
-def city_centre(city, country) -> Optional[tuple]:
-    """A city's approximate centre, read in the country given with it (by plain names), or None if
+def city_center(city, country) -> Optional[tuple]:
+    """A city's approximate center, read in the country given with it (by plain names), or None if
     that city isn't known in that country, or no country is given."""
     return CITY_COORDS.get((plain_place(city), plain_place(country)))
 
 
 def km_between(city_a, country_a, city_b, country_b) -> Optional[float]:
     """Great-circle distance between two cities, each read in its own country: 0 for the same city
-    (by plain name) in the same country, None if either country is missing or either city's centre
+    (by plain name) in the same country, None if either country is missing or either city's center
     isn't known in its country."""
     a, b = plain_place(city_a), plain_place(city_b)
     ca, cb = plain_place(country_a), plain_place(country_b)
@@ -453,7 +453,7 @@ def field_to_json(f: Field):
 
 
 # --------------------------------------------------------------------------------------
-# One normaliser (SPEC §4). Every comparison, count, crowd, reveal and the shared list read values
+# One normalizer (SPEC §4). Every comparison, count, crowd, reveal and the shared list read values
 # through canonical(), so two agents' "Same-Day", "same day" and "ｓａｍｅ　ｄａｙ" are one value.
 # --------------------------------------------------------------------------------------
 
@@ -486,7 +486,7 @@ def _canonical(text: str) -> str:
     return " ".join(_SEPARATORS.sub(" ", unicodedata.normalize("NFC", "".join(kept))).split())
 
 
-# The city centres, keyed the way every place is compared (plain_place, which needs canonical).
+# The city centers, keyed the way every place is compared (plain_place, which needs canonical).
 CITY_COORDS = {(plain_place(city), plain_place(country)): at for (city, country), at in CITY_COORDS.items()}
 
 
@@ -680,7 +680,7 @@ def _one_detail_problems(f: Field, kind) -> list[str]:
         elif f.about != "them" and len(values) != 1:
             out.append("give the one step that applies")
         elif at != list(range(at[0], at[0] + len(at))):
-            out.append("what you'd like must be neighbouring steps, in the scale's order")
+            out.append("what you'd like must be neighboring steps, in the scale's order")
     # Sensitive words in a name are covered by name_problems; here, in its steps and values (each read on its
     # own, with the category nouns counting anywhere, as in a name).
     named = sensitive_categories(f.name, in_detail=True)

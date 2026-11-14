@@ -366,7 +366,7 @@ class TheRule(unittest.TestCase):
         self.assertEqual([r["required"] for r in rows], [True, False, False, False, False])
 
     def test_the_rule_based_agents_own_wishes_are_their_words(self):
-        """The offline agent's behaviour doesn't change: what both must share comes from a listed value said in the
+        """The offline agent's behavior doesn't change: what both must share comes from a listed value said in the
         message, so the rule leaves it a must."""
         vocab = {"details": [{"about": "both", "name": "sail day", "compare": "same"}], "scales": [],
                  "values": [{"about": "both", "name": "sail day", "value": "saturday"}],

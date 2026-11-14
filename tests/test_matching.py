@@ -173,7 +173,7 @@ class IntentReading(unittest.TestCase):
     def test_parser_agrees_with_truth_on_synthetic_people(self):
         for p in generate(300, 11):
             if not p.truth.bad_intent:
-                # Everything but dating is recognised by its seeking/offering phrases, not the text, so
+                # Everything but dating is recognized by its seeking/offering phrases, not the text, so
                 # the text must not look like dating.
                 expected = "dating" if p.truth.kind == "dating" else None
                 self.assertEqual(parse_intent(p.intent_text).kind, expected, p.intent_text)

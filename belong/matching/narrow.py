@@ -8,7 +8,7 @@
   2. Where, by travel distance (in person only). Two cities are in reach when the distance
      between them is within *both* people's shown "travel" (same city = 0 km; no travel
      given = the same city only). A distance is used only between two cities in the country
-     both people show, each city's centre read in that country: a city whose centre isn't
+     both people show, each city's center read in that country: a city whose center isn't
      known there (or a listing that shows no country) is only in reach of a city of the same
      name. In the same country, someone who gives no city is open to anywhere in it.
   3. What, by meaning. Dating, which has rules of its own, is compared with dating (the kind the
@@ -152,7 +152,7 @@ def _km(a: str, b: str, country: str):
 def _near(city: str, country) -> list:
     """Known cities in the same country within the longest travel distance of this one, with their
     distance: worked out once, so a listing only ever looks at the cities it could reach. A city whose
-    centre isn't known in the country shown with it (or with no country) has none."""
+    center isn't known in the country shown with it (or with no country) has none."""
     if not _NEAR:
         for a, a_country in CITY_COORDS:
             _NEAR[(a, a_country)] = sorted(
@@ -166,7 +166,7 @@ def within_reach(av: ShownView, bv: ShownView):
     city, or within both people's travel distance), "country" if they share a country and at least
     one is open to anywhere in it (no city given), else None. Shown fields only.
 
-    A distance needs both people to show the same country, and each city's centre is read in that
+    A distance needs both people to show the same country, and each city's center is read in that
     country, so a Cambridge in one country is never near a London in another. Without both
     countries, a city is only in reach of a city of the same name."""
     a_city, b_city = _place(av.get("city")), _place(bv.get("city"))
@@ -177,7 +177,7 @@ def within_reach(av: ShownView, bv: ShownView):
         if a_city == b_city:
             return "city"
         if not (a_country and b_country):
-            return None  # no shown country, so no known centre: only the same city
+            return None  # no shown country, so no known center: only the same city
         km = _km(a_city, b_city, a_country)
         return "city" if km is not None and km <= min(travel_km(av), travel_km(bv)) else None
     if a_country and b_country:

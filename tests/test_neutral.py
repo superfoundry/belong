@@ -150,7 +150,7 @@ class WordedForAnyListing(unittest.TestCase):
             self.assertFalse([w for w in ACTIVITY_WORDS if said(w, label)], (key, label))
         for kind, words in agent._KIND_NAMES.items():
             self.assertFalse([w for w in ACTIVITY_WORDS if said(w, words)], (kind, words))
-        # An open detail is labelled by its own name, whatever name its agent chose.
+        # An open detail is labeled by its own name, whatever name its agent chose.
         self.assertEqual(agent.label_for(detail_key("them", "noise tolerance")), "Noise tolerance")
 
     def test_the_wardens_reasons_name_no_activity(self):
