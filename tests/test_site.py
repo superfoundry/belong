@@ -1,5 +1,5 @@
-"""The public website (site/, built by tools/build_site.py): its two pages (the landing page and the Use page, whose
-technical part is made from site/use.md) and the plain text published for AI agents (use.md, llms.txt) say Belong
+"""The public website (site/, built by tools/build_site.py): its pages (the landing page, the Use page, whose
+technical part is made from site/use.md, with badges between the ways in and that part) and the plain text published for AI agents (use.md, llms.txt) say Belong
 the way every page does, use the design system's words, logo and tokens only, never reuse the demo's examples,
 never link to the internal demo or the source repository, never overclaim privacy, and load nothing from any other
 host, so visiting it tells no third party anything."""
@@ -53,7 +53,7 @@ def text_of(page: Path) -> str:
 
 class TheSiteSpeaksLikeBelong(unittest.TestCase):
     def test_the_pages_are_there(self):
-        """Two pages, by the owner's choice: the landing page and the Use page."""
+        """Two pages, by the owner's choice: the landing page and the Use page, which carries badges too."""
         self.assertEqual({str(p.relative_to(OUT)) for p in pages()}, {"index.html", "use.html"})
         self.assertEqual({str(p.relative_to(OUT)) for p in texts()}, {"use.md", "llms.txt"})
 
@@ -95,7 +95,7 @@ class TheSiteSpeaksLikeBelong(unittest.TestCase):
             self.assertEqual([w for w in ACTIVITY_WORDS if said(w, text)], [], page.name)
 
     def test_styled_only_with_tokens(self):
-        """No colour of its own: every colour comes from the design system's tokens."""
+        """No color of its own: every color comes from the design system's tokens."""
         for path in [*SITE.rglob("*.css"), *SITE.rglob("*.html")]:
             css = path.read_text(encoding="utf-8")
             if path.suffix == ".html":

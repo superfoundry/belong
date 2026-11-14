@@ -1,6 +1,6 @@
 # Connect an AI or app to Belong
 
-Examples use `https://belong.example`, a placeholder. This page is also published as plain text at `use.md`,
+Examples use `https://belong.one`. This page is also published as plain text at `use.md`,
 with a short index at `llms.txt`, for AI agents to read.
 
 ## In short
@@ -16,7 +16,7 @@ for them, and Belong may block one that abuses the system.
 - **Person.** Decides what to list, what is **shown** and what is **hidden**, and yes or no.
 - **Front end and its agent.** Writes listings with the person, shows matches, carries conversations.
 - **Belong.** Checks that each person is real (one account each), runs the matcher, and has the Warden
-  check every listing in and build every output out, with fixed rules and no AI judgement. The matcher
+  check every listing in and build every output out, with fixed rules and no AI judgment. The matcher
   reads hidden details too; the Warden makes sure nothing hidden ever reaches anyone else.
 
 ## Rules for an agent acting for a person
@@ -49,7 +49,7 @@ A front end must never:
 An assistant that supports MCP connectors (Model Context Protocol) adds Belong by its URL:
 
 ```json
-{"mcpServers": {"belong": {"url": "https://belong.example/mcp"}}}
+{"mcpServers": {"belong": {"url": "https://belong.one/mcp"}}}
 ```
 
 The assistant's host signs in under the MCP authorization spec, built on OAuth 2.1: it finds the
@@ -89,8 +89,8 @@ either. It gets access through **OAuth 2.1 with PKCE and DPoP**. Use an OAuth cl
 supports both rather than writing the cryptography yourself.
 
 **0. Find the endpoints.** Call the API without a token, or read
-`https://belong.example/.well-known/oauth-protected-resource` (RFC 9728). Take `resource`
-(`https://belong.example/v0`, matched exactly) and the authorization server, then read that server's
+`https://belong.one/.well-known/oauth-protected-resource` (RFC 9728). Take `resource`
+(`https://belong.one/v0`, matched exactly) and the authorization server, then read that server's
 metadata (RFC 8414) for `registration_endpoint`, `authorization_endpoint`, `token_endpoint` and
 `revocation_endpoint`. The paths below are examples.
 
@@ -99,7 +99,7 @@ metadata document, so the consent page can show a domain you've proved.
 
 ```http
 POST /oauth/register HTTP/1.1
-Host: belong.example
+Host: belong.one
 Content-Type: application/json
 
 {"client_name": "Morning Swims",
@@ -109,7 +109,7 @@ Content-Type: application/json
  "scope": "listings:read listings:write matches:read matches:answer introductions:read"}
 ```
 
-The answer carries your `client_id`. The consent page shows your name labelled as self-described, next
+The answer carries your `client_id`. The consent page shows your name labeled as self-described, next
 to your redirect host. Ask only for the scopes you use.
 
 **2. Make a key pair** for DPoP (P-256, `ES256`), non-exportable in the platform's key store.
@@ -117,11 +117,11 @@ to your redirect host. Ask only for the scopes you use.
 **3. Send the person to Belong** in the system browser, never an embedded web view.
 
 ```text
-https://belong.example/oauth/authorize?response_type=code&client_id=cl_8f2kq0
+https://belong.one/oauth/authorize?response_type=code&client_id=cl_8f2kq0
   &redirect_uri=https%3A%2F%2Fmorningswims.example%2Fcallback
   &scope=listings%3Aread%20listings%3Awrite%20matches%3Aread%20matches%3Aanswer%20introductions%3Aread
   &state=Wq3n...&code_challenge=E9Mel...&code_challenge_method=S256
-  &resource=https%3A%2F%2Fbelong.example%2Fv0&dpop_jkt=NzbLs...
+  &resource=https%3A%2F%2Fbelong.one%2Fv0&dpop_jkt=NzbLs...
 ```
 
 The person signs in with their passkey and approves, possibly unticking some scopes. Belong redirects
@@ -132,12 +132,12 @@ put it in a new proof and retry.
 
 ```http
 POST /oauth/token HTTP/1.1
-Host: belong.example
+Host: belong.one
 Content-Type: application/x-www-form-urlencoded
 DPoP: eyJ0eXAiOiJkcG9wK2p3dCIs...
 
 grant_type=authorization_code&code=SplxlO...&client_id=cl_8f2kq0&code_verifier=dBjftJ...
-&redirect_uri=https%3A%2F%2Fmorningswims.example%2Fcallback&resource=https%3A%2F%2Fbelong.example%2Fv0
+&redirect_uri=https%3A%2F%2Fmorningswims.example%2Fcallback&resource=https%3A%2F%2Fbelong.one%2Fv0
 ```
 
 ```json
@@ -151,7 +151,7 @@ The `scope` returned is what you have, which may be less than you asked for.
 
 ```http
 POST /v0/matches HTTP/1.1
-Host: belong.example
+Host: belong.one
 Authorization: DPoP Kz~8mXK1...
 DPoP: eyJ0eXAiOiJkcG9wK2p3dCIs...
 Content-Type: application/json

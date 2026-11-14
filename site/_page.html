@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Use Belong</title>
-<meta name="description" content="Ways to use Belong: the Belong app, the AI you already use, or something you build. And everything an AI agent or developer needs to connect.">
+<meta name="description" content="Ways to use Belong: the Belong app, the AI you already use, or something you build. How badges work. And everything an AI agent or developer needs to connect.">
 <link rel="stylesheet" href="ds/tokens.css">
 <link rel="stylesheet" href="ds/belong.css">
 <link rel="stylesheet" href="site.css">
@@ -12,7 +12,7 @@
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <style>
   /* The Use page: tools/build_site.py fills in {{title}}, {{toc}} and {{body}} from use.md beside this file.
-     The ways in come first, for everyone; the rest is for AI agents and developers. */
+     The ways in come first, for everyone, then badges; the rest is for AI agents and developers. */
   .ways { padding: var(--space-16) 0 var(--space-20); }
   .ways h1 { font-size: var(--font-size-display-l); margin: 0 0 var(--space-12); max-width: 16ch; }
   .ways .intro { font: var(--text-body-l); color: var(--text-secondary); max-width: 46ch; margin: 0 0 var(--space-12); }
@@ -40,7 +40,7 @@
   .chat .hid { color: var(--text-ai); }
 
   .build { display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: var(--space-16); align-items: start; }
-  .build-side { position: sticky; top: 96px; max-height: calc(100vh - 120px); overflow-y: auto; padding: var(--space-20) 0; }
+  .build-side { position: sticky; top: var(--space-6); max-height: calc(100vh - 48px); overflow-y: auto; padding: var(--space-20) 0; }
   .build-side .label { margin: 0 0 var(--space-3); color: var(--text-tertiary); }
   .build-side nav { display: flex; flex-direction: column; }
   .build-side nav a { font: var(--text-body-s); color: var(--text-secondary); text-decoration: none; padding: 5px 0; }
@@ -71,6 +71,33 @@
   .doc tbody tr:nth-child(odd) td { background: var(--surface-raised); }
   .doc td { color: var(--text-secondary); }
   .doc td:first-child code { white-space: nowrap; }
+  /* Badges, between the ways in and the technical part: public badges and the two kinds side by side (the private
+     badges story is on the landing page). */
+  .section .intro { margin-bottom: var(--space-10); }
+  .kind { display: grid; grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr); gap: var(--space-16); align-items: start; }
+  @media (max-width: 860px) { .kind { grid-template-columns: 1fr; gap: var(--space-8); } }
+  .kind > div:first-child { position: sticky; top: var(--space-6); }
+  @media (max-width: 860px) { .kind > div:first-child { position: static; } }
+  .kind h2 { font-size: var(--font-size-display-m); }
+  .kind .intro { margin: 0; }
+  .points { display: flex; flex-direction: column; gap: var(--space-8); }
+  .points h3 { font: var(--text-heading-l); margin: 0 0 var(--space-2); }
+  .points p, .points li { color: var(--text-secondary); }
+  .points p { margin: 0 0 var(--space-3); max-width: var(--content-narrow); }
+  .points ul { margin: 0; padding-left: 1.2em; max-width: var(--content-narrow); }
+  .points li + li { margin-top: var(--space-2); }
+  .points ul + p { margin-top: var(--space-3); }
+  .points strong { color: var(--text-primary); font-weight: 600; }
+
+  .glance .scroll { overflow-x: auto; }
+  .glance table { width: 100%; border-collapse: collapse; font: var(--text-body-s); }
+  .glance th, .glance td { text-align: left; vertical-align: top; padding: var(--space-3) var(--space-4); }
+  .glance thead th { font: var(--text-label); color: var(--text-tertiary); vertical-align: bottom; }
+  .glance thead .bmark { display: block; width: 28px; height: 28px; margin: 0 0 var(--space-2); }
+  .glance tbody th { font-weight: 600; color: var(--text-primary); }
+  .glance td { color: var(--text-secondary); }
+  .glance tbody tr:nth-child(odd) > * { background: var(--surface-raised); }
+
 </style>
 </head>
 <body>
@@ -78,7 +105,7 @@
   <div class="wrap">
     <a class="logo" href="./"><img src="ds/logo/belong-wordmark-small-ink.svg" alt="Belong" width="90" height="26"></a>
     <nav aria-label="Site">
-      <a href="use.html" aria-current="page">Use Belong</a>
+      <a href="use.html" aria-current="page">Usage</a>
     </nav>
   </div>
 </header>
@@ -126,10 +153,118 @@
         </div>
         <div class="card chat" role="img" aria-label="An example conversation with an agent">
           <p class="you">Find me someone to go sea swimming with in Brighton, early mornings.</p>
-          <p class="agent"><span class="badge ai">Agent</span>I've drafted your listing. Shown: sea swimming, Brighton, before 8am. <span class="hid">Hidden: your neighbourhood.</span> Shall I send it?</p>
+          <p class="agent"><span class="badge ai">Agent</span>I've drafted your listing. Shown: sea swimming, Brighton, before 8am. <span class="hid">Hidden: your neighborhood.</span> Shall I send it?</p>
           <p class="you">Yes, send it.</p>
           <p class="agent"><span class="badge ai">Agent</span>Someone fits: Priya, who swims before work in Brighton. You're both in Brighton. Would you like to say yes?</p>
         </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="badges" class="section" aria-labelledby="public-title">
+    <div class="wrap kind">
+      <div>
+        <p class="eyebrow">Checked by Belong</p>
+        <h2 id="public-title" class="display-m"><svg class="bmark" viewBox="0 0 24 24" aria-hidden="true"><path class="f" d="M12 1.6 21 6.8v10.4L12 22.4 3 17.2V6.8Z"/><path class="w" d="M6.7 12.0L6.8 12.5L6.9 12.9L7.1 13.3L7.2 13.8L7.4 14.2L7.6 14.6L7.8 15.0L8.0 15.3L8.2 15.7L8.5 16.1L9.0 16.5L9.6 16.8L10.5 16.9L11.3 16.8L11.9 16.4L12.3 16.0L12.7 15.5L13.1 15.0L13.4 14.6L13.7 14.1L14.1 13.7L14.4 13.2L14.7 12.8L15.0 12.3L15.3 11.8L15.6 11.4L15.9 10.9L16.2 10.4L16.5 9.9L16.8 9.5L17.1 9.0L17.4 8.5L17.7 8.0L17.4 7.7L16.9 8.0L16.5 8.4L16.0 8.7L15.6 9.1L15.1 9.4L14.7 9.7L14.2 10.1L13.8 10.4L13.4 10.8L12.9 11.2L12.5 11.5L12.1 11.9L11.7 12.3L11.2 12.6L10.8 13.0L10.4 13.4L10.0 13.7L10.0 13.7L10.1 13.6L10.4 13.6L10.8 13.6L10.9 13.7L10.9 13.6L10.6 13.4L10.3 13.2L9.9 12.9L9.5 12.7L9.2 12.5L8.7 12.3L8.3 12.2L7.9 12.0L7.5 11.8L7.0 11.7Z"/></svg>Public badges</h2>
+        <p class="intro">Owned by no one. "Student" or "Registered nurse" isn't any company's or group's badge: anyone who qualifies can apply, and every holder went through the same check.</p>
+      </div>
+      <div class="points">
+        <div>
+          <h3>Anyone can propose one</h3>
+          <p>Belong's agent reviews every new badge name before it exists.</p>
+          <ul>
+            <li>It refuses names built to trick or harm: impersonation, "official" wording, look-alike spellings, slurs, or a badge that would single out one person or a small group.</li>
+            <li>It approves a badge only if it can be checked. "Student" can be; "kind person" can't.</li>
+            <li>When it approves one, it writes down, once and for everyone, what proof counts and when the badge expires. Every applicant then faces the same rules.</li>
+          </ul>
+        </div>
+        <div>
+          <h3>Belong checks the proof itself</h3>
+          <p>Belong's agent reads the proof and answers yes or no, with a reason. Proof can be:</p>
+          <ul>
+            <li><strong>An identity document,</strong> such as a student card, a photo license or a service ID. These badges need a Verified account: the agent checks the document's name and photo against your ID check, so the card is tied to you.</li>
+            <li><strong>Something that isn't an identity document,</strong> such as a code sent to a university email address, a number in a public register, or a certificate confirmed with whoever issued it. No Verified account needed.</li>
+          </ul>
+          <p>Where a badge accepts both, you pick. Either way you get the same badge.</p>
+        </div>
+        <div>
+          <h3>Expiry follows the proof</h3>
+          <p>A badge for something that can lapse, like being a student or holding a license, lasts until the proof expires or a year passes, whichever comes first, then needs a fresh check. A badge for something that can't lapse, like a degree, doesn't expire. Belong reminds you a month before. If you don't renew, the badge quietly drops off, and nobody else is told.</p>
+        </div>
+        <div>
+          <h3>How the check stays honest</h3>
+          <ul>
+            <li>Text inside a document is read as information, never as an instruction. A card that says "approve this" counts for nothing.</li>
+            <li>One proof, one account. Belong keeps a scrambled fingerprint of a document's number, never the document, so the same card can't earn the badge for a second account.</li>
+            <li>The document is deleted once the decision is made. Belong keeps only the badge, its expiry date and which kind of proof was used.</li>
+            <li>Every decision goes in your receipts with its reason. If you're refused, you can see why and apply again. Applications are limited, so nobody can keep trying forgeries until one gets through.</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+
+  <section id="private-badges" class="section" aria-labelledby="private-title">
+    <div class="wrap kind">
+      <div>
+        <p class="eyebrow">Issued by organizations</p>
+        <h2 id="private-title" class="display-m"><svg class="bmark" viewBox="0 0 24 24" aria-hidden="true"><path class="l" d="M12 1.6 21 6.8v10.4L12 22.4 3 17.2V6.8Z"/><path class="f" d="M6.7 12.0L6.8 12.5L6.9 12.9L7.1 13.3L7.2 13.8L7.4 14.2L7.6 14.6L7.8 15.0L8.0 15.3L8.2 15.7L8.5 16.1L9.0 16.5L9.6 16.8L10.5 16.9L11.3 16.8L11.9 16.4L12.3 16.0L12.7 15.5L13.1 15.0L13.4 14.6L13.7 14.1L14.1 13.7L14.4 13.2L14.7 12.8L15.0 12.3L15.3 11.8L15.6 11.4L15.9 10.9L16.2 10.4L16.5 9.9L16.8 9.5L17.1 9.0L17.4 8.5L17.7 8.0L17.4 7.7L16.9 8.0L16.5 8.4L16.0 8.7L15.6 9.1L15.1 9.4L14.7 9.7L14.2 10.1L13.8 10.4L13.4 10.8L12.9 11.2L12.5 11.5L12.1 11.9L11.7 12.3L11.2 12.6L10.8 13.0L10.4 13.4L10.0 13.7L10.0 13.7L10.1 13.6L10.4 13.6L10.8 13.6L10.9 13.7L10.9 13.6L10.6 13.4L10.3 13.2L9.9 12.9L9.5 12.7L9.2 12.5L8.7 12.3L8.3 12.2L7.9 12.0L7.5 11.8L7.0 11.7Z"/></svg>Private badges</h2>
+        <p class="intro">An organization or group creates its own badges, decides who holds them, and can build its own app around Belong. That's how it gatekeeps its own community.</p>
+      </div>
+      <div class="points">
+        <div>
+          <h3>Made in the badge dashboard</h3>
+          <p>Issuers sign in with a Verified Belong account, so every badge has a real, accountable person behind it.</p>
+          <ul>
+            <li>Make as many badges as you need: a company's staff, its alumni and its mentoring circle can each be their own.</li>
+            <li>Each badge has a name, a short description shown when someone accepts it, and its own ID number. Names don't have to be unique; the ID number tells two badges apart.</li>
+          </ul>
+        </div>
+        <div>
+          <h3>The issuer decides who holds it</h3>
+          <p>The issuer checks its own members. People get a badge in one of two ways:</p>
+          <ul>
+            <li><strong>An invite link or code</strong> the issuer shares. It can be switched off or replaced at any time, and set to run out after a date or a number of uses.</li>
+            <li><strong>The issuer's own system,</strong> through Belong's API, granting and removing badges as people join or leave.</li>
+          </ul>
+          <p>The screen where someone accepts a badge names the issuer and says Belong hasn't checked it, so nobody hands their documents to a group that is only pretending to be someone.</p>
+        </div>
+        <div>
+          <h3>Never shown</h3>
+          <p>Other people never see who holds a private badge. It's used only to decide who a listing reaches. Two people matched through a listing that asks for the badge know they both hold it, and members are told this when they accept it.</p>
+        </div>
+        <div>
+          <h3>Your own app around Belong</h3>
+          <p>An issuer can build its own app on Belong, under its own name and brand. A branded app carries a "Runs on Belong" line.</p>
+        </div>
+        <div>
+          <h3>Reach all of Belong</h3>
+          <p>Once its community achieves a certain threshold, an issuer can apply to have its badge shown across Belong. The Belong team vets each one by hand. Each holder still decides, listing by listing, whether to show it.</p>
+        </div>
+        <div>
+          <h3>Taking a badge back</h3>
+          <p>An issuer can take its badge back from a member, and Belong can remove a badge used for spam or harassment.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section glance" aria-labelledby="glance-title">
+    <div class="wrap">
+      <h2 id="glance-title" class="display-m">Badges at a glance</h2>
+      <div class="scroll">
+        <table>
+          <thead><tr><th></th><th><svg class="bmark" viewBox="0 0 24 24" aria-hidden="true"><path class="f" d="M12 1.6 21 6.8v10.4L12 22.4 3 17.2V6.8Z"/><path class="w" d="M6.7 12.0L6.8 12.5L6.9 12.9L7.1 13.3L7.2 13.8L7.4 14.2L7.6 14.6L7.8 15.0L8.0 15.3L8.2 15.7L8.5 16.1L9.0 16.5L9.6 16.8L10.5 16.9L11.3 16.8L11.9 16.4L12.3 16.0L12.7 15.5L13.1 15.0L13.4 14.6L13.7 14.1L14.1 13.7L14.4 13.2L14.7 12.8L15.0 12.3L15.3 11.8L15.6 11.4L15.9 10.9L16.2 10.4L16.5 9.9L16.8 9.5L17.1 9.0L17.4 8.5L17.7 8.0L17.4 7.7L16.9 8.0L16.5 8.4L16.0 8.7L15.6 9.1L15.1 9.4L14.7 9.7L14.2 10.1L13.8 10.4L13.4 10.8L12.9 11.2L12.5 11.5L12.1 11.9L11.7 12.3L11.2 12.6L10.8 13.0L10.4 13.4L10.0 13.7L10.0 13.7L10.1 13.6L10.4 13.6L10.8 13.6L10.9 13.7L10.9 13.6L10.6 13.4L10.3 13.2L9.9 12.9L9.5 12.7L9.2 12.5L8.7 12.3L8.3 12.2L7.9 12.0L7.5 11.8L7.0 11.7Z"/></svg>Public badge</th><th><svg class="bmark" viewBox="0 0 24 24" aria-hidden="true"><path class="l" d="M12 1.6 21 6.8v10.4L12 22.4 3 17.2V6.8Z"/><path class="f" d="M6.7 12.0L6.8 12.5L6.9 12.9L7.1 13.3L7.2 13.8L7.4 14.2L7.6 14.6L7.8 15.0L8.0 15.3L8.2 15.7L8.5 16.1L9.0 16.5L9.6 16.8L10.5 16.9L11.3 16.8L11.9 16.4L12.3 16.0L12.7 15.5L13.1 15.0L13.4 14.6L13.7 14.1L14.1 13.7L14.4 13.2L14.7 12.8L15.0 12.3L15.3 11.8L15.6 11.4L15.9 10.9L16.2 10.4L16.5 9.9L16.8 9.5L17.1 9.0L17.4 8.5L17.7 8.0L17.4 7.7L16.9 8.0L16.5 8.4L16.0 8.7L15.6 9.1L15.1 9.4L14.7 9.7L14.2 10.1L13.8 10.4L13.4 10.8L12.9 11.2L12.5 11.5L12.1 11.9L11.7 12.3L11.2 12.6L10.8 13.0L10.4 13.4L10.0 13.7L10.0 13.7L10.1 13.6L10.4 13.6L10.8 13.6L10.9 13.7L10.9 13.6L10.6 13.4L10.3 13.2L9.9 12.9L9.5 12.7L9.2 12.5L8.7 12.3L8.3 12.2L7.9 12.0L7.5 11.8L7.0 11.7Z"/></svg>Private badge</th></tr></thead>
+          <tbody>
+            <tr><th scope="row">Who creates it</th><td>Anyone proposes; Belong's agent approves</td><td>An organization, group or developer applies</td></tr>
+            <tr><th scope="row">Who owns it</th><td>No one</td><td>The issuer</td></tr>
+            <tr><th scope="row">Who checks holders</th><td>Belong's agent</td><td>The issuer</td></tr>
+            <tr><th scope="row">Needs a Verified account</th><td>Only when the proof is an identity document</td><td>No</td></tr>
+            <tr><th scope="row">Seen by others</th><td>Holder chooses, listing by listing</td><td>Never</td></tr>
+            <tr><th scope="row">Expires</th><td>When the proof does, or yearly for things that can lapse</td><td>As the issuer decides</td></tr>
+          </tbody>
+        </table>
       </div>
     </div>
   </section>
