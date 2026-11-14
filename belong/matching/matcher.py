@@ -68,14 +68,14 @@ ROLE_WORDS = {"teach", "student", "partner"}
 # Purely social wording: someone who just wants company is open to any activity.
 SOCIAL_WORDS = {"social", "hangout", "hang", "out", "meet", "meetup", "company", "chat", "casual", "fun", "time"}
 # With a wide net, these roles may stand in for each other when the activity overlaps:
-# a learner happy to practise with a peer, a peer happy to help a learner.
+# a learner happy to practice with a peer, a peer happy to help a learner.
 _ROLE_RELAX = {"teach": {"partner"}, "partner": {"student", "teach"}, "student": {"partner"}}
 
 
 def phrase_tokens(text: str) -> list:
     """Content words of a short phrase, in any script (text.letter_words: compared the way every value
     is, so "Café" and "cafe" agree, and a phrase in Japanese or Cyrillic has words too), crudely
-    normalised on Latin words so 'painter', 'painters' and 'paint' agree, as do 'planner' and 'plan'."""
+    normalized on Latin words so 'painter', 'painters' and 'paint' agree, as do 'planner' and 'plan'."""
     found = _TOKENS.get(text)
     if found is None:  # the same few phrases come up for every pair they're in
         if len(_TOKENS) > 50_000:
@@ -257,7 +257,7 @@ def _topic_words(topics) -> set:
 def nearly(wanted, offered, wanted_topics=(), offered_topics=(), own_offer=None) -> bool:
     """Is `offered` nearly what `wanted` asks for? Roles must line up (a coach is never nearly a
     student), and the two must share an activity: a word or stem in their phrases, or one of the
-    broader topics each person's agent wrote for the listing (someone wanting a watercolour
+    broader topics each person's agent wrote for the listing (someone wanting a watercolor
     teacher and someone teaching oil painting might both list "painting"). With `own_offer` (the
     wanting person's own "you are"), every word they lack (_lacks: what they look for and aren't)
     besides its main noun, which is what may differ in a near match, must be the same word or stem
@@ -321,7 +321,7 @@ def _index_keys(tokens) -> set:
 
 def index_words(view) -> tuple:
     """What narrowing indexes a listing under (narrow.shortlists, step 3), read with the same
-    tokenisation the decisions below use, so any two listings that intent_met or nearly() could
+    tokenization the decisions below use, so any two listings that intent_met or nearly() could
     accept share at least one key:
       want: the words of each option in what it's looking for ("seeking"), and its topics;
       have: the words of what it is ("offering"), its topics, and what it shows about itself (about():

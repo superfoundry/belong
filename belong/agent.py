@@ -234,7 +234,7 @@ _WHOSE = _re.compile(r"(my|our|your|his|her|their|whose)\s+")
 _OTHERS_OWN = _re.compile(r"[\w'’-]*(?:['’]s|s['’])\s")
 
 
-# --- What the offline agent recognises ---------------------------------------------------------
+# --- What the offline agent recognizes ---------------------------------------------------------
 # The range of what people type is endless, so the offline agent never copies a person's own words into a
 # detail that is shown. Its vocabulary is the shared list of details in use (Warden.details_in_use): words at
 # least K_CROWD other people already show, so nothing on it is anyone's own. It writes a listed topic, or what
@@ -268,7 +268,7 @@ class Words:
     listed value it may write as the person's own (me) or the request's (both), and every step of a listed
     scale about the person or the request (the scale is listed, so each of its steps is a listed word): only
     one listed under exactly one name, never "any". cities: {plain city: {countries}}, the cities with a known
-    centre (schema.CITY_COORDS) and the listed places; a city in two countries ("Cambridge") has no country of
+    center (schema.CITY_COORDS) and the listed places; a city in two countries ("Cambridge") has no country of
     its own."""
     activities: tuple = ()
     values: dict = field(default_factory=dict)
@@ -935,7 +935,7 @@ def starts_another_request(message: str, earlier, words=None) -> bool:
 
 
 # The last word of a text when a full stop after it doesn't end a sentence, as the Warden's full-name rule reads one
-# (warden.full_name_pairs): an initial or a short capitalised word without vowels, a title ("J", "Dr", "St").
+# (warden.full_name_pairs): an initial or a short capitalized word without vowels, a title ("J", "Dr", "St").
 _NO_STOP = _re.compile(r"(?<![\w'’])(?:[A-Z]|[A-Z][b-df-hj-np-tv-xz]{1,2})\.?$")
 
 
@@ -943,7 +943,7 @@ def _ended(text: str) -> str:
     """The text ending a sentence, so a message after it starts one: as it is after "!" or "?", or a full stop that
     ends one; else with a full stop; or, after a word a full stop doesn't end (_NO_STOP: "J. Okafor" reads as one
     name), a semicolon. Two messages put together then never make words of one look like they run on into the
-    other's, a name of two capitalised words included ("...speaks French" and "Based in Lisbon")."""
+    other's, a name of two capitalized words included ("...speaks French" and "Based in Lisbon")."""
     text = text.rstrip(" ,;:")
     if _NO_STOP.search(text):
         return f"{text};"
@@ -979,7 +979,7 @@ def _kept_from(old: dict, v: dict, kind, same: bool, here=(None, None)) -> dict:
     A different request: only what's about the person and isn't sensitive (never the old request's own details),
     as carry_over keeps for a model agent. Where they are is one place: once the message says they are somewhere
     else (here: where_they_are, a city or a country), none of the earlier place comes over (its city, country or
-    neighbourhood). Nothing that kind can't have (carries, and a format only where it has one: has_format), as
+    neighborhood). Nothing that kind can't have (carries, and a format only where it has one: has_format), as
     fill_gaps keeps it."""
     rows = {f["key"]: f for f in old.get("fields", []) or [] if isinstance(f, dict) and isinstance(f.get("key"), str)
             and f["key"] in FIELD_REGISTRY and f.get("enabled", True) and f.get("value") not in (None, "", [])}
@@ -1214,7 +1214,7 @@ def draft_from_message(message: str, first_name: str, age_band: str, kind=None, 
 # Instant profile updates (used by the demo while the agent is still replying).
 #
 # Picks out only facts stated plainly enough to be sure of ("I live in Osaka", "I'm a woman",
-# "within 30 km"), and only in words it recognises: a place it knows, a fixed choice, a listed
+# "within 30 km"), and only in words it recognizes: a place it knows, a fixed choice, a listed
 # activity they teach or want to learn. Anything else is left for the agent (and the person).
 # --------------------------------------------------------------------------------------
 
@@ -1337,7 +1337,7 @@ def known_city(text, words=None) -> tuple:
 
 
 def quick_facts(text: str, words=None) -> dict:
-    """Built-in facts stated plainly in one message, as field -> value, only in words the agent recognises:
+    """Built-in facts stated plainly in one message, as field -> value, only in words the agent recognizes:
     a known city and its country, a country, their gender, an amount of pay, how they'll meet and how far
     they'll travel (fixed choices), and a listed activity they teach or want to learn. Nothing else from the
     message is copied: "I live in Galway" (not a known city) or "I'm in therapy" sets no city, "I'm offering
@@ -1862,7 +1862,7 @@ def says_in_some_form(value, words: set) -> bool:
 
 # The parts that say what a listing is about, in the person's words or their agent's, and the one part their agent
 # writes from them: related topics are its own reading of what the listing is about (broader areas), so they follow
-# what it's about, not only the words they share with it. A detail says something about the listing (a colour, a size,
+# what it's about, not only the words they share with it. A detail says something about the listing (a color, a size,
 # a level), not what it is: a change to one rereads the topics only when the headline, seeking or offering, which name
 # what it is, still says what it replaced (being brought in line anyway, so no turn is added for it); the description
 # says everything (the place and times too), so its saying it doesn't count.

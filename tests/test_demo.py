@@ -1157,7 +1157,7 @@ class SaveDraft(unittest.TestCase):
     def test_what_you_say_about_yourself_is_read_as_yours(self):
         """An open detail about the person is read as theirs on the phone too: their own job and looks save, a clue
         about someone else written there is refused with how to change it (as the Warden would refuse it). A pair
-        of capitalised words on two lines is explained as one."""
+        of capitalized words on two lines is explained as one."""
         from belong.agent_llm import IDENTIFIERS_HINT
         s = self.s
         s.save_draft("A", self.phone_copy(me_free_time=["barista at the bus station café"]))
@@ -1515,7 +1515,7 @@ class OpenDetailsInThePage(_Node, unittest.TestCase):
             about, name = split_key(key)
             self.assertEqual(parts, {"about": about, "name": name} if about else None, key)
 
-    def test_what_you_like_in_them_stays_a_run_of_neighbouring_steps(self):
+    def test_what_you_like_in_them_stays_a_run_of_neighboring_steps(self):
         out = self.run_js(("function toggleStep",), """
 const f = { steps: ["a", "b", "c", "d"], value: [] }, seen = [];
 const cur = () => ({ draft: { fields: [f] } }), renderPhone = () => {};
@@ -1969,7 +1969,7 @@ class ARequestInPieces(unittest.TestCase):
         self.assertNotIn("Which city?", " ".join(m["text"] for m in l["chat"]))
 
     def test_two_clean_messages_make_a_draft_matching_admits(self):
-        """Each message is a sentence of its own in the description, so a capitalised word ending one and another
+        """Each message is a sentence of its own in the description, so a capitalized word ending one and another
         starting the next never look like a full name: Save draft and Start matching both take it."""
         s = DemoSession(seed=7, agent=None)
         s.run_inline = True
@@ -2047,7 +2047,7 @@ class ARequestInPieces(unittest.TestCase):
 
 class ANewListingStartsAsTheChat(_Page, unittest.TestCase):
     """demo.html, run with node on real phone states (the offline agent): a new listing is the agent's chat, full
-    screen, with no profile behind it and no way to minimise it. The first time a reply leaves the draft ready (canSave,
+    screen, with no profile behind it and no way to minimize it. The first time a reply leaves the draft ready (canSave,
     agent.ready), the phone's own status line shows for a while and until its saves finish, then the chat slides down
     to its header and the profile is there, once. A listing that's live, or whose draft is ready, opens showing it."""
 
@@ -2105,7 +2105,7 @@ console.log(JSON.stringify({{ seen, after: phone("A"), c: cur("A"), delays: time
     def assertChatOnly(self, html):
         self.assertIn('class="chat-sheet full"', html)
         self.assertNotIn("profile-pane", html)
-        self.assertNotIn("sheetDown", html)  # no edge to drag or press: nothing to minimise to
+        self.assertNotIn("sheetDown", html)  # no edge to drag or press: nothing to minimize to
         self.assertIn("Your profile appears once your agent knows what you're looking for and where.", html)
         self.assertNotIn("Putting your profile together", html)
 
@@ -2171,13 +2171,13 @@ var out = {{ replying, asked, timers: timers.length }};""")
                 self.assertEqual(out["delays"], [])
         self.assertChatOnly(self.show(self.not_ready)["seen"][0])  # a fresh page (a reload) keeps the rule
 
-    def test_the_chat_cant_be_minimised_before_the_profile_is_shown(self):
+    def test_the_chat_cant_be_minimized_before_the_profile_is_shown(self):
         out = self.show(self.new, self.not_ready, then="""
 const before = cur("A").chatMin; toggleChat("A"); var out = { same: cur("A").chatMin === before };""")
         self.assertChatOnly(out["after"])
         self.assertTrue(out["out"]["same"])
         shown = self.show(self.ready, then='toggleChat("A"); var out = phone("A");')
-        self.assertIn('class="chat-sheet"', shown["out"])  # once it's shown, the chat opens and minimises as before
+        self.assertIn('class="chat-sheet"', shown["out"])  # once it's shown, the chat opens and minimizes as before
 
     def test_reduced_motion_skips_the_animation(self):
         then = 'runTimers(); var out = { style: sheet("A").style, events: sheet("A").events };'

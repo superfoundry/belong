@@ -2,8 +2,8 @@
 published in schema.py (SENSITIVE_WORDS), one list for the Warden, the agents and the audit. Sensitive
 things go only in the hidden built-in categories (religion, politics, health, income_band, and kinks on
 dating listings): the Warden refuses an open detail that says one, and points to the category. The
-offline agent writes a shown detail only from vocabulary it recognises, so nothing else a person types
-(sensitive or not) is ever shown; a sensitive word it does recognise is recorded, as said, hidden under its
+offline agent writes a shown detail only from vocabulary it recognizes, so nothing else a person types
+(sensitive or not) is ever shown; a sensitive word it does recognize is recorded, as said, hidden under its
 category. The model agent's save is refused when a shown detail it wrote has a sensitive word, a safeguard
 that can miss other wordings (SPEC §4, §5)."""
 from __future__ import annotations
@@ -225,10 +225,10 @@ TEMPLATES = ("Looking for a {} partner in Osaka.", "Looking for a {} buddy in To
              "Looking for a relationship in Osaka. I'm into {}.", "I teach {} in Osaka, Japan.")
 
 
-class OnlyWordsItRecognises(unittest.TestCase):
+class OnlyWordsItRecognizes(unittest.TestCase):
     """The offline agent never copies a person's own words into a shown detail: it writes only vocabulary
-    it recognises (the shared list of details in use and its fixed words), and asks when it doesn't
-    recognise what they asked for (TRUST.md #3)."""
+    it recognizes (the shared list of details in use and its fixed words), and asks when it doesn't
+    recognize what they asked for (TRUST.md #3)."""
 
     def test_no_unknown_word_ever_reaches_a_shown_detail(self):
         for word in UNKNOWN:
@@ -282,13 +282,13 @@ class OnlyWordsItRecognises(unittest.TestCase):
                                                                        "Osaka"))
         self.assertNotIn("pottery", shown_words(draft["fields"]))
 
-    def test_a_request_it_doesnt_recognise_is_asked_about_not_written(self):
+    def test_a_request_it_doesnt_recognize_is_asked_about_not_written(self):
         for word in UNKNOWN:
             message = f"Looking for a {word} partner in Osaka."
             draft = agent.draft_from_message(message, "Sam", "30-34", words=WORDS)
             self.assertFalse({"seeking", "offering", "headline", "topics"} & {f["key"] for f in draft["fields"]}, message)
             self.assertTrue(draft["notes"], message)  # it asks
-        # One it recognises is written, in its listed words only.
+        # One it recognizes is written, in its listed words only.
         values = {f["key"]: f["value"] for f in agent.draft_from_message("Looking for a hiking partner in Osaka.", "Sam",
                                                                          "30-34", words=WORDS)["fields"]}
         self.assertEqual((values["seeking"], values["topics"]), ("a hiking partner", ["hiking"]))

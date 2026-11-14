@@ -234,7 +234,7 @@ class AgentProbes(unittest.TestCase):
                 mock.patch.object(warden_module, "never_names", lambda fields=(), places=(): frozenset(
                     warden_module._bare(t.group()) for f in fields for s in f.texts()
                     for t in warden_module._TOKEN.finditer(s)))],
-            # The rule the brief rules out: reading capitalised words after "in" as a place lets a name through.
+            # The rule the brief rules out: reading capitalized words after "in" as a place lets a name through.
             ("Search for a full name with a possessive after 'interested in'",): [
                 mock.patch.object(warden_module, "_is_proper_noun", lambda text, tok, exempt=frozenset(): proper(
                     text, tok, exempt) and not re.search(r"\bin\s+(\S+\s+)?$", text[:tok.start()]))],

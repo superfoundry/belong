@@ -482,7 +482,7 @@ def _write_listing(t: Truth, v: dict, country: str, rng) -> None:
         v["seeking"] = v["offering"] = "a running partner"
     elif k == "language":
         v["headline"] = rng.choice([f"Trading {t.native} for {t.learning} practice",
-                                    f"Practising {t.learning}, offering {t.native}"])
+                                    f"Practicing {t.learning}, offering {t.native}"])
         v["topics"] = (f"{t.native} language", f"{t.learning} language", "language exchange")
         v["format"] = remote_format
         v["seeking"] = v["offering"] = "a language exchange partner"  # the languages are open details

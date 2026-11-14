@@ -26,7 +26,7 @@ class Entry(unittest.TestCase):
         l = listing(fields=[fld("religion", "Buddhist", SHOWN)], confirmed=("religion",))
         self.assertTrue(warden().admit(person(), l, Marketboard()).accepted)
 
-    def test_mislabelled_sensitivity_is_rejected(self):
+    def test_mislabeled_sensitivity_is_rejected(self):
         """A listing can't relabel a sensitive category as non-sensitive to dodge the default."""
         l = listing(fields=[Field("health", "ADHD", SHOWN, sensitive=False)])
         self.assertIn("listing_schema", warden().admit(person(), l, Marketboard()).failed_checks)
@@ -277,7 +277,7 @@ class NeverASpecificPerson(unittest.TestCase):
     def test_a_rule_reads_the_same_whichever_side_of_a_detail_its_words_are_on(self):
         """An open detail is read as "name: values" and also as its name before each value, so a wish whose NAME is
         the rule's word ("called", "named", "works at") with a name as its value singles someone out as much as the
-        same words in one value do. Ordinary names with capitalised values are fine."""
+        same words in one value do. Ordinary names with capitalized values are fine."""
         for details, problem in (([detail("named", "Leopold", about="them")], "'named'/'called' + a name"),
                                  ([detail("called", "Wilhelmina", about="both")], "'named'/'called' + a name"),
                                  ([detail("works at", "Larkspur Glass", about="them")], "'works at' + a name")):
@@ -450,7 +450,7 @@ class NeverASpecificPerson(unittest.TestCase):
             self.assertLess(time.perf_counter() - start, 5.0, unit)
 
     def test_the_full_name_rule_has_no_typed_list(self):
-        """Two capitalised words in a row in the middle of a sentence look like a full name. The only words never part
+        """Two capitalized words in a row in the middle of a sentence look like a full name. The only words never part
         of one are fixed forms (the pronoun I and its contractions, a word written all in capitals, a month or a
         weekday from the standard library) and, at entry, the listing's own shown place and the Warden's shared list:
         no list of places, languages or titles, so a pair the listing doesn't show as its place is refused, whatever it
@@ -460,7 +460,7 @@ class NeverASpecificPerson(unittest.TestCase):
         from pathlib import Path
         from belong import warden as warden_module
         # Read from the Warden's source, whatever a list would be called: no set, list, tuple or dict of two or more
-        # capitalised words, and no pattern that alternates them.
+        # capitalized words, and no pattern that alternates them.
         for node in ast.walk(ast.parse(Path(warden_module.__file__).read_text())):
             elts = node.elts if isinstance(node, (ast.Set, ast.List, ast.Tuple)) else \
                 node.keys if isinstance(node, ast.Dict) else None
@@ -474,7 +474,7 @@ class NeverASpecificPerson(unittest.TestCase):
                      "Hoping to reconnect with Tomasz Wójcik from the ferry crew.",
                      "Is anyone else a fan of Amara Okafor's poems?", "Looking for someone interested in Ivo Brandl",
                      "Looking for a kayaking partner around Puerto Varas.",  # a place this listing doesn't show
-                     "Looking for a tutor for Old Norse sagas."):  # a language written as two capitalised words
+                     "Looking for a tutor for Old Norse sagas."):  # a language written as two capitalized words
             self.assertIn("what looks like a full name", specific_person_problems(text), text)
             r = warden().admit(person(), listing(intent=text, fields=[fld("city", "Lyon")]), Marketboard())
             self.assertIn("specific_person", r.failed_checks, text)
@@ -500,7 +500,7 @@ class NeverASpecificPerson(unittest.TestCase):
         for fields in ([], [fld("country", "Chile")], [fld("city", "Puerto Varas", HIDDEN)],
                        [detail("home town", "Puerto Varas")], [fld("neighborhood", "Puerto Varas", HIDDEN)]):
             self.assertFalse(admitted(lakes, *fields), fields)
-        # A word of the place unlocks only that word: another capitalised word next to it still counts.
+        # A word of the place unlocks only that word: another capitalized word next to it still counts.
         self.assertFalse(admitted("Walks round the Puerto Varas Old Pier.", fld("city", "Puerto Varas")))
         self.assertEqual(specific_person_problems(lakes, [fld("city", "Puerto Varas")]), [])
         self.assertTrue(specific_person_problems(lakes, [fld("city", "Puerto Varas", HIDDEN)]))

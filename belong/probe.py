@@ -840,7 +840,7 @@ def attack_suite(body: dict) -> dict:
 
 
 def _placed(listing: Listing, city: str, country: str, country_visibility: str = SHOWN) -> tuple:
-    """The listing's fields, moved to another city (shown) and travelling nowhere."""
+    """The listing's fields, moved to another city (shown) and traveling nowhere."""
     fields = [f for f in listing.fields if f.key not in ("city", "country", "travel")]
     return tuple(fields + [Field("city", city, SHOWN, False), Field("country", country, country_visibility, False)])
 

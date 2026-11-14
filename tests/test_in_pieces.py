@@ -230,7 +230,7 @@ class TheRulesStillHold(unittest.TestCase):
 
 class TheDescriptionInPieces(unittest.TestCase):
     """Each message joins the description as a sentence of its own (agent._ended), so two messages put together never
-    make a problem neither has alone: a capitalised word at the end of one and at the start of the next never reads
+    make a problem neither has alone: a capitalized word at the end of one and at the start of the next never reads
     as someone's full name."""
 
     def where(self, d):

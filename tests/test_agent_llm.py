@@ -152,7 +152,7 @@ class Drafting(unittest.TestCase):
             "use the hidden health detail (health)": det("condition", "asthma", visibility=HIDDEN),
             "contact details": det("instrument", "drums @inkpot"),
             "give the one step that applies": det("level", "beginner", "advanced", compare="steps", steps=LEVELS),
-            "neighbouring steps": det("level", "beginner", "advanced", about="them", compare="steps", steps=LEVELS),
+            "neighboring steps": det("level", "beginner", "advanced", about="them", compare="steps", steps=LEVELS),
             "'any' must be the only value": det("instrument", "any", "drums"),
             "a 'same' detail has no steps": det("instrument", "drums", steps=("a", "b")),
         }
@@ -327,7 +327,7 @@ class Drafting(unittest.TestCase):
         by_key = {f["key"]: f["value"] for f in draft["fields"]}
         self.assertEqual((by_key["country"], by_key["city"]), ("Ireland", None))
         self.assertEqual(by_key["me:interests"], ["fly fishing", "hill walking"])  # its own words, no fixed list
-        # A city with a known centre or on the shared list brings its country.
+        # A city with a known center or on the shared list brings its country.
         galway = {**fishing, "fields": [{"key": "city", "values": ["Galway"], "visibility": SHOWN}] + fishing["fields"][1:]}
         self.assertEqual({f["key"]: f["value"] for f in build_draft(galway, "Aoife", "25-29", in_use=IN_USE)[0][
             "fields"]}["country"], "Ireland")
@@ -729,7 +729,7 @@ class InstantProfile(unittest.TestCase):
     """The profile updates the moment a message is sent, before the agent replies."""
 
     def test_plain_facts_are_picked_up(self):
-        """Only in words the agent recognises (TRUST.md #3): a place it knows (a known centre, or a listed
+        """Only in words the agent recognizes (TRUST.md #3): a place it knows (a known center, or a listed
         place), the fixed choices, a listed activity they teach or want to learn. A place or activity it
         doesn't know is left for the agent and the person to set."""
         from belong.agent import quick_facts, words_in_use
@@ -868,11 +868,11 @@ class NeverOneParticularPerson(unittest.TestCase):
     LOWER_CASE_NAME = {**CLIMBER, "intent_text": "hoping to find teodora vass from my old office, she climbs too",
                        "singles_out": True}
 
-    def test_the_models_judgement_can_only_refuse(self):
+    def test_the_models_judgment_can_only_refuse(self):
         from belong.agent_llm import SINGLED_OUT
         self.assertEqual(build_draft(self.LOWER_CASE_NAME, "Yuki", "25-29"), (None, [SINGLED_OUT], []))
         self.assertEqual(build_draft({**CLIMBER, "singles_out": True}, "Yuki", "25-29")[0], None)
-        # Nothing but true is a judgement: the save goes on to the fixed rules.
+        # Nothing but true is a judgment: the save goes on to the fixed rules.
         for value in (False, None, "true", 1, "yes"):
             self.assertEqual(build_draft({**CLIMBER, "singles_out": value}, "Yuki", "25-29")[1], [], value)
         self.assertEqual(build_draft({**self.LOWER_CASE_NAME, "singles_out": False}, "Yuki", "25-29")[1], [])
@@ -894,7 +894,7 @@ class NeverOneParticularPerson(unittest.TestCase):
         flat = " ".join(SYSTEM_PROMPT.split())
         for said in ("not from capital letters", "a name written in lower case", "a first name or a surname alone",
                      "clues that together fit only one person", "call update_listing with singles_out true",
-                     "no two capitalised words stand together", "If it could be a person's name, don't reword it"):
+                     "no two capitalized words stand together", "If it could be a person's name, don't reword it"):
             self.assertIn(said, flat)
 
     def test_the_person_sees_the_refusal_with_either_provider(self):
@@ -982,13 +982,13 @@ class NeverOneParticularPerson(unittest.TestCase):
         self.assertTrue(message.startswith(PROVIDER_REFUSED) and "wasn't able to save" in message, message)
 
     def test_the_floor_tells_the_model_which_words_and_it_rewords_them(self):
-        """A pair of capitalised words the floor refuses is quoted back with how to fix it; the model rewords a
+        """A pair of capitalized words the floor refuses is quoted back with how to fix it; the model rewords a
         place, a title or a thing, and the reworded text is checked again by the same rules."""
         peak = {**CLIMBER, "intent_text": "Looking for a climbing partner for the Mount Kenya routes."}
         draft, problems, _ = build_draft(peak, "Yuki", "25-29")
         self.assertIsNone(draft)
         said = next(p for p in problems if "('Mount Kenya')" in p)
-        for part in ("no two capitalised words stand together", "set singles_out", "tell the person what you changed",
+        for part in ("no two capitalized words stand together", "set singles_out", "tell the person what you changed",
                      "Words of the city and country the person shows"):
             self.assertIn(part, said)
         reworded = {**peak, "intent_text": "Looking for a climbing partner for routes on the highest mountain in Kenya."}

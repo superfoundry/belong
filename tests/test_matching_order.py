@@ -159,7 +159,7 @@ class TravelDistance(unittest.TestCase):
         self.assertEqual(pairs(board_of(*same)[1]), {frozenset(("pa", "pb"))})
 
     def test_same_name_cities_in_different_countries_are_not_in_reach(self):
-        """A city's centre is read in the country its listing shows: Cambridge, United States is an ocean
+        """A city's center is read in the country its listing shows: Cambridge, United States is an ocean
         away from London, and a Cambridge shown without a country (or with a hidden one) is only ever
         "the same city" as another Cambridge."""
         self.assertAlmostEqual(km_between("Cambridge", "United Kingdom", "London", "United Kingdom"), 79, delta=3)
@@ -185,7 +185,7 @@ class TravelDistance(unittest.TestCase):
             (us("pa", "Cambridge"), us("pb", "Boston"), True),
             (us("pa", "Cambridge"), uk("pb", "London"), False),  # an ocean apart
             (us("pa", "Cambridge"), uk("pb", "Cambridge"), False),  # the same name in other countries
-            (no_country("pa", "Cambridge"), uk("pb", "London"), False),  # no shown country, no known centre
+            (no_country("pa", "Cambridge"), uk("pb", "London"), False),  # no shown country, no known center
             (no_country("pa", "Cambridge", hidden="United Kingdom"), uk("pb", "London"), False),  # never a hidden one
             (no_country("pa", "Cambridge"), uk("pb", "Cambridge"), True),  # the same name is still the same city
         ]
