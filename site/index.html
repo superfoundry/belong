@@ -19,6 +19,11 @@
   .hero h1 { font-size: var(--font-size-display-xl); margin: 0 auto var(--space-6); max-width: 13ch; }
   .hero .lead { font: var(--text-body-l); color: var(--text-secondary); margin: 0 auto var(--space-8); max-width: 38ch; }
   .hero .actions { justify-content: center; }
+  @media (max-width: 640px) {
+    .hero { min-height: 0; padding: var(--space-16) 0; }
+    .hero h1 { font-size: var(--font-size-display-l); margin-bottom: var(--space-4); }
+    .hero .lead { font: var(--text-body-m); margin-bottom: var(--space-6); }
+  }
 
   /* The background: a cloud of points in three dimensions, coral, periwinkle and mint, each joined to its nearest by
      faint gray lines, with pulses swelling along some of them in the lines' own gray, tapering at both ends. Drawn on
@@ -34,11 +39,13 @@
   /* What makes Belong different: four cards, two by two. */
   #diff-title { text-align: center; margin-bottom: var(--space-10); }
   .diff .card { padding: var(--space-8); }
+  @media (max-width: 640px) { #diff-title { margin-bottom: var(--space-6); } .diff .card { padding: var(--space-5); } }
 
   /* Hidden details: the words on the left, and the Belong app on a phone on the right. */
   .hidden-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: var(--space-16); align-items: center; }
   @media (max-width: 760px) { .hidden-grid { grid-template-columns: 1fr; gap: var(--space-10); } }
   .hidden-grid p { color: var(--text-secondary); max-width: 44ch; margin: 0 0 var(--space-4); font: var(--text-body-l); }
+  @media (max-width: 640px) { .hidden-grid p { font: var(--text-body-m); } }
   /* The ways to use Belong, one story three times on a loop. First the Belong app on a phone, drawn in the app's own
      look: the person tells their AI what they're looking for; their profile appears, the hidden age in its red band
      with the Hidden badge; matching starts; their matches come in, they pass on one and say yes to another, and both
@@ -391,7 +398,7 @@
   /* Belong, further back and off to the right: a cloud of people joined by connections, like the landing page's
      background, seen in three dimensions (near points larger and stronger), labeled with the wordmark. */
   .bl-cloud { position: absolute; right: 0; top: 26px; width: 340px; opacity: 0.6; pointer-events: none; }
-  .bl-cloud svg { width: 100%; height: auto; display: block; overflow: visible; filter: blur(0.3px); }
+  .bl-cloud svg { width: 100%; height: auto; display: block; overflow: visible; }
   /* The label sits on the outline's top, breaking the line, like a name on a tag. */
   .bl-cloud img { position: absolute; left: 65%; top: 7px; transform: translateX(-50%); height: 17px; width: auto;
     padding: 0 10px; background: var(--surface-sunken); box-sizing: content-box; }
@@ -440,8 +447,17 @@
   .sb-phone-wrap .sb-phone { transform-origin: 0 0; scale: 0.6; }
   /* The two devices and their base are drawn at one size and scaled to the room its picture has. */
   .stage { container-type: inline-size; }
-  @container (max-width: 400px) { .sb-meet, .pb, .pb-shown { zoom: 0.78; } }
-  @container (max-width: 400px) { .pb .bd-row { padding-inline: 8px; } .pb-swap .now b { white-space: normal; } }
+  @container (max-width: 400px) { .sb-meet { zoom: 0.78; } }
+  /* In a narrow picture (a phone) the dashboard drops its side menu and the profile card spans the picture, so both
+     stay at full size, with no zoom (Safari aims step 5's close-up wrongly inside a zoomed element). */
+  @container (max-width: 400px) {
+    .stage .bd-side { display: none; }
+    .stage .bd-body { grid-template-columns: minmax(0, 1fr); }
+    .pb .bd-row { padding-inline: 8px; }
+    .pb-shown { width: auto; right: var(--space-4); }
+    .pb { align-self: flex-start; }
+    .pb-swap .now b { white-space: normal; }
+  }
   @container (max-width: 368px) { .sb-found { zoom: 0.75; } }
   @container (max-width: 340px) { .sb-found { zoom: 0.7; } }
   @container (max-width: 310px) { .sb-found { zoom: 0.64; } }
@@ -535,9 +551,27 @@
   .b-step.on .b-text, .b-step.on .bar { display: block; }
   .b-step.on .bar i { width: 100%; }
   .flow.paused .b-step.on .bar i { animation-name: none; width: 100%; background: var(--border-strong); }
+  /* Numbered buttons for the steps, shown only where the steps stack above their picture. */
+  .b-dots { display: none; gap: var(--space-2); }
+  .b-dots button { all: unset; cursor: pointer; display: grid; place-items: center; width: 36px; height: 36px; border-radius: var(--radius-pill);
+    font: var(--text-label); color: var(--text-tertiary); box-shadow: inset 0 0 0 1px var(--border-subtle); }
+  .b-dots button:focus-visible { outline: 2px solid var(--border-accent); }
+  .b-dots button[aria-current="step"] { color: var(--text-primary); background: var(--surface-card); box-shadow: var(--shadow-sm), inset 0 0 0 1px var(--border-ai); }
   @media (max-width: 860px) {
     .flow { grid-template-columns: minmax(0, 1fr); }
     .frame { height: 400px; }
+    /* One step at a time: the numbers on top, then the open step in a box as tall as the longest, so the picture
+       below never moves. */
+    .b-dots { display: flex; }
+    .b-list { display: grid; gap: var(--space-3); }
+    .b-dots { grid-area: 1 / 1; }
+    .b-step { grid-area: 2 / 1; }
+    .b-step .b-text, .b-step .bar { display: block; }
+    .b-step:not(.on) { visibility: hidden; }
+    .b-step b { font: var(--text-heading-m); }
+    .b-step { grid-template-columns: minmax(0, 1fr); }
+    .b-step .num { display: none; }
+    .b-case { padding: 0; }
   }
 
   /* Motion: only without reduced motion. With it, every picture shows its finished state and nothing plays by itself. */
@@ -558,8 +592,8 @@
     .pic.play[data-n="4"] .pb { transform-origin: var(--ox, 85%) var(--oy, 30%); animation: dive 4800ms 200ms both; }
     @keyframes dive {
       0% { transform: none; animation-timing-function: cubic-bezier(0.16, 1, 0.3, 1); }
-      37.5% { transform: translate(var(--tx, 0px), var(--ty, 0px)) scale(2.2); }
-      58% { transform: translate(var(--tx, 0px), var(--ty, 0px)) scale(2.2); animation-timing-function: cubic-bezier(0.4, 0, 0.2, 1); }
+      37.5% { transform: translate(var(--tx, 0px), var(--ty, 0px)) scale(var(--s, 2.2)); }
+      58% { transform: translate(var(--tx, 0px), var(--ty, 0px)) scale(var(--s, 2.2)); animation-timing-function: cubic-bezier(0.4, 0, 0.2, 1); }
       100% { transform: none; }
     }
     .pic.play[data-n="4"] .pb-state .warning { animation: flicker 800ms 1950ms both; }
@@ -886,6 +920,7 @@
       <div class="flow">
         <p class="b-case"><span>The scenario</span>Saltbridge Homes, a regional property association, wants to build an app that links its realtors with prospective buyers. Here's how Belong makes that happen.</p>
         <div class="b-list">
+          <div class="b-dots"><button type="button" data-k="0" aria-label="Step 1">1</button><button type="button" data-k="1" aria-label="Step 2">2</button><button type="button" data-k="2" aria-label="Step 3">3</button><button type="button" data-k="3" aria-label="Step 4">4</button><button type="button" data-k="4" aria-label="Step 5">5</button></div>
           <button type="button" class="b-step" data-k="0"><span class="num">1</span><b>Create your badges</b><span class="b-text">On Belong's dashboard, the association makes two <svg class="bmark" viewBox="0 0 24 24" aria-hidden="true"><path class="l" d="M12 1.6 21 6.8v10.4L12 22.4 3 17.2V6.8Z"/><path class="f" d="M6.7 12.0L6.8 12.5L6.9 12.9L7.1 13.3L7.2 13.8L7.4 14.2L7.6 14.6L7.8 15.0L8.0 15.3L8.2 15.7L8.5 16.1L9.0 16.5L9.6 16.8L10.5 16.9L11.3 16.8L11.9 16.4L12.3 16.0L12.7 15.5L13.1 15.0L13.4 14.6L13.7 14.1L14.1 13.7L14.4 13.2L14.7 12.8L15.0 12.3L15.3 11.8L15.6 11.4L15.9 10.9L16.2 10.4L16.5 9.9L16.8 9.5L17.1 9.0L17.4 8.5L17.7 8.0L17.4 7.7L16.9 8.0L16.5 8.4L16.0 8.7L15.6 9.1L15.1 9.4L14.7 9.7L14.2 10.1L13.8 10.4L13.4 10.8L12.9 11.2L12.5 11.5L12.1 11.9L11.7 12.3L11.2 12.6L10.8 13.0L10.4 13.4L10.0 13.7L10.0 13.7L10.1 13.6L10.4 13.6L10.8 13.6L10.9 13.7L10.9 13.6L10.6 13.4L10.3 13.2L9.9 12.9L9.5 12.7L9.2 12.5L8.7 12.3L8.3 12.2L7.9 12.0L7.5 11.8L7.0 11.7Z"/></svg>private badges: Realtor, for approved licensed realtors, and Client, for interested buyers and renters.</span><span class="bar"><i></i></span></button>
           <button type="button" class="b-step" data-k="1"><span class="num">2</span><b>Build your own app</b><span class="b-text">Saltbridge Homes uses its own branding for its front end. Clients join for free and realtors pay the association a monthly fee for membership and access to list their properties.</span><span class="bar"><i></i></span></button>
           <button type="button" class="b-step" data-k="2"><span class="num">3</span><b>Customize matchmaking</b><span class="b-text">Behind its listing screen, the app asks for the other badge, and for property only. Matching works both ways, so nobody outside these rules ever matches in.</span><span class="bar"><i></i></span></button>
@@ -1192,15 +1227,18 @@
     // The close-up in step 5 frames the Agent row wherever the layout puts it, its badge kept in the picture.
     const cam = pic.querySelector(".pb"), mark = cam && cam.querySelector(".pb-state");
     if (mark) {
-      const S = 2.2, c = cam.getBoundingClientRect(), f = pic.getBoundingClientRect(), k = c.width / cam.offsetWidth || 1;
+      // A narrow picture (a phone) has no room to come closer without cutting the row off, so there it stays put.
+      const c = cam.getBoundingClientRect(), f = pic.getBoundingClientRect(), k = c.width / cam.offsetWidth || 1, S = f.width < 440 ? 1 : 2.2;
       const m = mark.getBoundingClientRect(), row = mark.closest(".bd-row").getBoundingClientRect();
       const ox = m.left + m.width / 2, oy = m.top + m.height / 2;
       let tx = f.left + f.width / 2 - ox - (row.left + row.width / 2 - ox) * S;
       tx -= Math.max(0, ox + (m.right - ox) * S + tx - (f.right - 20));
+      const still = S === 1;
       cam.style.setProperty("--ox", `${(ox - c.left) / k}px`);
       cam.style.setProperty("--oy", `${(oy - c.top) / k}px`);
-      cam.style.setProperty("--tx", `${tx / k}px`);
-      cam.style.setProperty("--ty", `${(f.top + f.height / 2 - oy) / k}px`);
+      cam.style.setProperty("--tx", `${still ? 0 : tx / k}px`);
+      cam.style.setProperty("--ty", `${still ? 0 : (f.top + f.height / 2 - oy) / k}px`);
+      cam.style.setProperty("--s", S);
     }
     pic.classList.add("play");
     count(pic);
@@ -1333,9 +1371,11 @@
   // B. Step list
   {
     const root = document.querySelector(".flow"), list = [...root.querySelectorAll(".b-step")], frame = root.querySelector(".frame");
+    const dots = [...root.querySelectorAll(".b-dots button")];
     root.style.setProperty("--ms", MS + "ms");
     const steps = cycle(root, n => {
       list.forEach((b, i) => { b.classList.toggle("on", i === n); b.classList.remove("run"); });
+      dots.forEach((d, i) => i === n ? d.setAttribute("aria-current", "step") : d.removeAttribute("aria-current"));
       void root.offsetWidth;
       if (!reduce) list[n].classList.add("run");
       show(frame, n);
@@ -1345,6 +1385,8 @@
       root.classList.toggle("paused", on);
       list.forEach((b, i) => b.setAttribute("aria-pressed", String(on && i === steps.n)));
     };
+    // The numbers, where they show, work just like their steps.
+    dots.forEach((d, i) => d.addEventListener("click", () => list[i].click()));
     list.forEach((b, i) => b.addEventListener("click", () => {
       if (steps.paused && i === steps.n) { hold(false); steps.resume(); }
       else { steps.pause(); steps.jump(i); hold(true); }

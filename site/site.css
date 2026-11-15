@@ -36,6 +36,13 @@
 .grid.three { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 @media (max-width: 960px) { .grid.three { grid-template-columns: 1fr; } }
 @media (max-width: 760px) { .grid.two { grid-template-columns: 1fr; } }
+/* On a phone the page tightens: half the space between sections, body-size intros, so it reads without long scrolls. */
+@media (max-width: 640px) {
+  :root { --page-margin: 20px; }
+  .section { padding: var(--space-12) 0; }
+  .section .intro { font: var(--text-body-m); margin-bottom: var(--space-8); }
+  .grid { gap: var(--space-4); }
+}
 .card h3 { margin: 0 0 var(--space-2); }
 .card p { margin: 0; color: var(--text-secondary); font: var(--text-body-s); }
 
