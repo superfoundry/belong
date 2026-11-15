@@ -89,6 +89,23 @@
   .points ul + p { margin-top: var(--space-3); }
   .points strong { color: var(--text-primary); font-weight: 600; }
 
+  /* On a phone: less space around everything, body-size text and smaller headings, so it reads without long scrolls. */
+  @media (max-width: 640px) {
+    .ways { padding: var(--space-10) 0 var(--space-12); }
+    .ways h1 { margin-bottom: var(--space-6); }
+    .ways .intro { font: var(--text-body-m); margin-bottom: var(--space-6); }
+    .like ol { font: var(--text-body-m); }
+    .like { margin-top: var(--space-12); }
+    .way svg { width: 40px; height: 40px; margin-bottom: 0; }
+    .way h2, .points h3, .doc h3 { font: var(--text-heading-m); }
+    .kind { gap: var(--space-6); }
+    .points { gap: var(--space-6); }
+    .doc { padding: var(--space-12) 0 var(--space-16); }
+    .doc h2:not(.title) { font: var(--text-display-s); margin-top: var(--space-10); }
+    .doc h3 { margin-top: var(--space-8); }
+    .doc pre { padding: var(--space-4); }
+  }
+
   .glance .scroll { overflow-x: auto; }
   .glance table { width: 100%; border-collapse: collapse; font: var(--text-body-s); }
   .glance th, .glance td { text-align: left; vertical-align: top; padding: var(--space-3) var(--space-4); }
