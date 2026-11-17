@@ -279,6 +279,18 @@
     mix-blend-mode: multiply; opacity: 0.4;
     -webkit-mask-image: linear-gradient(transparent, black 30px, black calc(100% - var(--space-24)), transparent);
     mask-image: linear-gradient(transparent, black 30px, black calc(100% - var(--space-24)), transparent); }
+  /* What makes Belong different sits on a mid gray instead: ink thinned with white, multiplied over the web so it
+     shows as darker lines, with hard edges and a white heading. A filled band reads tighter, so its padding is smaller. */
+  #different.band::before { background: color-mix(in srgb, var(--text-primary) 55%, var(--surface-app));
+    mix-blend-mode: multiply; opacity: 1; -webkit-mask-image: none; mask-image: none; }
+  #different #diff-title { color: var(--text-inverse); }
+  #different { padding: var(--space-16) 0; }
+  @media (max-width: 640px) { #different { padding: var(--space-12) 0; } }
+  /* Every section below it sits on a faint ink tint that lightly blurs the web behind it. */
+  #different ~ .section { position: relative; }
+  #different ~ .section::before { content: ""; position: absolute; inset: 0; z-index: -1;
+    background: color-mix(in srgb, var(--text-primary) 4%, transparent);
+    -webkit-backdrop-filter: blur(4px); backdrop-filter: blur(4px); }
   .hidden-grid .actions { margin-top: var(--space-6); }
   /* Arrows under the examples, to step to the one before or after; the loop carries on from there. */
   .ways-stage { min-width: 0; }
@@ -515,8 +527,6 @@
     .sb-editor pre { font-size: 10.5px; padding: 12px; }
   }
   .build-foot { display: flex; justify-content: space-between; align-items: center; gap: var(--space-6); flex-wrap: wrap; margin-top: var(--space-4); }
-  .fine { margin: 0; max-width: var(--content-narrow); color: var(--text-secondary); font: var(--text-body-s); text-align: right; }
-  @media (max-width: 600px) { .fine { text-align: left; } }
   /* The private badges story, played as a step list: one picture at a time in a frame. */
   .frame { position: relative; height: 524px; background: var(--surface-sunken); border-radius: var(--radius-lg); overflow: hidden; }
   .frame .pic { position: absolute; inset: 0; height: auto; margin: 0; background: none; opacity: 0; visibility: hidden; }
@@ -529,9 +539,9 @@
 
   /* The step list: the steps on the left, the one playing open with a bar filling until the next; its picture on the right. */
   .flow { display: grid; grid-template-columns: minmax(0, 0.7fr) minmax(0, 1.3fr); gap: var(--space-10); align-items: center; }
-  /* On this page the steps and their picture sit on a clear, frosted panel that blurs the moving web behind the page. */
+  /* On this page the steps and their picture sit on a white, frosted panel that blurs the moving web behind the page. */
   #build .flow { padding: var(--space-8); border-radius: var(--radius-lg); border: 1px solid var(--border-subtle);
-    background: transparent; -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px);
+    background: color-mix(in srgb, var(--surface-app) 70%, transparent); -webkit-backdrop-filter: blur(4px); backdrop-filter: blur(4px);
     box-shadow: var(--shadow-sm); }
   @media (max-width: 600px) { #build .flow { padding: var(--space-4); } }
   .b-list { display: flex; flex-direction: column; gap: var(--space-2); }
@@ -551,21 +561,23 @@
   .b-step.on .b-text, .b-step.on .bar { display: block; }
   .b-step.on .bar i { width: 100%; }
   .flow.paused .b-step.on .bar i { animation-name: none; width: 100%; background: var(--border-strong); }
-  /* Numbered buttons for the steps, shown only where the steps stack above their picture. */
-  .b-dots { display: none; gap: var(--space-2); }
-  .b-dots button { all: unset; cursor: pointer; display: grid; place-items: center; width: 36px; height: 36px; border-radius: var(--radius-pill);
-    font: var(--text-label); color: var(--text-tertiary); box-shadow: inset 0 0 0 1px var(--border-subtle); }
-  .b-dots button:focus-visible { outline: 2px solid var(--border-accent); }
-  .b-dots button[aria-current="step"] { color: var(--text-primary); background: var(--surface-card); box-shadow: var(--shadow-sm), inset 0 0 0 1px var(--border-ai); }
+  /* Arrows to the step before or after, shown only where the steps stack above their picture. */
+  .b-nav { display: none; }
   @media (max-width: 860px) {
     .flow { grid-template-columns: minmax(0, 1fr); }
     .frame { height: 400px; }
-    /* One step at a time: the numbers on top, then the open step in a box as tall as the longest, so the picture
-       below never moves. */
-    .b-dots { display: flex; }
-    .b-list { display: grid; gap: var(--space-3); }
-    .b-dots { grid-area: 1 / 1; }
-    .b-step { grid-area: 2 / 1; }
+    /* One step at a time: the open step in a box as tall as the longest, so the picture below never moves, with an
+       arrow either side of it. Its number leads its title ("3. Customize matchmaking"). */
+    #build .flow { row-gap: var(--space-4); }
+    .b-nav { display: contents; }
+    .b-list { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; column-gap: var(--space-1);
+      counter-reset: step; }
+    .b-nav .ways-step { width: 28px; }
+    .b-nav [data-step="-1"] { grid-area: 1 / 1; }
+    .b-nav [data-step="1"] { grid-area: 1 / 3; }
+    .b-step { counter-increment: step; }
+    .b-step b::before { content: counter(step) ". "; }
+    .b-step { grid-area: 1 / 2; align-self: stretch; }
     .b-step .b-text, .b-step .bar { display: block; }
     .b-step:not(.on) { visibility: hidden; }
     .b-step b { font: var(--text-heading-m); }
@@ -919,13 +931,12 @@
 
   <section id="build" class="section" aria-labelledby="private-title">
     <div class="wrap">
-      <p class="eyebrow">Private badges</p>
       <h2 id="private-title" class="display-m">Build on Belong.</h2>
       <p class="intro">An organization or group creates its own badges, decides who holds them, and can build its own app around Belong.</p>
       <div class="flow">
         <p class="b-case"><span>The scenario</span>Saltbridge Homes, a regional property association, wants to build an app that links its realtors with prospective buyers. Here's how Belong makes that happen.</p>
         <div class="b-list">
-          <div class="b-dots"><button type="button" data-k="0" aria-label="Step 1">1</button><button type="button" data-k="1" aria-label="Step 2">2</button><button type="button" data-k="2" aria-label="Step 3">3</button><button type="button" data-k="3" aria-label="Step 4">4</button><button type="button" data-k="4" aria-label="Step 5">5</button></div>
+          <div class="b-nav"><button type="button" class="ways-step" data-step="-1" aria-label="Previous step"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg></button><button type="button" class="ways-step" data-step="1" aria-label="Next step"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></button></div>
           <button type="button" class="b-step" data-k="0"><span class="num">1</span><b>Create your badges</b><span class="b-text">On Belong's dashboard, the association makes two <svg class="bmark" viewBox="0 0 24 24" aria-hidden="true"><path class="l" d="M12 1.6 21 6.8v10.4L12 22.4 3 17.2V6.8Z"/><path class="f" d="M6.7 12.0L6.8 12.5L6.9 12.9L7.1 13.3L7.2 13.8L7.4 14.2L7.6 14.6L7.8 15.0L8.0 15.3L8.2 15.7L8.5 16.1L9.0 16.5L9.6 16.8L10.5 16.9L11.3 16.8L11.9 16.4L12.3 16.0L12.7 15.5L13.1 15.0L13.4 14.6L13.7 14.1L14.1 13.7L14.4 13.2L14.7 12.8L15.0 12.3L15.3 11.8L15.6 11.4L15.9 10.9L16.2 10.4L16.5 9.9L16.8 9.5L17.1 9.0L17.4 8.5L17.7 8.0L17.4 7.7L16.9 8.0L16.5 8.4L16.0 8.7L15.6 9.1L15.1 9.4L14.7 9.7L14.2 10.1L13.8 10.4L13.4 10.8L12.9 11.2L12.5 11.5L12.1 11.9L11.7 12.3L11.2 12.6L10.8 13.0L10.4 13.4L10.0 13.7L10.0 13.7L10.1 13.6L10.4 13.6L10.8 13.6L10.9 13.7L10.9 13.6L10.6 13.4L10.3 13.2L9.9 12.9L9.5 12.7L9.2 12.5L8.7 12.3L8.3 12.2L7.9 12.0L7.5 11.8L7.0 11.7Z"/></svg>private badges: Realtor, for approved licensed realtors, and Client, for interested buyers and renters.</span><span class="bar"><i></i></span></button>
           <button type="button" class="b-step" data-k="1"><span class="num">2</span><b>Build your own app</b><span class="b-text">Saltbridge Homes uses its own branding for its front end. Clients join for free and realtors pay the association a monthly fee for membership and access to list their properties.</span><span class="bar"><i></i></span></button>
           <button type="button" class="b-step" data-k="2"><span class="num">3</span><b>Customize matchmaking</b><span class="b-text">Behind its listing screen, the app asks for the other badge, and for property only. Matching works both ways, so nobody outside these rules ever matches in.</span><span class="bar"><i></i></span></button>
@@ -1072,7 +1083,6 @@
       </div>
       <div class="build-foot">
         <a class="btn lg secondary" href="use.html#private-badges">Learn more</a>
-        <p class="fine">An issuer can take its badge back from a member, and Belong can remove a badge used for spam or harassment.</p>
       </div>
     </div>
   </section>
@@ -1376,11 +1386,9 @@
   // B. Step list
   {
     const root = document.querySelector(".flow"), list = [...root.querySelectorAll(".b-step")], frame = root.querySelector(".frame");
-    const dots = [...root.querySelectorAll(".b-dots button")];
     root.style.setProperty("--ms", MS + "ms");
     const steps = cycle(root, n => {
       list.forEach((b, i) => { b.classList.toggle("on", i === n); b.classList.remove("run"); });
-      dots.forEach((d, i) => i === n ? d.setAttribute("aria-current", "step") : d.removeAttribute("aria-current"));
       void root.offsetWidth;
       if (!reduce) list[n].classList.add("run");
       show(frame, n);
@@ -1390,8 +1398,9 @@
       root.classList.toggle("paused", on);
       list.forEach((b, i) => b.setAttribute("aria-pressed", String(on && i === steps.n)));
     };
-    // The numbers, where they show, work just like their steps.
-    dots.forEach((d, i) => d.addEventListener("click", () => list[i].click()));
+    // The arrows, where they show, open the step before or after (wrapping around) and hold it, like clicking it.
+    root.querySelectorAll(".b-nav button").forEach(a => a.addEventListener("click", () =>
+      list[(steps.n + Number(a.dataset.step) + list.length) % list.length].click()));
     list.forEach((b, i) => b.addEventListener("click", () => {
       if (steps.paused && i === steps.n) { hold(false); steps.resume(); }
       else { steps.pause(); steps.jump(i); hold(true); }
