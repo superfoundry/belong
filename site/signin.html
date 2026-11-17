@@ -1,0 +1,229 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sign in to Belong</title>
+<meta name="description" content="Sign in to Belong with Google, a passkey or your email address, or sign up with Google, your own AI agent or your email address.">
+<link rel="stylesheet" href="ds/tokens.css">
+<link rel="stylesheet" href="ds/belong.css">
+<link rel="stylesheet" href="site.css">
+<link rel="icon" type="image/svg+xml" href="ds/logo/belong-icon.svg">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<style>
+  /* Sign in: one narrow column with two tabs. Signing in takes Google, a passkey, or an email address and then a
+     second step for the password and a check that it's a person;
+     a new account takes Google, the person's own AI agent (over MCP: the link explains connecting one), or an email
+     address and then a second step for name, user ID, email (typed twice), phone number (confirmed by a code) and
+     password (typed twice); the
+     Belong app's store links sit under it.
+     One coral button per tab. */
+  body { display: flex; flex-direction: column; min-height: 100svh; }  /* the footer stays at the bottom */
+  .signin { flex: 1; padding: var(--space-12) 0 var(--space-16); }
+  .signin .wrap { max-width: 440px; }
+  /* The page's heading is for screen readers only: the tabs lead on screen. */
+  .signin h1 { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+  .signin .tabs { margin-bottom: var(--space-8); gap: 0; }
+  .signin .tabs button { flex: 1; margin-right: 0; text-align: center; }  /* two halves, each label centered */
+  .signin .others { display: grid; gap: var(--space-2); }
+  /* Google's own G, in Google's own colors as its brand rules ask: the one mark on the site outside the tokens. */
+  .signin .g { width: 18px; height: 18px; flex-shrink: 0; }
+  .signin .or { display: flex; align-items: center; gap: var(--space-3); margin: var(--space-5) 0;
+    font: var(--text-caption); color: var(--text-tertiary); }
+  .signin .or::before, .signin .or::after { content: ""; flex: 1; border-top: 1px solid var(--border-subtle); }
+  /* The details step, kept short: its fields in pairs (name and user ID, each address or password beside its
+     confirmation), the phone number and the button across, rows close together, on phones too. A gray
+     Cancel under the button goes back to the first step. */
+  .signin form.pairs { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-3); }
+  .signin form.pairs .form-row { margin: 0; min-width: 0; }
+  .signin form.pairs .wide { grid-column: 1 / -1; }
+  .signin form.pairs .btn { margin-top: var(--space-1); }
+  .signin form .cancel { margin-top: 0; background: color-mix(in srgb, var(--text-primary) 6%, var(--surface-card));
+    color: var(--text-secondary); }
+  .signin form .cancel:hover { background: color-mix(in srgb, var(--text-primary) 10%, var(--surface-card)); color: var(--text-primary); }
+  .signin .form-row { margin-bottom: var(--space-5); }
+  .signin form .btn { margin-top: var(--space-2); }
+  #up-email-form .form-row { margin-bottom: var(--space-3); }
+  #up-email-form .btn { margin-top: 0; }
+  /* Signing in, condensed: the fields and the button stack close. The second step carries the address over into its own
+     field, gray and read only, and
+     asks the person to confirm they're a person above the button; a gray Cancel under it goes
+     back to the first step. */
+  .signin .input.who { color: var(--text-tertiary); background: color-mix(in srgb, var(--text-primary) 4%, var(--surface-card));
+    cursor: default; }
+  .signin .input.who:focus { border-color: var(--border-default); box-shadow: none; }
+  .signin .check { display: flex; align-items: center; gap: var(--space-3); margin-bottom: var(--space-3); cursor: pointer;
+    font: var(--text-body-s); box-shadow: none; }
+  .signin .check input { width: 18px; height: 18px; margin: 0; accent-color: var(--accent-default); }
+  .signin form.tight .form-row { margin-bottom: var(--space-3); }
+  .signin form.tight .btn { margin-top: 0; }
+  .signin form.tight .cancel { margin-top: var(--space-3); }
+  .signin .input { width: 100%; box-sizing: border-box; }
+  .signin .hint { font: var(--text-caption); color: var(--text-tertiary); margin: var(--space-1) 0 0; }
+  @media (max-width: 640px) { .signin { padding: var(--space-12) 0 var(--space-16); } }
+</style>
+</head>
+<body>
+
+<header class="site-top">
+  <div class="wrap">
+    <a class="logo" href="./"><img src="ds/logo/belong-wordmark-small-ink.svg" alt="Belong" width="90" height="26"></a>
+    <nav aria-label="Site">
+      <a href="use.html">Usage</a>
+      <a href="signin.html" aria-current="page">Sign in</a>
+    </nav>
+  </div>
+</header>
+
+<main class="signin">
+  <div class="wrap">
+    <h1>Sign in to Belong</h1>
+    <div class="tabs" role="tablist" aria-label="Sign in or create an account">
+      <button type="button" role="tab" id="tab-in" aria-controls="in" aria-selected="true" class="on">Sign in</button>
+      <button type="button" role="tab" id="tab-up" aria-controls="up" aria-selected="false" tabindex="-1">New user?</button>
+    </div>
+
+    <div class="panel" id="in" role="tabpanel" aria-labelledby="tab-in">
+      <div id="in-start">
+      <div class="others">
+        <button type="button" class="btn secondary block"><svg class="g" viewBox="0 0 48 48" aria-hidden="true"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>Continue with Google</button>
+        <button type="button" class="btn secondary block">Sign in with a passkey</button>
+      </div>
+      <p class="or"><span>or with your email</span></p>
+      <form class="tight" id="in-email-form">
+        <div class="form-row">
+          <label class="field-label" for="in-email">Email address</label>
+          <input class="input" id="in-email" type="email" autocomplete="username" required>
+        </div>
+        <button type="submit" class="btn block lg">Continue</button>
+      </form>
+      </div>
+
+      <div id="in-password-step" hidden>
+        <form class="tight" onsubmit="return false">
+          <div class="form-row">
+            <label class="field-label" for="in-email-2">Email address</label>
+            <input class="input who" id="in-email-2" type="email" autocomplete="username" readonly>
+          </div>
+          <div class="form-row">
+            <label class="field-label" for="in-password">Password</label>
+            <input class="input" id="in-password" type="password" autocomplete="current-password">
+          </div>
+          <label class="check card sm"><input type="checkbox" id="in-person"><span>Confirm you're a person</span></label>
+          <button type="submit" class="btn block lg">Sign in</button>
+          <button type="button" class="btn block lg cancel" id="in-back">Cancel</button>
+        </form>
+      </div>
+    </div>
+
+    <div class="panel" id="up" role="tabpanel" aria-labelledby="tab-up" hidden>
+      <div id="up-start">
+      <div class="others">
+        <button type="button" class="btn secondary block"><svg class="g" viewBox="0 0 48 48" aria-hidden="true"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>Continue with Google</button>
+        <a class="btn secondary block" href="use.html#connect-from-an-ai-assistant">Sign up through your own AI agent</a>
+      </div>
+      <p class="or"><span>or with your email</span></p>
+      <form id="up-email-form">
+        <div class="form-row">
+          <label class="field-label" for="up-email">Email address</label>
+          <input class="input" id="up-email" type="email" autocomplete="email" required>
+        </div>
+        <button type="submit" class="btn block lg">Create account</button>
+      </form>
+      <p class="or"><span>or get the Belong app</span></p>
+      <div class="stores">
+        <a class="store" href="https://apps.apple.com/"><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12.152 6.896c-.948 0-2.415-1.078-3.96-1.04-2.04.027-3.91 1.183-4.961 3.014-2.117 3.675-.546 9.103 1.519 12.09 1.013 1.454 2.208 3.09 3.792 3.039 1.52-.065 2.09-.987 3.935-.987 1.831 0 2.35.987 3.96.948 1.637-.026 2.676-1.48 3.676-2.948 1.156-1.688 1.636-3.325 1.662-3.415-.039-.013-3.182-1.221-3.22-4.857-.026-3.04 2.48-4.494 2.597-4.559-1.429-2.09-3.623-2.324-4.39-2.376-2-.156-3.675 1.09-4.61 1.09zM15.53 3.83c.843-1.012 1.4-2.427 1.245-3.83-1.207.052-2.662.805-3.532 1.818-.78.896-1.454 2.338-1.273 3.714 1.338.104 2.715-.688 3.559-1.701"/></svg><span><small>Download on the</small>App Store</span></a>
+        <a class="store" href="https://play.google.com/store/apps"><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M22.018 13.298l-3.919 2.218-3.515-3.493 3.543-3.521 3.891 2.202a1.49 1.49 0 0 1 0 2.594zM1.337.924a1.486 1.486 0 0 0-.112.568v21.017c0 .217.045.419.124.6l11.155-11.087L1.337.924zm12.207 10.065l3.258-3.238L3.45.195a1.466 1.466 0 0 0-.946-.179l11.04 10.973zm0 2.067l-11 10.933c.298.036.612-.016.906-.183l13.324-7.54-3.23-3.21z"/></svg><span><small>Get it on</small>Google Play</span></a>
+      </div>
+      </div>
+
+      <div id="up-details" hidden>
+        <form class="pairs" onsubmit="return false">
+          <div class="form-row">
+            <label class="field-label" for="up-name">Name</label>
+            <input class="input" id="up-name" autocomplete="name">
+          </div>
+          <div class="form-row">
+            <label class="field-label" for="up-id">User ID</label>
+            <input class="input" id="up-id" autocomplete="username" autocapitalize="none" spellcheck="false">
+          </div>
+          <div class="form-row">
+            <label class="field-label" for="up-email-2">Email address</label>
+            <input class="input" id="up-email-2" type="email" autocomplete="email" data-nocopy>
+          </div>
+          <div class="form-row">
+            <label class="field-label" for="up-email-3">Confirm email address</label>
+            <input class="input" id="up-email-3" type="email" autocomplete="off" data-nopaste>
+          </div>
+          <div class="form-row wide">
+            <label class="field-label" for="up-number">Phone number</label>
+            <input class="input" id="up-number" type="tel" inputmode="tel" autocomplete="tel">
+            <p class="hint">We will text you a code for confirmation.</p>
+          </div>
+          <div class="form-row">
+            <label class="field-label" for="up-password">Password</label>
+            <input class="input" id="up-password" type="password" autocomplete="new-password" data-nocopy>
+          </div>
+          <div class="form-row">
+            <label class="field-label" for="up-password-2">Confirm password</label>
+            <input class="input" id="up-password-2" type="password" autocomplete="new-password" data-nopaste>
+          </div>
+          <button type="submit" class="btn block lg wide">Create account</button>
+          <button type="button" class="btn block lg wide cancel" id="up-cancel">Cancel</button>
+        </form>
+      </div>
+    </div>
+  </div>
+</main>
+<script>
+  /* The two tabs: one panel at a time, arrow keys move between them. */
+  (() => {
+    const tabs = [...document.querySelectorAll('[role="tab"]')];
+    const pick = t => tabs.forEach(b => {
+      const on = b === t;
+      b.classList.toggle("on", on); b.setAttribute("aria-selected", String(on)); b.tabIndex = on ? 0 : -1;
+      document.getElementById(b.getAttribute("aria-controls")).hidden = !on;
+    });
+    tabs.forEach((t, i) => {
+      t.addEventListener("click", () => pick(t));
+      t.addEventListener("keydown", e => {
+        if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
+        const next = tabs[(i + 1) % tabs.length]; pick(next); next.focus();
+      });
+    });
+    if (location.hash === "#create") pick(tabs[1]);
+
+    /* Signing in by email: the address first, then the password and the check that it's a person. */
+    const inStart = document.getElementById("in-start"), inPass = document.getElementById("in-password-step");
+    document.getElementById("in-email-form").addEventListener("submit", e => {
+      e.preventDefault();
+      document.getElementById("in-email-2").value = document.getElementById("in-email").value;
+      inStart.hidden = true; inPass.hidden = false; document.getElementById("in-password").focus();
+    });
+    document.getElementById("in-back").addEventListener("click", () => {
+      inStart.hidden = false; inPass.hidden = true; document.getElementById("in-email").focus();
+    });
+
+    /* A new account by email: the address first, then the rest on a second step that carries it over. */
+    const start = document.getElementById("up-start"), details = document.getElementById("up-details");
+    const step = second => { start.hidden = second; details.hidden = !second; };
+    document.getElementById("up-email-form").addEventListener("submit", e => {
+      e.preventDefault();
+      document.getElementById("up-email-2").value = document.getElementById("up-email").value;
+      step(true); document.getElementById("up-name").focus();
+    });
+    document.getElementById("up-cancel").addEventListener("click", () => { step(false); document.getElementById("up-email").focus(); });
+    // Typed twice, by hand: the email address and password can't be copied out, and their confirmations can't be
+    // pasted or dropped into.
+    document.querySelectorAll("[data-nocopy]").forEach(f => ["copy", "cut"].forEach(t => f.addEventListener(t, e => e.preventDefault())));
+    document.querySelectorAll("[data-nopaste]").forEach(f => ["paste", "drop"].forEach(t => f.addEventListener(t, e => e.preventDefault())));
+  })();
+</script>
+
+<footer class="site-foot">
+  <div class="wrap">
+    <a class="logo" href="./"><img src="ds/logo/belong-wordmark-small-cream.svg" alt="Belong" width="48" height="14"></a>
+  </div>
+</footer>
+</body>
+</html>

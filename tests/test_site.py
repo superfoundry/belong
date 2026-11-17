@@ -53,8 +53,8 @@ def text_of(page: Path) -> str:
 
 class TheSiteSpeaksLikeBelong(unittest.TestCase):
     def test_the_pages_are_there(self):
-        """Two pages, by the owner's choice: the landing page and the Use page, which carries badges too."""
-        self.assertEqual({str(p.relative_to(OUT)) for p in pages()}, {"index.html", "use.html"})
+        """Three pages, by the owner's choice: the landing page, the Use page, which carries badges too, and Sign in."""
+        self.assertEqual({str(p.relative_to(OUT)) for p in pages()}, {"index.html", "use.html", "signin.html"})
         self.assertEqual({str(p.relative_to(OUT)) for p in texts()}, {"use.md", "llms.txt"})
 
     def test_the_name_has_no_stop_and_the_logo_is_the_design_systems(self):
