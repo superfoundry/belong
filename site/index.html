@@ -17,12 +17,11 @@
     text-align: center; }
   .hero .wrap { width: 100%; }
   .hero h1 { font-size: var(--font-size-display-xl); margin: 0 auto var(--space-6); max-width: 13ch; }
-  .hero .lead { font: var(--text-body-l); color: var(--text-secondary); margin: 0 auto var(--space-8); max-width: 38ch; }
-  .hero .actions { justify-content: center; }
+  .hero .lead { font: var(--text-body-l); color: var(--text-secondary); margin: 0 auto; max-width: 38ch; }
   @media (max-width: 640px) {
     .hero { min-height: 0; padding: var(--space-16) 0; }
     .hero h1 { font-size: var(--font-size-display-l); margin-bottom: var(--space-4); }
-    .hero .lead { font: var(--text-body-m); margin-bottom: var(--space-6); }
+    .hero .lead { font: var(--text-body-m); }
   }
 
   /* The background: a cloud of points in three dimensions, coral, periwinkle and mint, each joined to its nearest by
@@ -763,6 +762,7 @@
     <a class="logo" href="./"><img src="ds/logo/belong-wordmark-small-ink.svg" alt="Belong" width="90" height="26"></a>
     <nav aria-label="Site">
       <a href="use.html">Usage</a>
+      <a href="signin.html">Sign in</a>
     </nav>
   </div>
 </header>
@@ -773,10 +773,6 @@
       <div class="rise">
         <h1 id="hero-title" class="display-xl">Meet the people looking for <span class="drop-coral">you</span></h1>
         <p class="lead">What are you looking for? Belong finds close matches, and you meet only when you both say yes.</p>
-        <div class="actions">
-          <a class="btn lg" href="use.html">Use Belong</a>
-          <a class="btn lg secondary" href="#different">What's different</a>
-        </div>
       </div>
     </div>
   </section>

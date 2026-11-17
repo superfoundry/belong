@@ -8,6 +8,21 @@
 
 .wrap { max-width: var(--content-max); margin: 0 auto; padding: 0 var(--page-margin); }
 
+/* Headings and short intros wrap into even lines; other text never leaves one word alone on its last line. */
+h1, h2, h3, .lead, .intro { text-wrap: balance; }
+p, li { text-wrap: pretty; }
+
+/* The Belong app in the two stores: white badges, the stores' marks in one color. */
+.stores { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-3); }
+.store { display: flex; align-items: center; justify-content: center; gap: var(--space-2); padding: 8px 12px;
+  border-radius: var(--radius-md); background: var(--surface-card); color: var(--text-primary); text-decoration: none;
+  border: 1px solid var(--border-strong); font: var(--text-body-m); font-weight: 600; line-height: 1.1;
+  transition: background var(--duration-base) var(--ease-standard); }
+.store svg { width: 22px; height: 22px; flex-shrink: 0; }
+.store small { display: block; font: var(--text-caption); font-size: 10px; }
+.store:hover { background: var(--surface-raised); }
+.store:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+
 /* ---------- Top bar: the logo, two links, one button ---------- */
 .site-top { position: relative; z-index: 10; background: var(--surface-nav-blur);
   -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px); }
