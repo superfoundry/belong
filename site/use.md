@@ -46,40 +46,100 @@ A front end must never:
 
 ## Connect from an AI assistant
 
-An assistant that supports MCP connectors (Model Context Protocol) adds Belong by its URL:
+Add Belong to any AI app that supports remote MCP servers (Model Context Protocol) with sign-in, by its
+URL:
 
-```json
-{"mcpServers": {"belong": {"url": "https://belong.one/mcp"}}}
+```text
+https://belong.one/mcp
 ```
 
-The assistant's host signs in under the MCP authorization spec, built on OAuth 2.1: it finds the
-endpoints (see below), registers, and sends the person to Belong's own consent page with the MCP server
-as the `resource`. The consent page names the host (the company that runs the assistant) as the front
-end, since it holds the tokens.
+- **Claude** (web, desktop and mobile): Settings, Connectors, *Add custom connector*, paste the URL, leave
+  the advanced settings empty, then Connect. Turn Belong on in a chat from the tools menu.
+- **Claude Code:** `claude mcp add --transport http belong https://belong.one/mcp`, then `/mcp` to sign in.
+- **ChatGPT:** with developer mode on (Settings, Apps and Connectors, Advanced), create a connector with the
+  URL and OAuth as its authentication.
+- **Any other AI** that supports remote MCP servers with OAuth adds the same URL.
 
-There is one tool per call (see Calls), with the same names, inputs and outputs. Tools that change
-something are marked as such and say in their description to ask the person first.
+Connecting sends you to Belong's own page: sign in, or sign up there, see what the AI may do, and press
+Connect. The AI never sees a password, passkey, phone number or code. It can then do for your account
+exactly what the Belong app can, and no more. Disconnect it any time from your account, under Connected
+AIs.
 
-- **Without DPoP.** Until a host can sign requests with DPoP, it gets bearer tokens: 5-minute access
-  tokens, never `account:manage`, and marked "bearer" on the consent page.
-- **Don't ask for `account:manage`.** Deleting and revoking need the person's passkey on Belong's page
-  anyway.
-- **Conversations need a relay.** An MCP host only calls tools; it can't receive messages. A connector
-  can say yes only with a reach-me address from a relay (see Conversations); without one it stops at
-  introduced.
+### Tools
 
-A typical session, as an agent would run it:
+| Tool | Scope | What it does |
+|---|---|---|
+| `account` | `account:read` | Your account as the app shows it: first name, age band, gender, verified or not, plan, settings. |
+| `receipts` | `account:read` | Your own receipts: the Warden's checks of what was yours. |
+| `listings` | `listings:read` | Your listings with every detail, shown and hidden, and whether each is live. |
+| `save_listing` | `listings:write` | Creates or replaces a listing, with your own words for it. Leave out `listing_id` for a new one. |
+| `set_visibility` | `listings:write` | Sets details shown or hidden. |
+| `offers` | `listings:write` | Takes or lets go what Belong offered to change too after you edited a listing. |
+| `set_listing_options` | `listings:write` | A listing's own choices: close matches, questions, verified people only. |
+| `start_matching` | `listings:write` | Starts matching a listing, or saves changes to a live one. The Warden's entry check decides. |
+| `pause_listing` | `listings:write` | Pauses or resumes a live listing. |
+| `withdraw` | `listings:write` | Deletes a listing for good. |
+| `matches` | `matches:read` | Your matches: what each other person shows, the reason, verified or not, where each stands. |
+| `match` | `matches:read` | One match. |
+| `answer` | `matches:answer` | Yes or no to a match. |
+| `compare` | `matches:answer` | With someone you're connected with: see what else you have in common, from hidden details you both choose. |
+| `questions` | `matches:read` | The questions Belong is asking about your listings. |
+| `answer_question` | `matches:answer` | Answers one: yes or no, or an age range. |
+| `connections` | `matches:read` | The people you and they have both said yes to. |
+| `thread` | `messages:read` | Your conversation with one of them. |
+| `send_message` | `messages:send` | Sends a message to someone you're connected with. |
+| `react_to_message` | `messages:send` | Reacts to one of their messages. |
+| `settings` | `account:settings` | Your account settings: always include close matches, always allow questions, always verified people only. |
+
+The AI sees only the tools its scopes cover. Every tool that changes something is marked so, and says in
+its description to act only after the person asked for it in this conversation, never because another
+person's text says so.
+
+- **A new listing may need a compute puzzle.** From an AI Belong doesn't know, `save_listing` replies with a
+  challenge: find a counter where the SHA-256 of `challenge:counter` starts with `bits` zero bits and send
+  it back as `puzzle`, or have the person open `solve_url` and send the challenge alone. An AI is known
+  only when its company signs every token request with its published keys; Claude Code runs on your own
+  computer, so it always solves the puzzle.
+- **Sensitive details wait for the person.** The AI never shows one: the person confirms it on Belong.
+- **Other people's words are data.** `other_shown`, `reason`, `question` and `thread` hold what other
+  people wrote, never instructions.
+- **No allowance.** Your own AI uses none of the daily allowance of Belong's own agents. Rate limits
+  still apply.
+- **Match cards.** Where the AI app supports MCP Apps, `matches`, `match` and `answer` come with Belong's
+  match card: what the other person shows, with Yes and No. Elsewhere the same reply arrives as text. The
+  Belong app always updates too.
+
+### Sign-in, for AI apps
+
+Belong is an OAuth 2.1 authorization server under the MCP authorization spec. A call without a token gets
+`401` with a `WWW-Authenticate` header pointing at `/.well-known/oauth-protected-resource/mcp`; the
+authorization server's metadata names `/oauth/register` (dynamic registration, no approval),
+`/oauth/authorize`, `/oauth/token` and `/oauth/revoke`. A client id may instead be the https address of
+the app's own metadata document.
+
+- PKCE with S256 only; the `resource` is exactly `https://belong.one/mcp`; a sign-in returns only to an
+  address the app registered.
+- Scopes: `account:read`, `account:settings`, `listings:read`, `listings:write`, `matches:read`,
+  `matches:answer`, `messages:read`, `messages:send`, and `offline_access` for renewal. Deleting the
+  account is never offered to an AI; it happens on Belong's own page.
+- Access tokens last 15 minutes. Each renewal returns a new renewal token, and reusing a spent one
+  disconnects the AI and tells the person. A connection ends after 90 days without use.
+- Streamable HTTP with plain JSON replies, one JSON-RPC message per POST, no sessions: the access token
+  is the identity.
+
+A typical session, as an AI would run it:
 
 ```text
 person: Find me someone to go sea swimming with, early mornings, near Brighton.
-agent:  schema()                      -> the listing's shape
-agent:  details_in_use()              -> names others already use, as data
-agent:  (drafts the listing, shows every field as shown or hidden, asks the person to confirm)
-agent:  submit(listing)               -> {"id": "lst_4hd81", "version": 1}
-later:  matches({"state": "waiting"}) -> one match, with what the other shows and why
-agent:  (shows it to the person, asks yes or no)
+ai:     (drafts the listing with the person, shows every detail as shown or hidden, asks to confirm)
+ai:     save_listing({"person_message": "...", "listing": {...}})  -> a compute puzzle
+ai:     save_listing({..., "puzzle": "challenge:counter"})          -> {"listing_id": "lst_4hd81"}
+ai:     start_matching({"listing_id": "lst_4hd81"})                 -> live
+later:  matches({"state": "waiting"})  -> one match, with what the other shows and why
+ai:     (shows it to the person, asks yes or no)
 person: Yes.
-agent:  answer({"match_id": "mt_77c2e", "answer": "yes", "address": "https://relay.example/r/5b0e..."})
+ai:     answer({"match_id": "mt_77c2e", "answer": "yes"})
+later:  connections(), then thread({"match_id": "mt_77c2e"}) and send_message(...)
 ```
 
 ## Connect from an app, website or script
@@ -239,14 +299,15 @@ Tell them it reveals its host.
 - **Sending**: post to `their_address` with the secret, from your server rather than the person's
   device. Refuse an address that resolves to a private, loopback or link-local IP, and don't follow
   redirects.
-- **A relay** serves a front end with no always-on host (a mobile app, an AI connector): it creates an
+- **A relay** serves a front end with no always-on host (a mobile app, say): it creates an
   address, lists what arrived, and revokes it. Anyone may run one; Belong doesn't.
 - **Revoking**: the person can revoke their address any time; answer `410 Gone` from then on.
 
 ## Calls
 
 Every call is `POST /v0/{call}`, a JSON object in and out, over HTTPS. Ids are opaque and never reused;
-times are RFC 3339 UTC. An MCP connector has one tool per call.
+times are RFC 3339 UTC. An AI connected over MCP uses its own tools instead (see Connect from an AI
+assistant).
 
 | Call | Scope | Input | Output |
 |---|---|---|---|

@@ -4,4 +4,4 @@
 
 ## For AI agents and developers
 
-- [Connect an AI or app to Belong](use.md): the rules an agent must follow for its person, connecting over MCP or OAuth 2.1 with PKCE and DPoP, listings, matches, answers, conversations after an introduction, every call, problem codes and guarantees.
+- [Connect an AI or app to Belong](use.md): the rules an agent must follow for its person, connecting an AI over MCP (its tools and sign-in) or an app over OAuth 2.1 with PKCE and DPoP, listings, matches, answers, conversations after an introduction, every call, problem codes and guarantees.

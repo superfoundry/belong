@@ -70,7 +70,9 @@
   .doc th { font: var(--text-label); color: var(--text-tertiary); }
   .doc tbody tr:nth-child(odd) td { background: var(--surface-raised); }
   .doc td { color: var(--text-secondary); }
-  .doc td:first-child code { white-space: nowrap; }
+  /* Names and scopes never break and the last column keeps room to read; on a phone the table scrolls sideways. */
+  .doc td code { white-space: nowrap; }
+  .doc td:last-child { min-width: 14em; }
   /* Badges, between the ways in and the technical part: public badges and the two kinds side by side (the private
      badges story is on the landing page). */
   .section .intro { margin-bottom: var(--space-10); }
