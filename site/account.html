@@ -1,0 +1,300 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Your Belong account</title>
+<meta name="description" content="Your Belong account: your details and passkeys, the AIs you've connected, your plan, the badges you hold and the badges you issue.">
+<meta name="robots" content="noindex">
+<link rel="stylesheet" href="ds/tokens.css">
+<link rel="stylesheet" href="ds/belong.css">
+<link rel="stylesheet" href="site.css">
+<link rel="icon" type="image/svg+xml" href="ds/logo/belong-icon.svg">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<style>
+  /* The account, after signing in: a list of its parts on the left (a row of links across the top on phones) and
+     each part as a white card: the account itself, the AIs connected to it, the plan, the badges the person holds,
+     and, only for someone set up as an issuer, the badges they issue. Each row is a label, what it holds and one
+     quiet action; a change opens in place. Leaving, removing and deleting ask first. The one coral button is the
+     plan's. */
+  body { display: flex; flex-direction: column; min-height: 100svh; }
+  .account { flex: 1; padding: var(--space-12) 0 var(--space-16); }
+  .account [hidden] { display: none; }
+  .account .layout { display: grid; grid-template-columns: 180px minmax(0, 1fr); gap: var(--space-10); align-items: start; }
+  .account h1 { font: var(--text-heading-l); margin: 0 0 var(--space-1); }
+  .account .who { margin: 0 0 var(--space-8); color: var(--text-secondary); font: var(--text-body-s); }
+
+  .parts { position: sticky; top: var(--space-6); display: grid; gap: var(--space-1); }
+  .parts a { font: var(--text-body-s); font-weight: 500; color: var(--text-secondary); text-decoration: none;
+    padding: var(--space-2) var(--space-3); border-left: 2px solid transparent; }
+  .parts a:hover { color: var(--text-primary); }
+  .parts a.on { color: var(--text-primary); border-left-color: var(--border-accent); }
+
+  .part { margin-bottom: var(--space-6); scroll-margin-top: var(--space-6); }
+  .part h2 { font: var(--text-heading-m); margin: 0 0 var(--space-1); }
+  .part > .note { margin: 0 0 var(--space-5); color: var(--text-secondary); font: var(--text-body-s); }
+  .part h3 { font: var(--text-label); color: var(--text-secondary); margin: var(--space-6) 0 var(--space-2); }
+
+  /* A row: label, value, action. */
+  .row { display: grid; grid-template-columns: 140px minmax(0, 1fr) auto; gap: var(--space-4); align-items: center;
+    padding: var(--space-3) 0; border-top: 1px solid var(--border-subtle); }
+  .row:first-of-type { border-top: 0; }
+  .row .k { font: var(--text-label); color: var(--text-secondary); }
+  .row .v { font: var(--text-body-s); overflow-wrap: anywhere; }
+  .row .v small { display: block; font: var(--text-caption); color: var(--text-tertiary); }
+  .row .v .bmark { font-size: 1.15em; }
+  .row.wide { grid-template-columns: minmax(0, 1fr) auto; }
+  .row .edit { display: flex; gap: var(--space-2); }
+  .row .edit .input { flex: 1; min-width: 0; padding: 6px 10px; }
+  .row .btn.sm { white-space: nowrap; }
+  /* Edit and remove are icons: gray at rest, coral on hover. */
+  .icon { all: unset; box-sizing: border-box; display: inline-grid; place-items: center; width: 32px; height: 32px;
+    border-radius: var(--radius-md); color: color-mix(in srgb, var(--text-tertiary) 60%, transparent); cursor: pointer;
+    transition: color var(--duration-fast) var(--ease-standard); }
+  .icon svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round;
+    stroke-linejoin: round; }
+  .icon:hover { color: var(--accent-default); }
+  .icon:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+  .empty { margin: 0; padding: var(--space-3) 0; font: var(--text-body-s); color: var(--text-tertiary); }
+  .more { margin-top: var(--space-3); }
+
+  /* Leaving the account: its own band at the foot of the card. */
+  .out { margin-top: var(--space-6); padding-top: var(--space-2); border-top: 1px solid var(--border-default); }
+  .out .row:first-of-type { border-top: 0; }
+  .out .k { color: var(--text-primary); font: var(--text-body-s); font-weight: 600; }
+  .out .row { grid-template-columns: minmax(0, 1fr) auto; }
+  .out .k small { display: block; font: var(--text-caption); font-weight: 400; color: var(--text-tertiary); }
+
+  /* The plan: two choices side by side, today's use as a bar in the agents' color. */
+  .plans { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-3); margin-bottom: var(--space-5); }
+  .plan { border: 1px solid var(--border-default); border-radius: var(--radius-md); padding: var(--space-4); }
+  .plan.now { border-color: var(--border-accent); background: var(--surface-raised); }
+  .plan .top { display: flex; justify-content: space-between; align-items: center; gap: var(--space-2); }
+  .plan b { font: var(--text-heading-s); }
+  .plan .price { font: var(--text-body-s); color: var(--text-secondary); margin: var(--space-1) 0 var(--space-2); }
+  .plan p { margin: 0; font: var(--text-caption); color: var(--text-secondary); }
+  .plan .btn { margin-top: var(--space-4); }
+  .use { margin-bottom: var(--space-2); }
+  .use .top { display: flex; justify-content: space-between; font: var(--text-label); margin-bottom: var(--space-2); }
+  .use .top span { color: var(--text-secondary); }
+  .meter { height: 8px; border-radius: var(--radius-pill); background: var(--surface-sunken); overflow: hidden; }
+  .meter i { display: block; height: 100%; background: var(--accent-ai); border-radius: inherit; }
+  .use p { margin: var(--space-2) 0 0; font: var(--text-caption); color: var(--text-tertiary); }
+
+  /* Asking first. */
+  dialog { border: 1px solid var(--border-default); border-radius: var(--radius-md); padding: var(--space-6);
+    max-width: min(420px, calc(100vw - 2 * var(--page-margin))); box-shadow: var(--shadow-lg); color: var(--text-primary);
+    background: var(--surface-card); }
+  dialog::backdrop { background: color-mix(in srgb, var(--text-primary) 40%, transparent); }
+  dialog h2 { font: var(--text-heading-s); margin: 0 0 var(--space-2); }
+  dialog p { margin: 0 0 var(--space-5); font: var(--text-body-s); color: var(--text-secondary); }
+  dialog .actions { justify-content: flex-end; }
+
+  @media (max-width: 760px) {
+    .account { padding-top: var(--space-6); }
+    .account .layout { grid-template-columns: 1fr; gap: var(--space-4); }
+    /* The parts become a row of links that scrolls sideways under the heading. */
+    .parts { position: static; display: flex; overflow-x: auto; gap: var(--space-4); border-bottom: 1px solid var(--border-subtle);
+      margin: 0 calc(-1 * var(--page-margin)); padding: 0 var(--page-margin); scrollbar-width: none; }
+    .parts a { white-space: nowrap; padding: var(--space-2) 0; border-left: 0; border-bottom: 2px solid transparent; }
+    .parts a.on { border-bottom-color: var(--border-accent); }
+    .account .who { margin-bottom: var(--space-4); }
+    .part.card { padding: var(--space-5); }
+    .row { grid-template-columns: minmax(0, 1fr) auto; gap: var(--space-1) var(--space-3); }
+    .row .k { grid-column: 1 / -1; }
+    .row.wide .k { grid-column: auto; }
+    .plans { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<header class="site-top">
+  <div class="wrap">
+    <a class="logo" href="./"><img src="ds/logo/belong-wordmark-small-ink.svg" alt="Belong" width="90" height="26"></a>
+    <nav aria-label="Site">
+      <a href="use.html">Usage</a>
+      <a href="account.html" aria-current="page">Account</a>
+    </nav>
+  </div>
+</header>
+
+<main class="account">
+  <div class="wrap">
+    <h1>Your account</h1>
+    <p class="who">Signed in as Sam Rivera</p>
+    <div class="layout">
+      <nav class="parts" aria-label="Account">
+        <a href="#details">Account</a>
+        <a href="#ais">Connected AIs</a>
+        <a href="#plan">Plan and billing</a>
+        <a href="#held">Badges you hold</a>
+        <a href="#issued" data-issuer>Issue badges</a>
+      </nav>
+
+      <div>
+        <section class="part card" id="details" aria-labelledby="details-title">
+          <h2 id="details-title">Account</h2>
+          <p class="note">Only you see these. Your matches see only what your listings show.</p>
+          <div class="row" data-edit="text"><span class="k">Name</span><span class="v">Sam Rivera</span><button type="button" class="icon" aria-label="Change name"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16v4z"/><path d="M13.5 6.5l4 4"/></svg></button></div>
+          <div class="row" data-edit="text"><span class="k">Username</span><span class="v">samrivera</span><button type="button" class="icon" aria-label="Change username"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16v4z"/><path d="M13.5 6.5l4 4"/></svg></button></div>
+          <div class="row" data-edit="email"><span class="k">Email address</span><span class="v">sam@example.com</span><button type="button" class="icon" aria-label="Change email address"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16v4z"/><path d="M13.5 6.5l4 4"/></svg></button></div>
+          <div class="row" data-edit="tel"><span class="k">Phone number</span><span class="v">+1 555 010 0142<small>We will text you a code to confirm a new number.</small></span><button type="button" class="icon" aria-label="Change phone number"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16v4z"/><path d="M13.5 6.5l4 4"/></svg></button></div>
+          <div class="row" data-edit="password"><span class="k">Password</span><span class="v">Changed August 4, 2026</span><button type="button" class="icon" aria-label="Change password"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16v4z"/><path d="M13.5 6.5l4 4"/></svg></button></div>
+
+          <h3>Passkeys</h3>
+          <div id="passkeys">
+            <div class="row wide"><span class="v">MacBook Air<small>Added November 2, 2026 · last used today</small></span><button type="button" class="icon" data-ask="passkey" aria-label="Remove"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16"/><path d="M10 11v6M14 11v6"/><path d="M6 7l1 13h10l1-13"/><path d="M9 7V4h6v3"/></svg></button></div>
+            <div class="row wide"><span class="v">iPhone<small>Added October 14, 2026 · last used yesterday</small></span><button type="button" class="icon" data-ask="passkey" aria-label="Remove"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16"/><path d="M10 11v6M14 11v6"/><path d="M6 7l1 13h10l1-13"/><path d="M9 7V4h6v3"/></svg></button></div>
+          </div>
+          <button type="button" class="btn secondary sm more">Add a passkey</button>
+
+          <div class="out">
+            <div class="row"><span class="k">Log out everywhere<small>Signs you out on every phone, computer and browser, this one too.</small></span><button type="button" class="btn secondary sm" data-ask="logout">Log out everywhere</button></div>
+            <div class="row"><span class="k">Delete account<small>Deletes your account, your listings, your matches and your chats. This can't be undone.</small></span><button type="button" class="btn destructive sm" data-ask="delete">Delete account</button></div>
+          </div>
+        </section>
+
+        <section class="part card" id="ais" aria-labelledby="ais-title">
+          <h2 id="ais-title">Connected AIs</h2>
+          <p class="note">AI agents you've let use Belong for you. They use none of your daily allowance.</p>
+          <div id="ai-list">
+            <div class="row wide"><span class="v">Claude<small>Connected October 20, 2026 · can read and change your listings and answer matches</small></span><button type="button" class="btn secondary sm" data-ask="ai">Disconnect</button></div>
+            <div class="row wide"><span class="v">ChatGPT<small>Connected September 9, 2026 · can read your listings and matches</small></span><button type="button" class="btn secondary sm" data-ask="ai">Disconnect</button></div>
+          </div>
+          <p class="empty" hidden>No AIs connected.</p>
+          <a class="btn secondary sm more" href="use.html#connect-from-an-ai-assistant">Connect an AI</a>
+        </section>
+
+        <section class="part card" id="plan" aria-labelledby="plan-title">
+          <h2 id="plan-title">Plan and billing</h2>
+          <p class="note">Matching, answering matches and chats are free on every plan. Plans are only for Belong's own agents.</p>
+          <div class="plans">
+            <div class="plan now">
+              <div class="top"><b>Free</b><span class="badge accent">Your plan</span></div>
+              <p class="price">$0</p>
+              <p>Belong's agents, within a daily allowance.</p>
+            </div>
+            <div class="plan">
+              <div class="top"><b>Monthly</b></div>
+              <p class="price">$9 a month</p>
+              <p>For heavy use of Belong's agents. Getting verified is included.</p>
+              <button type="button" class="btn block">Switch to Monthly</button>
+            </div>
+          </div>
+          <div class="use">
+            <div class="top">Today's allowance <span>38% used</span></div>
+            <div class="meter" role="meter" aria-label="Today's allowance used" aria-valuemin="0" aria-valuemax="100" aria-valuenow="38"><i style="width: 38%"></i></div>
+            <p>Starts again at midnight. If your agents use it all, they pause until then; your listings keep matching.</p>
+          </div>
+          <div class="row wide"><span class="v">Not verified<small>An ID check by an outside provider confirms who you are and shows Verified on your matches. $3 once, or included with Monthly.</small></span><button type="button" class="btn secondary sm">Get verified</button></div>
+        </section>
+
+        <section class="part card" id="held" aria-labelledby="held-title">
+          <h2 id="held-title">Badges you hold</h2>
+          <p class="note">Nobody else sees who holds a private badge. Leave one any time; its issuer would have to offer it again.</p>
+          <div id="held-list">
+            <div class="row wide"><span class="v"><svg class="bmark" viewBox="0 0 24 24" aria-hidden="true"><path class="f" d="M12 1.6 21 6.8v10.4L12 22.4 3 17.2V6.8Z"/><path class="w" d="M6.7 12.0L7.1 13.3L7.6 14.6L8.2 15.7L9.0 16.5L10.5 16.9L11.9 16.4L12.7 15.5L13.4 14.6L14.1 13.7L14.7 12.8L15.3 11.8L15.9 10.9L16.5 9.9L17.1 9.0L17.7 8.0L17.4 7.7L16.5 8.4L15.6 9.1L14.7 9.7L13.8 10.4L12.9 11.2L12.1 11.9L11.2 12.6L10.4 13.4L10.0 13.7L10.8 13.6L10.6 13.4L9.9 12.9L9.2 12.5L8.3 12.2L7.5 11.8Z"/></svg><b>Alumni</b> · Northfield College<small>Public · shown on your listings</small></span><button type="button" class="icon" data-ask="badge" aria-label="Leave"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16"/><path d="M10 11v6M14 11v6"/><path d="M6 7l1 13h10l1-13"/><path d="M9 7V4h6v3"/></svg></button></div>
+            <div class="row wide"><span class="v"><svg class="bmark" viewBox="0 0 24 24" aria-hidden="true"><path class="l" d="M12 1.6 21 6.8v10.4L12 22.4 3 17.2V6.8Z"/><path class="f" d="M6.7 12.0L7.1 13.3L7.6 14.6L8.2 15.7L9.0 16.5L10.5 16.9L11.9 16.4L12.7 15.5L13.4 14.6L14.1 13.7L14.7 12.8L15.3 11.8L15.9 10.9L16.5 9.9L17.1 9.0L17.7 8.0L17.4 7.7L16.5 8.4L15.6 9.1L14.7 9.7L13.8 10.4L12.9 11.2L12.1 11.9L11.2 12.6L10.4 13.4L10.0 13.7L10.8 13.6L10.6 13.4L9.9 12.9L9.2 12.5L8.3 12.2L7.5 11.8Z"/></svg><b>Member</b> · Harbor Lane Co-op<small>Private · used for matching, never shown</small></span><button type="button" class="icon" data-ask="badge" aria-label="Leave"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16"/><path d="M10 11v6M14 11v6"/><path d="M6 7l1 13h10l1-13"/><path d="M9 7V4h6v3"/></svg></button></div>
+          </div>
+          <p class="empty" hidden>You don't hold any badges.</p>
+        </section>
+
+        <!-- Only for an account set up as an issuer. -->
+        <section class="part card" id="issued" aria-labelledby="issued-title" data-issuer>
+          <h2 id="issued-title">Issue badges</h2>
+          <p class="note">The badges you issue as Riverside Tenants Union. Create badges, invite holders and remove them in the badge dashboard.</p>
+          <div class="row wide"><span class="v"><svg class="bmark" viewBox="0 0 24 24" aria-hidden="true"><path class="l" d="M12 1.6 21 6.8v10.4L12 22.4 3 17.2V6.8Z"/><path class="f" d="M6.7 12.0L7.1 13.3L7.6 14.6L8.2 15.7L9.0 16.5L10.5 16.9L11.9 16.4L12.7 15.5L13.4 14.6L14.1 13.7L14.7 12.8L15.3 11.8L15.9 10.9L16.5 9.9L17.1 9.0L17.7 8.0L17.4 7.7L16.5 8.4L15.6 9.1L14.7 9.7L13.8 10.4L12.9 11.2L12.1 11.9L11.2 12.6L10.4 13.4L10.0 13.7L10.8 13.6L10.6 13.4L9.9 12.9L9.2 12.5L8.3 12.2L7.5 11.8Z"/></svg><b>Member</b><small>214 holders · 6 invites waiting</small></span><span class="badge">Private</span></div>
+          <div class="row wide"><span class="v"><svg class="bmark" viewBox="0 0 24 24" aria-hidden="true"><path class="l" d="M12 1.6 21 6.8v10.4L12 22.4 3 17.2V6.8Z"/><path class="f" d="M6.7 12.0L7.1 13.3L7.6 14.6L8.2 15.7L9.0 16.5L10.5 16.9L11.9 16.4L12.7 15.5L13.4 14.6L14.1 13.7L14.7 12.8L15.3 11.8L15.9 10.9L16.5 9.9L17.1 9.0L17.7 8.0L17.4 7.7L16.5 8.4L15.6 9.1L14.7 9.7L13.8 10.4L12.9 11.2L12.1 11.9L11.2 12.6L10.4 13.4L10.0 13.7L10.8 13.6L10.6 13.4L9.9 12.9L9.2 12.5L8.3 12.2L7.5 11.8Z"/></svg><b>Steward</b><small>18 holders</small></span><span class="badge">Private</span></div>
+          <button type="button" class="btn secondary sm more">Open the badge dashboard</button>
+        </section>
+      </div>
+    </div>
+  </div>
+</main>
+
+<dialog id="ask" aria-labelledby="ask-title">
+  <form method="dialog">
+    <h2 id="ask-title"></h2>
+    <p id="ask-text"></p>
+    <div class="actions">
+      <button type="submit" value="no" class="btn secondary sm">Cancel</button>
+      <button type="submit" value="yes" class="btn destructive sm" id="ask-yes"></button>
+    </div>
+  </form>
+</dialog>
+
+<script>
+  (() => {
+    /* A change opens in place: the value becomes a field with Save and Cancel. A new password is typed twice. */
+    document.querySelectorAll("[data-edit]").forEach(row => {
+      const kind = row.dataset.edit, v = row.querySelector(".v"), change = row.querySelector("button");
+      const label = row.querySelector(".k").textContent;
+      change.addEventListener("click", () => {
+        const was = v.innerHTML, box = document.createElement("form");
+        box.className = "edit";
+        const field = (lbl, value) => {
+          const f = document.createElement("input");
+          f.className = "input"; f.type = kind === "tel" ? "tel" : kind; f.setAttribute("aria-label", lbl);
+          if (kind === "password") f.autocomplete = "new-password";
+          f.value = value; return f;
+        };
+        const first = field(label, kind === "password" ? "" : v.firstChild.textContent.trim());
+        box.append(first);
+        if (kind === "password") { first.placeholder = "New password"; const again = field("Confirm password", ""); again.placeholder = "Confirm"; box.append(again); }
+        const save = document.createElement("button"), cancel = document.createElement("button");
+        save.className = "btn sm"; save.textContent = "Save";
+        cancel.type = "button"; cancel.className = "btn secondary sm"; cancel.textContent = "Cancel";
+        box.append(save, cancel);
+        const done = () => { box.replaceWith(v); v.innerHTML = was; change.hidden = false; };
+        box.addEventListener("submit", e => { e.preventDefault(); done(); });
+        cancel.addEventListener("click", done);
+        v.replaceWith(box); change.hidden = true; first.focus();
+      });
+    });
+
+    /* Removing, disconnecting, leaving, logging out everywhere and deleting the account all ask first. */
+    const ask = document.getElementById("ask");
+    const words = {
+      passkey: n => [`Remove the passkey on ${n}?`, "You won't be able to sign in with it any more.", "Remove"],
+      ai: n => [`Disconnect ${n}?`, `${n} won't be able to use Belong for you until you connect it again.`, "Disconnect"],
+      badge: n => [`Leave the ${n} badge?`, "Its issuer would have to offer it to you again.", "Leave"],
+      logout: () => ["Log out everywhere?", "You'll be signed out on every phone, computer and browser, this one too.", "Log out everywhere"],
+      delete: () => ["Delete your account?", "Your account, listings, matches and chats will be deleted. You'll confirm with your passkey. This can't be undone.", "Delete account"],
+    };
+    document.querySelectorAll("[data-ask]").forEach(b => b.addEventListener("click", () => {
+      const row = b.closest(".row"), name = (row.querySelector(".v b") || row.querySelector(".v")).firstChild.textContent.trim();
+      const [title, text, yes] = words[b.dataset.ask](name);
+      document.getElementById("ask-title").textContent = title;
+      document.getElementById("ask-text").textContent = text;
+      document.getElementById("ask-yes").textContent = yes;
+      ask.onclose = () => {
+        if (ask.returnValue !== "yes" || !["passkey", "ai", "badge"].includes(b.dataset.ask)) return;
+        const list = row.parentElement; row.remove();
+        if (!list.children.length && list.nextElementSibling?.classList.contains("empty")) list.nextElementSibling.hidden = false;
+      };
+      ask.returnValue = ""; ask.showModal();
+    }));
+
+    /* The list of parts marks the one on screen. */
+    const links = [...document.querySelectorAll(".parts a")];
+    const parts = [...document.querySelectorAll(".part")];
+    const show = id => links.forEach(a => a.classList.toggle("on", a.hash === "#" + id));
+    let picked = false;  // a tapped link stays marked, even for a last part too short to reach the top
+    const mark = () => {
+      if (picked) return;
+      show((parts.filter(p => p.getBoundingClientRect().top <= innerHeight * 0.3).at(-1) || parts[0]).id);
+    };
+    links.forEach(a => a.addEventListener("click", () => { picked = true; show(a.hash.slice(1)); }));
+    ["wheel", "touchstart", "keydown"].forEach(t => addEventListener(t, () => { picked = false; }, { passive: true }));
+    addEventListener("scroll", mark, { passive: true }); mark();
+  })();
+</script>
+
+<footer class="site-foot">
+  <div class="wrap">
+    <a class="logo" href="./"><img src="ds/logo/belong-wordmark-small-cream.svg" alt="Belong" width="48" height="14"></a>
+  </div>
+</footer>
+</body>
+</html>
